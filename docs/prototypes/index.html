@@ -12,7 +12,10 @@
   --good:#32D74B; --warn:#FFD60A; --crit:#FF5C5C; --info:#5CD9FF;
   --disk:#F7A45C;
   --termbg:#07090F;
-  --key:var(--key); --bar:var(--bar); --keyline:var(--keyline); --track:var(--track); --dim:var(--dim);
+  /* 2026-07-19 修复：此行原为 --key:var(--key) 等自引用，属 CSS 循环引用，
+     深色下这 5 个变量全部无值（TabBar 底/键帽/进度槽/指标环底圈/chevron 色失效）。
+     深色值按浅色档与基础色板的相对关系反推补齐，推导见 设计规范 §2 附注。 */
+  --key:#1E2438; --bar:#151A2B; --keyline:#2C3350; --track:#232942; --dim:#5C6379;
   --cardfx:inset 0 1px 0 rgba(255,255,255,.05);
   --canvas:#07080D; --canvas-ink:#DFE2EE; --canvas-muted:#7E8598;
 }
