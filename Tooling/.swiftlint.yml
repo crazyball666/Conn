@@ -1,0 +1,54 @@
+included:
+  - ../Conn/Conn
+  - ../Packages/ConnPackages/Sources
+  - ../Packages/ConnPackages/Tests
+
+excluded:
+  - ../Packages/ConnPackages/.build
+  - ../Conn/Conn/Assets.xcassets
+
+disabled_rules:
+  - todo                      # 计划内的 TODO 由文档 checklist 跟踪
+  - trailing_comma
+
+opt_in_rules:
+  - empty_count
+  - force_unwrapping
+  - implicitly_unwrapped_optional
+  - overridden_super_call
+  - redundant_nil_coalescing
+  - unused_import
+
+line_length:
+  warning: 140
+  error: 200
+  ignores_comments: true
+
+type_body_length:
+  warning: 300
+  error: 500
+
+file_length:
+  warning: 500
+  error: 800
+
+function_body_length:
+  warning: 60
+  error: 120
+
+identifier_name:
+  min_length: 2
+  excluded: [id, ts, db, ip, os, x, y]
+
+# 红线：禁止引入遥测/分析 SDK（技术实现方案 §2 禁止引入清单）
+custom_rules:
+  no_analytics_sdk:
+    name: "零遥测红线"
+    regex: "import (Firebase|FirebaseAnalytics|Crashlytics|Sentry|Bugsnag|Amplitude|Mixpanel|AppsFlyer|Adjust)"
+    message: "违反零遥测红线（技术实现方案 §2）：禁止引入任何分析/崩溃上报 SDK"
+    severity: error
+  no_hardcoded_hex:
+    name: "禁止硬编码颜色"
+    regex: "Color\\(red:|UIColor\\(red:|#colorLiteral"
+    message: "违反设计规范 §7：颜色必须走 ConnUI 令牌，禁止在视图代码中硬编码"
+    severity: error

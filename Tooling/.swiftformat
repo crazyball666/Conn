@@ -1,0 +1,15 @@
+--swiftversion 5.10
+--indent 4
+--maxwidth 140
+--wraparguments before-first
+--wrapparameters before-first
+--wrapcollections before-first
+--closingparen balanced
+--stripunusedargs closure-only
+--self remove
+--importgrouping testable-bottom
+--commas inline
+--trimwhitespace always
+--emptybraces no-space
+
+--exclude Packages/ConnPackages/.build,Conn/Conn/Assets.xcassets

@@ -1,0 +1,1341 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Conn — 原型与设计稿 v1.0</title>
+<style>
+/* ============ 画布（评审页本身） ============ */
+:root{
+  --bg:#0A0C14; --surface:#141826; --elev:#1A1F33; --line:#1F2437;
+  --ink:#EDEFF7; --muted:#8E95AC; --accent:#8B93FF; --accent-deep:#5A63F2;
+  --good:#32D74B; --warn:#FFD60A; --crit:#FF5C5C; --info:#5CD9FF;
+  --disk:#F7A45C;
+  --termbg:#07090F;
+  --key:var(--key); --bar:var(--bar); --keyline:var(--keyline); --track:var(--track); --dim:var(--dim);
+  --cardfx:inset 0 1px 0 rgba(255,255,255,.05);
+  --canvas:#07080D; --canvas-ink:#DFE2EE; --canvas-muted:#7E8598;
+}
+body[data-theme="light"]{
+  --bg:#F2F3F8; --surface:#FFFFFF; --elev:#FFFFFF; --line:#E6E8F1;
+  --ink:#17181F; --muted:#6B7183; --accent:#4F58E3; --accent-deep:#4046C8;
+  --good:#1FA24A; --warn:#B58500; --crit:#E5484D; --info:#0087C8;
+  --disk:#D97B2A;
+  --key:#FFFFFF; --bar:#ECEEF5; --keyline:#D5D9E6; --track:#E4E7F0; --dim:#9AA1B5;
+  --cardfx:0 1px 4px rgba(25,29,43,.07);
+  --canvas:#F4F5FA; --canvas-ink:#1E2028; --canvas-muted:#6D7284;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--canvas);color:var(--canvas-ink);
+  font:15px/1.7 "PingFang SC","Hiragino Sans GB",-apple-system,sans-serif;
+  -webkit-font-smoothing:antialiased;padding:48px 40px 120px}
+.mono{font-family:"SF Mono",ui-monospace,Menlo,monospace}
+a{color:var(--accent);text-decoration:none}
+header.page h1{font-size:30px;font-weight:800;letter-spacing:.01em}
+header.page h1 .mark{color:var(--accent);font-family:"SF Mono",ui-monospace,Menlo,monospace}
+header.page p{color:var(--canvas-muted);max-width:760px;margin-top:10px}
+.meta{font-family:"SF Mono",ui-monospace,Menlo,monospace;font-size:11px;letter-spacing:.16em;
+  color:var(--canvas-muted);text-transform:uppercase;margin-bottom:10px}
+section{margin-top:64px}
+section>h2{font-size:20px;font-weight:700;margin-bottom:6px;padding-left:12px;border-left:3px solid var(--accent)}
+section>.sub{color:var(--canvas-muted);font-size:13px;margin-bottom:24px;padding-left:15px}
+
+/* 令牌与 IA */
+.tokens{display:flex;flex-wrap:wrap;gap:10px}
+.chip{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:10px 14px;min-width:150px}
+.chip .sw{width:100%;height:26px;border-radius:6px;border:1px solid rgba(255,255,255,.08);margin-bottom:8px}
+.chip .nm{font-size:12px;font-weight:600}
+.chip .hx{font-family:"SF Mono",ui-monospace,Menlo,monospace;font-size:11px;color:var(--canvas-muted)}
+.ia{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:20px 24px;
+  font-family:"SF Mono",ui-monospace,Menlo,monospace;font-size:12.5px;line-height:1.9;color:var(--canvas-ink);
+  overflow-x:auto;white-space:pre}
+
+/* 原型网格 */
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:44px 36px}
+.proto>.cap{margin:14px 2px 6px;font-weight:700;font-size:15px}
+.proto>.cap .no{display:inline-block;background:var(--accent);color:#0A0C14;border-radius:6px;
+  font-family:"SF Mono",ui-monospace,Menlo,monospace;font-size:11px;font-weight:700;padding:2px 7px;margin-right:8px;vertical-align:1px}
+.note{color:var(--canvas-muted);font-size:12.5px;line-height:1.75;padding-left:2px}
+.note b{color:var(--canvas-ink);font-weight:600}
+.note .pinref{display:inline-block;width:16px;height:16px;line-height:16px;text-align:center;border-radius:50%;
+  background:var(--info);color:#06232F;font-family:"SF Mono",ui-monospace,Menlo,monospace;font-size:10px;font-weight:700;margin-right:5px}
+
+/* ============ iPhone 框架 ============ */
+.frame{width:320px;height:660px;border-radius:42px;border:1px solid var(--keyline);
+  background:radial-gradient(130% 46% at 50% -8%, rgba(139,147,255,.10), transparent 62%), var(--bg);
+  outline:8px solid #161A28;position:relative;overflow:hidden;box-shadow:0 24px 60px rgba(0,0,0,.5)}
+.pin{position:absolute;width:18px;height:18px;line-height:18px;text-align:center;border-radius:50%;
+  background:var(--info);color:#06232F;font-family:"SF Mono",ui-monospace,Menlo,monospace;font-size:10px;font-weight:700;z-index:40;
+  box-shadow:0 0 0 3px rgba(100,210,255,.25)}
+.sbar{height:44px;display:flex;justify-content:space-between;align-items:flex-end;padding:0 24px 4px;
+  font-family:"SF Mono",ui-monospace,Menlo,monospace;font-size:12px;color:var(--ink)}
+.sbar .pill-cam{position:absolute;top:10px;left:50%;transform:translateX(-50%);width:96px;height:26px;background:#000;border-radius:14px}
+.content{position:absolute;top:44px;bottom:76px;left:0;right:0;overflow:hidden;padding:6px 14px 0}
+.content.noscroll{padding:0}
+/* Tab Bar */
+.tabbar{position:absolute;bottom:10px;left:12px;right:12px;height:58px;background:var(--bar);
+  border:1px solid var(--line);border-radius:28px;display:flex;box-shadow:0 8px 24px rgba(0,0,0,.30)}
+.tab{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
+  color:var(--muted);font-size:9.5px}
+.tab svg{width:21px;height:21px}
+.tab.on{color:var(--accent)}
+/* 通用元素 */
+.h1{font-size:26px;font-weight:800;color:var(--ink);margin:10px 2px 2px}
+.hsub{font-size:11.5px;color:var(--muted);margin:0 2px 10px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:13px;margin-bottom:10px;box-shadow:var(--cardfx)}
+.row{display:flex;align-items:center;gap:10px}
+.spread{display:flex;align-items:center;justify-content:space-between}
+.dot{width:8px;height:8px;border-radius:50%;display:inline-block}
+.dot.good{background:var(--good)} .dot.warn{background:var(--warn)} .dot.crit{background:var(--crit)} .dot.off{background:var(--dim)}
+.pillst{display:inline-flex;align-items:center;gap:5px;border-radius:99px;padding:2px 9px;
+  font-family:"SF Mono",ui-monospace,Menlo,monospace;font-size:10px;font-weight:600}
+.pillst.good{background:rgba(48,209,88,.14);color:var(--good)}
+.pillst.warn{background:rgba(255,214,10,.14);color:var(--warn)}
+.pillst.crit{background:rgba(255,69,58,.16);color:var(--crit)}
+.pillst.off{background:rgba(140,160,150,.14);color:var(--muted)}
+.pillst.info{background:rgba(100,210,255,.14);color:var(--info)}
+.pillst.acc{background:rgba(139,147,255,.15);color:var(--accent)}
+.hname{font-size:14.5px;font-weight:700;color:var(--ink)}
+.haddr{font-family:"SF Mono",ui-monospace,Menlo,monospace;font-size:10.5px;color:var(--muted)}
+.bars{display:flex;gap:8px;margin-top:10px}
+.bar{flex:1}
+.bar .lb{display:flex;justify-content:space-between;font-family:"SF Mono",ui-monospace,Menlo,monospace;font-size:9px;color:var(--muted);margin-bottom:3px}
+.bar .tk{height:5px;border-radius:3px;background:var(--track);overflow:hidden}
+.bar .tk i{display:block;height:100%;border-radius:3px;background:var(--accent)}
+.bar:nth-child(2) .tk i:not(.w):not(.c){background:var(--info)}
+.bar:nth-child(3) .tk i:not(.w):not(.c){background:var(--disk)}
+.bar .tk i.w{background:var(--warn)} .bar .tk i.c{background:var(--crit)}
+.btn{display:flex;align-items:center;justify-content:center;
+  background:linear-gradient(180deg,var(--accent),var(--accent-deep));color:#fff;
+  font-weight:700;font-size:14px;border-radius:12px;height:44px;cursor:pointer;
+  box-shadow:0 2px 10px rgba(90,99,242,.22)}
+.btn.ghost{background:transparent;border:1px solid var(--line);color:var(--ink);font-weight:600}
+.sechead{display:flex;justify-content:space-between;align-items:baseline;margin:14px 2px 8px}
+.sechead .t{font-family:"SF Mono",ui-monospace,Menlo,monospace;font-size:10px;letter-spacing:.14em;color:var(--muted);text-transform:uppercase}
+.sechead .more{font-size:11px;color:var(--accent)}
+svg.ic{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.searchbar{display:flex;align-items:center;gap:8px;background:var(--surface);border:1px solid var(--line);
+  border-radius:12px;height:36px;padding:0 12px;color:var(--muted);font-size:12.5px;margin-bottom:10px}
+.chiprow{display:flex;gap:6px;overflow:hidden;margin-bottom:10px}
+.fchip{border:1px solid var(--line);border-radius:99px;padding:3px 11px;font-size:11px;color:var(--muted);white-space:nowrap}
+.fchip.on{background:rgba(139,147,255,.15);border-color:rgba(139,147,255,.4);color:var(--accent)}
+/* 终端 */
+.term{background:var(--termbg);position:absolute;inset:0;padding:8px 12px;
+  font-family:"SF Mono",ui-monospace,Menlo,monospace;font-size:11px;line-height:1.65;color:#C6CCE0}
+.term .p{color:var(--accent)} .term .cy{color:var(--info)} .term .yl{color:var(--warn)} .term .rd{color:var(--crit)} .term .dim{color:#6A7288}
+.cursor{display:inline-block;width:7px;height:13px;background:var(--accent);vertical-align:-2px}
+.keybar{position:absolute;left:0;right:0;bottom:76px;background:var(--bar);border-top:1px solid var(--line);padding:6px 8px}
+.krow{display:flex;gap:6px;margin-bottom:6px}
+.key{flex:1;height:34px;background:var(--key);border:1px solid var(--keyline);border-radius:9px;color:var(--ink);
+  display:flex;align-items:center;justify-content:center;font-family:"SF Mono",ui-monospace,Menlo,monospace;font-size:11px;cursor:pointer}
+.key.onk{background:rgba(139,147,255,.22);border-color:var(--accent);color:var(--accent)}
+.ttabs{display:flex;gap:6px;padding:8px 12px 0}
+.ttab{display:flex;align-items:center;gap:6px;background:var(--bar);border:1px solid var(--line);border-radius:10px;
+  padding:4px 10px;font-family:"SF Mono",ui-monospace,Menlo,monospace;font-size:10.5px;color:var(--muted)}
+.ttab.on{color:var(--ink);border-color:rgba(139,147,255,.5)}
+/* 日志 */
+.log{font-family:"SF Mono",ui-monospace,Menlo,monospace;font-size:10px;line-height:1.75;color:#B6BDD0}
+.log .ts{color:#6A7288}
+.log .err{display:block;background:rgba(255,69,58,.12);border-left:2px solid var(--crit);padding-left:6px;margin-left:-8px;color:#FFB4AE}
+.log .wr{display:block;background:rgba(255,214,10,.10);border-left:2px solid var(--warn);padding-left:6px;margin-left:-8px;color:#F2DF8E}
+/* 仪表环 */
+.gauges{display:flex;gap:8px}
+.gauge{flex:1;background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:10px 6px;text-align:center}
+.ring{width:58px;height:58px;border-radius:50%;margin:0 auto 6px;display:flex;align-items:center;justify-content:center;
+  font-family:"SF Mono",ui-monospace,Menlo,monospace;font-size:15px;font-weight:700;color:var(--ink)}
+.ring b{font-size:8px;color:var(--muted);font-weight:600;margin-left:1px}
+.ring.g{background:conic-gradient(var(--accent) 0 32%, var(--track) 32% 100%)}
+.ring.m{background:conic-gradient(var(--info) 0 61%, var(--track) 61% 100%)}
+.ring.w{background:conic-gradient(var(--warn) 0 78%, var(--track) 78% 100%)}
+.ring i{width:44px;height:44px;border-radius:50%;background:var(--surface);display:flex;align-items:center;justify-content:center;font-style:normal}
+.glabel{font-size:10px;color:var(--muted)}
+/* 迷你图表 */
+.spark{display:flex;align-items:flex-end;gap:2px;height:44px;padding:4px 2px 0}
+.spark i{flex:1;background:linear-gradient(180deg,rgba(139,147,255,.9),rgba(139,147,255,.25));border-radius:2px 2px 0 0}
+/* 列表行 */
+.lrow{display:flex;align-items:center;gap:10px;background:var(--surface);border:1px solid var(--line);
+  border-radius:14px;padding:11px 12px;margin-bottom:8px;box-shadow:var(--cardfx)}
+.lrow .ttl{font-size:13.5px;font-weight:600;color:var(--ink)}
+.lrow .sub{font-family:"SF Mono",ui-monospace,Menlo,monospace;font-size:10px;color:var(--muted)}
+.tagc{font-size:9px;border:1px solid var(--line);color:var(--muted);border-radius:5px;padding:1px 5px;margin-left:4px}
+.iconbox{width:34px;height:34px;border-radius:12px;display:flex;align-items:center;justify-content:center;flex:none;
+  background:var(--track);color:var(--muted)}
+.iconbox.g{color:var(--good);background:rgba(50,215,75,.15)}
+.iconbox.w{color:var(--warn);background:rgba(255,180,84,.16)}
+.iconbox.c{color:var(--crit);background:rgba(255,92,92,.15)}
+.iconbox.a{color:var(--accent);background:rgba(139,147,255,.16)}
+/* 动作块 */
+.tiles{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.tile{background:var(--surface);border:1px solid var(--line);border-radius:16px;height:66px;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;color:var(--ink);font-size:10px;cursor:pointer}
+.tile svg{color:var(--accent)}
+.banner{display:flex;align-items:center;gap:8px;background:rgba(139,147,255,.10);border:1px solid rgba(139,147,255,.35);
+  border-radius:12px;padding:8px 10px;font-size:11px;color:var(--accent);margin-bottom:10px}
+.banner.warnb{background:rgba(255,214,10,.08);border-color:rgba(255,214,10,.3);color:var(--warn)}
+.seg{display:flex;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:2px;margin-bottom:10px}
+.seg i{flex:1;text-align:center;font-style:normal;font-size:11.5px;color:var(--muted);padding:5px 0;border-radius:10px}
+.seg i.on{background:var(--track);color:var(--ink);font-weight:600}
+/* 补全屏专用 */
+.proto.wide{grid-column:1/-1}
+.frame.ipad{width:100%;max-width:860px;height:600px;border-radius:26px}
+.cols{display:flex;position:absolute;inset:0}
+.col{border-right:1px solid var(--line);overflow:hidden;padding:14px 12px}
+.srow{display:flex;align-items:center;gap:8px;border-radius:8px;padding:7px 9px;font-size:12px;color:var(--muted);cursor:pointer}
+.srow.on{background:rgba(139,147,255,.14);color:var(--accent);font-weight:600}
+.code{position:absolute;top:88px;bottom:56px;left:0;right:0;background:var(--termbg);
+  font-family:"SF Mono",ui-monospace,Menlo,monospace;font-size:10.5px;line-height:1.8;padding:10px 0;overflow:hidden}
+.code .cl{display:flex}
+.code .ln{width:34px;text-align:right;padding-right:10px;color:#4A5170;flex:none;user-select:none}
+.code .k{color:var(--accent)} .code .s{color:var(--warn)} .code .c{color:#5E6680} .code .v{color:var(--info)}
+.symbar{position:absolute;left:0;right:0;bottom:0;background:var(--bar);border-top:1px solid var(--line);
+  display:flex;gap:6px;padding:8px}
+.dim{position:absolute;inset:0;background:rgba(0,0,0,.55);z-index:10}
+.sheet{position:absolute;bottom:0;left:0;right:0;background:var(--elev);border-radius:20px 20px 0 0;
+  border-top:1px solid var(--line);padding:14px;z-index:20}
+.grab{width:36px;height:4px;border-radius:2px;background:var(--track);margin:0 auto 12px}
+.step{display:flex;gap:10px;align-items:flex-start;padding:9px 0;border-bottom:1px solid var(--line)}
+.step:last-child{border-bottom:0}
+.stic{width:22px;height:22px;border-radius:50%;flex:none;display:flex;align-items:center;justify-content:center;
+  font-family:"SF Mono",ui-monospace,Menlo,monospace;font-size:11px;font-weight:700}
+.stic.ok{background:rgba(48,209,88,.15);color:var(--good)}
+.stic.bad{background:rgba(255,69,58,.18);color:var(--crit)}
+.stic.todo{background:var(--key);color:var(--dim)}
+.wordgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.word{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:4px 8px;
+  font-family:"SF Mono",ui-monospace,Menlo,monospace;font-size:10px;color:var(--ink);white-space:nowrap}
+.word i{color:var(--dim);font-style:normal;margin-right:5px;font-size:9px}
+.wcanvas{background:linear-gradient(150deg,#141A2E,#0B0E1A 65%);border:1px solid #232A44;border-radius:22px;
+  padding:26px;display:flex;gap:18px;flex-wrap:wrap;align-items:flex-start;position:relative}
+.wg{background:var(--surface);border:1px solid var(--line);border-radius:20px;padding:12px;position:relative;flex:none}
+.wg .age{position:absolute;top:10px;right:12px;font-family:"SF Mono",ui-monospace,Menlo,monospace;font-size:8.5px;color:var(--muted)}
+.wg.sm{width:148px;height:148px}.wg.md{width:312px;height:148px}.wg.lg{width:312px;height:312px}
+.wtitle{font-family:"SF Mono",ui-monospace,Menlo,monospace;font-size:9px;letter-spacing:.12em;color:var(--muted);text-transform:uppercase;margin-bottom:8px}
+@media (max-width:760px){body{padding:24px 14px 80px}.grid{grid-template-columns:1fr;justify-items:center}.proto.wide{grid-column:auto}}
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute"><defs>
+<symbol id="i-dash" viewBox="0 0 24 24"><path d="M4 13a8 8 0 1 1 16 0"/><path d="M12 13 15.5 9.5"/><path d="M4 18h16"/></symbol>
+<symbol id="i-host" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="7" rx="2"/><rect x="4" y="13" width="16" height="7" rx="2"/><path d="M8 7.5h.01M8 16.5h.01"/></symbol>
+<symbol id="i-term" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="m7 9 3 3-3 3M12.5 15H17"/></symbol>
+<symbol id="i-cmd" viewBox="0 0 24 24"><path d="M13 3 5 14h6l-1 7 8-11h-6z"/></symbol>
+<symbol id="i-me" viewBox="0 0 24 24"><circle cx="12" cy="8.5" r="3.5"/><path d="M5 20c1.5-3.5 4-5 7-5s5.5 1.5 7 5"/></symbol>
+<symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6"/><path d="m16 16 4 4"/></symbol>
+<symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+<symbol id="i-box" viewBox="0 0 24 24"><path d="m12 3 8 4.5v9L12 21l-8-4.5v-9z"/><path d="M12 12v9M12 12 4 7.5M12 12l8-4.5"/></symbol>
+<symbol id="i-log" viewBox="0 0 24 24"><path d="M5 5h14M5 9.5h14M5 14h9M5 18.5h6"/></symbol>
+<symbol id="i-folder" viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2.5h8a2 2 0 0 1 2 2V17a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></symbol>
+<symbol id="i-key" viewBox="0 0 24 24"><circle cx="8" cy="15" r="4"/><path d="m11 12 8-8M16 7l3 3"/></symbol>
+<symbol id="i-restart" viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.3-5.6"/><path d="M20 4v4h-4"/></symbol>
+<symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 3 5 6v5c0 4.5 3 7.8 7 10 4-2.2 7-5.5 7-10V6z"/><path d="m9 11.5 2 2 4-4"/></symbol>
+<symbol id="i-doc" viewBox="0 0 24 24"><path d="M7 3h7l4 4v14H7z"/><path d="M14 3v4h4"/></symbol>
+<symbol id="i-gear" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M19.1 4.9 17 7M7 17l-2.1 2.1"/></symbol>
+<symbol id="i-cloud" viewBox="0 0 24 24"><path d="M7 18a4.5 4.5 0 1 1 .8-8.9A6 6 0 0 1 19 10a4 4 0 0 1-1 8z"/></symbol>
+<symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12.5 5 5L20 7"/></symbol>
+<symbol id="i-play" viewBox="0 0 24 24"><path d="M8 5.5v13l11-6.5z"/></symbol>
+<symbol id="i-pause" viewBox="0 0 24 24"><path d="M8 5v14M16 5v14"/></symbol>
+<symbol id="i-chev" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></symbol>
+<symbol id="i-wrench" viewBox="0 0 24 24"><path d="M14 7a4 4 0 0 1 5-4l-3 3 2 2 3-3a4 4 0 0 1-5 5L8 18a2 2 0 0 1-3-3z"/></symbol>
+<symbol id="i-eye" viewBox="0 0 24 24"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6-10-6-10-6z"/><circle cx="12" cy="12" r="2.5"/></symbol>
+</defs></svg>
+
+<header class="page">
+  <button id="themeToggle" style="position:fixed;top:20px;right:24px;z-index:99;background:var(--surface);color:var(--ink);border:1px solid var(--line);border-radius:99px;padding:8px 18px;font-size:13px;font-weight:600;cursor:pointer;box-shadow:0 4px 16px rgba(0,0,0,.25)">☾ ↔ ☀ 切换浅色</button>
+  <div class="meta">Conn · Design Deliverable · v1.2 双主题（NeoServer 手法改版） · 2026-07-19</div>
+  <h1><span class="mark">▸ Conn</span> 原型与设计稿</h1>
+  <p>覆盖 v1.0–v2.0 全部主要界面的 <b>21 屏全量高保真原型</b>（S1–S19 手机屏 + Widget 三尺寸 + iPad 三栏），像素与交互标注以本页为验收基准；令牌与组件规则见 <a href="../设计规范.md">设计规范.md</a>，功能口径见 <a href="../产品需求文档.md">PRD</a>。深色为主人格（OLED），手机屏按 iPhone 15（390×844 等比）绘制。蓝色圆点 <span class="note" style="display:inline"><span class="pinref">1</span></span>为交互标注锚点，对应每屏下方说明。未出稿的仅剩系统标准件（系统分享页、Files 选择器等），无需设计。</p>
+</header>
+
+<section>
+  <h2>0 · 设计令牌速览</h2>
+  <div class="sub">完整定义见设计规范 §2–§4；此处为深色主题主令牌</div>
+  <div class="tokens">
+    <div class="chip"><div class="sw" style="background:#0A0C14"></div><div class="nm">connBg</div><div class="hx">#0A0C14 · 页面底（深空蓝黑）</div></div>
+    <div class="chip"><div class="sw" style="background:#131624"></div><div class="nm">connSurface</div><div class="hx">#131624 · 卡片</div></div>
+    <div class="chip"><div class="sw" style="background:#8B93FF"></div><div class="nm">connAccent</div><div class="hx">#8B93FF · 品牌/交互（电光蓝紫）</div></div>
+    <div class="chip"><div class="sw" style="background:#5A63F2"></div><div class="nm">connAccentDeep</div><div class="hx">#5A63F2 · 按钮填充（白字）</div></div>
+    <div class="chip"><div class="sw" style="background:#32D74B"></div><div class="nm">connGood</div><div class="hx">#32D74B · 正常（仅小元素）</div></div>
+    <div class="chip"><div class="sw" style="background:#FFD60A"></div><div class="nm">connWarn</div><div class="hx">#FFD60A · 警告</div></div>
+    <div class="chip"><div class="sw" style="background:#FF5C5C"></div><div class="nm">connCrit</div><div class="hx">#FF5C5C · 故障/危险</div></div>
+    <div class="chip"><div class="sw" style="background:#5CD9FF"></div><div class="nm">connInfo</div><div class="hx">#5CD9FF · 信息/传输（冰青）</div></div>
+    <div class="chip"><div class="sw" style="background:#07090F;border:1px solid #262C42"></div><div class="nm">connTermBg</div><div class="hx">#07090F · 终端画布</div></div>
+  </div>
+</section>
+
+<section>
+  <h2>0.5 · 信息架构与主流程</h2>
+  <div class="sub">五 Tab 结构；→ 为 push，⇑ 为 sheet；对应 PRD §5.0</div>
+  <div class="ia">① 仪表盘 ──┬→ 主机详情（异常卡直达）        ④ 命令 ──┬→ 片段编辑 ⇑
+            └⇑ 全部巡检 / 批量执行(Pro)              └→ 批量执行(Pro) → 结果聚合
+② 主机 ────┬→ 主机详情 ─┬→ 终端(会话)              ⑤ 我的 ──┬→ 密钥管家 →⇑ 生成/导入/一键部署
+            │             ├→ 文件(SFTP) →⇑ 编辑器            ├→ 运维工具箱(P2)
+            │             ├→ Docker ─→ 容器日志               ├→ iCloud 同步(Pro)
+            │             ├→ 日志中心                         ├⇑ 专业版购买页
+            │             └→ 主机信息/编辑 ⇑                  └→ 安全 / 外观 / 关于·隐私白皮书
+            └⇑ 新增主机（粘贴 ssh 命令自动识别）
+③ 终端 ────→ 会话中心（多标签，后台保持）    首启：欢迎 → 添加主机 / 演示模式（Mock 全功能）</div>
+</section>
+
+<section>
+  <h2>1 · 核心流程（S1–S12）</h2>
+  <div class="sub">S1–S8 为 v1.0 MVP 高频路径；S9–S12 含密钥/商业化/首启。免费版触点、危险操作、空态均已标注</div>
+  <div class="grid">
+
+  <!-- S1 仪表盘 -->
+  <div class="proto">
+    <div class="frame">
+      <div class="pill-cam"></div>
+      <div class="sbar"><span>09:41</span><span>5G ▮▮▮</span></div>
+      <div class="content">
+        <div class="h1">驾驶舱</div>
+        <div class="hsub mono">巡检快照 · 32 秒前 · 下拉重新巡检</div>
+        <span class="pin" style="top:96px;right:22px">1</span>
+        <div class="row" style="gap:6px;margin:2px 2px 10px">
+          <span class="pillst acc">12 台主机</span><span class="pillst crit">1 台异常</span><span class="pillst off">2 容器停止</span>
+        </div>
+        <div class="card" style="border-left:3px solid var(--crit)">
+          <span class="pin" style="margin:-4px 0 0 -26px">2</span>
+          <div class="spread"><div><div class="hname">jp-vps-tokyo</div><div class="haddr">45.76.**.21 : 22</div></div>
+            <span class="pillst crit">✕ 连接失败</span></div>
+          <div class="hsub" style="margin-top:8px">22 端口无响应 · 8 分钟前正常 → <span style="color:var(--accent)">诊断</span> · <span style="color:var(--accent)">终端重试</span></div>
+        </div>
+        <div class="card">
+          <div class="spread"><div><div class="hname">db-master</div><div class="haddr">172.16.0.8 · 内网</div></div>
+            <span class="pillst warn">▲ CPU 高</span></div>
+          <div class="bars">
+            <div class="bar"><div class="lb"><span>CPU</span><span>94%</span></div><div class="tk"><i class="c" style="width:94%"></i></div></div>
+            <div class="bar"><div class="lb"><span>内存</span><span>71%</span></div><div class="tk"><i class="w" style="width:71%"></i></div></div>
+            <div class="bar"><div class="lb"><span>磁盘</span><span>48%</span></div><div class="tk"><i style="width:48%"></i></div></div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="spread"><div><div class="hname">web-01</div><div class="haddr">120.55.**.9 · 阿里云</div></div>
+            <span class="pillst good">● 正常</span></div>
+          <div class="bars">
+            <div class="bar"><div class="lb"><span>CPU</span><span>32%</span></div><div class="tk"><i style="width:32%"></i></div></div>
+            <div class="bar"><div class="lb"><span>内存</span><span>61%</span></div><div class="tk"><i style="width:61%"></i></div></div>
+            <div class="bar"><div class="lb"><span>磁盘</span><span>78%</span></div><div class="tk"><i class="w" style="width:78%"></i></div></div>
+          </div>
+        </div>
+        <div class="sechead"><span class="t">快捷动作</span></div>
+        <span class="pin" style="bottom:88px;left:8px">3</span>
+        <div class="tiles" style="grid-template-columns:repeat(3,1fr)">
+          <div class="tile"><svg class="ic"><use href="#i-restart"/></svg>全部巡检</div>
+          <div class="tile"><svg class="ic"><use href="#i-cmd"/></svg>批量执行</div>
+          <div class="tile"><svg class="ic"><use href="#i-eye"/></svg>演示模式</div>
+        </div>
+      </div>
+      <div class="tabbar">
+        <div class="tab on"><svg class="ic"><use href="#i-dash"/></svg>仪表盘</div>
+        <div class="tab"><svg class="ic"><use href="#i-host"/></svg>主机</div>
+        <div class="tab"><svg class="ic"><use href="#i-term"/></svg>终端</div>
+        <div class="tab"><svg class="ic"><use href="#i-cmd"/></svg>命令</div>
+        <div class="tab"><svg class="ic"><use href="#i-me"/></svg>我的</div>
+      </div>
+    </div>
+    <div class="cap"><span class="no">S1</span>仪表盘 · 默认首页</div>
+    <div class="note">
+      <span class="pinref">1</span><b>巡检快照时间戳</b>常驻，诚实呈现数据时效（无服务端，数据只在打开时刷新）；下拉触发全量巡检。<br>
+      <span class="pinref">2</span><b>异常卡置顶</b>：故障卡自动排最前 + 左侧 3pt 红条；卡内直给「诊断/终端重试」出口（告警→处置 3 击内）。<br>
+      <span class="pinref">3</span>快捷动作固定 3 项；「批量执行」免费版点击弹 Paywall（S11）。健康卡点击 → S3 主机详情。
+    </div>
+  </div>
+
+  <!-- S2 主机列表 -->
+  <div class="proto">
+    <div class="frame">
+      <div class="pill-cam"></div>
+      <div class="sbar"><span>09:41</span><span>5G ▮▮▮</span></div>
+      <div class="content">
+        <div class="spread"><div class="h1">主机</div>
+          <div class="iconbox a" style="margin-top:10px"><svg class="ic"><use href="#i-plus"/></svg></div></div>
+        <span class="pin" style="top:64px;right:16px">1</span>
+        <div class="searchbar"><svg class="ic" style="width:14px"><use href="#i-search"/></svg>搜索名称 / 地址 / 标签</div>
+        <div class="chiprow">
+          <span class="fchip on">全部 5</span><span class="fchip">prod</span><span class="fchip">web</span><span class="fchip">home</span><span class="fchip">db</span>
+        </div>
+        <span class="pin" style="top:158px;left:8px">2</span>
+        <div class="banner">免费版 3 / 3 台已用 · 升级专业版解锁无限主机 →</div>
+        <div class="sechead"><span class="t">生产环境 · 3</span></div>
+        <div class="lrow"><span class="dot good"></span><div style="flex:1"><div class="ttl">web-01 <span class="tagc">prod</span><span class="tagc">web</span></div>
+          <div class="sub">root@120.55.**.9 :22</div></div><svg class="ic" style="color:var(--dim)"><use href="#i-chev"/></svg></div>
+        <div class="lrow"><span class="dot warn"></span><div style="flex:1"><div class="ttl">db-master <span class="tagc">prod</span></div>
+          <div class="sub">admin@172.16.0.8 :22 · 经跳板 bastion-sh</div></div><svg class="ic" style="color:var(--dim)"><use href="#i-chev"/></svg></div>
+        <span class="pin" style="top:334px;left:8px">3</span>
+        <div class="lrow"><span class="dot crit"></span><div style="flex:1"><div class="ttl">jp-vps-tokyo <span class="tagc">prod</span></div>
+          <div class="sub">root@45.76.**.21 :22</div></div><svg class="ic" style="color:var(--dim)"><use href="#i-chev"/></svg></div>
+        <div class="sechead"><span class="t">个人项目 · 2</span></div>
+        <div class="lrow"><span class="dot good"></span><div style="flex:1"><div class="ttl">nas-home <span class="tagc">home</span></div>
+          <div class="sub">pi@192.168.1.20 :22</div></div><svg class="ic" style="color:var(--dim)"><use href="#i-chev"/></svg></div>
+        <div class="lrow"><span class="dot off"></span><div style="flex:1"><div class="ttl">blog-vps</div>
+          <div class="sub">deploy@bwg.example.com :29222</div></div><svg class="ic" style="color:var(--dim)"><use href="#i-chev"/></svg></div>
+      </div>
+      <div class="tabbar">
+        <div class="tab"><svg class="ic"><use href="#i-dash"/></svg>仪表盘</div>
+        <div class="tab on"><svg class="ic"><use href="#i-host"/></svg>主机</div>
+        <div class="tab"><svg class="ic"><use href="#i-term"/></svg>终端</div>
+        <div class="tab"><svg class="ic"><use href="#i-cmd"/></svg>命令</div>
+        <div class="tab"><svg class="ic"><use href="#i-me"/></svg>我的</div>
+      </div>
+    </div>
+    <div class="cap"><span class="no">S2</span>主机列表 · 连接管理</div>
+    <div class="note">
+      <span class="pinref">1</span><b>新增主机</b> sheet：仅「地址/用户名/认证」三项必填；粘贴 <span class="mono">ssh root@1.2.3.4 -p 2222</span> 自动解析填充（PRD §5.1）。<br>
+      <span class="pinref">2</span><b>免费限额触点</b>：3/3 用满时展示，点击进 S11 Paywall；未满不出现，不打扰。<br>
+      <span class="pinref">3</span>跳板机主机在副标题注明链路；行左滑：连接 / 编辑 / 删除（删除红色 + 二段确认）。
+    </div>
+  </div>
+
+  <!-- S3 主机详情 -->
+  <div class="proto">
+    <div class="frame">
+      <div class="pill-cam"></div>
+      <div class="sbar"><span>09:41</span><span>5G ▮▮▮</span></div>
+      <div class="content">
+        <div class="spread" style="margin-top:8px">
+          <div><div class="h1" style="font-size:20px;margin:0">web-01</div>
+          <div class="haddr">root@120.55.**.9 · Ubuntu 24.04 · up 46d</div></div>
+          <span class="pillst good">● 正常</span>
+        </div>
+        <span class="pin" style="top:60px;right:88px">1</span>
+        <div class="seg" style="margin-top:10px"><i class="on">概览</i><i>终端</i><i>文件</i><i>Docker</i><i>日志</i></div>
+        <div class="gauges">
+          <div class="gauge"><div class="ring m"><i>61<b>%</b></i></div><div class="glabel">内存 3.9/6.4G</div></div>
+          <div class="gauge"><div class="ring g"><i>32<b>%</b></i></div><div class="glabel">CPU ×4</div></div>
+          <div class="gauge"><div class="ring w"><i>78<b>%</b></i></div><div class="glabel">磁盘 156/200G</div></div>
+        </div>
+        <span class="pin" style="top:196px;right:14px">2</span>
+        <div class="card" style="margin-top:10px;padding-bottom:6px">
+          <div class="spread"><span class="t mono" style="font-size:9px;letter-spacing:.14em;color:var(--muted)">CPU · 最近 30 分钟</span>
+          <span class="mono" style="font-size:9px;color:var(--muted)">峰值 71%</span></div>
+          <div class="spark"><i style="height:30%"></i><i style="height:34%"></i><i style="height:28%"></i><i style="height:42%"></i><i style="height:71%"></i><i style="height:64%"></i><i style="height:38%"></i><i style="height:33%"></i><i style="height:29%"></i><i style="height:31%"></i><i style="height:35%"></i><i style="height:30%"></i></div>
+        </div>
+        <div class="sechead"><span class="t">Top 进程</span><span class="more">进程视图</span></div>
+        <div class="card mono" style="font-size:10px;line-height:1.9;color:var(--muted)">
+          <div class="spread"><span style="color:var(--ink)">mysqld</span><span>CPU 18.2% · MEM 22%</span></div>
+          <div class="spread"><span style="color:var(--ink)">node /srv/api</span><span>CPU 9.1% · MEM 8.4%</span></div>
+          <div class="spread"><span style="color:var(--ink)">nginx: worker</span><span>CPU 2.3% · MEM 1.1%</span></div>
+        </div>
+        <span class="pin" style="bottom:150px;left:8px">3</span>
+        <div class="sechead"><span class="t">快捷处置</span></div>
+        <div class="tiles">
+          <div class="tile"><svg class="ic"><use href="#i-term"/></svg>终端</div>
+          <div class="tile"><svg class="ic"><use href="#i-log"/></svg>日志</div>
+          <div class="tile"><svg class="ic"><use href="#i-restart"/></svg>重启 nginx</div>
+          <div class="tile"><svg class="ic"><use href="#i-wrench"/></svg>清理磁盘</div>
+        </div>
+      </div>
+      <div class="tabbar">
+        <div class="tab"><svg class="ic"><use href="#i-dash"/></svg>仪表盘</div>
+        <div class="tab on"><svg class="ic"><use href="#i-host"/></svg>主机</div>
+        <div class="tab"><svg class="ic"><use href="#i-term"/></svg>终端</div>
+        <div class="tab"><svg class="ic"><use href="#i-cmd"/></svg>命令</div>
+        <div class="tab"><svg class="ic"><use href="#i-me"/></svg>我的</div>
+      </div>
+    </div>
+    <div class="cap"><span class="no">S3</span>主机详情 · 概览（监控）</div>
+    <div class="note">
+      <span class="pinref">1</span>进入详情即 3s 高频采集（离开降回 30s）；顶部段控在 概览/终端/文件/Docker/日志 五视图间切换，会话共用一条 SSH 连接。<br>
+      <span class="pinref">2</span>指标环 >80% 变黄、>92% 变红（设计规范 §5）；30 分钟迷你曲线免费，7/30 天历史曲线为 Pro（触达弹 Paywall）。<br>
+      <span class="pinref">3</span><b>快捷处置块可配置</b>：默认注入该主机高频片段（如「重启 nginx」）；执行走片段管线含危险确认。进程行左滑 kill（二段确认）。
+    </div>
+  </div>
+
+  <!-- S4 终端 -->
+  <div class="proto">
+    <div class="frame">
+      <div class="pill-cam"></div>
+      <div class="sbar"><span>09:41</span><span>5G ▮▮▮</span></div>
+      <div class="content noscroll">
+        <div class="ttabs">
+          <div class="ttab on"><span class="dot good" style="width:6px;height:6px"></span>web-01</div>
+          <div class="ttab"><span class="dot warn" style="width:6px;height:6px"></span>db-master</div>
+          <div class="ttab" style="padding:4px 8px">＋</div>
+        </div>
+        <span class="pin" style="top:12px;left:96px">1</span>
+        <div class="term" style="top:44px;bottom:150px">
+<span class="p">root@web-01</span><span class="dim">:</span><span class="cy">/var/www</span><span class="p">$</span> tail -n 3 error.log
+<span class="dim">2026-07-19 09:38:02</span> <span class="rd">[error]</span> upstream timed out (110)
+<span class="dim">2026-07-19 09:38:41</span> <span class="yl">[warn]</span>  worker reload signal
+<span class="dim">2026-07-19 09:39:12</span> <span class="rd">[error]</span> connect() failed :3306
+<span class="p">root@web-01</span><span class="dim">:</span><span class="cy">/var/www</span><span class="p">$</span> systemctl status mysql
+<span class="dim">● mysql.service - MySQL Server</span>
+   Active: <span class="p">active (running)</span> since Sat 09:39:58
+<span class="p">root@web-01</span><span class="dim">:</span><span class="cy">/var/www</span><span class="p">$</span> <span class="cursor"></span>
+        </div>
+        <span class="pin" style="bottom:196px;right:14px">2</span>
+        <div class="keybar">
+          <div class="krow">
+            <div class="key">Esc</div><div class="key">Tab</div><div class="key onk">Ctrl</div>
+            <div class="key">↑</div><div class="key">↓</div><div class="key">←</div><div class="key">→</div>
+          </div>
+          <div class="krow" style="margin-bottom:0">
+            <div class="key">/</div><div class="key">-</div><div class="key">~</div><div class="key">|</div>
+            <div class="key">sudo</div><div class="key">!!</div><div class="key" style="color:var(--accent)">⌘K</div>
+          </div>
+        </div>
+        <span class="pin" style="bottom:118px;left:96px">3</span>
+      </div>
+      <div class="tabbar">
+        <div class="tab"><svg class="ic"><use href="#i-dash"/></svg>仪表盘</div>
+        <div class="tab"><svg class="ic"><use href="#i-host"/></svg>主机</div>
+        <div class="tab on"><svg class="ic"><use href="#i-term"/></svg>终端</div>
+        <div class="tab"><svg class="ic"><use href="#i-cmd"/></svg>命令</div>
+        <div class="tab"><svg class="ic"><use href="#i-me"/></svg>我的</div>
+      </div>
+    </div>
+    <div class="cap"><span class="no">S4</span>终端 · 会话中心</div>
+    <div class="note">
+      <span class="pinref">1</span><b>多会话标签</b>带主机状态点；关闭页面不断连（会话与 UI 解耦，技术方案 §4.2）；标签长按重命名/关闭。<br>
+      <span class="pinref">2</span><b>加速键条</b>两行：Ctrl 为粘滞键（点亮 = 下一击组合，图示状态）；第二行含 sudo/!! 高频词；键位可在设置自定义；⌘K 唤起 AI 生成命令（v1.5，BYOK）。<br>
+      <span class="pinref">3</span>手势：双指缩放字号、三指左右切会话、长按选择复制；输入 <span class="mono">rm -rf</span> 等高危模式回车前弹红色确认（prod 标签主机强确认）。中文输入法候选阶段不下发字节（Spike S2）。
+    </div>
+  </div>
+
+  <!-- S5 Docker -->
+  <div class="proto">
+    <div class="frame">
+      <div class="pill-cam"></div>
+      <div class="sbar"><span>09:41</span><span>5G ▮▮▮</span></div>
+      <div class="content">
+        <div class="h1" style="font-size:20px">web-01 · Docker</div>
+        <div class="hsub mono">docker 26.1 · 5 容器 · 2 Compose 项目</div>
+        <div class="seg"><i class="on">容器</i><i>Compose <span style="color:var(--accent);font-size:9px">Pro</span></i><i>服务</i></div>
+        <span class="pin" style="top:118px;right:60px">1</span>
+        <div class="lrow"><div class="iconbox g"><svg class="ic"><use href="#i-box"/></svg></div>
+          <div style="flex:1"><div class="ttl">nginx-proxy</div><div class="sub">nginx:1.27 · :80→80 :443→443 · CPU 0.4%</div></div>
+          <span class="pillst good">● running</span></div>
+        <div class="lrow"><div class="iconbox g"><svg class="ic"><use href="#i-box"/></svg></div>
+          <div style="flex:1"><div class="ttl">api</div><div class="sub">conn/api:2.3.1 · :3000 · CPU 6.1%</div></div>
+          <span class="pillst good">● running</span></div>
+        <div class="lrow"><div class="iconbox w"><svg class="ic"><use href="#i-box"/></svg></div>
+          <div style="flex:1"><div class="ttl">watchtower</div><div class="sub">containrrr/watchtower · 重启中 (2)</div></div>
+          <span class="pillst warn">▲ restarting</span></div>
+        <span class="pin" style="top:288px;left:8px">2</span>
+        <div class="lrow" style="opacity:.66"><div class="iconbox"><svg class="ic"><use href="#i-box"/></svg></div>
+          <div style="flex:1"><div class="ttl">redis</div><div class="sub">redis:7-alpine · Exited (0) 3h ago</div></div>
+          <span class="pillst off">■ stopped</span></div>
+        <div class="lrow" style="opacity:.66"><div class="iconbox"><svg class="ic"><use href="#i-box"/></svg></div>
+          <div style="flex:1"><div class="ttl">backup-cron</div><div class="sub">offen/docker-volume-backup · Exited (0)</div></div>
+          <span class="pillst off">■ stopped</span></div>
+        <div class="card" style="margin-top:12px">
+          <div class="spread"><span style="font-size:12px;font-weight:600">watchtower · 实时日志</span><span class="pillst info">跟随中</span></div>
+          <div class="log" style="margin-top:6px">
+            <span class="ts">09:40:11</span> checking containers...<br>
+            <span class="err"><span class="ts">09:40:12</span> ERR pull ghcr.io timeout</span>
+            <span class="ts">09:40:15</span> retry in 30s (attempt 2/5)
+          </div>
+        </div>
+        <span class="pin" style="bottom:104px;right:14px">3</span>
+      </div>
+      <div class="tabbar">
+        <div class="tab"><svg class="ic"><use href="#i-dash"/></svg>仪表盘</div>
+        <div class="tab on"><svg class="ic"><use href="#i-host"/></svg>主机</div>
+        <div class="tab"><svg class="ic"><use href="#i-term"/></svg>终端</div>
+        <div class="tab"><svg class="ic"><use href="#i-cmd"/></svg>命令</div>
+        <div class="tab"><svg class="ic"><use href="#i-me"/></svg>我的</div>
+      </div>
+    </div>
+    <div class="cap"><span class="no">S5</span>Docker · 容器管理（v1.0 P0）</div>
+    <div class="note">
+      <span class="pinref">1</span>行左滑：重启(accent) / 停止(warn) / 删除(crit，需输入容器名确认)；行点击进容器详情（日志/端口/环境变量只读）。<br>
+      <span class="pinref">2</span>停止态整行降不透明度 66%，状态胶囊用形状+文字双编码（■/●/▲，不依赖色彩）。<br>
+      <span class="pinref">3</span>日志卡为最近操作容器的贴条预览，点击展开为 S6 全屏；Compose 分组页为 Pro（免费可看列表，组操作触墙）。无 docker 权限时此页显示授权指引空态（技术方案 §4.4）。
+    </div>
+  </div>
+
+  <!-- S6 日志中心 -->
+  <div class="proto">
+    <div class="frame">
+      <div class="pill-cam"></div>
+      <div class="sbar"><span>09:41</span><span>5G ▮▮▮</span></div>
+      <div class="content noscroll">
+        <div style="padding:0 2px">
+        <div class="h1" style="font-size:20px">日志中心</div>
+        <div class="chiprow" style="margin-top:6px">
+          <span class="fchip on">nginx · error</span><span class="fchip">journal: sshd</span><span class="fchip">容器: api</span><span class="fchip">＋ 添加源</span>
+        </div>
+        <span class="pin" style="top:74px;right:14px">1</span>
+        <div class="row" style="gap:6px;margin-bottom:8px">
+          <div class="searchbar" style="flex:1;margin:0;height:32px"><svg class="ic" style="width:13px"><use href="#i-search"/></svg>过滤关键词（客户端 grep）</div>
+          <div class="iconbox a" style="width:32px;height:32px"><svg class="ic" style="width:15px"><use href="#i-pause"/></svg></div>
+        </div>
+        </div>
+        <div class="term" style="top:150px;bottom:76px;font-size:10px">
+<div class="log">
+<span class="ts">09:37:44</span> 120.55.3.11 GET /api/health 200 3ms<br>
+<span class="ts">09:37:58</span> 84.17.44.2 GET /wp-login.php 404 1ms<br>
+<span class="wr"><span class="ts">09:38:41</span> [warn] 1024 worker_connections not enough</span>
+<span class="ts">09:38:52</span> 120.55.3.11 GET /api/health 200 2ms<br>
+<span class="err"><span class="ts">09:39:12</span> [error] connect() failed (111) upstream :3306</span>
+<span class="err"><span class="ts">09:39:12</span> [error] upstream timed out while reading</span>
+<span class="ts">09:39:31</span> 172.16.0.2 GET /api/orders 502 30001ms<br>
+<span class="ts">09:40:02</span> 120.55.3.11 GET /api/health 200 2ms<br>
+<span class="ts">09:40:12</span> 45.155.9.8 GET /.env 404 0ms<br>
+<span class="ts">09:40:31</span> 172.16.0.2 GET /api/orders 200 84ms<br>
+<span class="ts">09:41:00</span> <span style="color:var(--accent)">▂ 跟随中 · 1.2k 行缓冲 · 错误 2 · 警告 1</span>
+</div>
+        </div>
+        <span class="pin" style="bottom:190px;left:8px">2</span>
+        <span class="pin" style="bottom:78px;right:14px">3</span>
+      </div>
+      <div class="tabbar">
+        <div class="tab"><svg class="ic"><use href="#i-dash"/></svg>仪表盘</div>
+        <div class="tab on"><svg class="ic"><use href="#i-host"/></svg>主机</div>
+        <div class="tab"><svg class="ic"><use href="#i-term"/></svg>终端</div>
+        <div class="tab"><svg class="ic"><use href="#i-cmd"/></svg>命令</div>
+        <div class="tab"><svg class="ic"><use href="#i-me"/></svg>我的</div>
+      </div>
+    </div>
+    <div class="cap"><span class="no">S6</span>日志中心（v1.0 P0 差异化）</div>
+    <div class="note">
+      <span class="pinref">1</span><b>源为芯片切换</b>：预设探测 nginx/mysql/syslog 标准路径 + journalctl 单元 + 容器；「添加源」支持任意文件路径（只读 tail，不改远端）。<br>
+      <span class="pinref">2</span>ERROR/WARN 整行底色 + 左缘色条双编码；上滑自动暂停跟随、回底部恢复；暂停键手动控制。<br>
+      <span class="pinref">3</span>状态行常驻显示缓冲量与错误计数；长按日志行：复制 / 选中上下文「AI 诊断」（v1.5，发送前预览要发出的内容）。1000 行/s 突发丢帧策略见技术方案 §4.4。
+    </div>
+  </div>
+
+  <!-- S7 文件 -->
+  <div class="proto">
+    <div class="frame">
+      <div class="pill-cam"></div>
+      <div class="sbar"><span>09:41</span><span>5G ▮▮▮</span></div>
+      <div class="content">
+        <div class="h1" style="font-size:20px">web-01 · 文件</div>
+        <div class="hsub mono">/etc/nginx/ · 14 项 · 隐藏文件开</div>
+        <div class="lrow"><div class="iconbox a"><svg class="ic"><use href="#i-folder"/></svg></div>
+          <div style="flex:1"><div class="ttl">conf.d</div><div class="sub">drwxr-xr-x · root</div></div>
+          <svg class="ic" style="color:var(--dim)"><use href="#i-chev"/></svg></div>
+        <div class="lrow"><div class="iconbox a"><svg class="ic"><use href="#i-folder"/></svg></div>
+          <div style="flex:1"><div class="ttl">sites-enabled</div><div class="sub">drwxr-xr-x · root</div></div>
+          <svg class="ic" style="color:var(--dim)"><use href="#i-chev"/></svg></div>
+        <span class="pin" style="top:230px;left:8px">1</span>
+        <div class="lrow" style="border-color:rgba(139,147,255,.45)"><div class="iconbox"><svg class="ic"><use href="#i-doc"/></svg></div>
+          <div style="flex:1"><div class="ttl">nginx.conf</div><div class="sub">-rw-r--r-- · root · 3.2 KB · 昨天 22:41</div></div>
+          <span class="pillst acc">编辑</span></div>
+        <div class="lrow"><div class="iconbox"><svg class="ic"><use href="#i-doc"/></svg></div>
+          <div style="flex:1"><div class="ttl">mime.types</div><div class="sub">-rw-r--r-- · root · 5.1 KB</div></div></div>
+        <div class="lrow"><div class="iconbox w"><svg class="ic"><use href="#i-doc"/></svg></div>
+          <div style="flex:1"><div class="ttl">access.log</div><div class="sub">-rw-r----- · 1.8 GB · 大文件</div></div>
+          <span class="pillst warn">tail 查看</span></div>
+        <span class="pin" style="top:392px;right:16px">2</span>
+        <div class="card" style="position:absolute;bottom:76px;left:14px;right:14px;border-color:rgba(100,210,255,.4)">
+          <div class="spread"><span style="font-size:12px;font-weight:600">上传 dist.tar.gz</span>
+            <span class="pillst info">68% · 2.1 MB/s</span></div>
+          <div class="tk" style="height:4px;border-radius:2px;background:var(--track);margin-top:8px"><i style="display:block;height:100%;width:68%;background:var(--info);border-radius:2px"></i></div>
+        </div>
+        <span class="pin" style="bottom:118px;left:8px">3</span>
+      </div>
+      <div class="tabbar">
+        <div class="tab"><svg class="ic"><use href="#i-dash"/></svg>仪表盘</div>
+        <div class="tab on"><svg class="ic"><use href="#i-host"/></svg>主机</div>
+        <div class="tab"><svg class="ic"><use href="#i-term"/></svg>终端</div>
+        <div class="tab"><svg class="ic"><use href="#i-cmd"/></svg>命令</div>
+        <div class="tab"><svg class="ic"><use href="#i-me"/></svg>我的</div>
+      </div>
+    </div>
+    <div class="cap"><span class="no">S7</span>文件 · SFTP</div>
+    <div class="note">
+      <span class="pinref">1</span>配置类文件默认动作为<b>编辑</b>（Runestone 高亮，保存 = 临时文件 + 原子 mv + 保权限）；行左滑：下载 / 重命名 / chmod / 删除。<br>
+      <span class="pinref">2</span>>1MB 自动走「大文件 tail 查看」只读模式（黄色徽标提示），防误载 1.8GB 日志。<br>
+      <span class="pinref">3</span><b>传输队列浮条</b>：断点续传（.connpart 临时名），杀 App 重启可续；点击展开队列管理。上传入口在导航栏 ＋（相册/Files 选取）。
+    </div>
+  </div>
+
+  <!-- S8 快捷命令 -->
+  <div class="proto">
+    <div class="frame">
+      <div class="pill-cam"></div>
+      <div class="sbar"><span>09:41</span><span>5G ▮▮▮</span></div>
+      <div class="content">
+        <div class="spread"><div class="h1">命令</div>
+          <div class="iconbox a" style="margin-top:10px"><svg class="ic"><use href="#i-plus"/></svg></div></div>
+        <div class="hsub mono">片段 8 / 免费 10 条 · 长按拖动排序</div>
+        <div class="sechead"><span class="t">置顶</span></div>
+        <div class="lrow"><div class="iconbox a"><svg class="ic"><use href="#i-restart"/></svg></div>
+          <div style="flex:1"><div class="ttl">重启 nginx</div><div class="sub">systemctl restart nginx && systemctl status n…</div></div>
+          <span class="pillst acc">▶ 执行</span></div>
+        <span class="pin" style="top:200px;right:22px">1</span>
+        <div class="lrow"><div class="iconbox a"><svg class="ic"><use href="#i-search"/></svg></div>
+          <div style="flex:1"><div class="ttl">查端口占用 <span class="tagc" style="color:var(--info);border-color:rgba(100,210,255,.4)">{{port}}</span></div>
+          <div class="sub">ss -tlnp | grep :{{port}}</div></div>
+          <span class="pillst acc">▶ 执行</span></div>
+        <div class="lrow" style="border-color:rgba(255,69,58,.35)"><div class="iconbox c"><svg class="ic"><use href="#i-wrench"/></svg></div>
+          <div style="flex:1"><div class="ttl">清理 7 天前日志 <span class="tagc" style="color:var(--crit);border-color:rgba(255,69,58,.4)">危险</span></div>
+          <div class="sub">find /var/log -mtime +7 -name "*.gz" -delete</div></div>
+          <span class="pillst crit">▶ 执行</span></div>
+        <span class="pin" style="top:322px;left:8px">2</span>
+        <div class="sechead"><span class="t">巡检</span></div>
+        <div class="lrow"><div class="iconbox"><svg class="ic"><use href="#i-eye"/></svg></div>
+          <div style="flex:1"><div class="ttl">磁盘大文件 Top20</div><div class="sub">du -ah / 2>/dev/null | sort -rh | head -20</div></div>
+          <span class="pillst acc">▶ 执行</span></div>
+        <div class="card" style="border-color:rgba(139,147,255,.4)">
+          <div class="spread"><div><div class="ttl" style="font-size:13px">批量执行</div>
+            <div class="sub" style="margin-top:2px">选多台主机并行执行 · 结果聚合对比</div></div>
+            <span class="pillst acc">Pro</span></div>
+        </div>
+        <span class="pin" style="bottom:126px;right:14px">3</span>
+        <div class="btn ghost" style="margin-top:2px">浏览官方模板库（20 条运维脚本）</div>
+      </div>
+      <div class="tabbar">
+        <div class="tab"><svg class="ic"><use href="#i-dash"/></svg>仪表盘</div>
+        <div class="tab"><svg class="ic"><use href="#i-host"/></svg>主机</div>
+        <div class="tab"><svg class="ic"><use href="#i-term"/></svg>终端</div>
+        <div class="tab on"><svg class="ic"><use href="#i-cmd"/></svg>命令</div>
+        <div class="tab"><svg class="ic"><use href="#i-me"/></svg>我的</div>
+      </div>
+    </div>
+    <div class="cap"><span class="no">S8</span>快捷命令 · 片段库</div>
+    <div class="note">
+      <span class="pinref">1</span><b>变量片段</b>：<span class="mono">{{port}}</span> 徽章标识，执行前弹表单填参（支持默认值语法 <span class="mono">{{port:80}}</span>）。<br>
+      <span class="pinref">2</span><b>危险片段</b>红色系整套标识，执行需强确认（批量场景需输入 RUN）；「执行」可选目标主机 → 进终端回显或静默出结果卡。<br>
+      <span class="pinref">3</span>批量执行为 Pro 常驻入口（免费可见、触发弹 Paywall）；官方模板库首启可一键导入。免费 10 条限额在标题下方诚实展示。
+    </div>
+  </div>
+
+  <!-- S9 密钥管家 -->
+  <div class="proto">
+    <div class="frame">
+      <div class="pill-cam"></div>
+      <div class="sbar"><span>09:41</span><span>5G ▮▮▮</span></div>
+      <div class="content">
+        <div class="h1" style="font-size:20px">密钥管家</div>
+        <div class="hsub mono">3 个密钥 · 私钥仅存本机</div>
+        <span class="pin" style="top:120px;right:22px">1</span>
+        <div class="lrow" style="border-color:rgba(139,147,255,.45)"><div class="iconbox a"><svg class="ic"><use href="#i-shield"/></svg></div>
+          <div style="flex:1"><div class="ttl">se-main <span class="tagc" style="color:var(--accent);border-color:rgba(139,147,255,.5)">Secure Enclave</span></div>
+          <div class="sub">ecdsa-p256 · 私钥不可导出 · 签名需 Face ID</div></div>
+          <svg class="ic" style="color:var(--dim)"><use href="#i-chev"/></svg></div>
+        <div class="lrow"><div class="iconbox a"><svg class="ic"><use href="#i-key"/></svg></div>
+          <div style="flex:1"><div class="ttl">id_ed25519</div>
+          <div class="sub">ed25519 · SHA256:kV9x…Qq3M · 已部署 4 台</div></div>
+          <svg class="ic" style="color:var(--dim)"><use href="#i-chev"/></svg></div>
+        <span class="pin" style="top:262px;left:8px">2</span>
+        <div class="lrow" style="border-color:rgba(255,214,10,.35)"><div class="iconbox w"><svg class="ic"><use href="#i-key"/></svg></div>
+          <div style="flex:1"><div class="ttl">legacy-rsa2048 <span class="tagc" style="color:var(--warn);border-color:rgba(255,214,10,.4)">建议轮换</span></div>
+          <div class="sub">rsa-2048 · 2019 年导入 · 已部署 1 台</div></div>
+          <svg class="ic" style="color:var(--dim)"><use href="#i-chev"/></svg></div>
+        <div class="row" style="gap:8px;margin-top:14px">
+          <div class="btn" style="flex:1">生成新密钥</div>
+          <div class="btn ghost" style="flex:1">导入</div>
+        </div>
+        <div class="card" style="margin-top:14px">
+          <div class="ttl" style="font-size:13px;margin-bottom:6px">一键部署公钥</div>
+          <div class="sub" style="line-height:1.8">选择密钥 + 目标主机 → 自动追加 authorized_keys（幂等去重）→ 自动验证免密登录。</div>
+          <div class="btn ghost" style="margin-top:10px;height:38px">部署 id_ed25519 →</div>
+        </div>
+        <span class="pin" style="bottom:158px;right:16px">3</span>
+        <div class="banner" style="margin-top:12px"><svg class="ic" style="width:14px"><use href="#i-shield"/></svg>私钥存于 iOS Keychain / Secure Enclave，Conn 无服务器，任何数据不上传。</div>
+      </div>
+      <div class="tabbar">
+        <div class="tab"><svg class="ic"><use href="#i-dash"/></svg>仪表盘</div>
+        <div class="tab"><svg class="ic"><use href="#i-host"/></svg>主机</div>
+        <div class="tab"><svg class="ic"><use href="#i-term"/></svg>终端</div>
+        <div class="tab"><svg class="ic"><use href="#i-cmd"/></svg>命令</div>
+        <div class="tab on"><svg class="ic"><use href="#i-me"/></svg>我的</div>
+      </div>
+    </div>
+    <div class="cap"><span class="no">S9</span>密钥管家（我的 → 二级页）</div>
+    <div class="note">
+      <span class="pinref">1</span>SE 密钥专属徽章 + 醒目描边，详情页明示「不可导出」的含义与换机迁移限制（需重新生成部署）。<br>
+      <span class="pinref">2</span>弱密钥（RSA-2048 以下 / 老旧）黄色提示「建议轮换」，详情页给轮换向导（生成新钥 → 部署 → 移除旧钥）。<br>
+      <span class="pinref">3</span>信任声明常驻页底（隐私白皮书入口）；生成流程强制命名、可选 passphrase、默认 Ed25519。
+    </div>
+  </div>
+
+  <!-- S10 我的 -->
+  <div class="proto">
+    <div class="frame">
+      <div class="pill-cam"></div>
+      <div class="sbar"><span>09:41</span><span>5G ▮▮▮</span></div>
+      <div class="content">
+        <div class="h1">我的</div>
+        <span class="pin" style="top:78px;right:18px">1</span>
+        <div class="card" style="border-color:rgba(139,147,255,.5);background:linear-gradient(160deg,rgba(139,147,255,.10),rgba(20,28,24,1) 60%)">
+          <div class="spread"><div><div class="ttl" style="font-size:15px">Conn 专业版</div>
+            <div class="sub" style="margin-top:3px">无限主机 · Compose · 批量 · iCloud 同步</div></div>
+            <div style="text-align:right"><div style="font-size:17px;font-weight:800;color:var(--accent)">¥98</div>
+            <div class="sub" style="text-decoration:line-through">¥128</div></div></div>
+          <div class="btn" style="margin-top:10px;height:40px">一次买断 · 终身可用</div>
+          <div class="sub" style="text-align:center;margin-top:6px;color:var(--accent)">绝不订阅 · 绝不把已购功能改收费</div>
+        </div>
+        <div class="lrow"><div class="iconbox a"><svg class="ic"><use href="#i-key"/></svg></div>
+          <div style="flex:1"><div class="ttl">密钥管家</div></div><svg class="ic" style="color:var(--dim)"><use href="#i-chev"/></svg></div>
+        <div class="lrow"><div class="iconbox a"><svg class="ic"><use href="#i-wrench"/></svg></div>
+          <div style="flex:1"><div class="ttl">运维工具箱</div><div class="sub">Ping · 端口 · DNS · WOL</div></div><svg class="ic" style="color:var(--dim)"><use href="#i-chev"/></svg></div>
+        <span class="pin" style="top:330px;left:8px">2</span>
+        <div class="lrow"><div class="iconbox"><svg class="ic"><use href="#i-cloud"/></svg></div>
+          <div style="flex:1"><div class="ttl">iCloud 同步 <span class="tagc" style="color:var(--accent);border-color:rgba(139,147,255,.5)">Pro</span></div>
+          <div class="sub">端到端加密 · 未开启</div></div><svg class="ic" style="color:var(--dim)"><use href="#i-chev"/></svg></div>
+        <div class="lrow"><div class="iconbox a"><svg class="ic"><use href="#i-shield"/></svg></div>
+          <div style="flex:1"><div class="ttl">安全</div><div class="sub">Face ID 解锁 已开 · 剪贴板 60s 清除</div></div><svg class="ic" style="color:var(--dim)"><use href="#i-chev"/></svg></div>
+        <div class="lrow"><div class="iconbox"><svg class="ic"><use href="#i-gear"/></svg></div>
+          <div style="flex:1"><div class="ttl">终端外观 · 通用设置</div></div><svg class="ic" style="color:var(--dim)"><use href="#i-chev"/></svg></div>
+        <div class="lrow"><div class="iconbox"><svg class="ic"><use href="#i-doc"/></svg></div>
+          <div style="flex:1"><div class="ttl">隐私白皮书 · 关于</div></div><svg class="ic" style="color:var(--dim)"><use href="#i-chev"/></svg></div>
+        <span class="pin" style="bottom:112px;left:8px">3</span>
+        <div class="hsub mono" style="text-align:center;margin-top:10px">零遥测 · 无账号 · v1.0 (100)</div>
+      </div>
+      <div class="tabbar">
+        <div class="tab"><svg class="ic"><use href="#i-dash"/></svg>仪表盘</div>
+        <div class="tab"><svg class="ic"><use href="#i-host"/></svg>主机</div>
+        <div class="tab"><svg class="ic"><use href="#i-term"/></svg>终端</div>
+        <div class="tab"><svg class="ic"><use href="#i-cmd"/></svg>命令</div>
+        <div class="tab on"><svg class="ic"><use href="#i-me"/></svg>我的</div>
+      </div>
+    </div>
+    <div class="cap"><span class="no">S10</span>我的 · 设置枢纽</div>
+    <div class="note">
+      <span class="pinref">1</span>专业版卡是「我的」页唯一营销位（未购时显示，已购变为身份卡）；首发价划线锚定。<br>
+      <span class="pinref">2</span>Pro 功能行免费态可见 + Pro 徽章（可发现性），点击进 Paywall 而非隐藏。<br>
+      <span class="pinref">3</span>页脚常驻「零遥测 · 无账号」信任声明——这是产品差异化的一部分，不是装饰。
+    </div>
+  </div>
+
+  <!-- S11 Paywall -->
+  <div class="proto">
+    <div class="frame">
+      <div class="pill-cam"></div>
+      <div class="sbar"><span>09:41</span><span>关闭 ✕</span></div>
+      <div class="content">
+        <div style="text-align:center;margin-top:16px">
+          <div class="mono" style="font-size:12px;letter-spacing:.2em;color:var(--accent)">CONN PRO</div>
+          <div class="h1" style="font-size:24px;margin-top:6px">一次买断，终身可用</div>
+          <div class="hsub">解锁完整的移动运维工作台</div>
+        </div>
+        <span class="pin" style="top:132px;right:26px">1</span>
+        <div class="card" style="margin-top:10px">
+          <div class="row" style="gap:8px;margin-bottom:9px"><svg class="ic" style="color:var(--accent);width:15px"><use href="#i-check"/></svg><span style="font-size:13px">无限主机（免费版 3 台）</span></div>
+          <div class="row" style="gap:8px;margin-bottom:9px"><svg class="ic" style="color:var(--accent);width:15px"><use href="#i-check"/></svg><span style="font-size:13px">Docker Compose 编排 + systemd 服务管理</span></div>
+          <div class="row" style="gap:8px;margin-bottom:9px"><svg class="ic" style="color:var(--accent);width:15px"><use href="#i-check"/></svg><span style="font-size:13px">多主机批量执行 · 结果聚合</span></div>
+          <div class="row" style="gap:8px;margin-bottom:9px"><svg class="ic" style="color:var(--accent);width:15px"><use href="#i-check"/></svg><span style="font-size:13px">iCloud 端到端加密同步</span></div>
+          <div class="row" style="gap:8px;margin-bottom:9px"><svg class="ic" style="color:var(--accent);width:15px"><use href="#i-check"/></svg><span style="font-size:13px">Files 集成 · 历史曲线 · 无限片段 · 主题包</span></div>
+          <div class="row" style="gap:8px"><svg class="ic" style="color:var(--muted);width:15px"><use href="#i-check"/></svg><span style="font-size:13px;color:var(--muted)">终端 / SFTP / 监控 / Docker 基础 / AI：本来就免费</span></div>
+        </div>
+        <span class="pin" style="top:352px;left:10px">2</span>
+        <div style="text-align:center;margin:14px 0 4px">
+          <span style="font-size:34px;font-weight:800;color:var(--ink)">¥68</span>
+          <span class="sub" style="text-decoration:line-through;color:var(--muted);font-size:14px"> ¥98</span>
+          <div class="hsub">首发限时 · 含未来常规更新</div>
+        </div>
+        <div class="btn" style="height:48px">买断专业版</div>
+        <div class="row" style="justify-content:center;gap:18px;margin-top:10px">
+          <span style="font-size:12px;color:var(--muted)">恢复购买</span>
+          <span style="font-size:12px;color:var(--muted)">家人共享 ✓</span>
+        </div>
+        <span class="pin" style="bottom:120px;right:20px">3</span>
+        <div class="banner" style="margin-top:12px;justify-content:center"><svg class="ic" style="width:14px"><use href="#i-shield"/></svg>承诺：绝不改订阅，绝不把已购功能改收费</div>
+      </div>
+    </div>
+    <div class="cap"><span class="no">S11</span>Paywall · 专业版购买</div>
+    <div class="note">
+      <span class="pinref">1</span>权益清单末行<b>反向诚实</b>：明说哪些本来就免费——建立信任、区隔 Termius 式免费版阉割（PRD §8.3 策略的 UI 表达）。<br>
+      <span class="pinref">2</span>只有一个 SKU 一个按钮，无套餐对比、无倒计时压迫；触达路径：限额 banner / Pro 徽章功能 / 我的页卡片。<br>
+      <span class="pinref">3</span>承诺条是品牌资产，商店截图同款文案；关闭按钮常驻右上，无挽留弹窗。
+    </div>
+  </div>
+
+  <!-- S12 首启/演示 -->
+  <div class="proto">
+    <div class="frame">
+      <div class="pill-cam"></div>
+      <div class="sbar"><span>09:41</span><span></span></div>
+      <div class="content">
+        <div style="text-align:center;margin-top:48px">
+          <div class="mono" style="font-size:40px;font-weight:800;color:var(--accent)">▸ conn<span class="cursor" style="height:26px;width:12px"></span></div>
+          <div class="h1" style="font-size:21px;margin-top:14px">把服务器装进口袋</div>
+          <div class="hsub" style="margin-top:4px">连接 · 观测 · 处置，一部手机完成救火</div>
+        </div>
+        <div class="card" style="margin-top:26px">
+          <div class="row" style="gap:10px;margin-bottom:11px"><div class="iconbox a" style="width:30px;height:30px"><svg class="ic" style="width:15px"><use href="#i-shield"/></svg></div>
+            <div><div class="ttl" style="font-size:13px">零上传，无服务端</div><div class="sub">密钥与数据永远只在这台设备上</div></div></div>
+          <div class="row" style="gap:10px;margin-bottom:11px"><div class="iconbox a" style="width:30px;height:30px"><svg class="ic" style="width:15px"><use href="#i-dash"/></svg></div>
+            <div><div class="ttl" style="font-size:13px">免费监控 + Docker + 完整终端</div><div class="sub">免费版不阉割核心体验</div></div></div>
+          <div class="row" style="gap:10px"><div class="iconbox a" style="width:30px;height:30px"><svg class="ic" style="width:15px"><use href="#i-check"/></svg></div>
+            <div><div class="ttl" style="font-size:13px">买断制</div><div class="sub">绝不订阅，一次买断终身可用</div></div></div>
+        </div>
+        <span class="pin" style="top:296px;right:20px">1</span>
+        <div class="btn" style="margin-top:22px;height:48px">添加我的服务器</div>
+        <span class="pin" style="bottom:150px;left:12px">2</span>
+        <div class="btn ghost" style="margin-top:10px;height:44px">先逛逛演示模式</div>
+        <span class="pin" style="bottom:96px;right:20px">3</span>
+        <div class="hsub mono" style="text-align:center;margin-top:16px">继续即同意《隐私白皮书》：我们收集不了任何数据</div>
+      </div>
+    </div>
+    <div class="cap"><span class="no">S12</span>首启 · 欢迎与演示入口</div>
+    <div class="note">
+      <span class="pinref">1</span>三条价值主张 = 三大差异化（隐私/免费诚意/买断），与商店页文案一致。<br>
+      <span class="pinref">2</span>添加流程只要三项必填 + 粘贴 ssh 命令识别；失败进诊断树（DNS/端口/认证/指纹 四分支 checklist，PRD §5.9 首连引导）。<br>
+      <span class="pinref">3</span><b>演示模式</b>：MockSSHTransport 全功能假数据（含一台故障机供体验红色态与处置流），顶部常驻退出横幅；同时服务 App Store 审核。
+    </div>
+  </div>
+
+  </div>
+</section>
+
+<section>
+  <h2>2 · 功能补全屏（S13–S19）</h2>
+  <div class="sub">编辑器 / 批量结果 / AI 弹层 / 诊断树 / 工具箱 / 同步与恢复码——至此 v1.0–v2.0 全部主要界面出齐</div>
+  <div class="grid">
+
+  <!-- S13 SFTP 编辑器 -->
+  <div class="proto">
+    <div class="frame">
+      <div class="pill-cam"></div>
+      <div class="sbar"><span>09:41</span><span>5G ▮▮▮</span></div>
+      <div class="content noscroll">
+        <div class="spread" style="padding:8px 14px 0">
+          <span class="mono" style="font-size:12px;color:var(--muted)">‹ 文件</span>
+          <span style="font-size:14px;font-weight:700;color:var(--ink)">nginx.conf</span>
+          <span class="pillst acc">保存</span>
+        </div>
+        <div class="hsub mono" style="padding:0 14px;margin-top:2px">/etc/nginx/ · -rw-r--r-- root · 未修改</div>
+        <span class="pin" style="top:52px;right:14px">1</span>
+        <div class="code">
+          <div class="cl"><span class="ln">1</span><span><span class="c"># managed by conn · 保存前自动备份 .bak</span></span></div>
+          <div class="cl"><span class="ln">2</span><span><span class="k">user</span> www-data;</span></div>
+          <div class="cl"><span class="ln">3</span><span><span class="k">worker_processes</span> <span class="v">auto</span>;</span></div>
+          <div class="cl"><span class="ln">4</span><span></span></div>
+          <div class="cl"><span class="ln">5</span><span><span class="k">events</span> {</span></div>
+          <div class="cl"><span class="ln">6</span><span>  <span class="k">worker_connections</span> <span class="v">2048</span>;</span></div>
+          <div class="cl"><span class="ln">7</span><span>}</span></div>
+          <div class="cl"><span class="ln">8</span><span></span></div>
+          <div class="cl"><span class="ln">9</span><span><span class="k">http</span> {</span></div>
+          <div class="cl"><span class="ln">10</span><span>  <span class="k">include</span> <span class="s">mime.types</span>;</span></div>
+          <div class="cl"><span class="ln">11</span><span>  <span class="k">server</span> {</span></div>
+          <div class="cl" style="background:rgba(139,147,255,.08)"><span class="ln" style="color:var(--accent)">12</span><span>    <span class="k">listen</span> <span class="v">443</span> ssl;<span class="cursor"></span></span></div>
+          <div class="cl"><span class="ln">13</span><span>    <span class="k">server_name</span> <span class="s">api.example.com</span>;</span></div>
+          <div class="cl"><span class="ln">14</span><span>    <span class="k">proxy_pass</span> <span class="s">http://127.0.0.1:3000</span>;</span></div>
+          <div class="cl"><span class="ln">15</span><span>  }</span></div>
+          <div class="cl"><span class="ln">16</span><span>}</span></div>
+        </div>
+        <span class="pin" style="top:210px;left:8px">2</span>
+        <div class="symbar" style="bottom:76px">
+          <div class="key">Tab</div><div class="key">{ }</div><div class="key">"</div><div class="key">;</div>
+          <div class="key">$</div><div class="key">↺</div><div class="key"><svg class="ic" style="width:13px"><use href="#i-search"/></svg></div>
+        </div>
+        <span class="pin" style="bottom:112px;right:14px">3</span>
+      </div>
+      <div class="tabbar">
+        <div class="tab"><svg class="ic"><use href="#i-dash"/></svg>仪表盘</div>
+        <div class="tab on"><svg class="ic"><use href="#i-host"/></svg>主机</div>
+        <div class="tab"><svg class="ic"><use href="#i-term"/></svg>终端</div>
+        <div class="tab"><svg class="ic"><use href="#i-cmd"/></svg>命令</div>
+        <div class="tab"><svg class="ic"><use href="#i-me"/></svg>我的</div>
+      </div>
+    </div>
+    <div class="cap"><span class="no">S13</span>SFTP 在线编辑器（Runestone）</div>
+    <div class="note">
+      <span class="pinref">1</span>「保存」= 上传临时文件 + 远端原子 <span class="mono">mv</span> + 保留原权限（技术方案 §4.5）；有改动未保存时保存钮变实心、返回弹「放弃/保存」。<br>
+      <span class="pinref">2</span>Runestone + tree-sitter 语法高亮（nginx/yaml/json/shell 等常见配置格式）；行号列常驻；当前行浅绿底。<br>
+      <span class="pinref">3</span>编辑器专用符号条替换终端键条（Tab/括号/引号/分号/$/撤销/搜索）；>1MB 文件不进编辑器，走大文件 tail 只读（S7 已标注）。
+    </div>
+  </div>
+
+  <!-- S14 批量执行结果 -->
+  <div class="proto">
+    <div class="frame">
+      <div class="pill-cam"></div>
+      <div class="sbar"><span>09:41</span><span>5G ▮▮▮</span></div>
+      <div class="content">
+        <div class="h1" style="font-size:20px">批量执行 <span class="pillst acc" style="vertical-align:4px">Pro</span></div>
+        <div class="card" style="padding:9px 12px">
+          <div class="mono" style="font-size:11px;color:var(--ink)">systemctl restart nginx</div>
+          <div class="hsub" style="margin:2px 0 0">目标 5 台 · 并发 6 · 09:41:02 发起</div>
+        </div>
+        <div class="row" style="gap:6px;margin-bottom:10px">
+          <span class="pillst good">✓ 成功 3</span><span class="pillst crit">✕ 失败 1</span><span class="pillst info">● 运行中 1</span>
+        </div>
+        <span class="pin" style="top:158px;right:16px">1</span>
+        <div class="lrow"><span class="dot good"></span><div style="flex:1"><div class="ttl">web-01</div>
+          <div class="sub">exit 0 · 0.8s</div></div><span class="pillst good">✓</span></div>
+        <div class="lrow"><span class="dot good"></span><div style="flex:1"><div class="ttl">web-02</div>
+          <div class="sub">exit 0 · 1.1s</div></div><span class="pillst good">✓</span></div>
+        <div class="card" style="border-color:rgba(255,69,58,.4);padding:10px 12px">
+          <div class="spread"><div class="row" style="gap:8px"><span class="dot crit"></span><span class="ttl">jp-vps-tokyo</span></div>
+            <span class="pillst crit">✕ exit 5</span></div>
+          <div class="log" style="margin-top:6px"><span class="err"><span class="ts">stderr</span> Failed to restart nginx.service: Unit not found.</span></div>
+          <div class="row" style="gap:10px;margin-top:8px">
+            <span style="font-size:11px;color:var(--accent)">重试此台</span>
+            <span style="font-size:11px;color:var(--accent)">打开终端</span>
+          </div>
+        </div>
+        <span class="pin" style="top:330px;left:8px">2</span>
+        <div class="lrow"><span class="dot good"></span><div style="flex:1"><div class="ttl">nas-home</div>
+          <div class="sub">exit 0 · 2.0s</div></div><span class="pillst good">✓</span></div>
+        <div class="lrow" style="opacity:.8"><span class="dot" style="background:var(--info)"></span><div style="flex:1"><div class="ttl">blog-vps</div>
+          <div class="sub">执行中 · 3.2s…</div></div><span class="pillst info">●</span></div>
+        <div class="row" style="gap:8px;margin-top:10px">
+          <div class="btn ghost" style="flex:1;height:40px">取消剩余</div>
+          <div class="btn ghost" style="flex:1;height:40px">导出结果</div>
+        </div>
+        <span class="pin" style="bottom:96px;right:16px">3</span>
+      </div>
+      <div class="tabbar">
+        <div class="tab"><svg class="ic"><use href="#i-dash"/></svg>仪表盘</div>
+        <div class="tab"><svg class="ic"><use href="#i-host"/></svg>主机</div>
+        <div class="tab"><svg class="ic"><use href="#i-term"/></svg>终端</div>
+        <div class="tab on"><svg class="ic"><use href="#i-cmd"/></svg>命令</div>
+        <div class="tab"><svg class="ic"><use href="#i-me"/></svg>我的</div>
+      </div>
+    </div>
+    <div class="cap"><span class="no">S14</span>批量执行 · 结果聚合</div>
+    <div class="note">
+      <span class="pinref">1</span>汇总胶囊实时更新（TaskGroup 并发上限 6，技术方案 §4.6）；执行中可整体取消，已完成的不回滚。<br>
+      <span class="pinref">2</span><b>失败行自动展开</b> stderr 摘要（其余行收起），行内直给「重试此台 / 打开终端」处置出口；成功行点击可展开 stdout。<br>
+      <span class="pinref">3</span>危险片段进入本页前需输入 <span class="mono">RUN</span> 确认（S8 规则）；「导出结果」生成 JSON 分享（走系统分享页）。
+    </div>
+  </div>
+
+  <!-- S15 AI 命令弹层 -->
+  <div class="proto">
+    <div class="frame">
+      <div class="pill-cam"></div>
+      <div class="sbar"><span>09:41</span><span>5G ▮▮▮</span></div>
+      <div class="content noscroll">
+        <div class="term" style="bottom:340px;opacity:.45">
+<span class="p">root@web-01</span><span class="dim">:</span><span class="cy">~</span><span class="p">$</span> <span class="cursor"></span>
+        </div>
+        <div class="dim" style="bottom:0"></div>
+        <div class="sheet" style="bottom:76px">
+          <div class="grab"></div>
+          <div class="spread"><span style="font-size:14px;font-weight:700;color:var(--ink)">AI 生成命令</span>
+            <span class="pillst acc">BYOK · Claude</span></div>
+          <span class="pin" style="margin:-22px 0 0 236px">1</span>
+          <div class="searchbar" style="margin:10px 0"><span style="color:var(--ink)">找出占用 3306 端口的进程</span></div>
+          <div class="card" style="background:var(--termbg);margin-bottom:8px">
+            <div class="mono" style="font-size:12px;color:var(--accent)">ss -tlnp | grep :3306</div>
+          </div>
+          <span class="pin" style="margin:-40px 0 0 262px">2</span>
+          <div class="note" style="font-size:11px;line-height:1.7;margin-bottom:10px;color:var(--muted)">
+            <b style="color:var(--ink)">解释</b>：ss 列出监听中的 TCP 端口（-t）与进程信息（-p），grep 过滤 3306。只读命令，无副作用。
+          </div>
+          <div class="btn" style="height:44px">填入终端（不自动执行）</div>
+          <div class="row" style="gap:14px;justify-content:center;margin-top:9px">
+            <span style="font-size:11.5px;color:var(--muted)">换个写法</span>
+            <span style="font-size:11.5px;color:var(--muted)">解释更多</span>
+          </div>
+          <span class="pin" style="margin:-56px 0 0 8px">3</span>
+          <div class="hsub mono" style="text-align:center;margin-top:10px">上下文：主机 OS + 最近 20 行输出（设置可关） · Key 仅存本机</div>
+        </div>
+      </div>
+      <div class="tabbar">
+        <div class="tab"><svg class="ic"><use href="#i-dash"/></svg>仪表盘</div>
+        <div class="tab"><svg class="ic"><use href="#i-host"/></svg>主机</div>
+        <div class="tab on"><svg class="ic"><use href="#i-term"/></svg>终端</div>
+        <div class="tab"><svg class="ic"><use href="#i-cmd"/></svg>命令</div>
+        <div class="tab"><svg class="ic"><use href="#i-me"/></svg>我的</div>
+      </div>
+    </div>
+    <div class="cap"><span class="no">S15</span>AI 命令生成弹层（⌘K / 键条唤起）</div>
+    <div class="note">
+      <span class="pinref">1</span>BYOK 徽章常驻标明当前 Provider；未配 Key 时此处引导去设置（Key 仅存 Keychain）。<br>
+      <span class="pinref">2</span>命令永远先展示 + 解释，<b>唯一主按钮是「填入终端」且绝不自动回车</b>（技术方案 §4.8 红线）；高危命令时命令块变红框 + 解释首行标危险原因。<br>
+      <span class="pinref">3</span>底部隐私说明常驻：明示会发送什么上下文给所配 API、可在设置关闭。全局关闭 AI 后 ⌘K 入口消失。
+    </div>
+  </div>
+
+  <!-- S16 诊断树 -->
+  <div class="proto">
+    <div class="frame">
+      <div class="pill-cam"></div>
+      <div class="sbar"><span>09:41</span><span>5G ▮▮▮</span></div>
+      <div class="content">
+        <div class="h1" style="font-size:20px">连接诊断</div>
+        <div class="hsub mono">jp-vps-tokyo · root@45.76.**.21 :22</div>
+        <div class="card" style="padding:6px 14px">
+          <div class="step"><div class="stic ok">✓</div><div style="flex:1"><div class="ttl" style="font-size:13px">DNS 解析</div>
+            <div class="sub">45.76.**.21 · 12ms</div></div></div>
+          <div class="step"><div class="stic bad">✕</div><div style="flex:1"><div class="ttl" style="font-size:13px;color:var(--crit)">TCP 22 端口连通</div>
+            <div class="sub" style="color:var(--crit)">超时（3s ×3 次）——问题卡在这里</div></div></div>
+          <div class="step"><div class="stic todo">3</div><div style="flex:1"><div class="ttl" style="font-size:13px;color:var(--muted)">SSH 握手</div>
+            <div class="sub">未执行</div></div></div>
+          <div class="step"><div class="stic todo">4</div><div style="flex:1"><div class="ttl" style="font-size:13px;color:var(--muted)">身份认证</div>
+            <div class="sub">未执行</div></div></div>
+        </div>
+        <span class="pin" style="top:196px;left:8px">1</span>
+        <div class="sechead"><span class="t">建议排查（按可能性排序）</span></div>
+        <div class="card" style="font-size:12px;line-height:2;color:var(--ink)">
+          1. 云厂商<b>安全组/防火墙</b>是否放行 22 端口（最常见）<br>
+          2. 服务器是否关机/失联——用云厂商控制台确认状态<br>
+          3. sshd 是否在运行：<span class="mono" style="font-size:11px">systemctl status sshd</span>（经 VNC/救援模式）<br>
+          4. 端口是否改过——尝试主机档案里记录的备用端口
+        </div>
+        <span class="pin" style="top:328px;right:16px">2</span>
+        <div class="btn" style="margin-top:4px">重新诊断</div>
+        <div class="row" style="gap:8px;margin-top:8px">
+          <div class="btn ghost" style="flex:1;height:40px">改用备用端口</div>
+          <div class="btn ghost" style="flex:1;height:40px">复制诊断报告</div>
+        </div>
+        <span class="pin" style="bottom:104px;left:8px">3</span>
+      </div>
+      <div class="tabbar">
+        <div class="tab"><svg class="ic"><use href="#i-dash"/></svg>仪表盘</div>
+        <div class="tab on"><svg class="ic"><use href="#i-host"/></svg>主机</div>
+        <div class="tab"><svg class="ic"><use href="#i-term"/></svg>终端</div>
+        <div class="tab"><svg class="ic"><use href="#i-cmd"/></svg>命令</div>
+        <div class="tab"><svg class="ic"><use href="#i-me"/></svg>我的</div>
+      </div>
+    </div>
+    <div class="cap"><span class="no">S16</span>连接诊断树（连接失败/首连引导共用）</div>
+    <div class="note">
+      <span class="pinref">1</span>四步流水线（DNS → TCP → 握手 → 认证）逐步执行，<b>卡点红色高亮 + 一句话结论</b>；每步展示实测数据（IP/耗时/错误码）。<br>
+      <span class="pinref">2</span>建议列表按卡点类型分支渲染（握手失败给算法兼容建议、认证失败给密钥/密码检查项），按可能性排序、可执行。<br>
+      <span class="pinref">3</span>「复制诊断报告」输出脱敏文本便于求助/提工单；首连场景（S12 入口）失败后自动进入本页。
+    </div>
+  </div>
+
+  <!-- S17 运维工具箱 -->
+  <div class="proto">
+    <div class="frame">
+      <div class="pill-cam"></div>
+      <div class="sbar"><span>09:41</span><span>5G ▮▮▮</span></div>
+      <div class="content">
+        <div class="h1" style="font-size:20px">运维工具箱</div>
+        <div class="hsub mono">独立于主机连接 · 本机直接发起</div>
+        <div class="tiles" style="margin-bottom:12px">
+          <div class="tile" style="border-color:rgba(139,147,255,.5)"><svg class="ic"><use href="#i-restart"/></svg>Ping</div>
+          <div class="tile"><svg class="ic"><use href="#i-chev"/></svg>Traceroute</div>
+          <div class="tile"><svg class="ic"><use href="#i-search"/></svg>DNS 查询</div>
+          <div class="tile"><svg class="ic"><use href="#i-host"/></svg>端口检查</div>
+        </div>
+        <div class="tiles" style="margin-bottom:12px">
+          <div class="tile"><svg class="ic"><use href="#i-cmd"/></svg>WOL 唤醒</div>
+          <div class="tile"><svg class="ic"><use href="#i-doc"/></svg>Whois</div>
+          <div class="tile"><svg class="ic"><use href="#i-gear"/></svg>子网计算</div>
+          <div class="tile"><svg class="ic"><use href="#i-shield"/></svg>证书检查</div>
+        </div>
+        <span class="pin" style="top:130px;left:8px">1</span>
+        <div class="card">
+          <div class="spread"><span style="font-size:13px;font-weight:700;color:var(--ink)">Ping · 120.55.**.9</span>
+            <span class="pillst good">运行中</span></div>
+          <div class="log" style="margin-top:8px">
+            <span class="ts">seq=1</span> 64 bytes · ttl=52 · <span style="color:var(--accent)">42.1ms</span><br>
+            <span class="ts">seq=2</span> 64 bytes · ttl=52 · <span style="color:var(--accent)">41.8ms</span><br>
+            <span class="ts">seq=3</span> 64 bytes · ttl=52 · <span style="color:var(--warn)">128.4ms</span><br>
+            <span class="ts">seq=4</span> 64 bytes · ttl=52 · <span style="color:var(--accent)">43.0ms</span>
+          </div>
+          <div class="hsub mono" style="margin-top:8px">4 发 4 收 0 丢 · min 41.8 / avg 63.8 / max 128.4 ms</div>
+        </div>
+        <span class="pin" style="top:356px;right:16px">2</span>
+        <div class="banner" style="margin-top:8px">主机列表长按任意主机 → 快捷发起 Ping / 端口检查</div>
+        <span class="pin" style="bottom:110px;left:8px">3</span>
+      </div>
+      <div class="tabbar">
+        <div class="tab"><svg class="ic"><use href="#i-dash"/></svg>仪表盘</div>
+        <div class="tab"><svg class="ic"><use href="#i-host"/></svg>主机</div>
+        <div class="tab"><svg class="ic"><use href="#i-term"/></svg>终端</div>
+        <div class="tab"><svg class="ic"><use href="#i-cmd"/></svg>命令</div>
+        <div class="tab on"><svg class="ic"><use href="#i-me"/></svg>我的</div>
+      </div>
+    </div>
+    <div class="cap"><span class="no">S17</span>运维工具箱（我的 → 二级页）</div>
+    <div class="note">
+      <span class="pinref">1</span>八件工具全部<b>本机发起</b>、不依赖 SSH 连接（ICMP 走 SimplePing、TCP 走 Network.framework，技术方案 §4.3）；WOL 需与目标同网段，工具内明示。<br>
+      <span class="pinref">2</span>结果区实时流式输出，异常值（>100ms、超时）黄/红着色；统计行常驻底部。<br>
+      <span class="pinref">3</span>与主机列表联动：长按主机直达对应工具并预填地址。
+    </div>
+  </div>
+
+  <!-- S18 iCloud 同步设置 -->
+  <div class="proto">
+    <div class="frame">
+      <div class="pill-cam"></div>
+      <div class="sbar"><span>09:41</span><span>5G ▮▮▮</span></div>
+      <div class="content">
+        <div class="h1" style="font-size:20px">iCloud 同步 <span class="pillst acc" style="vertical-align:4px">Pro</span></div>
+        <div class="card">
+          <div class="spread"><div><div class="ttl" style="font-size:14px">端到端加密同步</div>
+            <div class="sub" style="margin-top:2px">已开启 · 走你自己的 iCloud 私有库</div></div>
+            <div style="width:44px;height:26px;border-radius:13px;background:var(--accent);position:relative"><i style="position:absolute;right:2px;top:2px;width:22px;height:22px;border-radius:50%;background:#0A0C14"></i></div></div>
+        </div>
+        <span class="pin" style="top:118px;right:20px">1</span>
+        <div class="lrow"><div class="iconbox a"><svg class="ic"><use href="#i-key"/></svg></div>
+          <div style="flex:1"><div class="ttl">主密码</div><div class="sub">已设置 · 派生密钥仅存本机</div></div>
+          <span class="pillst good">✓</span></div>
+        <div class="lrow" style="border-color:rgba(255,214,10,.35)"><div class="iconbox w"><svg class="ic"><use href="#i-doc"/></svg></div>
+          <div style="flex:1"><div class="ttl">恢复码</div><div class="sub" style="color:var(--warn)">未备份——丢失主密码将无法恢复数据</div></div>
+          <span class="pillst warn">去备份</span></div>
+        <span class="pin" style="top:262px;left:8px">2</span>
+        <div class="card mono" style="font-size:10.5px;line-height:1.9;color:var(--muted)">
+          <div class="spread"><span>上次同步</span><span style="color:var(--ink)">2 分钟前</span></div>
+          <div class="spread"><span>已同步</span><span style="color:var(--ink)">5 主机 · 3 密钥 · 8 片段 · 设置</span></div>
+          <div class="spread"><span>本设备</span><span style="color:var(--ink)">iPhone 15 Pro（此设备）</span></div>
+          <div class="spread"><span>其他设备</span><span style="color:var(--ink)">iPad Pro · 昨天</span></div>
+        </div>
+        <div class="card" style="font-size:11.5px;line-height:1.8;color:var(--muted)">
+          <b style="color:var(--ink)">零知识说明</b>：所有数据（含主机密码与私钥）先用主密码派生的密钥在本机加密，再存入 iCloud——Apple 与 Conn 都无法读取。换设备恢复需要主密码或恢复码。
+        </div>
+        <span class="pin" style="bottom:150px;right:16px">3</span>
+        <div class="row" style="gap:8px">
+          <div class="btn ghost" style="flex:1;height:40px">更换主密码</div>
+          <div class="btn ghost" style="flex:1;height:40px;color:var(--crit);border-color:rgba(255,69,58,.4)">停用同步</div>
+        </div>
+      </div>
+      <div class="tabbar">
+        <div class="tab"><svg class="ic"><use href="#i-dash"/></svg>仪表盘</div>
+        <div class="tab"><svg class="ic"><use href="#i-host"/></svg>主机</div>
+        <div class="tab"><svg class="ic"><use href="#i-term"/></svg>终端</div>
+        <div class="tab"><svg class="ic"><use href="#i-cmd"/></svg>命令</div>
+        <div class="tab on"><svg class="ic"><use href="#i-me"/></svg>我的</div>
+      </div>
+    </div>
+    <div class="cap"><span class="no">S18</span>iCloud 同步设置（v1.1，Pro）</div>
+    <div class="note">
+      <span class="pinref">1</span>开关开启前必须完成主密码设置 + 恢复码仪式（S19）两步，缺一不可开启。<br>
+      <span class="pinref">2</span>恢复码未备份时黄色警示常驻——这是数据安全的最后防线，允许跳过但不允许无感跳过。<br>
+      <span class="pinref">3</span>「停用同步」为红色描边：弹确认说明「云端密文将删除，本机数据保留」；零知识说明卡常驻页内（信任建设，PRD §5.8）。
+    </div>
+  </div>
+
+  <!-- S19 恢复码仪式 -->
+  <div class="proto">
+    <div class="frame">
+      <div class="pill-cam"></div>
+      <div class="sbar"><span>09:41</span><span>关闭 ✕</span></div>
+      <div class="content">
+        <div class="h1" style="font-size:20px;margin-top:14px">备份恢复码</div>
+        <div class="hsub">这 24 个词是丢失主密码后<b style="color:var(--warn)">唯一</b>的数据恢复途径</div>
+        <div class="banner warnb" style="margin-top:6px">请抄写在纸上并妥善保管 · 请勿截图（截图检测将警告）</div>
+        <span class="pin" style="top:150px;right:16px">1</span>
+        <div class="wordgrid" style="margin-top:10px">
+          <div class="word"><i>1</i>anchor</div><div class="word"><i>2</i>silver</div><div class="word"><i>3</i>orbit</div>
+          <div class="word"><i>4</i>copper</div><div class="word"><i>5</i>maple</div><div class="word"><i>6</i>signal</div>
+          <div class="word"><i>7</i>harbor</div><div class="word"><i>8</i>north</div><div class="word"><i>9</i>ember</div>
+          <div class="word"><i>10</i>quiet</div><div class="word"><i>11</i>lattice</div><div class="word"><i>12</i>vivid</div>
+          <div class="word"><i>13</i>summit</div><div class="word"><i>14</i>cargo</div><div class="word"><i>15</i>pilot</div>
+          <div class="word"><i>16</i>meadow</div><div class="word"><i>17</i>token</div><div class="word"><i>18</i>rugged</div>
+          <div class="word"><i>19</i>onion</div><div class="word"><i>20</i>drift</div><div class="word"><i>21</i>salute</div>
+          <div class="word"><i>22</i>hollow</div><div class="word"><i>23</i>beacon</div><div class="word"><i>24</i>tundra</div>
+        </div>
+        <span class="pin" style="top:322px;left:8px">2</span>
+        <div class="card" style="margin-top:12px">
+          <div class="row" style="gap:10px">
+            <div style="width:20px;height:20px;border-radius:6px;background:var(--accent);display:flex;align-items:center;justify-content:center"><svg class="ic" style="width:13px;color:#0A0C14"><use href="#i-check"/></svg></div>
+            <span style="font-size:12.5px;color:var(--ink)">我已将 24 个词按顺序抄写在安全的地方</span>
+          </div>
+        </div>
+        <div class="btn" style="height:46px">验证并完成（将抽查 3 个词）</div>
+        <span class="pin" style="bottom:120px;right:20px">3</span>
+        <div class="hsub mono" style="text-align:center;margin-top:10px">恢复码只显示这一次 · 可稍后在设置中重新生成（旧码作废）</div>
+      </div>
+    </div>
+    <div class="cap"><span class="no">S19</span>恢复码仪式页（S18 前置步骤）</div>
+    <div class="note">
+      <span class="pinref">1</span>本页禁用系统截屏录屏提示（检测 <span class="mono">userDidTakeScreenshot</span> 弹警告）、禁用复制；黄色横幅常驻。<br>
+      <span class="pinref">2</span>BIP39 词表 24 词、编号网格排布便于抄写核对（设计规范 mono 令牌）。<br>
+      <span class="pinref">3</span><b>验证仪式</b>：勾选后仍需抽查输入 3 个随机位置的词才算完成——防止用户无感跳过（技术方案 §4.11 强制确认）。
+    </div>
+  </div>
+
+  </div>
+</section>
+
+<section>
+  <h2>3 · 特殊画幅：Widget 与 iPad</h2>
+  <div class="sub">Widget 三尺寸（主屏幕快照，不发起 SSH）与 iPad 三栏布局</div>
+  <div class="grid">
+
+  <!-- S20 Widgets -->
+  <div class="proto wide">
+    <div class="wcanvas">
+      <div class="wg sm">
+        <div class="wtitle">Conn · 单机</div><div class="age">3 分钟前</div>
+        <div style="text-align:center;margin-top:6px">
+          <div class="ring m" style="margin-bottom:8px"><i style="background:var(--surface)">61<b>%</b></i></div>
+          <div class="hname" style="font-size:12px">web-01</div>
+          <div class="haddr">CPU 32 · 磁盘 78</div>
+        </div>
+      </div>
+      <div class="wg md">
+        <div class="wtitle">Conn · 舰队概览</div><div class="age">3 分钟前</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:4px">
+          <div class="row" style="gap:6px"><span class="dot good"></span><span style="font-size:11px;color:var(--ink)">web-01</span><span class="haddr" style="margin-left:auto">32%</span></div>
+          <div class="row" style="gap:6px"><span class="dot warn"></span><span style="font-size:11px;color:var(--ink)">db-master</span><span class="haddr" style="margin-left:auto">94%</span></div>
+          <div class="row" style="gap:6px"><span class="dot crit"></span><span style="font-size:11px;color:var(--ink)">jp-vps</span><span class="haddr" style="margin-left:auto">离线</span></div>
+          <div class="row" style="gap:6px"><span class="dot good"></span><span style="font-size:11px;color:var(--ink)">nas-home</span><span class="haddr" style="margin-left:auto">18%</span></div>
+        </div>
+        <div class="hsub mono" style="margin-top:10px">12 台 · 1 异常 · 点击打开驾驶舱</div>
+      </div>
+      <div class="wg lg">
+        <div class="wtitle">Conn · 舰队详情</div><div class="age">3 分钟前</div>
+        <div class="card" style="border-left:3px solid var(--crit);padding:8px 10px;margin:2px 0 8px">
+          <div class="spread"><span style="font-size:12px;font-weight:700;color:var(--ink)">jp-vps-tokyo</span><span class="pillst crit">✕ 离线</span></div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:7px">
+          <div><div class="spread" style="font-size:11px;color:var(--ink)"><span>web-01</span><span class="haddr">CPU 32%</span></div>
+            <div class="tk" style="height:3px;background:var(--track);border-radius:2px"><i style="display:block;height:100%;width:32%;background:var(--accent);border-radius:2px"></i></div></div>
+          <div><div class="spread" style="font-size:11px;color:var(--ink)"><span>db-master</span><span class="haddr">CPU 94%</span></div>
+            <div class="tk" style="height:3px;background:var(--track);border-radius:2px"><i style="display:block;height:100%;width:94%;background:var(--crit);border-radius:2px"></i></div></div>
+          <div><div class="spread" style="font-size:11px;color:var(--ink)"><span>nas-home</span><span class="haddr">CPU 18%</span></div>
+            <div class="tk" style="height:3px;background:var(--track);border-radius:2px"><i style="display:block;height:100%;width:18%;background:var(--accent);border-radius:2px"></i></div></div>
+          <div><div class="spread" style="font-size:11px;color:var(--ink)"><span>blog-vps</span><span class="haddr">CPU 7%</span></div>
+            <div class="tk" style="height:3px;background:var(--track);border-radius:2px"><i style="display:block;height:100%;width:7%;background:var(--accent);border-radius:2px"></i></div></div>
+        </div>
+        <div class="hsub mono" style="margin-top:12px">异常置顶 · 各行深链到对应主机</div>
+      </div>
+    </div>
+    <div class="cap"><span class="no">S20</span>桌面 Widget 三尺寸（v1.1）</div>
+    <div class="note">
+      Widget 展示 App Group 里的<b>最后快照</b>，右上角时效角标必须常驻（「3 分钟前」）——诚实呈现数据新鲜度；<b>Widget 自身绝不发起 SSH</b>（技术方案 §4.12）。小：单机指标环（可选主机）；中：四机健康网格；大：异常置顶 + CPU 条列表。全部元素点击深链至对应主机页。
+    </div>
+  </div>
+
+  <!-- S21 iPad -->
+  <div class="proto wide">
+    <div class="frame ipad">
+      <div class="cols">
+        <div class="col" style="width:168px;flex:none;background:var(--bar)">
+          <div class="mono" style="font-size:15px;font-weight:700;color:var(--accent);margin:4px 0 14px">▸ conn</div>
+          <div class="srow on"><svg class="ic" style="width:15px"><use href="#i-dash"/></svg>驾驶舱</div>
+          <div class="srow"><svg class="ic" style="width:15px"><use href="#i-host"/></svg>全部主机 <span style="margin-left:auto" class="haddr">12</span></div>
+          <div class="srow"><svg class="ic" style="width:15px"><use href="#i-term"/></svg>会话 <span style="margin-left:auto" class="haddr">2</span></div>
+          <div class="srow"><svg class="ic" style="width:15px"><use href="#i-cmd"/></svg>命令</div>
+          <div class="sechead" style="margin-top:14px"><span class="t">分组</span></div>
+          <div class="srow">生产环境 <span style="margin-left:auto" class="haddr">3</span></div>
+          <div class="srow">个人项目 <span style="margin-left:auto" class="haddr">2</span></div>
+          <div class="srow" style="margin-top:14px"><svg class="ic" style="width:15px"><use href="#i-me"/></svg>设置</div>
+        </div>
+        <div class="col" style="width:230px;flex:none">
+          <div class="searchbar" style="height:32px">搜索</div>
+          <div class="lrow" style="padding:9px 10px"><span class="dot crit"></span><div style="flex:1"><div class="ttl" style="font-size:12.5px">jp-vps-tokyo</div><div class="sub">连接失败</div></div></div>
+          <div class="lrow" style="padding:9px 10px;border-color:rgba(139,147,255,.5)"><span class="dot good"></span><div style="flex:1"><div class="ttl" style="font-size:12.5px">web-01</div><div class="sub">CPU 32 · 内存 61</div></div></div>
+          <div class="lrow" style="padding:9px 10px"><span class="dot warn"></span><div style="flex:1"><div class="ttl" style="font-size:12.5px">db-master</div><div class="sub">CPU 94</div></div></div>
+          <div class="lrow" style="padding:9px 10px"><span class="dot good"></span><div style="flex:1"><div class="ttl" style="font-size:12.5px">nas-home</div><div class="sub">CPU 18</div></div></div>
+        </div>
+        <div class="col" style="flex:1;padding:14px 16px">
+          <div class="spread"><div><span class="hname" style="font-size:16px">web-01</span>
+            <span class="haddr" style="margin-left:8px">root@120.55.**.9</span></div>
+            <span class="pillst good">● 正常</span></div>
+          <div class="gauges" style="margin-top:10px;max-width:340px">
+            <div class="gauge"><div class="ring g"><i>32<b>%</b></i></div><div class="glabel">CPU</div></div>
+            <div class="gauge"><div class="ring m"><i>61<b>%</b></i></div><div class="glabel">内存</div></div>
+            <div class="gauge"><div class="ring w"><i>78<b>%</b></i></div><div class="glabel">磁盘</div></div>
+          </div>
+          <div style="position:relative;height:190px;background:var(--termbg);border:1px solid var(--line);border-radius:10px;margin-top:12px;padding:10px;font-family:'SF Mono',ui-monospace,Menlo,monospace;font-size:10.5px;line-height:1.7;color:#C6CCE0">
+<span class="p" style="color:var(--accent)">root@web-01</span><span style="color:#6A7288">:</span><span style="color:var(--info)">~</span><span style="color:var(--accent)">$</span> docker ps --format '{{.Names}}'<br>
+nginx-proxy<br>api<br>watchtower<br>
+<span class="p" style="color:var(--accent)">root@web-01</span><span style="color:#6A7288">:</span><span style="color:var(--info)">~</span><span style="color:var(--accent)">$</span> <span class="cursor"></span>
+          </div>
+          <div class="hsub mono" style="margin-top:8px">⌘T 新会话 · ⌘K AI · ⌘1-9 切换主机 · 终端可拖出独立窗口</div>
+        </div>
+      </div>
+    </div>
+    <div class="cap"><span class="no">S21</span>iPad 三栏布局（v1.1，NavigationSplitView）</div>
+    <div class="note">
+      左栏：导航 + 分组（可折叠成图标栏）；中栏：主机列表（选中态 accent 描边）；右栏：详情 = 上半监控 + 下半嵌入式终端（可全屏/拖出为独立窗口，支持 Stage Manager）。外接键盘快捷键常驻底部提示条（首次显示，可关）；分栏断点跟随系统 size class（设计规范 §4）。
+    </div>
+  </div>
+
+  </div>
+</section>
+
+<script>
+const tb=document.getElementById('themeToggle');
+tb.onclick=()=>{const l=document.body.dataset.theme==='light';
+  document.body.dataset.theme=l?'':'light';
+  tb.textContent=l?'☾ ↔ ☀ 切换浅色':'☾ ↔ ☀ 切换深色';};
+</script>
+</body>
+</html>
