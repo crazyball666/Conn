@@ -35,8 +35,8 @@ public struct AppDatabase {
     public static var migrator: DatabaseMigrator {
         var migrator = DatabaseMigrator()
         #if DEBUG
-        // 开发期 schema 变更后自动重建，避免手动删 App
-        migrator.eraseDatabaseOnSchemaChange = true
+            // 开发期 schema 变更后自动重建，避免手动删 App
+            migrator.eraseDatabaseOnSchemaChange = true
         #endif
         SchemaV1.register(in: &migrator)
         return migrator

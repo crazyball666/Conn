@@ -70,7 +70,7 @@ public struct Snippet: Identifiable, Codable, Sendable, Equatable {
             // 同时替换 {{name}} 与 {{name:default}} 两种写法
             let patterns = [
                 "{{\(variable.name)}}",
-                variable.defaultValue.map { "{{\(variable.name):\($0)}}" },
+                variable.defaultValue.map { "{{\(variable.name):\($0)}}" }
             ].compactMap { $0 }
             for pattern in patterns {
                 result = result.replacingOccurrences(of: pattern, with: replacement)

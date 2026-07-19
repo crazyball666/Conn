@@ -7,7 +7,10 @@ enum SchemaV1 {
     /// 命名遵循技术实现方案 §3：蛇形字段名；所有实体表带 `uuid` 主键、
     /// `created_at`/`updated_at`（毫秒），并为 v1.1 同步预留 `sync_dirty`
     /// 与 `deleted_at` 墓碑字段。
-    static func register(in migrator: inout DatabaseMigrator) {
+    ///
+    /// 长度由表数量决定而非逻辑复杂度；拆分会破坏「一次迁移 = 一个原子单元」
+    /// 的语义，故豁免函数长度检查。
+    static func register(in migrator: inout DatabaseMigrator) { // swiftlint:disable:this function_body_length
         migrator.registerMigration("v1_initial_schema") { db in
             try db.create(table: "host_group") { t in
                 t.primaryKey("uuid", .text)

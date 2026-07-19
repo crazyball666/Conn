@@ -15,7 +15,7 @@ struct SnippetTests {
         let vars = Snippet.parseVariables(from: "tail -n {{lines:200}} {{path}}")
         #expect(vars == [
             Snippet.Variable(name: "lines", defaultValue: "200"),
-            Snippet.Variable(name: "path", defaultValue: nil),
+            Snippet.Variable(name: "path", defaultValue: nil)
         ])
     }
 

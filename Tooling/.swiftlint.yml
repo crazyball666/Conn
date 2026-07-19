@@ -17,6 +17,9 @@ opt_in_rules:
   - implicitly_unwrapped_optional
   - overridden_super_call
   - redundant_nil_coalescing
+
+# 仅在 `swiftlint analyze` 下运行（需要编译日志）
+analyzer_rules:
   - unused_import
 
 line_length:
@@ -38,7 +41,8 @@ function_body_length:
 
 identifier_name:
   min_length: 2
-  excluded: [id, ts, db, ip, os, x, y]
+  # t = GRDB 建表闭包的官方惯用参数名（`db.create(table:) { t in ... }`）
+  excluded: [id, ts, db, ip, os, x, y, t]
 
 # 红线：禁止引入遥测/分析 SDK（技术实现方案 §2 禁止引入清单）
 custom_rules:

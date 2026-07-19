@@ -12,4 +12,13 @@
 --trimwhitespace always
 --emptybraces no-space
 
+# 单行计算属性（如 `var isExportable: Bool { self != .secureEnclaveP256 }`）
+# 保持单行更易读，不强制拆行
+--disable wrapPropertyBodies
+
+# 与 SwiftLint 的 opening_brace 规则冲突：SwiftFormat 会把多行条件语句的 `{`
+# 换到独行，而 SwiftLint 要求 `{` 与声明同行。以 SwiftLint 为准（亦是 Apple
+# 自家代码风格），否则两个工具会来回改同一行。
+--disable wrapMultilineStatementBraces
+
 --exclude Packages/ConnPackages/.build,Conn/Conn/Assets.xcassets

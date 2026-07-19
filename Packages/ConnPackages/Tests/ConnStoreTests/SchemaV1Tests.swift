@@ -15,14 +15,14 @@ struct SchemaV1Tests {
         let db = try AppDatabase.inMemory()
         let tables = try db.writer.read { database in
             try String.fetchAll(database, sql: """
-                SELECT name FROM sqlite_master
-                WHERE type = 'table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE 'grdb_%'
-                ORDER BY name
-                """)
+            SELECT name FROM sqlite_master
+            WHERE type = 'table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE 'grdb_%'
+            ORDER BY name
+            """)
         }
         #expect(tables == [
             "app_setting", "host", "host_group", "known_host",
-            "metric_sample", "probe_target", "run_history", "snippet", "ssh_key",
+            "metric_sample", "probe_target", "run_history", "snippet", "ssh_key"
         ])
     }
 
@@ -69,10 +69,10 @@ struct SchemaV1Tests {
     func metricSampleCompositeKey() throws {
         let db = try AppDatabase.inMemory()
         let sql = """
-            INSERT INTO metric_sample
-            (host_uuid, ts, cpu, mem, load1, disk_used, disk_total, net_rx, net_tx)
-            VALUES (?,?,?,?,?,?,?,?,?)
-            """
+        INSERT INTO metric_sample
+        (host_uuid, ts, cpu, mem, load1, disk_used, disk_total, net_rx, net_tx)
+        VALUES (?,?,?,?,?,?,?,?,?)
+        """
         try db.writer.write { database in
             try database.execute(sql: sql, arguments: ["h1", 1000, 10.0, 20.0, 0.5, 100, 200, 0, 0])
         }
