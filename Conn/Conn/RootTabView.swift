@@ -1,0 +1,112 @@
+import ConnKit
+import ConnUI
+import SwiftUI
+
+/// App 根导航：5 Tab + 悬浮 Dock。
+///
+/// 设计规范 §4：5 Tab（仪表盘/主机/终端/命令/我的）。用自绘 `ConnDock` 而非
+/// 系统 `TabView`，因为原型的 Dock 是悬浮圆角样式，系统 TabBar 无法做到。
+struct RootTabView: View {
+    @State private var selection: ConnDock.Tab = .dashboard
+    private let hostStore: any HostRepository
+
+    init(hostStore: any HostRepository) {
+        self.hostStore = hostStore
+    }
+
+    var body: some View {
+        content
+            // safeAreaInset 是「内容 + 悬浮底栏」的惯用写法：把 Dock 的高度并入
+            // 内容安全区，滚动内容不会被遮挡，也不必手写魔法数字。
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                ConnDock(selection: $selection)
+            }
+            .background(Color.connBg.ignoresSafeArea())
+    }
+
+    /// 各 Tab 的根内容。
+    ///
+    /// **每个 Tab 必须包一层 `NavigationStack`**：ScrollView 直接作为窗口根视图时
+    /// 顶部 content inset 不生效，内容会顶进状态栏（已用红线基准实测确认）。
+    /// NavigationStack 提供了正确的安全区容器；同时它也是后续 push 导航
+    /// （主机→详情、我的→密钥管家）的前提，不是为绕开 bug 而加的补丁。
+    ///
+    /// 导航栏隐藏：原型各屏用的是自绘标题区（`ScreenHeader`），不用系统 nav bar。
+    private var content: some View {
+        NavigationStack {
+            tabRoot
+                .toolbar(.hidden, for: .navigationBar)
+        }
+    }
+
+    @ViewBuilder
+    private var tabRoot: some View {
+        switch selection {
+        case .dashboard:
+            DashboardView(hostStore: hostStore)
+        case .hosts:
+            PlaceholderScreen(
+                title: "主机",
+                systemName: "server.rack",
+                message: "连接管理将在 Phase 3 实现"
+            )
+        case .terminal:
+            PlaceholderScreen(
+                title: "终端",
+                systemName: "terminal",
+                message: "会话中心将在 Phase 4 实现"
+            )
+        case .commands:
+            PlaceholderScreen(
+                title: "命令",
+                systemName: "command",
+                message: "片段库将在 Phase 9 实现"
+            )
+        case .me:
+            PlaceholderScreen(
+                title: "我的",
+                systemName: "person.crop.circle",
+                message: "设置与密钥管家将在 Phase 5 实现"
+            )
+        }
+    }
+}
+
+/// 尚未实现的 Tab 占位屏。
+struct PlaceholderScreen: View {
+    let title: String
+    let systemName: String
+    let message: String
+
+    var body: some View {
+        VStack(spacing: 0) {
+            ScreenHeader(title: title)
+            Spacer()
+            EmptyState(systemName: systemName, title: title, message: message)
+            Spacer()
+        }
+    }
+}
+
+/// 页面标题区。
+struct ScreenHeader: View {
+    let title: String
+    var subtitle: String?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(title)
+                .font(.connTitle)
+                .foregroundStyle(.connInk)
+            if let subtitle {
+                Text(subtitle)
+                    .font(.connSubheadline)
+                    .foregroundStyle(.connMuted)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, ConnSpacing.page)
+        .padding(.top, ConnSpacing.xs)
+        .padding(.bottom, ConnSpacing.sm)
+    }
+}

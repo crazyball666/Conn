@@ -2,8 +2,8 @@ import ConnKit
 import Foundation
 import GRDB
 
-/// `host` 表的读写入口。
-public struct HostStore: Sendable {
+/// `host` 表的读写入口。`ConnKit.HostRepository` 的 GRDB 实现。
+public struct HostStore: HostRepository {
     private let database: AppDatabase
 
     public init(database: AppDatabase) {

@@ -9,6 +9,7 @@ let package = Package(
     products: [
         .library(name: "ConnKit", targets: ["ConnKit"]),
         .library(name: "ConnStore", targets: ["ConnStore"]),
+        .library(name: "ConnUI", targets: ["ConnUI"]),
     ],
     dependencies: [
         .package(url: "https://github.com/groue/GRDB.swift.git", from: "7.11.1"),
@@ -26,7 +27,19 @@ let package = Package(
             ]
         ),
 
+        // 设计系统：设计规范.md 的代码化。
+        //
+        // **刻意零依赖**——连 ConnKit 都不依赖。组件一律 stateless（数据入参、
+        // 事件闭包出参，设计规范 §9），展示层枚举（如 ConnHealthStatus）自成一套，
+        // 由 Feature 层负责与领域模型互相映射。这让设计系统可独立预览、独立测试，
+        // 也不会被领域模型的演化牵着走。
+        .target(
+            name: "ConnUI",
+            resources: [.process("Resources")]
+        ),
+
         .testTarget(name: "ConnKitTests", dependencies: ["ConnKit"]),
         .testTarget(name: "ConnStoreTests", dependencies: ["ConnStore"]),
+        .testTarget(name: "ConnUITests", dependencies: ["ConnUI"]),
     ]
 )

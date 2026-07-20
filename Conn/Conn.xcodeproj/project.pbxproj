@@ -6,6 +6,12 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		7C181B04300CF0AD00307624 /* ConnKit in Frameworks */ = {isa = PBXBuildFile; productRef = 7C181B02300CF0AD00307624 /* ConnKit */; };
+		7C181B05300CF0AD00307624 /* ConnStore in Frameworks */ = {isa = PBXBuildFile; productRef = 7C181B03300CF0AD00307624 /* ConnStore */; };
+		7C181B06300CF0AD00307624 /* ConnUI in Frameworks */ = {isa = PBXBuildFile; productRef = 7C181B07300CF0AD00307624 /* ConnUI */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
 		7C181A9E300CF0AF00307624 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -22,11 +28,6 @@
 			remoteInfo = Conn;
 		};
 /* End PBXContainerItemProxy section */
-
-/* Begin PBXBuildFile section */
-		7C181B04300CF0AD00307624 /* ConnKit in Frameworks */ = {isa = PBXBuildFile; productRef = 7C181B02300CF0AD00307624 /* ConnKit */; };
-		7C181B05300CF0AD00307624 /* ConnStore in Frameworks */ = {isa = PBXBuildFile; productRef = 7C181B03300CF0AD00307624 /* ConnStore */; };
-/* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
 		7C181A90300CF0AD00307624 /* Conn.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Conn.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -59,6 +60,7 @@
 			files = (
 				7C181B04300CF0AD00307624 /* ConnKit in Frameworks */,
 				7C181B05300CF0AD00307624 /* ConnStore in Frameworks */,
+				7C181B06300CF0AD00307624 /* ConnUI in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -121,6 +123,7 @@
 			packageProductDependencies = (
 				7C181B02300CF0AD00307624 /* ConnKit */,
 				7C181B03300CF0AD00307624 /* ConnStore */,
+				7C181B07300CF0AD00307624 /* ConnUI */,
 			);
 			productName = Conn;
 			productReference = 7C181A90300CF0AD00307624 /* Conn.app */;
@@ -606,6 +609,10 @@
 		7C181B03300CF0AD00307624 /* ConnStore */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = ConnStore;
+		};
+		7C181B07300CF0AD00307624 /* ConnUI */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = ConnUI;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};
