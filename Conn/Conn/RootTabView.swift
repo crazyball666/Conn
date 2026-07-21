@@ -8,10 +8,10 @@ import SwiftUI
 /// 系统 `TabView`，因为原型的 Dock 是悬浮圆角样式，系统 TabBar 无法做到。
 struct RootTabView: View {
     @State private var selection: ConnDock.Tab = .dashboard
-    private let hostStore: any HostRepository
+    private let dependencies: AppDependencies
 
-    init(hostStore: any HostRepository) {
-        self.hostStore = hostStore
+    init(dependencies: AppDependencies) {
+        self.dependencies = dependencies
     }
 
     var body: some View {
@@ -43,13 +43,9 @@ struct RootTabView: View {
     private var tabRoot: some View {
         switch selection {
         case .dashboard:
-            DashboardView(hostStore: hostStore)
+            DashboardView(hostStore: dependencies.hostRepository)
         case .hosts:
-            PlaceholderScreen(
-                title: "主机",
-                systemName: "server.rack",
-                message: "连接管理将在 Phase 3 实现"
-            )
+            HostListView(dependencies: dependencies)
         case .terminal:
             PlaceholderScreen(
                 title: "终端",

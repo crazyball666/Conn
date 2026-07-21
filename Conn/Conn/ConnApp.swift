@@ -1,3 +1,4 @@
+import ConnCrypto
 import ConnKit
 import ConnSSH
 import ConnSSHCitadel
@@ -11,11 +12,24 @@ struct ConnApp: App {
 
     var body: some Scene {
         WindowGroup {
-            RootTabView(hostStore: dependencies.hostRepository)
+            rootView
                 // 深色是主人格（设计规范 §1：OLED + 运维人群夜间审美）。
                 // Phase 11 接入「跟随系统 / 手动切换」的设置项。
                 .preferredColorScheme(.dark)
         }
+    }
+
+    @ViewBuilder
+    private var rootView: some View {
+        #if DEBUG
+            if ProcessInfo.processInfo.environment["CONN_SMOKE_DIAGNOSTICS"] != nil {
+                DiagnosticsSmokeView(transport: dependencies.diagnosticsTransport)
+            } else {
+                RootTabView(dependencies: dependencies)
+            }
+        #else
+            RootTabView(dependencies: dependencies)
+        #endif
     }
 }
 
@@ -25,25 +39,38 @@ struct ConnApp: App {
 /// 保证演示模式与测试可整体替换数据层与传输层。
 struct AppDependencies {
     let hostRepository: any HostRepository
-    /// 连接池管理器。Phase 3 的主机详情、Phase 7 的监控采集经它取会话。
+    let groupRepository: any HostGroupRepository
+    let credentialStore: any CredentialStore
+    /// 连接池管理器。主机详情、Phase 7 的监控采集经它取会话。
     let connectionManager: ConnectionManager
+    /// 连接测试用的传输层（与 connectionManager 同引擎，供诊断树直接调用）。
+    let diagnosticsTransport: any SSHTransport
 
     /// 生产依赖：GRDB 落盘库 + Citadel 引擎 + 持久化 TOFU 指纹库。
     static func live() -> AppDependencies {
         do {
             let database = try AppDatabase.onDisk(at: databaseURL())
-            let store = HostStore(database: database)
-            try seedIfNeeded(store)
+            let hostStore = HostStore(database: database)
+            let groupStore = HostGroupStore(database: database)
+            try seedIfNeeded(hostStore)
 
             // SSH 栈：Citadel 引擎 + GRDB 指纹库（TOFU 跨重启留存）。
-            // 凭据解析（AuthResolver）留待 Phase 5 接 Keychain；当前默认空密码，
-            // 意味着连真实服务器会认证失败——这是预期的，真正的 App 内连接
-            // 随 Phase 3 主机表单 + Phase 5 Keychain 一起到位。
             let hostKeyStore = GRDBHostKeyStore(database: database)
             let transport = CitadelTransport(hostKeyStore: hostKeyStore)
-            let connectionManager = ConnectionManager(transport: transport)
+            let credentialStore = KeychainCredentialStore()
+            let connectionManager = ConnectionManager(transport: transport) { host in
+                // 从 Keychain 取该主机凭据（Phase 5 会扩展密钥/SE）
+                let password = (try? credentialStore.password(forHost: host.id)) ?? ""
+                return .password(password)
+            }
 
-            return AppDependencies(hostRepository: store, connectionManager: connectionManager)
+            return AppDependencies(
+                hostRepository: hostStore,
+                groupRepository: groupStore,
+                credentialStore: credentialStore,
+                connectionManager: connectionManager,
+                diagnosticsTransport: transport
+            )
         } catch {
             // 数据库开不了是不可恢复的：此时 App 无法承载任何功能。
             // 与其静默降级成空界面，不如带着原因崩溃，便于用户导出诊断。

@@ -4,7 +4,7 @@ import Foundation
 ///
 /// 对应 GRDB `host` 表。**凭据本身绝不存在本类型中**——`credentialRef` 只是
 /// Keychain 条目的引用键（形如 `conn.host.<uuid>.password`），密文永不入库。
-public struct Host: Identifiable, Codable, Sendable, Equatable {
+public struct Host: Identifiable, Codable, Sendable, Equatable, Hashable {
     /// 认证方式。
     public enum AuthKind: String, Codable, Sendable, CaseIterable {
         case password
