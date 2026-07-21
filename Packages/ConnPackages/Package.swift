@@ -11,6 +11,7 @@ let package = Package(
         .library(name: "ConnStore", targets: ["ConnStore"]),
         .library(name: "ConnSSH", targets: ["ConnSSH"]),
         .library(name: "ConnSSHCitadel", targets: ["ConnSSHCitadel"]),
+        .library(name: "ConnCrypto", targets: ["ConnCrypto"]),
         .library(name: "ConnUI", targets: ["ConnUI"]),
     ],
     dependencies: [
@@ -52,6 +53,13 @@ let package = Package(
             ]
         ),
 
+        // Infrastructure：密钥与凭据。本 Phase 只做 Keychain 密码/passphrase
+        // 存取（最小切片）；Phase 5 扩展为密钥生成/Secure Enclave/一键部署。
+        .target(
+            name: "ConnCrypto",
+            dependencies: ["ConnKit"]
+        ),
+
         // 设计系统：设计规范.md 的代码化。
         //
         // **刻意零依赖**——连 ConnKit 都不依赖。组件一律 stateless（数据入参、
@@ -67,6 +75,7 @@ let package = Package(
         .testTarget(name: "ConnStoreTests", dependencies: ["ConnStore"]),
         .testTarget(name: "ConnSSHTests", dependencies: ["ConnSSH"]),
         .testTarget(name: "ConnSSHCitadelTests", dependencies: ["ConnSSHCitadel"]),
+        .testTarget(name: "ConnCryptoTests", dependencies: ["ConnCrypto"]),
         .testTarget(name: "ConnUITests", dependencies: ["ConnUI"]),
     ]
 )
