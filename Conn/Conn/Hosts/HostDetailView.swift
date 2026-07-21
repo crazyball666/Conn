@@ -56,11 +56,33 @@ struct HostDetailView: View {
     private var content: some View {
         switch segment {
         case .overview: overview
-        case .terminal: placeholder("终端会话将在 Phase 4 实现", icon: "terminal")
+        case .terminal: terminalSegment
         case .files: placeholder("文件管理将在 Phase 6 实现", icon: "folder")
         case .docker: placeholder("容器管理将在 Phase 8 实现", icon: "shippingbox")
         case .logs: placeholder("日志中心将在 Phase 8 实现", icon: "doc.text")
         }
+    }
+
+    private var terminalSegment: some View {
+        VStack(spacing: ConnSpacing.sm) {
+            NavigationLink {
+                TerminalScreen(host: host, dependencies: dependencies)
+            } label: {
+                Label("打开终端会话", systemImage: "terminal")
+                    .font(.connBody)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, ConnSpacing.sm)
+                    .foregroundStyle(.white)
+                    .background(
+                        LinearGradient(colors: [.connAccent, .connAccentDeep], startPoint: .top, endPoint: .bottom),
+                        in: .rect(cornerRadius: ConnRadius.control, style: .continuous)
+                    )
+            }
+            Text("在独立页面打开交互式 shell（PTY）")
+                .font(.connFootnote)
+                .foregroundStyle(.connMuted)
+        }
+        .padding(.vertical, ConnSpacing.md)
     }
 
     private var overview: some View {

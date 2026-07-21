@@ -61,8 +61,7 @@ final class CitadelSession: SSHSession, @unchecked Sendable {
     }
 
     func openShell(term: TermSize) async throws -> any ShellChannel {
-        // Phase 4 深用；这里返回占位以满足协议。真实实现见 CitadelShellChannel。
-        throw SSHError.channelClosed
+        try await CitadelShellChannel.open(client: client, term: term)
     }
 
     func openTunnel(to target: SSHEndpoint) async throws -> any SSHTunnel {

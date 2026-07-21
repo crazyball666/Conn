@@ -24,6 +24,16 @@ struct ConnApp: App {
         #if DEBUG
             if ProcessInfo.processInfo.environment["CONN_SMOKE_DIAGNOSTICS"] != nil {
                 DiagnosticsSmokeView(transport: dependencies.diagnosticsTransport)
+            } else if ProcessInfo.processInfo.environment["CONN_SMOKE_TERMINAL"] != nil {
+                NavigationStack {
+                    TerminalScreen(
+                        host: Host(name: "spike-ubuntu24", address: "127.0.0.1", username: "deploy", port: 2202),
+                        // 冒烟专用：固定密码 resolver（正常路径走 Keychain）
+                        connectionManager: ConnectionManager(
+                            transport: dependencies.diagnosticsTransport
+                        ) { _ in .password("conntest123") }
+                    )
+                }
             } else {
                 RootTabView(dependencies: dependencies)
             }
