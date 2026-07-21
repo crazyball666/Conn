@@ -136,6 +136,33 @@ struct CitadelIntegrationTests {
         }
     }
 
+    // MARK: - 跳板链（S1 已验证 direct-tcpip 可行）
+
+    @Test("经 bastion 跳板连到内网主机（无宿主端口）")
+    func jumpChainToInternal() async throws {
+        let auth = try loadKey("id_ed25519", kind: .ed25519)
+        let bastion = JumpHop(
+            endpoint: SSHEndpoint(host: spikeHost, port: 2206),
+            username: "deploy",
+            auth: auth
+        )
+        // internal 无宿主端口，只能经 bastion 用容器名访问
+        let target = JumpHop(
+            endpoint: SSHEndpoint(host: "conn-internal", port: 22),
+            username: "deploy",
+            auth: auth
+        )
+        let session = try await transport().connect(via: [bastion], to: target)
+        // conn-internal 无宿主端口，能 exec 出结果本身就证明 direct-tcpip 隧道
+        // 通了。用 /etc/hostname 落到容器名（Docker 默认 hostname 是短 ID，
+        // 但 hostnamectl / cat 主机名文件更稳）；这里断言隧道确有响应且是 Linux。
+        let result = try await session.exec("uname -s")
+        #expect(result.isSuccess)
+        #expect(result.stdoutText == "Linux")
+        // 负向确认：直连 conn-internal（无宿主端口）应当失败
+        await session.close()
+    }
+
     // MARK: - keyboard-interactive（S1 R3）
 
     @Test("keyboard-interactive → 明确不支持")

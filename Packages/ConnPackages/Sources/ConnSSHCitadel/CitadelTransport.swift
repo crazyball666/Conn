@@ -41,4 +41,14 @@ public final class CitadelTransport: SSHTransport {
             throw AuthMapping.mapConnectError(error, endpoint: endpoint, auth: auth)
         }
     }
+
+    /// 经跳板链连接到最终目标（技术方案 §4.1）。
+    ///
+    /// - Parameters:
+    ///   - hops: 按顺序的跳板机（不含目标）。
+    ///   - target: 最终目标。
+    public func connect(via hops: [JumpHop], to target: JumpHop) async throws -> any SSHSession {
+        let client = try await JumpChain.connect(hops: hops, target: target)
+        return CitadelSession(client: client)
+    }
 }
