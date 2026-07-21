@@ -1,0 +1,93 @@
+# conn Spike S1 - multi-distro sshd matrix for SSH client-library compatibility.
+# Build context for every service is this directory (.), so Dockerfiles COPY
+# repo-relative paths (keys/authorized_keys, build/apt/sshd_extra.conf, ...).
+#
+# Ports: 2201-2210 only (host 8080/8501 are taken elsewhere).
+name: conn-s1
+
+x-common: &common
+  restart: unless-stopped
+  networks: [connnet]
+
+services:
+  # 2201 - baseline, OpenSSH 8.9
+  conn-ubuntu22:
+    <<: *common
+    container_name: conn-ubuntu22
+    build:
+      context: .
+      dockerfile: build/apt/Dockerfile
+      args: { BASE: "ubuntu:22.04" }
+    image: conn-s1/ubuntu22
+    ports: ["2201:22"]
+
+  # 2202 - MODERN server, OpenSSH 9.x. Default config => legacy ssh-rsa rejected.
+  conn-ubuntu24:
+    <<: *common
+    container_name: conn-ubuntu24
+    build:
+      context: .
+      dockerfile: build/apt/Dockerfile
+      args: { BASE: "ubuntu:24.04" }
+    image: conn-s1/ubuntu24
+    ports: ["2202:22"]
+
+  # 2203 - common production distro
+  conn-debian12:
+    <<: *common
+    container_name: conn-debian12
+    build:
+      context: .
+      dockerfile: build/apt/Dockerfile
+      args: { BASE: "debian:12" }
+    image: conn-s1/debian12
+    ports: ["2203:22"]
+
+  # 2204 - OLD server (OpenSSH 7.4), legacy ssh-rsa/SHA-1 explicitly enabled.
+  # amd64-only image; runs under Rosetta on Apple Silicon.
+  conn-centos7:
+    <<: *common
+    container_name: conn-centos7
+    platform: linux/amd64
+    build:
+      context: .
+      dockerfile: build/centos7/Dockerfile
+    image: conn-s1/centos7
+    ports: ["2204:22"]
+
+  # 2205 - NON-OpenSSH implementation (dropbear on Alpine/BusyBox)
+  conn-alpine:
+    <<: *common
+    container_name: conn-alpine
+    build:
+      context: .
+      dockerfile: build/alpine/Dockerfile
+    image: conn-s1/alpine
+    ports: ["2205:22"]
+
+  # 2206 - bastion (first hop of the jump chain)
+  conn-bastion:
+    <<: *common
+    container_name: conn-bastion
+    build:
+      context: .
+      dockerfile: build/apt/Dockerfile
+      args: { BASE: "ubuntu:24.04" }
+    image: conn-s1/bastion
+    ports: ["2206:22"]
+
+  # internal target - NO published port. Reachable only from inside connnet
+  # (i.e. via conn-bastion), used to validate ssh -J / direct-tcpip.
+  conn-internal:
+    <<: *common
+    container_name: conn-internal
+    build:
+      context: .
+      dockerfile: build/apt/Dockerfile
+      args: { BASE: "ubuntu:24.04" }
+    image: conn-s1/internal
+    # intentionally no ports:
+
+networks:
+  connnet:
+    name: conn-s1-net

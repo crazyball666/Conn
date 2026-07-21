@@ -6,7 +6,9 @@ xcuserdata/
 *.xcuserstate
 *.xcscmblueprint
 *.xccheckout
-build/
+# 仅忽略 Xcode 的构建产物目录，用锚定路径避免误伤 Spikes/*/build（含 Dockerfile）
+/build/
+Conn/build/
 DerivedData/
 *.moved-aside
 *.hmap
@@ -24,3 +26,6 @@ docs/*.html
 
 # Spike 临时环境
 Spikes/**/.env
+# Spike 测试密钥：虽是一次性测试密钥，私钥仍不入库（原则）。
+# keys/ 由 Spikes/S1-ssh-matrix 的 setup 脚本用 ssh-keygen 现场生成。
+Spikes/**/keys/
