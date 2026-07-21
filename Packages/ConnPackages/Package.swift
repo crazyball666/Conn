@@ -9,6 +9,7 @@ let package = Package(
     products: [
         .library(name: "ConnKit", targets: ["ConnKit"]),
         .library(name: "ConnStore", targets: ["ConnStore"]),
+        .library(name: "ConnSSH", targets: ["ConnSSH"]),
         .library(name: "ConnUI", targets: ["ConnUI"]),
     ],
     dependencies: [
@@ -27,6 +28,14 @@ let package = Package(
             ]
         ),
 
+        // Infrastructure：SSH 传输抽象。协议层 + Mock + 池化管理器。
+        // **刻意不依赖 Citadel**——引擎实现在独立的 ConnSSHCitadel target，
+        // 保证协议层可换引擎，且本 target 可在 host 上 swift test（Phase 2b 前）。
+        .target(
+            name: "ConnSSH",
+            dependencies: ["ConnKit"]
+        ),
+
         // 设计系统：设计规范.md 的代码化。
         //
         // **刻意零依赖**——连 ConnKit 都不依赖。组件一律 stateless（数据入参、
@@ -40,6 +49,7 @@ let package = Package(
 
         .testTarget(name: "ConnKitTests", dependencies: ["ConnKit"]),
         .testTarget(name: "ConnStoreTests", dependencies: ["ConnStore"]),
+        .testTarget(name: "ConnSSHTests", dependencies: ["ConnSSH"]),
         .testTarget(name: "ConnUITests", dependencies: ["ConnUI"]),
     ]
 )
