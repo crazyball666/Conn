@@ -1,4 +1,5 @@
 import ConnKit
+import ConnTerminal
 import ConnUI
 import SwiftUI
 
@@ -8,6 +9,8 @@ import SwiftUI
 /// 系统 `TabView`，因为原型的 Dock 是悬浮圆角样式，系统 TabBar 无法做到。
 struct RootTabView: View {
     @State private var selection: ConnDock.Tab = .dashboard
+    /// 终端会话 store 提到根层，切走终端 Tab 时会话仍存活（后台保持）。
+    @State private var terminalStore = TerminalSessionStore()
     private let dependencies: AppDependencies
 
     init(dependencies: AppDependencies) {
@@ -47,11 +50,7 @@ struct RootTabView: View {
         case .hosts:
             HostListView(dependencies: dependencies)
         case .terminal:
-            PlaceholderScreen(
-                title: "终端",
-                systemName: "terminal",
-                message: "会话中心将在 Phase 4 实现"
-            )
+            TerminalCenterView(store: terminalStore, dependencies: dependencies)
         case .commands:
             PlaceholderScreen(
                 title: "命令",

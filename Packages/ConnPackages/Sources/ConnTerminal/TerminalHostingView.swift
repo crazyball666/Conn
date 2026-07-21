@@ -49,8 +49,8 @@
 
         private func applyTheme(to terminalView: TerminalView) {
             let terminal = terminalView.getTerminal()
-            // 把主题数据转成 SwiftTerm 的调色板类型——数据转换，非 UI 样式硬编码。
             func color(_ rgb: TerminalTheme.RGB) -> SwiftTerm.Color {
+                // 主题数据转 SwiftTerm 调色板类型——数据转换，非 UI 样式硬编码。
                 // swiftlint:disable:next no_hardcoded_hex
                 SwiftTerm.Color(red: UInt16(rgb.r) * 257, green: UInt16(rgb.g) * 257, blue: UInt16(rgb.b) * 257)
             }
