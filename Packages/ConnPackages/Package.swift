@@ -10,10 +10,15 @@ let package = Package(
         .library(name: "ConnKit", targets: ["ConnKit"]),
         .library(name: "ConnStore", targets: ["ConnStore"]),
         .library(name: "ConnSSH", targets: ["ConnSSH"]),
+        .library(name: "ConnSSHCitadel", targets: ["ConnSSHCitadel"]),
         .library(name: "ConnUI", targets: ["ConnUI"]),
     ],
     dependencies: [
         .package(url: "https://github.com/groue/GRDB.swift.git", from: "7.11.1"),
+        // SSH 引擎（S1 选型）。注意：0.12 把平台下限锁死 iOS 17.0（风险 R4），
+        // 且传递依赖个人 fork Wellz26/swift-nio-ssh（风险 R1）。仅 ConnSSHCitadel
+        // target 引入，协议层 ConnSSH 不碰它。
+        .package(url: "https://github.com/orlandos-nl/Citadel.git", from: "0.12.1"),
     ],
     targets: [
         // Domain：领域模型与仓库协议。零 UIKit、零三方依赖。
@@ -36,6 +41,15 @@ let package = Package(
             dependencies: ["ConnKit"]
         ),
 
+        // Citadel 引擎实现，隔离在独立 target——只有它依赖 Citadel。
+        .target(
+            name: "ConnSSHCitadel",
+            dependencies: [
+                "ConnSSH",
+                .product(name: "Citadel", package: "Citadel"),
+            ]
+        ),
+
         // 设计系统：设计规范.md 的代码化。
         //
         // **刻意零依赖**——连 ConnKit 都不依赖。组件一律 stateless（数据入参、
@@ -50,6 +64,7 @@ let package = Package(
         .testTarget(name: "ConnKitTests", dependencies: ["ConnKit"]),
         .testTarget(name: "ConnStoreTests", dependencies: ["ConnStore"]),
         .testTarget(name: "ConnSSHTests", dependencies: ["ConnSSH"]),
+        .testTarget(name: "ConnSSHCitadelTests", dependencies: ["ConnSSHCitadel"]),
         .testTarget(name: "ConnUITests", dependencies: ["ConnUI"]),
     ]
 )
