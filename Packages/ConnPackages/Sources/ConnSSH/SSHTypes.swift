@@ -69,20 +69,22 @@ public struct ExecResult: Sendable, Equatable {
         self.stderr = stderr
     }
 
+    // 用无损的 String(decoding:as:) 而非可失败初始化器：命令输出可能含
+    // 非法/截断的 UTF-8（如二进制日志），此时应把坏字节替换为占位符而非
+    // 整段丢弃返回 nil。
+    // swiftlint:disable optional_data_string_conversion
+
     /// stdout 解码为 UTF-8 字符串（去尾部换行）。
-    ///
-    /// 用无损的 `String(decoding:as:)` 而非可失败初始化器：命令输出可能含
-    /// 非法/截断的 UTF-8（如二进制日志），此时应把坏字节替换为占位符而非
-    /// 整段丢弃返回 nil。
-    // swiftlint:disable:next optional_data_string_conversion
     public var stdoutText: String {
         String(decoding: stdout, as: UTF8.self).trimmingCharacters(in: .newlines)
     }
 
-    // swiftlint:disable:next optional_data_string_conversion
+    /// stderr 解码为 UTF-8 字符串（去尾部换行）。
     public var stderrText: String {
         String(decoding: stderr, as: UTF8.self).trimmingCharacters(in: .newlines)
     }
+
+    // swiftlint:enable optional_data_string_conversion
 
     public var isSuccess: Bool { exitCode == 0 }
 }
