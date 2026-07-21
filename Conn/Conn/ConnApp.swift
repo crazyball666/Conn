@@ -31,7 +31,8 @@ struct ConnApp: App {
                         // 冒烟专用：固定密码 resolver（正常路径走 Keychain）
                         connectionManager: ConnectionManager(
                             transport: dependencies.diagnosticsTransport
-                        ) { _ in .password("conntest123") }
+                        ) { _ in .password("conntest123") },
+                        autoCommand: "echo '中文渲染测试 你好世界 café 日本語 🚀 制表符'; ls /"
                     )
                 }
             } else {

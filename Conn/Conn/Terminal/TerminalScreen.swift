@@ -10,17 +10,21 @@ import SwiftUI
 struct TerminalScreen: View {
     let host: Host
     let connectionManager: ConnectionManager
+    /// 连接就绪后自动发送的命令（仅 DEBUG 冒烟用，验证中文渲染）。
+    let autoCommand: String?
 
     @State private var phase: Phase = .connecting
 
-    init(host: Host, connectionManager: ConnectionManager) {
+    init(host: Host, connectionManager: ConnectionManager, autoCommand: String? = nil) {
         self.host = host
         self.connectionManager = connectionManager
+        self.autoCommand = autoCommand
     }
 
     init(host: Host, dependencies: AppDependencies) {
         self.host = host
         connectionManager = dependencies.connectionManager
+        autoCommand = nil
     }
 
     enum Phase {
@@ -73,6 +77,14 @@ struct TerminalScreen: View {
             let channel = try await session.openShell(term: TermSize(cols: 80, rows: 24))
             let terminalSession = TerminalSession(channel: channel)
             phase = .ready(terminalSession)
+
+            if let autoCommand {
+                // 等 shell 就绪后自动发一条命令（冒烟：验证中文渲染）
+                Task {
+                    try? await Task.sleep(for: .milliseconds(800))
+                    await terminalSession.send([UInt8]("\(autoCommand)\n".utf8))
+                }
+            }
         } catch let error as SSHError {
             phase = .failed(error.diagnosis)
         } catch {
