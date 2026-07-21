@@ -1,4 +1,6 @@
 import ConnKit
+import ConnSSH
+import ConnSSHCitadel
 import ConnStore
 import SwiftUI
 
@@ -23,14 +25,25 @@ struct ConnApp: App {
 /// 保证演示模式与测试可整体替换数据层与传输层。
 struct AppDependencies {
     let hostRepository: any HostRepository
+    /// 连接池管理器。Phase 3 的主机详情、Phase 7 的监控采集经它取会话。
+    let connectionManager: ConnectionManager
 
-    /// 生产依赖：GRDB 落盘库。
+    /// 生产依赖：GRDB 落盘库 + Citadel 引擎 + 持久化 TOFU 指纹库。
     static func live() -> AppDependencies {
         do {
             let database = try AppDatabase.onDisk(at: databaseURL())
             let store = HostStore(database: database)
             try seedIfNeeded(store)
-            return AppDependencies(hostRepository: store)
+
+            // SSH 栈：Citadel 引擎 + GRDB 指纹库（TOFU 跨重启留存）。
+            // 凭据解析（AuthResolver）留待 Phase 5 接 Keychain；当前默认空密码，
+            // 意味着连真实服务器会认证失败——这是预期的，真正的 App 内连接
+            // 随 Phase 3 主机表单 + Phase 5 Keychain 一起到位。
+            let hostKeyStore = GRDBHostKeyStore(database: database)
+            let transport = CitadelTransport(hostKeyStore: hostKeyStore)
+            let connectionManager = ConnectionManager(transport: transport)
+
+            return AppDependencies(hostRepository: store, connectionManager: connectionManager)
         } catch {
             // 数据库开不了是不可恢复的：此时 App 无法承载任何功能。
             // 与其静默降级成空界面，不如带着原因崩溃，便于用户导出诊断。

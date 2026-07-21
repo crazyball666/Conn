@@ -24,11 +24,13 @@ let package = Package(
         // Domain：领域模型与仓库协议。零 UIKit、零三方依赖。
         .target(name: "ConnKit"),
 
-        // Infrastructure：GRDB 持久化。只依赖 ConnKit。
+        // Infrastructure：GRDB 持久化。依赖 ConnKit + ConnSSH（后者仅为提供
+        // HostKeyStore 协议的 GRDB 适配实现，标准的适配器模式，无循环依赖）。
         .target(
             name: "ConnStore",
             dependencies: [
                 "ConnKit",
+                "ConnSSH",
                 .product(name: "GRDB", package: "GRDB.swift"),
             ]
         ),
