@@ -12,10 +12,12 @@ struct ConnApp: App {
 
     var body: some Scene {
         WindowGroup {
-            rootView
-                // 深色是主人格（设计规范 §1：OLED + 运维人群夜间审美）。
-                // Phase 11 接入「跟随系统 / 手动切换」的设置项。
-                .preferredColorScheme(.dark)
+            AppLockGate(lock: dependencies.appLock) {
+                rootView
+            }
+            // 深色是主人格（设计规范 §1：OLED + 运维人群夜间审美）。
+            // Phase 11 接入「跟随系统 / 手动切换」的设置项。
+            .preferredColorScheme(.dark)
         }
     }
 
@@ -48,6 +50,7 @@ struct ConnApp: App {
 ///
 /// 技术实现方案 §1.1：**禁止单例直取**——所有跨层交互经协议注入，
 /// 保证演示模式与测试可整体替换数据层与传输层。
+@MainActor
 struct AppDependencies {
     let hostRepository: any HostRepository
     let groupRepository: any HostGroupRepository
@@ -57,6 +60,8 @@ struct AppDependencies {
     let connectionManager: ConnectionManager
     /// 连接测试用的传输层（与 connectionManager 同引擎，供诊断树直接调用）。
     let diagnosticsTransport: any SSHTransport
+    /// 应用锁 + 隐私遮罩。默认关闭，设置页开启（Phase 5）。
+    let appLock: AppLockController
 
     /// 生产依赖：GRDB 落盘库 + Citadel 引擎 + 持久化 TOFU 指纹库。
     static func live() -> AppDependencies {
@@ -83,7 +88,12 @@ struct AppDependencies {
                 keyRepository: keyStore,
                 credentialStore: credentialStore,
                 connectionManager: connectionManager,
-                diagnosticsTransport: transport
+                diagnosticsTransport: transport,
+                appLock: AppLockController(
+                    authenticator: LABiometricAuthenticator(),
+                    // DEBUG 冒烟可强制开启应用锁验证锁屏；正常默认关闭（设置页开启）
+                    isEnabled: ProcessInfo.processInfo.environment["CONN_SMOKE_APPLOCK"] != nil
+                )
             )
         } catch {
             // 数据库开不了是不可恢复的：此时 App 无法承载任何功能。
