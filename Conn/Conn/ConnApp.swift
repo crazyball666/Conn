@@ -51,6 +51,7 @@ struct ConnApp: App {
 struct AppDependencies {
     let hostRepository: any HostRepository
     let groupRepository: any HostGroupRepository
+    let keyRepository: any SSHKeyRepository
     let credentialStore: any CredentialStore
     /// 连接池管理器。主机详情、Phase 7 的监控采集经它取会话。
     let connectionManager: ConnectionManager
@@ -63,6 +64,7 @@ struct AppDependencies {
             let database = try AppDatabase.onDisk(at: databaseURL())
             let hostStore = HostStore(database: database)
             let groupStore = HostGroupStore(database: database)
+            let keyStore = SSHKeyStore(database: database)
             try seedIfNeeded(hostStore)
 
             // SSH 栈：Citadel 引擎 + GRDB 指纹库（TOFU 跨重启留存）。
@@ -78,6 +80,7 @@ struct AppDependencies {
             return AppDependencies(
                 hostRepository: hostStore,
                 groupRepository: groupStore,
+                keyRepository: keyStore,
                 credentialStore: credentialStore,
                 connectionManager: connectionManager,
                 diagnosticsTransport: transport

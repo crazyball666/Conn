@@ -58,11 +58,7 @@ struct RootTabView: View {
                 message: "片段库将在 Phase 9 实现"
             )
         case .me:
-            PlaceholderScreen(
-                title: "我的",
-                systemName: "person.crop.circle",
-                message: "设置与密钥管家将在 Phase 5 实现"
-            )
+            MeView(dependencies: dependencies)
         }
     }
 }

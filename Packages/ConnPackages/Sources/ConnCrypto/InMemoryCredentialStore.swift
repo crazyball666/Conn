@@ -33,4 +33,14 @@ public final class InMemoryCredentialStore: CredentialStore, @unchecked Sendable
             passphrases[hostID] = nil
         }
     }
+
+    private var privateKeys: [String: String] = [:]
+
+    public func setPrivateKey(_ material: String?, forKey keyID: String) throws {
+        lock.withLock { privateKeys[keyID] = material }
+    }
+
+    public func privateKey(forKey keyID: String) throws -> String? {
+        lock.withLock { privateKeys[keyID] }
+    }
 }

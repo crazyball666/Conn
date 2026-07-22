@@ -18,17 +18,34 @@ public struct SSHEndpoint: Sendable, Equatable, Hashable {
 /// 私钥材料。
 ///
 /// **只在建立连接的瞬间存在于内存**，由上层从 Keychain / Secure Enclave 取出后
-/// 立即传入，用后即弃（技术方案 §4.7：内存中 passphrase 用后置零）。
+/// 立即传入，用后即弃（技术方案 §4.7）。
 public struct SSHPrivateKeyMaterial: Sendable {
+    /// 私钥的存储表示。
+    public enum Representation: Sendable {
+        /// OpenSSH / PEM 文本（导入的既有密钥）。
+        case pem(String)
+        /// 原始私钥字节（Conn 生成的 ed25519 存 32 字节 rawRepresentation）。
+        case raw(Data)
+    }
+
     public let kind: SSHKey.Kind
-    /// OpenSSH / PEM 编码的私钥。SE 密钥此字段为空，签名走 `LAContext`。
-    public let pem: String
+    public let representation: Representation
     public let passphrase: String?
 
-    public init(kind: SSHKey.Kind, pem: String, passphrase: String? = nil) {
+    public init(kind: SSHKey.Kind, representation: Representation, passphrase: String? = nil) {
         self.kind = kind
-        self.pem = pem
+        self.representation = representation
         self.passphrase = passphrase
+    }
+
+    /// 便利构造：从 PEM 文本（导入场景）。
+    public init(kind: SSHKey.Kind, pem: String, passphrase: String? = nil) {
+        self.init(kind: kind, representation: .pem(pem), passphrase: passphrase)
+    }
+
+    /// 便利构造：从原始字节（生成场景）。
+    public init(kind: SSHKey.Kind, raw: Data, passphrase: String? = nil) {
+        self.init(kind: kind, representation: .raw(raw), passphrase: passphrase)
     }
 }
 

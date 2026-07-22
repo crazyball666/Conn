@@ -91,7 +91,7 @@ let package = Package(
         .testTarget(name: "ConnKitTests", dependencies: ["ConnKit"]),
         .testTarget(name: "ConnStoreTests", dependencies: ["ConnStore"]),
         .testTarget(name: "ConnSSHTests", dependencies: ["ConnSSH"]),
-        .testTarget(name: "ConnSSHCitadelTests", dependencies: ["ConnSSHCitadel"]),
+        .testTarget(name: "ConnSSHCitadelTests", dependencies: ["ConnSSHCitadel", "ConnCrypto"]),
         .testTarget(name: "ConnCryptoTests", dependencies: ["ConnCrypto"]),
         .testTarget(name: "ConnTerminalTests", dependencies: ["ConnTerminal"]),
         .testTarget(name: "ConnUITests", dependencies: ["ConnUI"]),

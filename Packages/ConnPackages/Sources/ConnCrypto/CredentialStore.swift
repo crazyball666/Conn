@@ -18,6 +18,10 @@ public protocol CredentialStore: Sendable {
 
     /// 删除某主机的全部凭据（主机被删除时调用）。
     func deleteAll(forHost hostID: String) throws
+
+    /// 存一把密钥的私钥材料（原始字节的 base64，或导入的 PEM）。传 nil 删除。
+    func setPrivateKey(_ material: String?, forKey keyID: String) throws
+    func privateKey(forKey keyID: String) throws -> String?
 }
 
 /// 凭据存取错误。

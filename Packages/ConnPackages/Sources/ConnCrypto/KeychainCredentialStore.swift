@@ -39,6 +39,16 @@ public struct KeychainCredentialStore: CredentialStore {
         try delete(account: account(hostID, "passphrase"))
     }
 
+    // MARK: - 密钥私钥材料
+
+    public func setPrivateKey(_ material: String?, forKey keyID: String) throws {
+        try set(material, account: "conn.key.\(keyID).private")
+    }
+
+    public func privateKey(forKey keyID: String) throws -> String? {
+        try get(account: "conn.key.\(keyID).private")
+    }
+
     // MARK: - Keychain 原语
 
     private func account(_ hostID: String, _ kind: String) -> String {

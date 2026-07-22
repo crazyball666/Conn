@@ -33,18 +33,34 @@ enum AuthMapping {
 
         switch material.kind {
         case .ed25519:
-            let key = try Curve25519.Signing.PrivateKey(sshEd25519: material.pem, decryptionKey: decryptionKey)
+            let key = try ed25519Key(material.representation, decryptionKey: decryptionKey)
             return .ed25519(username: username, privateKey: key)
 
         case .rsa:
             // 注意（S1 结论 R2）：Citadel 只会用 ssh-rsa(SHA-1) 签名，连现代
             // 服务器会失败——这在 mapConnectError 里被识别并给 ed25519 建议。
-            let key = try Insecure.RSA.PrivateKey(sshRsa: material.pem, decryptionKey: decryptionKey)
+            guard case let .pem(pem) = material.representation else {
+                throw SSHError.authFailed(reason: .badCredentials)
+            }
+            let key = try Insecure.RSA.PrivateKey(sshRsa: pem, decryptionKey: decryptionKey)
             return .rsa(username: username, privateKey: key)
 
         case .secureEnclaveP256:
-            // SE 密钥的签名走 LAContext，不导出 PEM；Phase 5 接入。
+            // SE 密钥的签名走 LAContext，不导出 PEM；Phase 5b 接入。
             throw SSHError.unsupportedByEngine(.agentForwarding)
+        }
+    }
+
+    private static func ed25519Key(
+        _ representation: SSHPrivateKeyMaterial.Representation,
+        decryptionKey: Data?
+    ) throws -> Curve25519.Signing.PrivateKey {
+        switch representation {
+        case let .pem(pem):
+            try Curve25519.Signing.PrivateKey(sshEd25519: pem, decryptionKey: decryptionKey)
+        case let .raw(data):
+            // Conn 生成的密钥：直接用 32 字节原始表示构造。
+            try Curve25519.Signing.PrivateKey(rawRepresentation: data)
         }
     }
 
