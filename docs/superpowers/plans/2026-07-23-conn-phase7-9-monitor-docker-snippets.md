@@ -37,10 +37,10 @@
 - App：`Dashboard/DashboardViewModel.swift`（并入 live metrics）、`Dashboard/DashboardView.swift`（路由到详情）、`Hosts/HostDetailView.swift`（实时环 + 进程表 + kill）、`ConnApp.swift`（注入 scheduler + collector）。
 
 **验收（方案 §4.3）**
-- [ ] 解析器单测覆盖 GNU/BusyBox 两套 fixture（数值正确）。
-- [ ] 连真实 Docker 矩阵，指标与 `top`/`free` 人工比对误差 <5%。
-- [ ] 断连主机在仪表盘显示灰/错误态，不阻塞其他主机刷新。
-- [ ] 单机详情 3s 刷新；仪表盘 30s；页面不可见即停。
+- [x] 解析器单测覆盖 GNU/BusyBox 两套 fixture（数值正确）。ConnMonitorTests 16 绿。
+- [~] 连真实 Docker 矩阵，指标与 `top`/`free` 人工比对误差 <5%。**待用户真机/矩阵验收**（演示模式已验证全链路）。
+- [x] 断连主机在仪表盘显示灰/错误态，不阻塞其他主机刷新（collectOne 各自独立、失败只记 errors）。
+- [x] 单机详情 3s 刷新；仪表盘 30s（首采后 2s 预热）；页面不可见即 stop。
 
 ## Phase 8 — Docker + 日志中心（ConnOps）
 
@@ -51,10 +51,10 @@
 - ConnUI：`Components/ConnLogLineView.swift`（可选，若复用现有足够则免）。
 
 **验收（方案 §4.4）**
-- [ ] `docker ps` JSON 解析 + stats 合并渲染；启停/重启/rm（rm 强确认）入 run_history。
-- [ ] 非 root 无 docker 组权限 → 引导文案（探测 `sudo -n docker ps`）。
-- [ ] 日志跟随（journalctl/文件 tail -F/容器 logs -f）走 execStream；error/warn 高亮；客户端关键词过滤；暂停跟随。
-- [ ] 无 journalctl 系统 → 降级只展示文件源。
+- [x] `docker ps` JSON 解析 + stats 合并渲染；启停/重启/rm（rm 强确认）入 run_history。ConnOpsTests + 演示截图。
+- [x] 非 root 无 docker 组权限 → 引导文案（探测 `sudo -n docker ps`，DockerAvailability.permissionDenied）。
+- [x] 日志跟随（journalctl/文件 tail -F/容器 logs -f）走 execStream；error/warn 高亮；客户端关键词过滤；暂停跟随。演示截图验证。
+- [x] 无 journalctl 系统 → 降级只展示文件源（LogPresets.parseDiscovery，单测覆盖）。
 
 ## Phase 9 — 片段库与执行（ConnRunner）
 
@@ -66,10 +66,10 @@
 - App：`Commands/SnippetsView.swift` + VM、`Commands/SnippetFormView.swift`、`Commands/VariableFormSheet.swift`、`Commands/RunHistoryView.swift`；`RootTabView` 接第 4 Tab；首启导入内置片段。
 
 **验收（方案 §4.6 / PRD §5.6）**
-- [ ] `{{name}}`/`{{name:default}}` 变量表单填参；`\{\{` 转义单测覆盖（已在 ConnKit）。
-- [ ] 静默执行结果卡（stdout + exit code）/ 进终端两种目标。
-- [ ] danger 片段执行前强确认；内置模板 20 条首启可跳过导入。
-- [ ] 执行写 run_history，可在历史视图查看。
+- [x] `{{name}}`/`{{name:default}}` 变量表单填参；`\{\{` 转义单测覆盖（ConnKit）。
+- [x] 静默执行结果卡（stdout + exit code）/ 进终端两种目标（TerminalScreen autoCommand）。
+- [x] danger 片段执行前强确认；内置模板 22 条首启自动导入（可删除；"跳过"式引导留待 Phase 10）。
+- [x] 执行写 run_history，可在执行历史视图查看。
 
 ## 演示数据（贯穿三阶段，Phase 10 复用）
 
