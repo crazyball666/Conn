@@ -11,12 +11,13 @@ import SwiftUI
 struct HostDetailView: View {
     let host: Host
     let dependencies: AppDependencies
-    @State private var segment: Segment = .overview
+    @State private var segment: Segment
     @State private var monitorVM: HostOverviewViewModel
 
-    init(host: Host, dependencies: AppDependencies) {
+    init(host: Host, dependencies: AppDependencies, initialSegment: Segment = .overview) {
         self.host = host
         self.dependencies = dependencies
+        _segment = State(initialValue: initialSegment)
         _monitorVM = State(initialValue: HostOverviewViewModel(host: host, dependencies: dependencies))
     }
 
@@ -71,8 +72,8 @@ struct HostDetailView: View {
         case .overview: HostOverviewView(viewModel: monitorVM)
         case .terminal: terminalSegment
         case .files: placeholder("文件管理将在 Phase 6 实现", icon: "folder")
-        case .docker: placeholder("容器管理将在 Phase 8 实现", icon: "shippingbox")
-        case .logs: placeholder("日志中心将在 Phase 8 实现", icon: "doc.text")
+        case .docker: DockerView(host: host, dependencies: dependencies)
+        case .logs: LogCenterView(host: host, dependencies: dependencies)
         }
     }
 

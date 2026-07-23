@@ -1,6 +1,8 @@
 import ConnCrypto
 import ConnKit
 import ConnMonitor
+import ConnOps
+import ConnRunner
 import ConnSSH
 import ConnSSHCitadel
 import ConnStore
@@ -51,7 +53,23 @@ struct ConnApp: App {
                 }
             } else if ProcessInfo.processInfo.environment["CONN_SMOKE_DETAIL"] != nil,
                       let host = smokeDetailHost() {
-                NavigationStack { HostDetailView(host: host, dependencies: dependencies) }
+                NavigationStack {
+                    HostDetailView(host: host, dependencies: dependencies, initialSegment: smokeSegment())
+                }
+            } else if ProcessInfo.processInfo.environment["CONN_SMOKE_LOGSTREAM"] != nil,
+                      let host = smokeDetailHost() {
+                NavigationStack {
+                    LogStreamView(
+                        host: host, dependencies: dependencies,
+                        source: LogSource(
+                            id: "smoke-nginx", title: "Nginx 错误",
+                            subtitle: "/var/log/nginx/error.log",
+                            kind: .file(path: "/var/log/nginx/error.log")
+                        )
+                    )
+                }
+            } else if ProcessInfo.processInfo.environment["CONN_SMOKE_SNIPPETS"] != nil {
+                NavigationStack { SnippetsView(dependencies: dependencies) }
             } else {
                 RootTabView(dependencies: dependencies)
             }
@@ -65,6 +83,15 @@ struct ConnApp: App {
         private func smokeDetailHost() -> Host? {
             let hosts = (try? dependencies.hostRepository.allHosts()) ?? []
             return hosts.first { $0.address == DemoData.faultHostAddress } ?? hosts.first
+        }
+
+        /// 冒烟：CONN_SMOKE_SEGMENT 指定初始段（docker / logs / overview）。
+        private func smokeSegment() -> HostDetailView.Segment {
+            switch ProcessInfo.processInfo.environment["CONN_SMOKE_SEGMENT"] {
+            case "docker": .docker
+            case "logs": .logs
+            default: .overview
+            }
         }
     #endif
 }
@@ -87,6 +114,10 @@ struct AppDependencies {
     let metricStore: any MetricRepository
     /// 监控采集调度（Phase 7）。仪表盘 30s / 详情 3s。
     let monitor: MonitorScheduler
+    /// 执行审计仓库（Phase 8/9）。容器启停、片段执行写入。
+    let runHistory: any RunHistoryRepository
+    /// 片段仓库（Phase 9）。首启导入内置模板库。
+    let snippetRepository: any SnippetRepository
     /// 应用锁 + 隐私遮罩。默认关闭，设置页开启（Phase 5）。
     let appLock: AppLockController
 
@@ -115,6 +146,9 @@ struct AppDependencies {
             try? metricStore.pruneSamples(olderThan: cutoff)
             let monitor = MonitorScheduler(connectionManager: connectionManager, store: metricStore)
 
+            let snippetStore = SnippetStore(database: database)
+            try importBuiltinSnippetsIfNeeded(snippetStore)
+
             return AppDependencies(
                 hostRepository: hostStore,
                 groupRepository: groupStore,
@@ -124,6 +158,8 @@ struct AppDependencies {
                 diagnosticsTransport: transport,
                 metricStore: metricStore,
                 monitor: monitor,
+                runHistory: RunHistoryStore(database: database),
+                snippetRepository: snippetStore,
                 appLock: AppLockController(
                     authenticator: LABiometricAuthenticator(),
                     // DEBUG 冒烟可强制开启应用锁验证锁屏；正常默认关闭（设置页开启）
@@ -153,6 +189,8 @@ struct AppDependencies {
             let connectionManager = ConnectionManager(transport: transport) { _ in .password("demo") }
             let metricStore = MetricStore(database: database)
             let monitor = MonitorScheduler(connectionManager: connectionManager, store: metricStore)
+            let snippetStore = SnippetStore(database: database)
+            try importBuiltinSnippetsIfNeeded(snippetStore)
 
             return AppDependencies(
                 hostRepository: hostStore,
@@ -163,6 +201,8 @@ struct AppDependencies {
                 diagnosticsTransport: transport,
                 metricStore: metricStore,
                 monitor: monitor,
+                runHistory: RunHistoryStore(database: database),
+                snippetRepository: snippetStore,
                 appLock: AppLockController(authenticator: LABiometricAuthenticator(), isEnabled: false)
             )
         } catch {
@@ -196,6 +236,14 @@ struct AppDependencies {
         ]
         for host in samples {
             try store.save(host)
+        }
+    }
+
+    /// 首启把内置模板库导入 `snippet` 表（幂等：已有片段则跳过）。
+    private static func importBuiltinSnippetsIfNeeded(_ store: SnippetStore) throws {
+        guard try store.count() == 0 else { return }
+        for snippet in BuiltinSnippets.load() {
+            try store.save(snippet)
         }
     }
 }

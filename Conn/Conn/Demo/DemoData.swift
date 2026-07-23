@@ -23,7 +23,7 @@ enum DemoData {
                 if command.contains("/proc/stat") {
                     return .init(stdout: metrics.metricOutput(for: endpoint))
                 }
-                return nil
+                return DemoOps.response(command: command, endpoint: endpoint)
             },
             streamChunkDelay: .milliseconds(30)
         )

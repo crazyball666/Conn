@@ -1,0 +1,94 @@
+import Foundation
+
+/// 一个日志源（方案 §4.4 日志中心）。
+public struct LogSource: Identifiable, Sendable, Equatable, Hashable {
+    public enum Kind: Sendable, Equatable, Hashable {
+        /// journalctl，unit 为空表示整机日志。
+        case journal(unit: String)
+        /// 普通日志文件。
+        case file(path: String)
+        /// Docker 容器日志（复用 docker logs 通道）。
+        case container(id: String, name: String)
+    }
+
+    public let id: String
+    public let title: String
+    public let subtitle: String
+    public let kind: Kind
+
+    public init(id: String, title: String, subtitle: String, kind: Kind) {
+        self.id = id
+        self.title = title
+        self.subtitle = subtitle
+        self.kind = kind
+    }
+
+    /// 跟随命令（execStream 用）。合并 stderr；`sudo` 前缀用于受限文件/journal。
+    public func followCommand(tail: Int = 300, sudo: Bool = false) -> String {
+        let prefix = sudo ? "sudo -n " : ""
+        switch kind {
+        case let .journal(unit):
+            let scope = unit.isEmpty ? "" : "-u \(unit) "
+            return prefix + "journalctl \(scope)-n \(tail) -f --no-pager -o short-iso 2>&1"
+        case let .file(path):
+            return prefix + "tail -n \(tail) -F \(path) 2>&1"
+        case let .container(id, _):
+            return prefix + "docker logs -f --tail \(tail) \(id) 2>&1"
+        }
+    }
+}
+
+/// 内置日志源预设与探测（存在性探测后才展示，避免罗列不存在的源）。
+public enum LogPresets {
+    /// 候选文件源（覆盖 Debian/Ubuntu 与 CentOS 常见路径）。
+    public static let fileCandidates: [LogSource] = [
+        .init(id: "nginx-error", title: "Nginx 错误", subtitle: "/var/log/nginx/error.log",
+              kind: .file(path: "/var/log/nginx/error.log")),
+        .init(id: "nginx-access", title: "Nginx 访问", subtitle: "/var/log/nginx/access.log",
+              kind: .file(path: "/var/log/nginx/access.log")),
+        .init(id: "mysql-error", title: "MySQL 错误", subtitle: "/var/log/mysql/error.log",
+              kind: .file(path: "/var/log/mysql/error.log")),
+        .init(id: "redis", title: "Redis", subtitle: "/var/log/redis/redis-server.log",
+              kind: .file(path: "/var/log/redis/redis-server.log")),
+        .init(id: "syslog", title: "Syslog", subtitle: "/var/log/syslog",
+              kind: .file(path: "/var/log/syslog")),
+        .init(id: "messages", title: "Messages", subtitle: "/var/log/messages",
+              kind: .file(path: "/var/log/messages")),
+        .init(id: "auth", title: "认证日志", subtitle: "/var/log/auth.log",
+              kind: .file(path: "/var/log/auth.log"))
+    ]
+
+    /// 整机 journal 源（journalctl 存在时可用）。
+    public static let systemJournal = LogSource(
+        id: "journal-system", title: "系统日志", subtitle: "journalctl（全部单元）",
+        kind: .journal(unit: "")
+    )
+
+    /// 一趟探测命令：journalctl 是否存在 + 每个候选文件是否存在。
+    public static var discoveryCommand: String {
+        var lines = ["command -v journalctl >/dev/null 2>&1 && echo __JOURNAL__"]
+        for candidate in fileCandidates {
+            if case let .file(path) = candidate.kind {
+                lines.append("test -f \(path) && echo \"__FILE__ \(candidate.id)\"")
+            }
+        }
+        return lines.joined(separator: "; ")
+    }
+
+    /// 解析探测输出，返回该机上**实际存在**的日志源（journal 优先）。
+    /// 无 journalctl（非 systemd 系统）时自动降级为只含文件源（方案 §4.4 验收）。
+    public static func parseDiscovery(_ output: String) -> [LogSource] {
+        let lines = Set(output.split(separator: "\n").map { $0.trimmingCharacters(in: .whitespaces) })
+        var sources: [LogSource] = []
+        if lines.contains("__JOURNAL__") {
+            sources.append(systemJournal)
+        }
+        let presentIDs = Set(
+            lines
+                .filter { $0.hasPrefix("__FILE__ ") }
+                .map { $0.replacingOccurrences(of: "__FILE__ ", with: "") }
+        )
+        sources.append(contentsOf: fileCandidates.filter { presentIDs.contains($0.id) })
+        return sources
+    }
+}

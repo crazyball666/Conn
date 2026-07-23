@@ -52,11 +52,7 @@ struct RootTabView: View {
         case .terminal:
             TerminalCenterView(store: terminalStore, dependencies: dependencies)
         case .commands:
-            PlaceholderScreen(
-                title: "命令",
-                systemName: "command",
-                message: "片段库将在 Phase 9 实现"
-            )
+            SnippetsView(dependencies: dependencies)
         case .me:
             MeView(dependencies: dependencies)
         }

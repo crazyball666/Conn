@@ -99,16 +99,30 @@ final class DemoMetricsEngine: @unchecked Sendable {
         """
     }
 
+    private struct ProcSpec {
+        let pid: Int
+        let name: String
+        let cpuMul: Double
+        let memMul: Double
+    }
+
+    private struct DemoProc {
+        let pid: Int
+        let name: String
+        let cpu: Double
+        let mem: Double
+    }
+
     private func psLines(cpu: Double, mem: Double) -> String {
-        let procs: [(pid: Int, name: String, cpuMul: Double, memMul: Double)] = [
-            (812, "nginx", 46, 6),
-            (1043, "mysqld", 31, 22),
-            (655, "redis-server", 14, 4),
-            (1187, "node", 22, 11),
-            (98, "python3", 9, 8)
+        let specs = [
+            ProcSpec(pid: 812, name: "nginx", cpuMul: 46, memMul: 6),
+            ProcSpec(pid: 1043, name: "mysqld", cpuMul: 31, memMul: 22),
+            ProcSpec(pid: 655, name: "redis-server", cpuMul: 14, memMul: 4),
+            ProcSpec(pid: 1187, name: "node", cpuMul: 22, memMul: 11),
+            ProcSpec(pid: 98, name: "python3", cpuMul: 9, memMul: 8)
         ]
-        let rows = procs
-            .map { (pid: $0.pid, name: $0.name, cpu: min(99, cpu * $0.cpuMul), mem: min(99, mem * $0.memMul)) }
+        let rows = specs
+            .map { DemoProc(pid: $0.pid, name: $0.name, cpu: min(99, cpu * $0.cpuMul), mem: min(99, mem * $0.memMul)) }
             .sorted { $0.cpu > $1.cpu }
             .map { String(format: "%7d %4.1f %4.1f %@", $0.pid, $0.cpu, $0.mem, $0.name) }
         return (["    PID %CPU %MEM COMMAND"] + rows).joined(separator: "\n")

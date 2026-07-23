@@ -14,6 +14,8 @@ let package = Package(
         .library(name: "ConnSSHCitadel", targets: ["ConnSSHCitadel"]),
         .library(name: "ConnCrypto", targets: ["ConnCrypto"]),
         .library(name: "ConnMonitor", targets: ["ConnMonitor"]),
+        .library(name: "ConnOps", targets: ["ConnOps"]),
+        .library(name: "ConnRunner", targets: ["ConnRunner"]),
         .library(name: "ConnTerminal", targets: ["ConnTerminal"]),
         .library(name: "ConnUI", targets: ["ConnUI"]),
     ],
@@ -66,6 +68,22 @@ let package = Package(
             dependencies: ["ConnKit", "ConnSSH"]
         ),
 
+        // 容器、服务与日志（v1.0 P0）：docker CLI 经 exec、`{{json .}}` 解析与
+        // stats 合并、日志源（journalctl/文件/容器）与高亮引擎。纯 Swift、
+        // 零 UIKit → host 可测。
+        .target(
+            name: "ConnOps",
+            dependencies: ["ConnKit", "ConnSSH"]
+        ),
+
+        // 片段执行管线（v1.0）：变量渲染、静默/终端执行、危险确认、内置模板库（JSON 资源）。
+        // 复用 ConnSSH 的 DangerCommandRules；纯 Swift、零 UIKit → host 可测。
+        .target(
+            name: "ConnRunner",
+            dependencies: ["ConnKit", "ConnSSH"],
+            resources: [.process("Resources")]
+        ),
+
         // Infrastructure：密钥与凭据。本 Phase 只做 Keychain 密码/passphrase
         // 存取（最小切片）；Phase 5 扩展为密钥生成/Secure Enclave/一键部署。
         .target(
@@ -101,6 +119,8 @@ let package = Package(
         .testTarget(name: "ConnSSHTests", dependencies: ["ConnSSH"]),
         .testTarget(name: "ConnSSHCitadelTests", dependencies: ["ConnSSHCitadel", "ConnCrypto"]),
         .testTarget(name: "ConnMonitorTests", dependencies: ["ConnMonitor"]),
+        .testTarget(name: "ConnOpsTests", dependencies: ["ConnOps"]),
+        .testTarget(name: "ConnRunnerTests", dependencies: ["ConnRunner"]),
         .testTarget(name: "ConnCryptoTests", dependencies: ["ConnCrypto"]),
         .testTarget(name: "ConnTerminalTests", dependencies: ["ConnTerminal"]),
         .testTarget(name: "ConnUITests", dependencies: ["ConnUI"]),

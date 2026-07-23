@@ -58,15 +58,21 @@ enum ProcParsers {
     ///
     /// POSIX `-P` 保证每个文件系统一行不折行。列：Filesystem 1024-blocks Used
     /// Available Capacity Mounted-on。找 `/`，找不到则取容量最大的。
+    private struct DiskEntry {
+        let mount: String
+        let used: Double
+        let total: Double
+    }
+
     static func parseDisk(_ section: String) -> (used: Double, total: Double)? {
-        var candidates: [(mount: String, used: Double, total: Double)] = []
+        var candidates: [DiskEntry] = []
         for line in section.split(separator: "\n").dropFirst() { // 跳表头
             let cols = line.split(whereSeparator: { $0 == " " || $0 == "\t" })
             guard cols.count >= 6,
                   let blocks = Double(cols[cols.count - 5]),
                   let used = Double(cols[cols.count - 4]) else { continue }
             let mount = String(cols[cols.count - 1])
-            candidates.append((mount, used * 1024, blocks * 1024))
+            candidates.append(DiskEntry(mount: mount, used: used * 1024, total: blocks * 1024))
         }
         if let root = candidates.first(where: { $0.mount == "/" }) {
             return (root.used, root.total)
