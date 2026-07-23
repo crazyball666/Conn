@@ -112,6 +112,13 @@ final class MockSSHSession: SSHSession {
         return MockShellChannel()
     }
 
+    /// 每会话一颗内存文件树，编辑/新建在会话内留存。
+    private let fileSystem = MockRemoteFileSystem()
+
+    func sftp() async throws -> any RemoteFileSystem {
+        fileSystem
+    }
+
     func openTunnel(to target: SSHEndpoint) async throws -> any SSHTunnel {
         _ = target
         return MockTunnel()

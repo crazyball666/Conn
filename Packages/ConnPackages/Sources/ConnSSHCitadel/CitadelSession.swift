@@ -64,6 +64,11 @@ final class CitadelSession: SSHSession, @unchecked Sendable {
         try await CitadelShellChannel.open(client: client, term: term)
     }
 
+    func sftp() async throws -> any RemoteFileSystem {
+        let sftpClient = try await client.openSFTP()
+        return CitadelFileSystem(client: sftpClient)
+    }
+
     func openTunnel(to target: SSHEndpoint) async throws -> any SSHTunnel {
         // Phase 6/端口转发深用。
         throw SSHError.channelClosed

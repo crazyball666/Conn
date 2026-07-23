@@ -70,6 +70,16 @@ struct ConnApp: App {
                 }
             } else if ProcessInfo.processInfo.environment["CONN_SMOKE_SNIPPETS"] != nil {
                 NavigationStack { SnippetsView(dependencies: dependencies) }
+            } else if ProcessInfo.processInfo.environment["CONN_SMOKE_EDITOR"] != nil, let host = smokeDetailHost() {
+                NavigationStack {
+                    FileEditorView(
+                        host: host, dependencies: dependencies,
+                        entry: FileEntry(
+                            name: "nginx.conf", path: "/etc/nginx/nginx.conf",
+                            size: 200, permissions: 0o100644, kind: .file
+                        )
+                    )
+                }
             } else {
                 RootTabView(dependencies: dependencies)
             }
@@ -85,11 +95,12 @@ struct ConnApp: App {
             return hosts.first { $0.address == DemoData.faultHostAddress } ?? hosts.first
         }
 
-        /// 冒烟：CONN_SMOKE_SEGMENT 指定初始段（docker / logs / overview）。
+        /// 冒烟：CONN_SMOKE_SEGMENT 指定初始段（docker / logs / files / overview）。
         private func smokeSegment() -> HostDetailView.Segment {
             switch ProcessInfo.processInfo.environment["CONN_SMOKE_SEGMENT"] {
             case "docker": .docker
             case "logs": .logs
+            case "files": .files
             default: .overview
             }
         }

@@ -32,6 +32,9 @@ public protocol SSHSession: AnyObject, Sendable {
     /// 开一个交互式 PTY（终端用，Phase 4 深用）。
     func openShell(term: TermSize) async throws -> any ShellChannel
 
+    /// 打开 SFTP 子系统（文件管理，Phase 6）。
+    func sftp() async throws -> any RemoteFileSystem
+
     /// 开到目标的 direct-tcpip 隧道（跳板链 / 端口转发共用）。
     func openTunnel(to target: SSHEndpoint) async throws -> any SSHTunnel
 

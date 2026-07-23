@@ -71,7 +71,7 @@ struct HostDetailView: View {
         switch segment {
         case .overview: HostOverviewView(viewModel: monitorVM)
         case .terminal: terminalSegment
-        case .files: placeholder("文件管理将在 Phase 6 实现", icon: "folder")
+        case .files: FileBrowserView(host: host, dependencies: dependencies)
         case .docker: DockerView(host: host, dependencies: dependencies)
         case .logs: LogCenterView(host: host, dependencies: dependencies)
         }
