@@ -8,9 +8,15 @@ import SwiftUI
 /// 而不是连接列表。故障主机自动置顶。
 struct DashboardView: View {
     @State private var viewModel: DashboardViewModel
+    @State private var selectedHost: Host?
+    private let dependencies: AppDependencies
 
-    init(hostStore: any HostRepository) {
-        _viewModel = State(initialValue: DashboardViewModel(hostStore: hostStore))
+    init(dependencies: AppDependencies) {
+        self.dependencies = dependencies
+        _viewModel = State(initialValue: DashboardViewModel(
+            hostStore: dependencies.hostRepository,
+            monitor: dependencies.monitor
+        ))
     }
 
     var body: some View {
@@ -29,7 +35,11 @@ struct DashboardView: View {
         }
         .scrollBounceBehavior(.basedOnSize)
         .refreshable { await viewModel.refresh() }
-        .task { viewModel.load() }
+        .onAppear { viewModel.appear() }
+        .onDisappear { viewModel.disappear() }
+        .navigationDestination(item: $selectedHost) { host in
+            HostDetailView(host: host, dependencies: dependencies)
+        }
     }
 
     // MARK: - 区块
@@ -52,7 +62,7 @@ struct DashboardView: View {
         LazyVStack(spacing: ConnSpacing.stackGap) {
             ForEach(viewModel.cards) { card in
                 HealthCard(card) {
-                    // Phase 3 接入主机详情路由
+                    selectedHost = viewModel.host(forID: card.id)
                 }
             }
         }

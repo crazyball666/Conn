@@ -13,6 +13,7 @@ let package = Package(
         .library(name: "ConnSSH", targets: ["ConnSSH"]),
         .library(name: "ConnSSHCitadel", targets: ["ConnSSHCitadel"]),
         .library(name: "ConnCrypto", targets: ["ConnCrypto"]),
+        .library(name: "ConnMonitor", targets: ["ConnMonitor"]),
         .library(name: "ConnTerminal", targets: ["ConnTerminal"]),
         .library(name: "ConnUI", targets: ["ConnUI"]),
     ],
@@ -58,6 +59,13 @@ let package = Package(
             ]
         ),
 
+        // 监控与巡检（v1.0 差异化）：单趟采集脚本、GNU/BusyBox 双解析、CPU 差分、
+        // 调度（仪表盘 30s / 详情 3s / 并发 4）、拨测。纯 Swift、零 UIKit → host 可测。
+        .target(
+            name: "ConnMonitor",
+            dependencies: ["ConnKit", "ConnSSH"]
+        ),
+
         // Infrastructure：密钥与凭据。本 Phase 只做 Keychain 密码/passphrase
         // 存取（最小切片）；Phase 5 扩展为密钥生成/Secure Enclave/一键部署。
         .target(
@@ -92,6 +100,7 @@ let package = Package(
         .testTarget(name: "ConnStoreTests", dependencies: ["ConnStore"]),
         .testTarget(name: "ConnSSHTests", dependencies: ["ConnSSH"]),
         .testTarget(name: "ConnSSHCitadelTests", dependencies: ["ConnSSHCitadel", "ConnCrypto"]),
+        .testTarget(name: "ConnMonitorTests", dependencies: ["ConnMonitor"]),
         .testTarget(name: "ConnCryptoTests", dependencies: ["ConnCrypto"]),
         .testTarget(name: "ConnTerminalTests", dependencies: ["ConnTerminal"]),
         .testTarget(name: "ConnUITests", dependencies: ["ConnUI"]),

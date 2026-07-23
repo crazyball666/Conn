@@ -14,6 +14,7 @@
 		7C181B0A300CF0AD00307624 /* ConnSSHCitadel in Frameworks */ = {isa = PBXBuildFile; productRef = 7C181B0B300CF0AD00307624 /* ConnSSHCitadel */; };
 		7C181B0C300CF0AD00307624 /* ConnCrypto in Frameworks */ = {isa = PBXBuildFile; productRef = 7C181B0D300CF0AD00307624 /* ConnCrypto */; };
 		7C181B0E300CF0AD00307624 /* ConnTerminal in Frameworks */ = {isa = PBXBuildFile; productRef = 7C181B0F300CF0AD00307624 /* ConnTerminal */; };
+		7CAA0001300CF0AD00307624 /* ConnMonitor in Frameworks */ = {isa = PBXBuildFile; productRef = 7CAA0002300CF0AD00307624 /* ConnMonitor */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -69,6 +70,7 @@
 				7C181B0A300CF0AD00307624 /* ConnSSHCitadel in Frameworks */,
 				7C181B0C300CF0AD00307624 /* ConnCrypto in Frameworks */,
 				7C181B0E300CF0AD00307624 /* ConnTerminal in Frameworks */,
+				7CAA0001300CF0AD00307624 /* ConnMonitor in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -136,6 +138,7 @@
 				7C181B0B300CF0AD00307624 /* ConnSSHCitadel */,
 				7C181B0D300CF0AD00307624 /* ConnCrypto */,
 				7C181B0F300CF0AD00307624 /* ConnTerminal */,
+				7CAA0002300CF0AD00307624 /* ConnMonitor */,
 			);
 			productName = Conn;
 			productReference = 7C181A90300CF0AD00307624 /* Conn.app */;
@@ -641,6 +644,10 @@
 		7C181B0F300CF0AD00307624 /* ConnTerminal */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = ConnTerminal;
+		};
+		7CAA0002300CF0AD00307624 /* ConnMonitor */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = ConnMonitor;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

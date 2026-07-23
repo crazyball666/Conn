@@ -25,16 +25,23 @@ public final class MockSSHTransport: SSHTransport {
         public var failConnect: SSHError?
         /// 覆盖或新增命令响应，优先于内置脚本。
         public var commandResponses: [String: CommandResponse]
+        /// 动态响应器：按（原始命令, 目标端点）现算响应，返回 nil 则回落内置脚本。
+        /// 演示模式（Phase 10）用它生成随时间演化的假指标/容器/日志——数据生成逻辑
+        /// 放在 App/Feature 层（可 import ConnMonitor/ConnOps），此处只留一个闭包插槽，
+        /// 保持 ConnSSH 与上层解耦。
+        public var dynamicResponder: (@Sendable (String, SSHEndpoint) -> CommandResponse?)?
         /// 每块流式输出之间的延迟（execStream 用；测试通常设 0）。
         public var streamChunkDelay: Duration
 
         public init(
             failConnect: SSHError? = nil,
             commandResponses: [String: CommandResponse] = [:],
+            dynamicResponder: (@Sendable (String, SSHEndpoint) -> CommandResponse?)? = nil,
             streamChunkDelay: Duration = .zero
         ) {
             self.failConnect = failConnect
             self.commandResponses = commandResponses
+            self.dynamicResponder = dynamicResponder
             self.streamChunkDelay = streamChunkDelay
         }
     }
@@ -115,11 +122,14 @@ final class MockSSHSession: SSHSession {
         stateContinuation.finish()
     }
 
-    /// 命令 → 响应。自定义覆盖优先，其次内置脚本，最后 command not found。
+    /// 命令 → 响应。测试显式覆盖 > 动态响应器 > 内置脚本 > command not found。
     private func resolve(_ command: String) -> MockSSHTransport.CommandResponse {
         let trimmed = command.trimmingCharacters(in: .whitespacesAndNewlines)
         if let custom = behavior.commandResponses[trimmed] {
             return custom
+        }
+        if let dynamic = behavior.dynamicResponder?(command, endpoint) {
+            return dynamic
         }
         return Self.builtinScript[trimmed] ?? Self.builtinScript[firstWord(trimmed)] ?? .init(
             stderr: "\(firstWord(trimmed)): command not found",

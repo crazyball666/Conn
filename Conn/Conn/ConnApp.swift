@@ -1,5 +1,6 @@
 import ConnCrypto
 import ConnKit
+import ConnMonitor
 import ConnSSH
 import ConnSSHCitadel
 import ConnStore
@@ -8,7 +9,18 @@ import SwiftUI
 /// App 组装根：依赖注入、路由、场景生命周期（技术实现方案 §5）。
 @main
 struct ConnApp: App {
-    private let dependencies = AppDependencies.live()
+    private let dependencies = ConnApp.makeDependencies()
+
+    /// 依赖选择：DEBUG 下 `CONN_DEMO=1` 走演示模式（Mock 引擎 + 假数据），
+    /// 否则走生产（Citadel + GRDB 落盘）。Phase 10 会把演示开关搬到设置页。
+    private static func makeDependencies() -> AppDependencies {
+        #if DEBUG
+            if ProcessInfo.processInfo.environment["CONN_DEMO"] != nil {
+                return AppDependencies.demo()
+            }
+        #endif
+        return AppDependencies.live()
+    }
 
     var body: some Scene {
         WindowGroup {
@@ -37,6 +49,9 @@ struct ConnApp: App {
                         autoCommand: "echo '中文渲染测试 你好世界 café 日本語 🚀 制表符'; ls /"
                     )
                 }
+            } else if ProcessInfo.processInfo.environment["CONN_SMOKE_DETAIL"] != nil,
+                      let host = smokeDetailHost() {
+                NavigationStack { HostDetailView(host: host, dependencies: dependencies) }
             } else {
                 RootTabView(dependencies: dependencies)
             }
@@ -44,6 +59,14 @@ struct ConnApp: App {
             RootTabView(dependencies: dependencies)
         #endif
     }
+
+    #if DEBUG
+        /// 冒烟：优先取演示故障机（有高负载 + 进程列表），否则第一台。
+        private func smokeDetailHost() -> Host? {
+            let hosts = (try? dependencies.hostRepository.allHosts()) ?? []
+            return hosts.first { $0.address == DemoData.faultHostAddress } ?? hosts.first
+        }
+    #endif
 }
 
 /// 依赖容器。
@@ -56,10 +79,14 @@ struct AppDependencies {
     let groupRepository: any HostGroupRepository
     let keyRepository: any SSHKeyRepository
     let credentialStore: any CredentialStore
-    /// 连接池管理器。主机详情、Phase 7 的监控采集经它取会话。
+    /// 连接池管理器。主机详情、监控采集、Docker/日志、片段执行都经它取会话。
     let connectionManager: ConnectionManager
     /// 连接测试用的传输层（与 connectionManager 同引擎，供诊断树直接调用）。
     let diagnosticsTransport: any SSHTransport
+    /// 指标时序仓库（Phase 7）。离线快照 + 48h 原始样本。
+    let metricStore: any MetricRepository
+    /// 监控采集调度（Phase 7）。仪表盘 30s / 详情 3s。
+    let monitor: MonitorScheduler
     /// 应用锁 + 隐私遮罩。默认关闭，设置页开启（Phase 5）。
     let appLock: AppLockController
 
@@ -82,6 +109,12 @@ struct AppDependencies {
                 return .password(password)
             }
 
+            // 监控栈：指标仓库 + 采集调度。启动时清理超 48h 的原始样本。
+            let metricStore = MetricStore(database: database)
+            let cutoff = Timestamp.now() - 48 * 3600 * 1000
+            try? metricStore.pruneSamples(olderThan: cutoff)
+            let monitor = MonitorScheduler(connectionManager: connectionManager, store: metricStore)
+
             return AppDependencies(
                 hostRepository: hostStore,
                 groupRepository: groupStore,
@@ -89,6 +122,8 @@ struct AppDependencies {
                 credentialStore: credentialStore,
                 connectionManager: connectionManager,
                 diagnosticsTransport: transport,
+                metricStore: metricStore,
+                monitor: monitor,
                 appLock: AppLockController(
                     authenticator: LABiometricAuthenticator(),
                     // DEBUG 冒烟可强制开启应用锁验证锁屏；正常默认关闭（设置页开启）
@@ -99,6 +134,39 @@ struct AppDependencies {
             // 数据库开不了是不可恢复的：此时 App 无法承载任何功能。
             // 与其静默降级成空界面，不如带着原因崩溃，便于用户导出诊断。
             fatalError("数据库初始化失败：\(error)")
+        }
+    }
+
+    /// 演示依赖：内存库 + Mock 引擎（假指标/容器/日志）。无需任何服务器即可
+    /// 完整体验监控/Docker/日志/片段（Phase 7–9），也是 App Store 审核走查路径。
+    /// 演示数据由 `DemoData` 生成并经 `MockSSHTransport.dynamicResponder` 注入。
+    static func demo() -> AppDependencies {
+        do {
+            let database = try AppDatabase.inMemory()
+            let hostStore = HostStore(database: database)
+            let groupStore = HostGroupStore(database: database)
+            let keyStore = SSHKeyStore(database: database)
+            try DemoData.seedHosts(into: hostStore)
+
+            let transport = MockSSHTransport(behavior: DemoData.behavior())
+            let credentialStore = InMemoryCredentialStore()
+            let connectionManager = ConnectionManager(transport: transport) { _ in .password("demo") }
+            let metricStore = MetricStore(database: database)
+            let monitor = MonitorScheduler(connectionManager: connectionManager, store: metricStore)
+
+            return AppDependencies(
+                hostRepository: hostStore,
+                groupRepository: groupStore,
+                keyRepository: keyStore,
+                credentialStore: credentialStore,
+                connectionManager: connectionManager,
+                diagnosticsTransport: transport,
+                metricStore: metricStore,
+                monitor: monitor,
+                appLock: AppLockController(authenticator: LABiometricAuthenticator(), isEnabled: false)
+            )
+        } catch {
+            fatalError("演示库初始化失败：\(error)")
         }
     }
 

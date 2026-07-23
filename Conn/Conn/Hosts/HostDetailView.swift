@@ -1,13 +1,24 @@
 import ConnKit
+import ConnMonitor
 import ConnUI
 import SwiftUI
 
-/// 主机详情（原型 S3）。本 Phase 只做导航框架与概览段；监控数据 Phase 7、
-/// 终端 Phase 4、文件 Phase 6、Docker/日志 Phase 8 各自接入。
+/// 主机详情（原型 S3）。概览段（Phase 7）实时监控；终端 Phase 4；
+/// Docker/日志 Phase 8；文件 Phase 6。
+///
+/// 监控调度器在详情级持有并在 appear/disappear 起停——这样切到终端/Docker 段时
+/// 顶部状态胶囊仍显示实时健康，而不是随段落停摆。
 struct HostDetailView: View {
     let host: Host
     let dependencies: AppDependencies
     @State private var segment: Segment = .overview
+    @State private var monitorVM: HostOverviewViewModel
+
+    init(host: Host, dependencies: AppDependencies) {
+        self.host = host
+        self.dependencies = dependencies
+        _monitorVM = State(initialValue: HostOverviewViewModel(host: host, dependencies: dependencies))
+    }
 
     enum Segment: String, CaseIterable, Identifiable {
         case overview = "概览"
@@ -30,6 +41,8 @@ struct HostDetailView: View {
         }
         .background(Color.connBg.ignoresSafeArea())
         .navigationBarTitleDisplayMode(.inline)
+        .onAppear { monitorVM.appear() }
+        .onDisappear { monitorVM.disappear() }
     }
 
     private var header: some View {
@@ -39,7 +52,7 @@ struct HostDetailView: View {
                 Text(host.displayAddress).font(.connData()).foregroundStyle(.connMuted)
             }
             Spacer()
-            StatusPill(statusText, semantic: statusSemantic)
+            StatusPill(resolvedStatus.text, semantic: resolvedStatus.semantic)
         }
     }
 
@@ -55,7 +68,7 @@ struct HostDetailView: View {
     @ViewBuilder
     private var content: some View {
         switch segment {
-        case .overview: overview
+        case .overview: HostOverviewView(viewModel: monitorVM)
         case .terminal: terminalSegment
         case .files: placeholder("文件管理将在 Phase 6 实现", icon: "folder")
         case .docker: placeholder("容器管理将在 Phase 8 实现", icon: "shippingbox")
@@ -85,28 +98,6 @@ struct HostDetailView: View {
         .padding(.vertical, ConnSpacing.md)
     }
 
-    private var overview: some View {
-        VStack(alignment: .leading, spacing: ConnSpacing.md) {
-            // 指标环占位——真实采样 Phase 7 接入
-            HStack(spacing: ConnSpacing.xs) {
-                MetricGauge(label: "CPU", value: nil, tint: .connAccent)
-                MetricGauge(label: "内存", value: nil, tint: .connInfo)
-                MetricGauge(label: "磁盘", value: nil, tint: .connDisk)
-            }
-            ConnBanner("实时监控数据将在 Phase 7 接入采集脚本后显示", systemImage: "info.circle")
-
-            Text("快捷动作")
-                .font(.connCaption).foregroundStyle(.connMuted).connEyebrowTracking()
-            LazyVGrid(columns: Array(repeating: GridItem(spacing: ConnSpacing.xs), count: 4), spacing: ConnSpacing.xs) {
-                ActionTile("终端", systemName: "terminal") { segment = .terminal }
-                ActionTile("日志", systemName: "doc.text") { segment = .logs }
-                ActionTile("Docker", systemName: "shippingbox") { segment = .docker }
-                ActionTile("文件", systemName: "folder") { segment = .files }
-            }
-        }
-        .padding(.bottom, ConnSpacing.lg)
-    }
-
     private func placeholder(_ message: String, icon: String) -> some View {
         VStack(spacing: ConnSpacing.sm) {
             Image(systemName: icon).font(.system(size: 40, weight: .light)).foregroundStyle(.connMuted)
@@ -116,22 +107,25 @@ struct HostDetailView: View {
         .padding(.vertical, ConnSpacing.xxl)
     }
 
-    private var statusSemantic: StatusPill.Semantic {
-        switch host.status {
-        case .ok: .good
-        case .warn: .warn
-        case .crit, .offline: .crit
-        case .unknown: .off
+    /// 实时严重度优先；无采集但有错误 → 离线；否则回落持久化状态。
+    private var resolvedStatus: (text: String, semantic: StatusPill.Semantic) {
+        if let severity = monitorVM.latest?.severity {
+            switch severity {
+            case .ok: return ("正常", .good)
+            case .warn: return ("警告", .warn)
+            case .crit: return ("故障", .crit)
+            case .unknown: break
+            }
         }
-    }
-
-    private var statusText: String {
+        if monitorVM.errorText != nil {
+            return ("离线", .crit)
+        }
         switch host.status {
-        case .ok: "正常"
-        case .warn: "警告"
-        case .crit: "故障"
-        case .offline: "离线"
-        case .unknown: "未知"
+        case .ok: return ("正常", .good)
+        case .warn: return ("警告", .warn)
+        case .crit: return ("故障", .crit)
+        case .offline: return ("离线", .crit)
+        case .unknown: return ("未知", .off)
         }
     }
 }
