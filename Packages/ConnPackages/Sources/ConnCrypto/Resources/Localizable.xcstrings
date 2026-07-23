@@ -1,0 +1,14 @@
+{
+  "sourceLanguage" : "zh-Hans",
+  "strings" : {
+    "设备密码" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Device Passcode" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "デバイスパスコード" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "기기 암호" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "裝置密碼" } }
+      }
+    }
+  },
+  "version" : "1.0"
+}

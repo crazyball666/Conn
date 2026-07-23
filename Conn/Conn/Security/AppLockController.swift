@@ -54,7 +54,7 @@ final class AppLockController {
     func unlock() async {
         guard isEnabled, state != .unlocked else { return }
         state = .authenticating
-        let result = await authenticator.authenticate(reason: "解锁 Conn")
+        let result = await authenticator.authenticate(reason: L("解锁 Conn"))
         state = (result == .success || result == .unavailable) ? .unlocked : .locked
     }
 

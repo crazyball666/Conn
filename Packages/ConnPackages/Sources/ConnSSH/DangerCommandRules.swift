@@ -40,12 +40,13 @@ public enum DangerCommandRules {
         let normalized = command.trimmingCharacters(in: .whitespacesAndNewlines)
 
         for rule in dangerousPatterns where matches(normalized, rule.pattern) {
-            return DangerVerdict(isDangerous: true, needsConfirmation: true, reason: rule.reason)
+            // 规则表内 reason 存中文源串作 key，此处 L() 按当前语言查表。
+            return DangerVerdict(isDangerous: true, needsConfirmation: true, reason: L(rule.reason))
         }
 
         if isProduction {
             for rule in productionSensitivePatterns where matches(normalized, rule.pattern) {
-                return DangerVerdict(isDangerous: false, needsConfirmation: true, reason: rule.reason)
+                return DangerVerdict(isDangerous: false, needsConfirmation: true, reason: L(rule.reason))
             }
         }
 

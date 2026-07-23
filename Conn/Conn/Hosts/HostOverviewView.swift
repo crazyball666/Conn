@@ -25,13 +25,13 @@ struct HostOverviewView: View {
             isPresented: killDialogBinding,
             titleVisibility: .visible
         ) {
-            Button("结束进程", role: .destructive) {
+            Button(L("结束进程"), role: .destructive) {
                 Task { await viewModel.confirmKill() }
             }
-            Button("取消", role: .cancel) { viewModel.killTarget = nil }
+            Button(L("取消"), role: .cancel) { viewModel.killTarget = nil }
         }
-        .alert("进程操作", isPresented: actionMessageBinding) {
-            Button("好", role: .cancel) { viewModel.actionMessage = nil }
+        .alert(L("进程操作"), isPresented: actionMessageBinding) {
+            Button(L("好"), role: .cancel) { viewModel.actionMessage = nil }
         } message: {
             Text(viewModel.actionMessage ?? "")
         }
@@ -42,8 +42,8 @@ struct HostOverviewView: View {
     private var gauges: some View {
         HStack(spacing: ConnSpacing.xs) {
             MetricGauge(label: "CPU", value: viewModel.latest?.cpu, tint: .connAccent)
-            MetricGauge(label: "内存", value: viewModel.latest?.mem, tint: .connInfo)
-            MetricGauge(label: "磁盘", value: viewModel.latest?.disk, tint: .connDisk)
+            MetricGauge(label: L("内存"), value: viewModel.latest?.mem, tint: .connInfo)
+            MetricGauge(label: L("磁盘"), value: viewModel.latest?.disk, tint: .connDisk)
         }
     }
 
@@ -51,11 +51,11 @@ struct HostOverviewView: View {
 
     private var systemInfo: some View {
         VStack(spacing: 0) {
-            infoRow("负载（1 分钟）", value: viewModel.latest?.load1.map { String(format: "%.2f", $0) } ?? "—")
+            infoRow(L("负载（1 分钟）"), value: viewModel.latest?.load1.map { String(format: "%.2f", $0) } ?? "—")
             hairline
-            infoRow("磁盘", value: diskText)
+            infoRow(L("磁盘"), value: diskText)
             hairline
-            infoRow("运行时长", value: uptimeText)
+            infoRow(L("运行时长"), value: uptimeText)
         }
         .connSurface(cornerRadius: ConnRadius.card)
     }
@@ -78,10 +78,10 @@ struct HostOverviewView: View {
 
     private var processes: some View {
         VStack(alignment: .leading, spacing: ConnSpacing.xs) {
-            Text("进程 · CPU 占用前列")
+            Text(L("进程 · CPU 占用前列"))
                 .font(.connCaption).foregroundStyle(.connMuted).connEyebrowTracking()
             if viewModel.topProcesses.isEmpty {
-                Text(viewModel.latest == nil ? "采集中…" : "暂无进程数据")
+                Text(viewModel.latest == nil ? L("采集中…") : L("暂无进程数据"))
                     .font(.connFootnote).foregroundStyle(.connMuted)
                     .padding(.vertical, ConnSpacing.sm)
             } else {
@@ -104,7 +104,7 @@ struct HostOverviewView: View {
             }
             Spacer(minLength: ConnSpacing.xs)
             usageColumn("CPU", value: process.cpu)
-            usageColumn("内存", value: process.mem)
+            usageColumn(L("内存"), value: process.mem)
             Button {
                 viewModel.requestKill(process)
             } label: {
@@ -142,12 +142,12 @@ struct HostOverviewView: View {
         guard let seconds = viewModel.latest?.uptimeSeconds else { return "—" }
         let days = Int(seconds) / 86400
         let hours = (Int(seconds) % 86400) / 3600
-        return days > 0 ? "\(days) 天 \(hours) 小时" : "\(hours) 小时"
+        return days > 0 ? String(format: L("%d 天 %d 小时"), days, hours) : String(format: L("%d 小时"), hours)
     }
 
     private var killPrompt: String {
         guard let target = viewModel.killTarget else { return "" }
-        return "结束 \(target.command)（PID \(target.pid)）？将发送 SIGTERM。"
+        return String(format: L("结束 %@（PID %d）？将发送 SIGTERM。"), target.command, target.pid)
     }
 
     private var killDialogBinding: Binding<Bool> {

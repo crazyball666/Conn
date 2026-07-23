@@ -55,20 +55,20 @@ struct FileBrowserView: View {
         .confirmationDialog(actionEntry?.name ?? "", isPresented: actionBinding, presenting: actionEntry) { entry in
             fileActions(entry)
         }
-        .alert("删除", isPresented: deletionBinding, presenting: viewModel.pendingDeletion) { entry in
+        .alert(L("删除"), isPresented: deletionBinding, presenting: viewModel.pendingDeletion) { entry in
             Button("删除 \(entry.name)", role: .destructive) { Task { await viewModel.confirmDeletion() } }
-            Button("取消", role: .cancel) { viewModel.pendingDeletion = nil }
+            Button(L("取消"), role: .cancel) { viewModel.pendingDeletion = nil }
         } message: { entry in
-            Text(entry.isDirectory ? "将删除目录及其内容，不可撤销。" : "此操作不可撤销。")
+            Text(entry.isDirectory ? L("将删除目录及其内容，不可撤销。") : L("此操作不可撤销。"))
         }
         .alert(promptTitle, isPresented: promptBinding) {
             TextField(promptPlaceholder, text: $promptText)
                 .autocorrectionDisabled().textInputAutocapitalization(.never)
-            Button("确定") { handlePrompt() }
-            Button("取消", role: .cancel) { textPrompt = nil }
+            Button(L("确定")) { handlePrompt() }
+            Button(L("取消"), role: .cancel) { textPrompt = nil }
         }
-        .alert("提示", isPresented: messageBinding) {
-            Button("好", role: .cancel) { viewModel.actionMessage = nil }
+        .alert(L("提示"), isPresented: messageBinding) {
+            Button(L("好"), role: .cancel) { viewModel.actionMessage = nil }
         } message: {
             Text(viewModel.actionMessage ?? "")
         }
@@ -89,11 +89,11 @@ struct FileBrowserView: View {
                 Spacer()
             }
             HStack(spacing: ConnSpacing.sm) {
-                iconButton("square.and.arrow.up", "上传") { showUpload = true }
-                iconButton("folder.badge.plus", "新建") { promptText = ""; textPrompt = .mkdir }
+                iconButton("square.and.arrow.up", L("上传")) { showUpload = true }
+                iconButton("folder.badge.plus", L("新建")) { promptText = ""; textPrompt = .mkdir }
                 iconButton(viewModel.showHidden ? "eye" : "eye.slash",
-                           viewModel.showHidden ? "隐藏文件" : "显示隐藏") { viewModel.showHidden.toggle() }
-                iconButton("arrow.clockwise", "刷新") { Task { await viewModel.refresh() } }
+                           viewModel.showHidden ? L("隐藏文件") : L("显示隐藏")) { viewModel.showHidden.toggle() }
+                iconButton("arrow.clockwise", L("刷新")) { Task { await viewModel.refresh() } }
                 Spacer()
             }
         }
@@ -127,7 +127,7 @@ struct FileBrowserView: View {
             Image(systemName: "checkmark.circle.fill").foregroundStyle(.connGood)
             Text("已下载 \(url.lastPathComponent)").font(.connFootnote).foregroundStyle(.connInk)
             Spacer()
-            ShareLink(item: url) { Text("分享").font(.connFootnote).foregroundStyle(.connAccent) }
+            ShareLink(item: url) { Text(L("分享")).font(.connFootnote).foregroundStyle(.connAccent) }
             Button { viewModel.downloadedURL = nil } label: {
                 Image(systemName: "xmark").font(.footnote).foregroundStyle(.connMuted)
             }
@@ -143,12 +143,12 @@ struct FileBrowserView: View {
     private var content: some View {
         switch viewModel.loadState {
         case .loading:
-            ProgressView("读取目录…").font(.connFootnote).foregroundStyle(.connMuted)
+            ProgressView(L("读取目录…")).font(.connFootnote).foregroundStyle(.connMuted)
                 .frame(maxWidth: .infinity).padding(.vertical, ConnSpacing.xxl)
         case let .failed(message):
             VStack(spacing: ConnSpacing.sm) {
                 ConnBanner(message, systemImage: "exclamationmark.triangle")
-                Button("重试") { Task { await viewModel.refresh() } }.font(.connBody).foregroundStyle(.connAccent)
+                Button(L("重试")) { Task { await viewModel.refresh() } }.font(.connBody).foregroundStyle(.connAccent)
             }.padding(.vertical, ConnSpacing.md)
         case .ready:
             fileList
@@ -159,7 +159,7 @@ struct FileBrowserView: View {
         ScrollView {
             LazyVStack(spacing: ConnSpacing.xs) {
                 if viewModel.visibleEntries.isEmpty {
-                    Text("空目录").font(.connSubheadline).foregroundStyle(.connMuted)
+                    Text(L("空目录")).font(.connSubheadline).foregroundStyle(.connMuted)
                         .padding(.vertical, ConnSpacing.xl)
                 }
                 ForEach(viewModel.visibleEntries) { entry in
@@ -199,12 +199,12 @@ struct FileBrowserView: View {
 
     @ViewBuilder
     private func fileActions(_ entry: FileEntry) -> some View {
-        Button("编辑") { editorEntry = entry }
-        Button("下载") { Task { await viewModel.download(entry) } }
-        Button("重命名") { promptText = entry.name; textPrompt = .rename(entry) }
-        Button("修改权限") { promptText = entry.octalPermissions ?? "644"; textPrompt = .chmod(entry) }
-        Button("删除", role: .destructive) { viewModel.pendingDeletion = entry }
-        Button("取消", role: .cancel) {}
+        Button(L("编辑")) { editorEntry = entry }
+        Button(L("下载")) { Task { await viewModel.download(entry) } }
+        Button(L("重命名")) { promptText = entry.name; textPrompt = .rename(entry) }
+        Button(L("修改权限")) { promptText = entry.octalPermissions ?? "644"; textPrompt = .chmod(entry) }
+        Button(L("删除"), role: .destructive) { viewModel.pendingDeletion = entry }
+        Button(L("取消"), role: .cancel) {}
     }
 
     // MARK: - 辅助
@@ -247,7 +247,7 @@ struct FileBrowserView: View {
 
     private static let dateFormatter: DateFormatter = {
         let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "zh_Hans_CN")
+        formatter.locale = ConnLanguage.currentLocale
         formatter.dateFormat = "yy-MM-dd HH:mm"
         return formatter
     }()
@@ -256,17 +256,17 @@ struct FileBrowserView: View {
 
     private var promptTitle: String {
         switch textPrompt {
-        case .mkdir: "新建文件夹"
-        case .rename: "重命名"
-        case .chmod: "修改权限（八进制）"
+        case .mkdir: L("新建文件夹")
+        case .rename: L("重命名")
+        case .chmod: L("修改权限（八进制）")
         case nil: ""
         }
     }
 
     private var promptPlaceholder: String {
         switch textPrompt {
-        case .chmod: "如 644"
-        default: "名称"
+        case .chmod: L("如 644")
+        default: L("名称")
         }
     }
 

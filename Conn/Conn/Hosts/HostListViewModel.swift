@@ -71,7 +71,7 @@ final class HostListViewModel {
     func groupName(for host: Host) -> String {
         guard let groupUUID = host.groupUUID,
               let group = groups.first(where: { $0.id == groupUUID })
-        else { return "未分组" }
+        else { return L("未分组") }
         return group.name
     }
 

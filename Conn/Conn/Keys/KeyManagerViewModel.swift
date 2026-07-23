@@ -30,7 +30,7 @@ final class KeyManagerViewModel {
 
         let key = SSHKey(
             id: keyID,
-            name: name.isEmpty ? "新密钥" : name,
+            name: name.isEmpty ? L("新密钥") : name,
             kind: .ed25519,
             publicKey: generated.publicKeyOpenSSH,
             privateRef: "conn.key.\(keyID).private"

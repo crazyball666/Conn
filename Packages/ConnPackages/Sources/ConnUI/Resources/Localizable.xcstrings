@@ -80,6 +80,30 @@
         "ko" : { "stringUnit" : { "state" : "translated", "value" : "알 수 없음" } },
         "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "未知" } }
       }
+    },
+    "内存" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Memory" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "メモリ" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "메모리" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "記憶體" } }
+      }
+    },
+    "磁盘" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Disk" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "ディスク" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "디스크" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "磁碟" } }
+      }
+    },
+    "无数据" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "No data" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "データなし" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "데이터 없음" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "無資料" } }
+      }
     }
   },
   "version" : "1.0"

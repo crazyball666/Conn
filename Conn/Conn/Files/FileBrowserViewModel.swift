@@ -87,7 +87,7 @@ final class FileBrowserViewModel {
     func createDirectory(named name: String) async {
         let clean = name.trimmingCharacters(in: .whitespaces)
         guard !clean.isEmpty else { return }
-        await run("新建文件夹") {
+        await run(L("新建文件夹")) {
             try await self.filesystem().createDirectory(RemotePath.join(self.currentPath, clean))
         }
     }
@@ -95,7 +95,7 @@ final class FileBrowserViewModel {
     func rename(_ entry: FileEntry, to newName: String) async {
         let clean = newName.trimmingCharacters(in: .whitespaces)
         guard !clean.isEmpty, clean != entry.name else { return }
-        await run("重命名") {
+        await run(L("重命名")) {
             try await self.filesystem().rename(entry.path, to: RemotePath.join(RemotePath.parent(entry.path), clean))
         }
     }
@@ -103,7 +103,7 @@ final class FileBrowserViewModel {
     func confirmDeletion() async {
         guard let entry = pendingDeletion else { return }
         pendingDeletion = nil
-        await run("删除") {
+        await run(L("删除")) {
             let fileSystem = try await self.filesystem()
             if entry.isDirectory {
                 try await fileSystem.removeDirectory(entry.path)
@@ -115,10 +115,10 @@ final class FileBrowserViewModel {
 
     func chmod(_ entry: FileEntry, octal: String) async {
         guard let mode = FilePermissions.mode(fromOctal: octal) else {
-            actionMessage = "权限格式应为八进制，如 644"
+            actionMessage = L("权限格式应为八进制，如 644")
             return
         }
-        await run("修改权限") {
+        await run(L("修改权限")) {
             try await self.filesystem().setPermissions(mode, path: entry.path)
         }
     }

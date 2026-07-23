@@ -32,7 +32,7 @@ let package = Package(
     ],
     targets: [
         // Domain：领域模型与仓库协议。零 UIKit、零三方依赖。
-        .target(name: "ConnKit"),
+        .target(name: "ConnKit", resources: [.process("Resources")]),
 
         // Infrastructure：GRDB 持久化。依赖 ConnKit + ConnSSH（后者仅为提供
         // HostKeyStore 协议的 GRDB 适配实现，标准的适配器模式，无循环依赖）。
@@ -50,7 +50,8 @@ let package = Package(
         // 保证协议层可换引擎，且本 target 可在 host 上 swift test（Phase 2b 前）。
         .target(
             name: "ConnSSH",
-            dependencies: ["ConnKit"]
+            dependencies: ["ConnKit"],
+            resources: [.process("Resources")]
         ),
 
         // Citadel 引擎实现，隔离在独立 target——只有它依赖 Citadel。
@@ -74,7 +75,8 @@ let package = Package(
         // 零 UIKit → host 可测。
         .target(
             name: "ConnOps",
-            dependencies: ["ConnKit", "ConnSSH"]
+            dependencies: ["ConnKit", "ConnSSH"],
+            resources: [.process("Resources")]
         ),
 
         // 片段执行管线（v1.0）：变量渲染、静默/终端执行、危险确认、内置模板库（JSON 资源）。
@@ -89,7 +91,8 @@ let package = Package(
         // 存取（最小切片）；Phase 5 扩展为密钥生成/Secure Enclave/一键部署。
         .target(
             name: "ConnCrypto",
-            dependencies: ["ConnKit"]
+            dependencies: ["ConnKit"],
+            resources: [.process("Resources")]
         ),
 
         // 终端：SwiftTerm 桥接 + 会话管理 + 加速键条 + 中文 IME。

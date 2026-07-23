@@ -31,11 +31,11 @@ struct DiagnosticsView: View {
                 .padding(ConnSpacing.page)
             }
             .background(Color.connBg.ignoresSafeArea())
-            .navigationTitle("连接诊断")
+            .navigationTitle(L("连接诊断"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("完成") { dismiss() }
+                    Button(L("完成")) { dismiss() }
                 }
             }
             .task { await runTest() }
@@ -98,9 +98,9 @@ struct DiagnosticsView: View {
     @ViewBuilder
     private var resultBanner: some View {
         if tester.succeeded {
-            ConnBanner("连接成功，主机可达", systemImage: "checkmark.circle", kind: .info)
+            ConnBanner(L("连接成功，主机可达"), systemImage: "checkmark.circle", kind: .info)
         } else {
-            ConnBanner("连接未通过，请按上方提示排查", systemImage: "exclamationmark.triangle", kind: .warn)
+            ConnBanner(L("连接未通过，请按上方提示排查"), systemImage: "exclamationmark.triangle", kind: .warn)
         }
     }
 

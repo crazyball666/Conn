@@ -22,7 +22,7 @@ struct DashboardView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
-                ScreenHeader(title: "驾驶舱", subtitle: viewModel.lastScanText)
+                ScreenHeader(title: L("驾驶舱"), subtitle: viewModel.lastScanText)
 
                 if viewModel.cards.isEmpty {
                     emptyState
@@ -46,11 +46,11 @@ struct DashboardView: View {
 
     private var summaryPills: some View {
         HStack(spacing: ConnSpacing.xs) {
-            StatusPill("\(viewModel.totalCount) 台主机", semantic: .accent, showsSymbol: false)
+            StatusPill(String(format: L("%d 台主机"), viewModel.totalCount), semantic: .accent, showsSymbol: false)
             if viewModel.abnormalCount > 0 {
-                StatusPill("\(viewModel.abnormalCount) 台异常", semantic: .crit)
+                StatusPill(String(format: L("%d 台异常"), viewModel.abnormalCount), semantic: .crit)
             } else {
-                StatusPill("全部正常", semantic: .good)
+                StatusPill(L("全部正常"), semantic: .good)
             }
             Spacer(minLength: 0)
         }
@@ -71,7 +71,7 @@ struct DashboardView: View {
 
     private var quickActions: some View {
         VStack(alignment: .leading, spacing: ConnSpacing.xs) {
-            Text("快捷动作")
+            Text(L("快捷动作"))
                 .font(.connCaption)
                 .foregroundStyle(.connMuted)
                 .connEyebrowTracking()
@@ -81,11 +81,11 @@ struct DashboardView: View {
                 columns: Array(repeating: GridItem(spacing: ConnSpacing.xs), count: 3),
                 spacing: ConnSpacing.xs
             ) {
-                ActionTile("全部巡检", systemName: "arrow.clockwise") {
+                ActionTile(L("全部巡检"), systemName: "arrow.clockwise") {
                     Task { await viewModel.refresh() }
                 }
-                ActionTile("批量执行", systemName: "square.stack.3d.up") {}
-                ActionTile("演示模式", systemName: "play.rectangle") {}
+                ActionTile(L("批量执行"), systemName: "square.stack.3d.up") {}
+                ActionTile(L("演示模式"), systemName: "play.rectangle") {}
             }
         }
         .padding(.horizontal, ConnSpacing.page)
@@ -95,10 +95,10 @@ struct DashboardView: View {
     private var emptyState: some View {
         EmptyState(
             systemName: "server.rack",
-            title: "还没有主机",
-            message: "添加第一台服务器，或先用演示模式逛一圈",
-            primary: .init("添加我的服务器") {},
-            secondary: .init("先逛逛演示模式") {}
+            title: L("还没有主机"),
+            message: L("添加第一台服务器，或先用演示模式逛一圈"),
+            primary: .init(L("添加我的服务器")) {},
+            secondary: .init(L("先逛逛演示模式")) {}
         )
         .padding(.top, ConnSpacing.xxl)
     }

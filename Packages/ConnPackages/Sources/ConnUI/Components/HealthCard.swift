@@ -128,8 +128,8 @@ public struct HealthCard: View {
     private var metricBars: some View {
         HStack(spacing: ConnSpacing.xs) {
             MiniMetricBar(label: "CPU", value: model.cpu, tint: .connAccent)
-            MiniMetricBar(label: "内存", value: model.memory, tint: .connInfo)
-            MiniMetricBar(label: "磁盘", value: model.disk, tint: .connDisk)
+            MiniMetricBar(label: L("内存"), value: model.memory, tint: .connInfo)
+            MiniMetricBar(label: L("磁盘"), value: model.disk, tint: .connDisk)
         }
     }
 

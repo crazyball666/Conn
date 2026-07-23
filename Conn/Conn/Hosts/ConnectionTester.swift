@@ -35,10 +35,10 @@ final class ConnectionTester {
 
     private static func freshSteps() -> [DiagnosticStep] {
         [
-            DiagnosticStep(title: "解析主机地址", state: .pending),
-            DiagnosticStep(title: "连接端口", state: .pending),
-            DiagnosticStep(title: "身份认证", state: .pending),
-            DiagnosticStep(title: "校验主机指纹", state: .pending)
+            DiagnosticStep(title: L("解析主机地址"), state: .pending),
+            DiagnosticStep(title: L("连接端口"), state: .pending),
+            DiagnosticStep(title: L("身份认证"), state: .pending),
+            DiagnosticStep(title: L("校验主机指纹"), state: .pending)
         ]
     }
 

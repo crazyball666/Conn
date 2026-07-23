@@ -58,9 +58,9 @@ struct HostDetailView: View {
     }
 
     private var segmentPicker: some View {
-        Picker("段", selection: $segment) {
+        Picker(L("段"), selection: $segment) {
             ForEach(Segment.allCases) { seg in
-                Text(seg.rawValue).tag(seg)
+                Text(L(seg.rawValue)).tag(seg)
             }
         }
         .pickerStyle(.segmented)
@@ -82,7 +82,7 @@ struct HostDetailView: View {
             NavigationLink {
                 TerminalScreen(host: host, dependencies: dependencies)
             } label: {
-                Label("打开终端会话", systemImage: "terminal")
+                Label(L("打开终端会话"), systemImage: "terminal")
                     .font(.connBody)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, ConnSpacing.sm)
@@ -92,7 +92,7 @@ struct HostDetailView: View {
                         in: .rect(cornerRadius: ConnRadius.control, style: .continuous)
                     )
             }
-            Text("在独立页面打开交互式 shell（PTY）")
+            Text(L("在独立页面打开交互式 shell（PTY）"))
                 .font(.connFootnote)
                 .foregroundStyle(.connMuted)
         }
@@ -112,21 +112,21 @@ struct HostDetailView: View {
     private var resolvedStatus: (text: String, semantic: StatusPill.Semantic) {
         if let severity = monitorVM.latest?.severity {
             switch severity {
-            case .ok: return ("正常", .good)
-            case .warn: return ("警告", .warn)
-            case .crit: return ("故障", .crit)
+            case .ok: return (L("正常"), .good)
+            case .warn: return (L("警告"), .warn)
+            case .crit: return (L("故障"), .crit)
             case .unknown: break
             }
         }
         if monitorVM.errorText != nil {
-            return ("离线", .crit)
+            return (L("离线"), .crit)
         }
         switch host.status {
-        case .ok: return ("正常", .good)
-        case .warn: return ("警告", .warn)
-        case .crit: return ("故障", .crit)
-        case .offline: return ("离线", .crit)
-        case .unknown: return ("未知", .off)
+        case .ok: return (L("正常"), .good)
+        case .warn: return (L("警告"), .warn)
+        case .crit: return (L("故障"), .crit)
+        case .offline: return (L("离线"), .crit)
+        case .unknown: return (L("未知"), .off)
         }
     }
 }

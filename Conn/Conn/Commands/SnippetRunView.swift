@@ -34,7 +34,7 @@ struct SnippetRunView: View {
                     hostPicker
                     if !snippet.variables.isEmpty { variableFields }
                     actionButtons
-                    if isRunning { ProgressView("执行中…").font(.connFootnote).foregroundStyle(.connMuted) }
+                    if isRunning { ProgressView(L("执行中…")).font(.connFootnote).foregroundStyle(.connMuted) }
                     if let outcome { resultCard(outcome) }
                     if let errorText { ConnBanner(errorText, systemImage: "exclamationmark.triangle") }
                 }
@@ -43,7 +43,7 @@ struct SnippetRunView: View {
             .background(Color.connBg.ignoresSafeArea())
             .navigationTitle(snippet.title)
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar { ToolbarItem(placement: .topBarTrailing) { Button("完成") { dismiss() } } }
+            .toolbar { ToolbarItem(placement: .topBarTrailing) { Button(L("完成")) { dismiss() } } }
             .task { loadHosts() }
             .navigationDestination(item: $terminalRoute) { route in
                 TerminalScreen(
@@ -53,11 +53,11 @@ struct SnippetRunView: View {
                 )
             }
             .confirmationDialog(
-                pendingReason.map { "命中风险：\($0)。仍要执行？" } ?? "确认执行？",
+                pendingReason.map { "命中风险：\($0)。仍要执行？" } ?? L("确认执行？"),
                 isPresented: dangerBinding, titleVisibility: .visible
             ) {
-                Button("仍要执行", role: .destructive) { if let mode = pendingMode { execute(mode) }; pendingMode = nil }
-                Button("取消", role: .cancel) { pendingMode = nil }
+                Button(L("仍要执行"), role: .destructive) { if let mode = pendingMode { execute(mode) }; pendingMode = nil }
+                Button(L("取消"), role: .cancel) { pendingMode = nil }
             }
         }
     }
@@ -67,9 +67,9 @@ struct SnippetRunView: View {
     private var commandCard: some View {
         VStack(alignment: .leading, spacing: ConnSpacing.xs) {
             HStack {
-                Text("命令").font(.connCaption).foregroundStyle(.connMuted).connEyebrowTracking()
+                Text(L("命令")).font(.connCaption).foregroundStyle(.connMuted).connEyebrowTracking()
                 if snippet.danger {
-                    Label("危险", systemImage: "exclamationmark.triangle.fill")
+                    Label(L("危险"), systemImage: "exclamationmark.triangle.fill")
                         .font(.connFootnote).foregroundStyle(.connCrit)
                 }
             }
@@ -85,9 +85,9 @@ struct SnippetRunView: View {
 
     private var hostPicker: some View {
         VStack(alignment: .leading, spacing: ConnSpacing.xs) {
-            Text("目标主机").font(.connCaption).foregroundStyle(.connMuted).connEyebrowTracking()
+            Text(L("目标主机")).font(.connCaption).foregroundStyle(.connMuted).connEyebrowTracking()
             if hosts.isEmpty {
-                Text("还没有主机，请先在「主机」里添加。").font(.connFootnote).foregroundStyle(.connMuted)
+                Text(L("还没有主机，请先在「主机」里添加。")).font(.connFootnote).foregroundStyle(.connMuted)
             } else {
                 Menu {
                     ForEach(hosts) { host in
@@ -95,7 +95,7 @@ struct SnippetRunView: View {
                     }
                 } label: {
                     HStack {
-                        Text(selectedHost?.name ?? "选择主机").font(.connBody).foregroundStyle(.connInk)
+                        Text(selectedHost?.name ?? L("选择主机")).font(.connBody).foregroundStyle(.connInk)
                         if let host = selectedHost {
                             Text(host.displayAddress).font(.connData(.caption2)).foregroundStyle(.connMuted)
                         }
@@ -111,11 +111,11 @@ struct SnippetRunView: View {
 
     private var variableFields: some View {
         VStack(alignment: .leading, spacing: ConnSpacing.xs) {
-            Text("变量").font(.connCaption).foregroundStyle(.connMuted).connEyebrowTracking()
+            Text(L("变量")).font(.connCaption).foregroundStyle(.connMuted).connEyebrowTracking()
             ForEach(snippet.variables, id: \.name) { variable in
                 HStack {
                     Text(variable.name).font(.connData(.footnote)).foregroundStyle(.connMuted).frame(width: 90, alignment: .leading)
-                    TextField(variable.defaultValue ?? "值", text: binding(for: variable))
+                    TextField(variable.defaultValue ?? L("值"), text: binding(for: variable))
                         .font(.connData(.footnote)).foregroundStyle(.connInk)
                         .autocorrectionDisabled().textInputAutocapitalization(.never)
                 }
@@ -127,9 +127,9 @@ struct SnippetRunView: View {
 
     private var actionButtons: some View {
         HStack(spacing: ConnSpacing.sm) {
-            ConnButton("静默执行", kind: .primary) { attempt(.silent) }
+            ConnButton(L("静默执行"), kind: .primary) { attempt(.silent) }
                 .disabled(selectedHost == nil || isRunning)
-            ConnButton("进终端", kind: .ghost) { attempt(.terminal) }
+            ConnButton(L("进终端"), kind: .ghost) { attempt(.terminal) }
                 .disabled(selectedHost == nil)
         }
     }
@@ -137,13 +137,13 @@ struct SnippetRunView: View {
     private func resultCard(_ outcome: RunOutcome) -> some View {
         VStack(alignment: .leading, spacing: ConnSpacing.xs) {
             HStack {
-                Text("结果").font(.connCaption).foregroundStyle(.connMuted).connEyebrowTracking()
+                Text(L("结果")).font(.connCaption).foregroundStyle(.connMuted).connEyebrowTracking()
                 Spacer()
                 Text("exit \(outcome.exitCode)")
                     .font(.connData(.caption2)).connTabularNumbers()
                     .foregroundStyle(outcome.isSuccess ? .connGood : .connCrit)
             }
-            Text(outcome.stdout.isEmpty ? (outcome.stderr.isEmpty ? "（无输出）" : outcome.stderr) : outcome.stdout)
+            Text(outcome.stdout.isEmpty ? (outcome.stderr.isEmpty ? L("（无输出）") : outcome.stderr) : outcome.stdout)
                 .font(.system(size: 12, design: .monospaced))
                 .foregroundStyle(outcome.isSuccess ? .connInk : .connCrit)
                 .textSelection(.enabled)
@@ -180,7 +180,7 @@ struct SnippetRunView: View {
         guard let host = selectedHost else { return }
         let verdict = DangerCommandRules.evaluate(renderedCommand, isProduction: host.isProduction)
         if snippet.danger || verdict.needsConfirmation {
-            pendingReason = verdict.reason ?? (snippet.danger ? "该片段被标记为危险" : nil)
+            pendingReason = verdict.reason ?? (snippet.danger ? L("该片段被标记为危险") : nil)
             pendingMode = mode
         } else {
             execute(mode)
@@ -207,7 +207,7 @@ struct SnippetRunView: View {
             outcome = try await runner.runSilently(command: renderedCommand, on: host)
         } catch {
             if let sshError = error as? SSHError {
-                errorText = sshError.diagnosis.split(separator: "\n").first.map(String.init) ?? "执行失败"
+                errorText = sshError.diagnosis.split(separator: "\n").first.map(String.init) ?? L("执行失败")
             } else {
                 errorText = "执行失败：\(error.localizedDescription)"
             }

@@ -40,10 +40,10 @@ final class SnippetsViewModel {
         var result: [(String, [Snippet])] = []
         let pinned = items.filter(\.pinned)
         if !pinned.isEmpty {
-            result.append(("常用", pinned))
+            result.append((L("常用"), pinned))
         }
         let rest = items.filter { !$0.pinned }
-        let grouped = Dictionary(grouping: rest) { $0.folder ?? "未分组" }
+        let grouped = Dictionary(grouping: rest) { $0.folder ?? L("未分组") }
         for key in grouped.keys.sorted() {
             result.append((key, (grouped[key] ?? []).sorted { $0.sortOrder < $1.sortOrder }))
         }

@@ -17,8 +17,8 @@ struct RunHistoryView: View {
             if entries.isEmpty {
                 EmptyState(
                     systemName: "clock.arrow.circlepath",
-                    title: "还没有执行记录",
-                    message: "容器操作与片段执行会记录在这里"
+                    title: L("还没有执行记录"),
+                    message: L("容器操作与片段执行会记录在这里")
                 )
                 .padding(.top, ConnSpacing.xxl)
             } else {
@@ -31,7 +31,7 @@ struct RunHistoryView: View {
             }
         }
         .background(Color.connBg.ignoresSafeArea())
-        .navigationTitle("执行历史")
+        .navigationTitle(L("执行历史"))
         .navigationBarTitleDisplayMode(.inline)
         .task { load() }
     }
@@ -39,7 +39,7 @@ struct RunHistoryView: View {
     private func row(_ entry: RunHistoryEntry) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack {
-                Text(hostNames[entry.hostUUID] ?? "主机")
+                Text(hostNames[entry.hostUUID] ?? L("主机"))
                     .font(.connFootnote).foregroundStyle(.connMuted)
                 Spacer()
                 if let code = entry.exitCode {
@@ -66,7 +66,7 @@ struct RunHistoryView: View {
 
     private func timeText(_ millis: Int64) -> String {
         let formatter = RelativeDateTimeFormatter()
-        formatter.locale = Locale(identifier: "zh_Hans_CN")
+        formatter.locale = ConnLanguage.currentLocale
         formatter.unitsStyle = .short
         return formatter.localizedString(for: Timestamp.date(from: millis), relativeTo: Date())
     }

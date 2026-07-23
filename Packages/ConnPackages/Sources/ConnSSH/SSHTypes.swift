@@ -141,37 +141,41 @@ public enum SSHError: Error, Sendable, Equatable {
     case jumpChainFailed(hopIndex: Int, hopHost: String)
     case channelClosed
 
-    /// 面向用户的诊断：原因 + 下一步。
+    /// 面向用户的诊断：原因 + 下一步。按当前语言本地化（含 `%@`/`%d` 占位）。
     public var diagnosis: String {
         switch self {
         case let .connectionRefused(endpoint):
-            "无法连接 \(endpoint.host):\(endpoint.port)：连接被拒绝。\n下一步：确认 sshd 正在运行、端口正确、未被防火墙拦截。"
+            String(format: L("无法连接 %@:%d：连接被拒绝。\n下一步：确认 sshd 正在运行、端口正确、未被防火墙拦截。"),
+                   endpoint.host, endpoint.port)
         case let .dnsFailed(host):
-            "无法解析主机 \(host)。\n下一步：检查地址拼写，或确认 DNS 可用。"
+            String(format: L("无法解析主机 %@。\n下一步：检查地址拼写，或确认 DNS 可用。"), host)
         case let .timeout(endpoint):
-            "连接 \(endpoint.host):\(endpoint.port) 超时。\n下一步：检查网络连通性与防火墙规则。"
+            String(format: L("连接 %@:%d 超时。\n下一步：检查网络连通性与防火墙规则。"),
+                   endpoint.host, endpoint.port)
         case let .authFailed(reason):
             switch reason {
             case .badCredentials:
-                "认证失败：密码或密钥不被接受。\n下一步：核对用户名、密码或所选密钥。"
+                L("认证失败：密码或密钥不被接受。\n下一步：核对用户名、密码或所选密钥。")
             case .rsaSha2Unsupported:
-                "认证失败：该服务器不接受当前 RSA 密钥的签名算法。\n原因：现代 OpenSSH（8.8+）已禁用 ssh-rsa(SHA-1)。\n下一步：建议改用 ed25519 密钥——它在所有现代与旧版服务器上都可用。"
+                L("认证失败：该服务器不接受当前 RSA 密钥的签名算法。\n原因：现代 OpenSSH（8.8+）已禁用 ssh-rsa(SHA-1)。\n下一步：建议改用 ed25519 密钥——它在所有现代与旧版服务器上都可用。")
             case .noAcceptedMethods:
-                "认证失败：服务器不接受所提供的任何认证方式。\n下一步：确认服务器允许密钥或密码登录。"
+                L("认证失败：服务器不接受所提供的任何认证方式。\n下一步：确认服务器允许密钥或密码登录。")
             }
         case let .hostKeyMismatch(expected, actual):
-            "主机指纹已变更，连接已阻断。\n原因：服务器密钥与首次记录不符（可能是重装系统，也可能是中间人攻击）。\n记录：\(expected)\n当前：\(actual)\n下一步：确认变更来源后再手动信任。"
+            String(format: L("主机指纹已变更，连接已阻断。\n原因：服务器密钥与首次记录不符（可能是重装系统，也可能是中间人攻击）。\n记录：%@\n当前：%@\n下一步：确认变更来源后再手动信任。"),
+                   expected, actual)
         case let .unsupportedByEngine(feature):
             switch feature {
             case .keyboardInteractive:
-                "该服务器需要交互式认证（keyboard-interactive，常见于 2FA / 堡垒机）。\n下一步：当前版本暂不支持此方式，请使用密钥或密码登录。"
+                L("该服务器需要交互式认证（keyboard-interactive，常见于 2FA / 堡垒机）。\n下一步：当前版本暂不支持此方式，请使用密钥或密码登录。")
             case .agentForwarding:
-                "该连接需要 SSH Agent 转发，当前版本暂不支持。"
+                L("该连接需要 SSH Agent 转发，当前版本暂不支持。")
             }
         case let .jumpChainFailed(hopIndex, hopHost):
-            "跳板链在第 \(hopIndex + 1) 级（\(hopHost)）连接失败。\n下一步：单独测试该级跳板机的连通性与凭据。"
+            String(format: L("跳板链在第 %d 级（%@）连接失败。\n下一步：单独测试该级跳板机的连通性与凭据。"),
+                   hopIndex + 1, hopHost)
         case .channelClosed:
-            "连接通道已关闭。\n下一步：下拉重连，或检查服务器端会话是否被终止。"
+            L("连接通道已关闭。\n下一步：下拉重连，或检查服务器端会话是否被终止。")
         }
     }
 }

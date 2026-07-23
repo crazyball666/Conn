@@ -49,7 +49,7 @@ struct SnippetsView: View {
 
     private var header: some View {
         HStack(alignment: .center) {
-            Text("命令").font(.connTitle).foregroundStyle(.connInk)
+            Text(L("命令")).font(.connTitle).foregroundStyle(.connInk)
             Spacer()
             NavigationLink {
                 RunHistoryView(dependencies: dependencies)
@@ -57,7 +57,7 @@ struct SnippetsView: View {
                 Image(systemName: "clock.arrow.circlepath").font(.system(size: 18)).foregroundStyle(.connMuted)
             }
             .connHitTarget()
-            IconChipButton("plus", tint: .accent, accessibilityLabel: "新增片段") {
+            IconChipButton("plus", tint: .accent, accessibilityLabel: L("新增片段")) {
                 formRequest = SnippetFormRequest(snippet: nil)
             }
         }
@@ -69,7 +69,7 @@ struct SnippetsView: View {
     private var searchBar: some View {
         HStack(spacing: ConnSpacing.xs) {
             Image(systemName: "magnifyingglass").foregroundStyle(.connMuted)
-            TextField("搜索片段", text: $viewModel.searchText)
+            TextField(L("搜索片段"), text: $viewModel.searchText)
                 .font(.connSubheadline).foregroundStyle(.connInk)
                 .autocorrectionDisabled().textInputAutocapitalization(.never)
         }
@@ -117,10 +117,10 @@ struct SnippetsView: View {
             }
             .buttonStyle(ConnPressStyle())
             Menu {
-                Button { runTarget = snippet } label: { Label("执行", systemImage: "play") }
-                Button { formRequest = SnippetFormRequest(snippet: snippet) } label: { Label("编辑", systemImage: "pencil") }
+                Button { runTarget = snippet } label: { Label(L("执行"), systemImage: "play") }
+                Button { formRequest = SnippetFormRequest(snippet: snippet) } label: { Label(L("编辑"), systemImage: "pencil") }
                 Divider()
-                Button(role: .destructive) { viewModel.delete(snippet) } label: { Label("删除", systemImage: "trash") }
+                Button(role: .destructive) { viewModel.delete(snippet) } label: { Label(L("删除"), systemImage: "trash") }
             } label: {
                 Image(systemName: "ellipsis").font(.system(size: 18)).foregroundStyle(.connMuted).frame(width: 32, height: 32)
             }
@@ -132,9 +132,9 @@ struct SnippetsView: View {
     private var empty: some View {
         EmptyState(
             systemName: "command",
-            title: viewModel.searchText.isEmpty ? "还没有片段" : "没有匹配的片段",
-            message: viewModel.searchText.isEmpty ? "新增一条，或使用内置模板库" : "换个关键词试试",
-            primary: viewModel.searchText.isEmpty ? .init("新增片段") { formRequest = SnippetFormRequest(snippet: nil) } : nil
+            title: viewModel.searchText.isEmpty ? L("还没有片段") : L("没有匹配的片段"),
+            message: viewModel.searchText.isEmpty ? L("新增一条，或使用内置模板库") : L("换个关键词试试"),
+            primary: viewModel.searchText.isEmpty ? .init(L("新增片段")) { formRequest = SnippetFormRequest(snippet: nil) } : nil
         )
         .padding(.top, ConnSpacing.xxl)
     }

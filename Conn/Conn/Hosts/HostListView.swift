@@ -62,11 +62,11 @@ struct HostListView: View {
 
     private var header: some View {
         HStack(alignment: .center) {
-            Text("主机")
+            Text(L("主机"))
                 .font(.connTitle)
                 .foregroundStyle(.connInk)
             Spacer()
-            IconChipButton("plus", tint: .accent, accessibilityLabel: "添加主机") {
+            IconChipButton("plus", tint: .accent, accessibilityLabel: L("添加主机")) {
                 startAdding()
             }
         }
@@ -78,7 +78,7 @@ struct HostListView: View {
     private var searchBar: some View {
         HStack(spacing: ConnSpacing.xs) {
             Image(systemName: "magnifyingglass").foregroundStyle(.connMuted)
-            TextField("搜索主机名或地址", text: $viewModel.searchText)
+            TextField(L("搜索主机名或地址"), text: $viewModel.searchText)
                 .font(.connSubheadline)
                 .foregroundStyle(.connInk)
                 .autocorrectionDisabled()
@@ -98,7 +98,7 @@ struct HostListView: View {
     private var tagFilter: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: ConnSpacing.xs) {
-                filterChip(title: "全部", isSelected: viewModel.selectedTag == nil) {
+                filterChip(title: L("全部"), isSelected: viewModel.selectedTag == nil) {
                     viewModel.selectedTag = nil
                 }
                 ForEach(viewModel.allTags, id: \.self) { tag in
@@ -174,18 +174,18 @@ struct HostListView: View {
         .buttonStyle(ConnPressStyle())
         .padding(.horizontal, ConnSpacing.page)
         .swipeActions(edge: .trailing) {
-            Button("删除", role: .destructive) { viewModel.delete(host) }
-            Button("编辑") { startEditing(host) }.tint(.connAccent)
+            Button(L("删除"), role: .destructive) { viewModel.delete(host) }
+            Button(L("编辑")) { startEditing(host) }.tint(.connAccent)
         }
     }
 
     private var emptyState: some View {
         EmptyState(
             systemName: "server.rack",
-            title: "还没有主机",
-            message: "添加第一台服务器，或先用演示模式逛一圈",
-            primary: .init("添加我的服务器") { startAdding() },
-            secondary: .init("先逛逛演示模式") {}
+            title: L("还没有主机"),
+            message: L("添加第一台服务器，或先用演示模式逛一圈"),
+            primary: .init(L("添加我的服务器")) { startAdding() },
+            secondary: .init(L("先逛逛演示模式")) {}
         )
         .padding(.top, ConnSpacing.xxl)
     }

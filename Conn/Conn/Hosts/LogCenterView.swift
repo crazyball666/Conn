@@ -35,7 +35,7 @@ final class LogCenterViewModel {
             loadState = .ready
         } catch {
             if let sshError = error as? SSHError {
-                loadState = .failed(sshError.diagnosis.split(separator: "\n").first.map(String.init) ?? "连接失败")
+                loadState = .failed(sshError.diagnosis.split(separator: "\n").first.map(String.init) ?? L("连接失败"))
             } else {
                 loadState = .failed(error.localizedDescription)
             }
@@ -68,12 +68,12 @@ struct LogCenterView: View {
     private var content: some View {
         switch viewModel.loadState {
         case .loading:
-            ProgressView("探测日志源…").font(.connFootnote).foregroundStyle(.connMuted)
+            ProgressView(L("探测日志源…")).font(.connFootnote).foregroundStyle(.connMuted)
                 .frame(maxWidth: .infinity).padding(.vertical, ConnSpacing.xxl)
         case let .failed(message):
             VStack(spacing: ConnSpacing.sm) {
                 ConnBanner(message, systemImage: "exclamationmark.triangle")
-                Button("重试") { Task { await viewModel.load() } }.font(.connBody).foregroundStyle(.connAccent)
+                Button(L("重试")) { Task { await viewModel.load() } }.font(.connBody).foregroundStyle(.connAccent)
             }
             .padding(.vertical, ConnSpacing.md)
         case .ready:
@@ -84,7 +84,7 @@ struct LogCenterView: View {
     private var sourceList: some View {
         VStack(spacing: ConnSpacing.sm) {
             if viewModel.sources.isEmpty {
-                Text("未发现常见日志源。\n可在终端里直接查看自定义路径。")
+                Text(L("未发现常见日志源。\n可在终端里直接查看自定义路径。"))
                     .font(.connSubheadline).foregroundStyle(.connMuted).multilineTextAlignment(.center)
                     .padding(.vertical, ConnSpacing.xl)
             } else {

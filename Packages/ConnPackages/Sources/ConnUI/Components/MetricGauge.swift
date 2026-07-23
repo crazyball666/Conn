@@ -31,7 +31,7 @@ public struct MetricGauge: View {
         .frame(maxWidth: .infinity)
         .connSurface(cornerRadius: ConnRadius.card)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(value.map { "\(label) \(Int($0))%" } ?? "\(label) 无数据")
+        .accessibilityLabel(value.map { "\(label) \(Int($0))%" } ?? "\(label) \(L("无数据"))")
     }
 
     private var ring: some View {

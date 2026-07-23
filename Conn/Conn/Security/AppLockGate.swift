@@ -51,7 +51,7 @@ struct AppLockGate<Content: View>: View {
                 Image(systemName: "lock.fill")
                     .font(.system(size: 44))
                     .foregroundStyle(.connAccent)
-                Text("Conn 已锁定")
+                Text(L("Conn 已锁定"))
                     .font(.connSectionTitle)
                     .foregroundStyle(.connInk)
                 ConnButton("用 \(lock.biometryName) 解锁") {

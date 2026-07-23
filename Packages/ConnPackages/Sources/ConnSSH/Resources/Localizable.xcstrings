@@ -1,0 +1,182 @@
+{
+  "sourceLanguage" : "zh-Hans",
+  "strings" : {
+    "删除根目录或家目录" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Delete root or home directory" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "ルートまたはホームディレクトリの削除" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "루트 또는 홈 디렉터리 삭제" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "刪除根目錄或家目錄" } }
+      }
+    },
+    "格式化文件系统" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Format filesystem" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "ファイルシステムのフォーマット" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "파일 시스템 포맷" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "格式化檔案系統" } }
+      }
+    },
+    "写入块设备（可能覆盖磁盘）" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Write to block device (may overwrite disk)" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "ブロックデバイスへの書き込み（ディスクを上書きする恐れ）" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "블록 장치 쓰기(디스크를 덮어쓸 수 있음)" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "寫入區塊裝置（可能覆蓋磁碟）" } }
+      }
+    },
+    "fork 炸弹" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Fork bomb" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "fork 爆弾" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "fork 폭탄" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "fork 炸彈" } }
+      }
+    },
+    "覆写块设备" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Overwrite block device" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "ブロックデバイスの上書き" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "블록 장치 덮어쓰기" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "覆寫區塊裝置" } }
+      }
+    },
+    "递归放开根目录权限" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Recursively open root directory permissions" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "ルートディレクトリの権限を再帰的に開放" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "루트 디렉터리 권한을 재귀적으로 개방" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "遞迴放開根目錄權限" } }
+      }
+    },
+    "在生产环境停止/重启服务" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Stop/restart a service in production" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "本番環境でサービスを停止/再起動" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "프로덕션에서 서비스 중지/재시작" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "在生產環境停止/重啟服務" } }
+      }
+    },
+    "在生产环境重启/关机" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Reboot/shut down in production" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "本番環境で再起動/シャットダウン" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "프로덕션에서 재부팅/종료" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "在生產環境重啟/關機" } }
+      }
+    },
+    "在生产环境强制终止进程" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Force-kill a process in production" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "本番環境でプロセスを強制終了" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "프로덕션에서 프로세스 강제 종료" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "在生產環境強制終止程序" } }
+      }
+    },
+    "在生产环境停止/删除容器" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Stop/remove a container in production" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "本番環境でコンテナを停止/削除" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "프로덕션에서 컨테이너 중지/삭제" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "在生產環境停止/刪除容器" } }
+      }
+    },
+    "在生产环境删除数据库对象" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Drop a database object in production" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "本番環境でデータベースオブジェクトを削除" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "프로덕션에서 데이터베이스 객체 삭제" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "在生產環境刪除資料庫物件" } }
+      }
+    },
+    "无法连接 %@:%d：连接被拒绝。\n下一步：确认 sshd 正在运行、端口正确、未被防火墙拦截。" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Cannot connect to %@:%d: connection refused.\nNext: make sure sshd is running, the port is correct, and it is not blocked by a firewall." } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "%@:%d に接続できません：接続が拒否されました。\n次の手順：sshd が起動しているか、ポートが正しいか、ファイアウォールで遮断されていないか確認してください。" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "%@:%d에 연결할 수 없습니다: 연결이 거부되었습니다.\n다음 단계: sshd가 실행 중인지, 포트가 올바른지, 방화벽에 차단되지 않았는지 확인하세요." } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "無法連接 %@:%d：連線被拒絕。\n下一步：確認 sshd 正在執行、連接埠正確、未被防火牆攔截。" } }
+      }
+    },
+    "无法解析主机 %@。\n下一步：检查地址拼写，或确认 DNS 可用。" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Cannot resolve host %@.\nNext: check the spelling of the address, or make sure DNS is available." } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "ホスト %@ を解決できません。\n次の手順：アドレスのつづりを確認するか、DNS が利用可能か確認してください。" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "호스트 %@를 확인할 수 없습니다.\n다음 단계: 주소 철자를 확인하거나 DNS를 사용할 수 있는지 확인하세요." } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "無法解析主機 %@。\n下一步：檢查位址拼寫，或確認 DNS 可用。" } }
+      }
+    },
+    "连接 %@:%d 超时。\n下一步：检查网络连通性与防火墙规则。" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Connection to %@:%d timed out.\nNext: check network connectivity and firewall rules." } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "%@:%d への接続がタイムアウトしました。\n次の手順：ネットワーク接続とファイアウォール規則を確認してください。" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "%@:%d 연결이 시간 초과되었습니다.\n다음 단계: 네트워크 연결과 방화벽 규칙을 확인하세요." } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "連接 %@:%d 逾時。\n下一步：檢查網路連通性與防火牆規則。" } }
+      }
+    },
+    "认证失败：密码或密钥不被接受。\n下一步：核对用户名、密码或所选密钥。" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Authentication failed: password or key rejected.\nNext: verify the username, password, or selected key." } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "認証に失敗しました：パスワードまたは鍵が受け付けられませんでした。\n次の手順：ユーザー名・パスワード・選択した鍵を確認してください。" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "인증 실패: 비밀번호 또는 키가 거부되었습니다.\n다음 단계: 사용자 이름, 비밀번호 또는 선택한 키를 확인하세요." } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "認證失敗：密碼或金鑰不被接受。\n下一步：核對使用者名稱、密碼或所選金鑰。" } }
+      }
+    },
+    "认证失败：该服务器不接受当前 RSA 密钥的签名算法。\n原因：现代 OpenSSH（8.8+）已禁用 ssh-rsa(SHA-1)。\n下一步：建议改用 ed25519 密钥——它在所有现代与旧版服务器上都可用。" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Authentication failed: the server rejects this RSA key's signature algorithm.\nReason: modern OpenSSH (8.8+) has disabled ssh-rsa (SHA-1).\nNext: switch to an ed25519 key — it works on all modern and legacy servers." } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "認証に失敗しました：このサーバーは現在の RSA 鍵の署名アルゴリズムを受け付けません。\n理由：最新の OpenSSH（8.8+）は ssh-rsa(SHA-1) を無効化しています。\n次の手順：ed25519 鍵への切り替えをおすすめします。すべての最新および旧版サーバーで利用できます。" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "인증 실패: 이 서버는 현재 RSA 키의 서명 알고리즘을 허용하지 않습니다.\n원인: 최신 OpenSSH(8.8+)는 ssh-rsa(SHA-1)를 비활성화했습니다.\n다음 단계: ed25519 키로 전환하세요 — 모든 최신 및 구형 서버에서 사용할 수 있습니다." } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "認證失敗：該伺服器不接受目前 RSA 金鑰的簽章演算法。\n原因：現代 OpenSSH（8.8+）已停用 ssh-rsa(SHA-1)。\n下一步：建議改用 ed25519 金鑰——它在所有新舊版伺服器上都可用。" } }
+      }
+    },
+    "认证失败：服务器不接受所提供的任何认证方式。\n下一步：确认服务器允许密钥或密码登录。" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Authentication failed: the server accepts none of the offered methods.\nNext: make sure the server allows key or password login." } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "認証に失敗しました：サーバーは提供されたどの認証方式も受け付けません。\n次の手順：サーバーが鍵またはパスワードでのログインを許可しているか確認してください。" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "인증 실패: 서버가 제공된 인증 방식을 모두 거부했습니다.\n다음 단계: 서버가 키 또는 비밀번호 로그인을 허용하는지 확인하세요." } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "認證失敗：伺服器不接受所提供的任何認證方式。\n下一步：確認伺服器允許金鑰或密碼登入。" } }
+      }
+    },
+    "主机指纹已变更，连接已阻断。\n原因：服务器密钥与首次记录不符（可能是重装系统，也可能是中间人攻击）。\n记录：%@\n当前：%@\n下一步：确认变更来源后再手动信任。" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "The host fingerprint has changed; the connection was blocked.\nReason: the server key differs from the first record (could be a reinstall, or a man-in-the-middle attack).\nRecorded: %@\nCurrent: %@\nNext: confirm the source of the change before trusting it manually." } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "ホストのフィンガープリントが変更されたため、接続をブロックしました。\n理由：サーバー鍵が初回の記録と一致しません（再インストール、または中間者攻撃の可能性）。\n記録：%@\n現在：%@\n次の手順：変更の原因を確認してから手動で信頼してください。" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "호스트 지문이 변경되어 연결이 차단되었습니다.\n원인: 서버 키가 최초 기록과 다릅니다(재설치이거나 중간자 공격일 수 있음).\n기록: %@\n현재: %@\n다음 단계: 변경 출처를 확인한 후 수동으로 신뢰하세요." } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "主機指紋已變更，連線已阻斷。\n原因：伺服器金鑰與首次記錄不符（可能是重裝系統，也可能是中間人攻擊）。\n記錄：%@\n目前：%@\n下一步：確認變更來源後再手動信任。" } }
+      }
+    },
+    "该服务器需要交互式认证（keyboard-interactive，常见于 2FA / 堡垒机）。\n下一步：当前版本暂不支持此方式，请使用密钥或密码登录。" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "This server requires interactive authentication (keyboard-interactive, common with 2FA / bastion hosts).\nNext: this version does not support it yet; please use key or password login." } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "このサーバーは対話型認証（keyboard-interactive、2FA / 踏み台でよく使われる）を必要とします。\n次の手順：現在のバージョンでは未対応です。鍵またはパスワードでログインしてください。" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "이 서버는 대화형 인증(keyboard-interactive, 2FA / 배스천 호스트에서 흔함)이 필요합니다.\n다음 단계: 현재 버전에서는 지원하지 않습니다. 키 또는 비밀번호로 로그인하세요." } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "該伺服器需要互動式認證（keyboard-interactive，常見於 2FA / 堡壘機）。\n下一步：目前版本暫不支援此方式，請使用金鑰或密碼登入。" } }
+      }
+    },
+    "该连接需要 SSH Agent 转发，当前版本暂不支持。" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "This connection requires SSH Agent forwarding, which is not supported in this version." } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "この接続には SSH Agent 転送が必要ですが、現在のバージョンでは未対応です。" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "이 연결에는 SSH Agent 전달이 필요하지만 현재 버전에서는 지원하지 않습니다." } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "該連線需要 SSH Agent 轉發，目前版本暫不支援。" } }
+      }
+    },
+    "跳板链在第 %d 级（%@）连接失败。\n下一步：单独测试该级跳板机的连通性与凭据。" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "The jump chain failed at hop %d (%@).\nNext: test that hop's connectivity and credentials separately." } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "踏み台チェーンの %d 段目（%@）で接続に失敗しました。\n次の手順：その段の踏み台の接続性と認証情報を個別にテストしてください。" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "점프 체인이 %d단계(%@)에서 연결에 실패했습니다.\n다음 단계: 해당 단계의 연결성과 자격 증명을 개별적으로 테스트하세요." } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "跳板鏈在第 %d 級（%@）連線失敗。\n下一步：單獨測試該級跳板機的連通性與憑證。" } }
+      }
+    },
+    "连接通道已关闭。\n下一步：下拉重连，或检查服务器端会话是否被终止。" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "The connection channel has closed.\nNext: pull to reconnect, or check whether the server-side session was terminated." } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "接続チャネルが閉じられました。\n次の手順：引っ張って再接続するか、サーバー側のセッションが終了していないか確認してください。" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "연결 채널이 닫혔습니다.\n다음 단계: 당겨서 재연결하거나 서버 측 세션이 종료되었는지 확인하세요." } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "連線通道已關閉。\n下一步：下拉重連，或檢查伺服器端工作階段是否被終止。" } }
+      }
+    }
+  },
+  "version" : "1.0"
+}

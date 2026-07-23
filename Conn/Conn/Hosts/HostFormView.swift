@@ -41,10 +41,10 @@ struct HostFormView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("取消") { dismiss() }
+                    Button(L("取消")) { dismiss() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("保存") { save() }.fontWeight(.semibold)
+                    Button(L("保存")) { save() }.fontWeight(.semibold)
                 }
             }
             .sheet(isPresented: $showDiagnostics) {
@@ -68,56 +68,56 @@ struct HostFormView: View {
                     if !recognized { /* 非 ssh 文本，静默忽略 */ }
                 }
             } label: {
-                Label("从剪贴板粘贴 ssh 命令", systemImage: "doc.on.clipboard")
+                Label(L("从剪贴板粘贴 ssh 命令"), systemImage: "doc.on.clipboard")
                     .foregroundStyle(.connAccent)
             }
         } footer: {
-            Text("支持 ssh root@1.2.3.4 -p 2222 一类命令，自动识别地址、用户名与端口。")
+            Text(L("支持 ssh root@1.2.3.4 -p 2222 一类命令，自动识别地址、用户名与端口。"))
         }
     }
 
     private var requiredSection: some View {
-        Section("必填") {
+        Section(L("必填")) {
             labeledField(
-                "地址",
+                L("地址"),
                 text: $viewModel.draft.address,
                 error: viewModel.fieldErrors[.address],
-                placeholder: "example.com 或 10.0.0.1"
+                placeholder: L("example.com 或 10.0.0.1")
             )
             .textInputAutocapitalization(.never)
             .autocorrectionDisabled()
-            labeledField("用户名", text: $viewModel.draft.username, error: viewModel.fieldErrors[.username], placeholder: "root")
+            labeledField(L("用户名"), text: $viewModel.draft.username, error: viewModel.fieldErrors[.username], placeholder: "root")
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
         }
     }
 
     private var authSection: some View {
-        Section("认证") {
-            Picker("方式", selection: $viewModel.draft.authKind) {
-                Text("密码").tag(Host.AuthKind.password)
-                Text("密钥").tag(Host.AuthKind.key)
-                Text("密钥 + 密码短语").tag(Host.AuthKind.keyPassphrase)
+        Section(L("认证")) {
+            Picker(L("方式"), selection: $viewModel.draft.authKind) {
+                Text(L("密码")).tag(Host.AuthKind.password)
+                Text(L("密钥")).tag(Host.AuthKind.key)
+                Text(L("密钥 + 密码短语")).tag(Host.AuthKind.keyPassphrase)
             }
             switch viewModel.draft.authKind {
             case .password:
-                SecureField("密码", text: $viewModel.password)
+                SecureField(L("密码"), text: $viewModel.password)
             case .keyPassphrase:
-                SecureField("密码短语", text: $viewModel.passphrase)
-                Text("密钥选择将在密钥管家上线后支持").font(.connFootnote).foregroundStyle(.connMuted)
+                SecureField(L("密码短语"), text: $viewModel.passphrase)
+                Text(L("密钥选择将在密钥管家上线后支持")).font(.connFootnote).foregroundStyle(.connMuted)
             case .key:
-                Text("密钥选择将在密钥管家上线后支持").font(.connFootnote).foregroundStyle(.connMuted)
+                Text(L("密钥选择将在密钥管家上线后支持")).font(.connFootnote).foregroundStyle(.connMuted)
             case .agent:
-                Text("SSH Agent 转发").font(.connFootnote).foregroundStyle(.connMuted)
+                Text(L("SSH Agent 转发")).font(.connFootnote).foregroundStyle(.connMuted)
             }
         }
     }
 
     private var advancedSection: some View {
         Section {
-            DisclosureGroup("高级选项", isExpanded: $viewModel.showAdvanced) {
+            DisclosureGroup(L("高级选项"), isExpanded: $viewModel.showAdvanced) {
                 HStack {
-                    Text("端口")
+                    Text(L("端口"))
                     Spacer()
                     TextField("22", value: $viewModel.draft.port, format: .number.grouping(.never))
                         .keyboardType(.numberPad)
@@ -127,11 +127,11 @@ struct HostFormView: View {
                 if let portError = viewModel.fieldErrors[.port] {
                     Text(portError).font(.connFootnote).foregroundStyle(.connCrit)
                 }
-                labeledField("名称（留空用地址）", text: $viewModel.draft.name, error: nil, placeholder: viewModel.draft.address)
-                labeledField("备注", text: Binding(
+                labeledField(L("名称（留空用地址）"), text: $viewModel.draft.name, error: nil, placeholder: viewModel.draft.address)
+                labeledField(L("备注"), text: Binding(
                     get: { viewModel.draft.note ?? "" },
                     set: { viewModel.draft.note = $0.isEmpty ? nil : $0 }
-                ), error: nil, placeholder: "可选")
+                ), error: nil, placeholder: L("可选"))
             }
         }
     }
@@ -141,7 +141,7 @@ struct HostFormView: View {
             Button {
                 showDiagnostics = true
             } label: {
-                Label("连接测试", systemImage: "bolt.horizontal.circle")
+                Label(L("连接测试"), systemImage: "bolt.horizontal.circle")
             }
             .disabled(!viewModel.draft.isValid)
         }

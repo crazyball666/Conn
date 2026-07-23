@@ -1,0 +1,30 @@
+{
+  "sourceLanguage" : "zh-Hans",
+  "strings" : {
+    "请填写主机地址" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Enter the host address" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "ホストアドレスを入力してください" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "호스트 주소를 입력하세요" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "請填寫主機位址" } }
+      }
+    },
+    "请填写用户名" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Enter the username" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "ユーザー名を入力してください" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "사용자 이름을 입력하세요" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "請填寫使用者名稱" } }
+      }
+    },
+    "端口需在 1–65535 之间" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Port must be between 1 and 65535" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "ポートは 1〜65535 の範囲で指定してください" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "포트는 1–65535 사이여야 합니다" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "連接埠須在 1–65535 之間" } }
+      }
+    }
+  },
+  "version" : "1.0"
+}

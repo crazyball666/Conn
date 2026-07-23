@@ -40,11 +40,11 @@ final class DashboardViewModel {
     }
 
     var lastScanText: String {
-        guard let lastScanAt = monitor.lastScanAt else { return "尚未巡检" }
+        guard let lastScanAt = monitor.lastScanAt else { return L("尚未巡检") }
         let formatter = RelativeDateTimeFormatter()
-        formatter.locale = Locale(identifier: "zh_Hans_CN")
+        formatter.locale = ConnLanguage.currentLocale
         formatter.unitsStyle = .short
-        return "最后巡检 " + formatter.localizedString(for: lastScanAt, relativeTo: Date())
+        return L("最后巡检 ") + formatter.localizedString(for: lastScanAt, relativeTo: Date())
     }
 
     // MARK: - 生命周期
@@ -90,7 +90,7 @@ final class DashboardViewModel {
             cpu: metrics?.cpu,
             memory: metrics?.mem,
             disk: metrics?.disk,
-            issue: status == .offline ? (error ?? "连接失败，下拉重试") : nil
+            issue: status == .offline ? (error ?? L("连接失败，下拉重试")) : nil
         )
     }
 

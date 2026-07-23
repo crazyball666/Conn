@@ -27,8 +27,8 @@ struct SnippetFormView: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section("标题") {
-                    TextField("如：查看磁盘使用", text: $title)
+                Section(L("标题")) {
+                    TextField(L("如：查看磁盘使用"), text: $title)
                 }
                 Section {
                     TextEditor(text: $command)
@@ -37,28 +37,28 @@ struct SnippetFormView: View {
                         .autocorrectionDisabled()
                         .textInputAutocapitalization(.never)
                 } header: {
-                    Text("命令")
+                    Text(L("命令"))
                 } footer: {
-                    Text("变量用 {{名称}} 或 {{名称:默认值}}，执行前会让你填参。")
+                    Text(L("变量用 {{名称}} 或 {{名称:默认值}}，执行前会让你填参。"))
                 }
-                Section("分组") {
-                    TextField("如：磁盘 / 网络（可留空）", text: $folder)
+                Section(L("分组")) {
+                    TextField(L("如：磁盘 / 网络（可留空）"), text: $folder)
                 }
                 Section {
-                    Toggle("置顶到「常用」", isOn: $pinned)
-                    Toggle("标记为危险（执行前强确认）", isOn: $danger)
+                    Toggle(L("置顶到「常用」"), isOn: $pinned)
+                    Toggle(L("标记为危险（执行前强确认）"), isOn: $danger)
                 }
             }
             .scrollContentBackground(.hidden)
             .background(Color.connBg.ignoresSafeArea())
-            .navigationTitle(snippet == nil ? "新增片段" : "编辑片段")
+            .navigationTitle(snippet == nil ? L("新增片段") : L("编辑片段"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
-                    Button("取消") { dismiss() }
+                    Button(L("取消")) { dismiss() }
                 }
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button("保存") { save() }
+                    Button(L("保存")) { save() }
                         .fontWeight(.semibold)
                         .disabled(title.trimmingCharacters(in: .whitespaces).isEmpty
                             || command.trimmingCharacters(in: .whitespaces).isEmpty)

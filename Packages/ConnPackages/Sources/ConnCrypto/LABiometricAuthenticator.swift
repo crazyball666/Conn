@@ -20,7 +20,7 @@ public struct LABiometricAuthenticator: BiometricAuthenticator {
         case .faceID: return "Face ID"
         case .touchID: return "Touch ID"
         case .opticID: return "Optic ID"
-        default: return "设备密码"
+        default: return L("设备密码")
         }
     }
 

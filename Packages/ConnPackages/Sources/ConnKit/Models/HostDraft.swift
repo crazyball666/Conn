@@ -75,13 +75,13 @@ public struct HostDraft: Sendable, Equatable {
     public func validate() -> [Field: String] {
         var errors: [Field: String] = [:]
         if address.trimmingCharacters(in: .whitespaces).isEmpty {
-            errors[.address] = "请填写主机地址"
+            errors[.address] = L("请填写主机地址")
         }
         if username.trimmingCharacters(in: .whitespaces).isEmpty {
-            errors[.username] = "请填写用户名"
+            errors[.username] = L("请填写用户名")
         }
         if !(1 ... 65535).contains(port) {
-            errors[.port] = "端口需在 1–65535 之间"
+            errors[.port] = L("端口需在 1–65535 之间")
         }
         return errors
     }

@@ -1,0 +1,86 @@
+{
+  "sourceLanguage" : "zh-Hans",
+  "strings" : {
+    "启动" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Start" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "起動" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "시작" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "啟動" } }
+      }
+    },
+    "停止" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Stop" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "停止" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "중지" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "停止" } }
+      }
+    },
+    "重启" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Restart" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "再起動" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "재시작" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "重新啟動" } }
+      }
+    },
+    "删除" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Delete" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "削除" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "삭제" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "刪除" } }
+      }
+    },
+    "Nginx 错误" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Nginx errors" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "Nginx エラー" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "Nginx 오류" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "Nginx 錯誤" } }
+      }
+    },
+    "Nginx 访问" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Nginx access" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "Nginx アクセス" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "Nginx 접근" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "Nginx 存取" } }
+      }
+    },
+    "MySQL 错误" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "MySQL errors" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "MySQL エラー" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "MySQL 오류" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "MySQL 錯誤" } }
+      }
+    },
+    "认证日志" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Auth log" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "認証ログ" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "인증 로그" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "認證日誌" } }
+      }
+    },
+    "系统日志" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "System log" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "システムログ" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "시스템 로그" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "系統日誌" } }
+      }
+    },
+    "journalctl（全部单元）" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "journalctl (all units)" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "journalctl（全ユニット）" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "journalctl (전체 유닛)" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "journalctl（全部單元）" } }
+      }
+    }
+  },
+  "version" : "1.0"
+}

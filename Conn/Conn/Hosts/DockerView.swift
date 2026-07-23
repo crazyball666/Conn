@@ -22,11 +22,11 @@ struct DockerView: View {
             .confirmationDialog(
                 removalPrompt, isPresented: removalBinding, titleVisibility: .visible
             ) {
-                Button("删除容器", role: .destructive) { Task { await viewModel.confirmRemoval() } }
-                Button("取消", role: .cancel) { viewModel.pendingRemoval = nil }
+                Button(L("删除容器"), role: .destructive) { Task { await viewModel.confirmRemoval() } }
+                Button(L("取消"), role: .cancel) { viewModel.pendingRemoval = nil }
             }
-            .alert("容器操作", isPresented: messageBinding) {
-                Button("好", role: .cancel) { viewModel.actionMessage = nil }
+            .alert(L("容器操作"), isPresented: messageBinding) {
+                Button(L("好"), role: .cancel) { viewModel.actionMessage = nil }
             } message: {
                 Text(viewModel.actionMessage ?? "")
             }
@@ -46,14 +46,14 @@ struct DockerView: View {
     private var content: some View {
         switch viewModel.loadState {
         case .loading:
-            ProgressView("读取容器…").font(.connFootnote).foregroundStyle(.connMuted)
+            ProgressView(L("读取容器…")).font(.connFootnote).foregroundStyle(.connMuted)
                 .frame(maxWidth: .infinity).padding(.vertical, ConnSpacing.xxl)
         case let .unavailable(availability):
             unavailableView(availability)
         case let .failed(message):
             VStack(spacing: ConnSpacing.sm) {
                 ConnBanner(message, systemImage: "exclamationmark.triangle")
-                Button("重试") { Task { await viewModel.load() } }
+                Button(L("重试")) { Task { await viewModel.load() } }
                     .font(.connBody).foregroundStyle(.connAccent)
             }
             .padding(.vertical, ConnSpacing.md)
@@ -65,7 +65,7 @@ struct DockerView: View {
     private var containerList: some View {
         VStack(spacing: ConnSpacing.sm) {
             if viewModel.containers.isEmpty {
-                Text("该主机上没有容器").font(.connSubheadline).foregroundStyle(.connMuted)
+                Text(L("该主机上没有容器")).font(.connSubheadline).foregroundStyle(.connMuted)
                     .padding(.vertical, ConnSpacing.xl)
             } else {
                 ForEach(viewModel.containers) { container in
@@ -99,15 +99,15 @@ struct DockerView: View {
     private func menu(for container: ContainerInfo) -> some View {
         Menu {
             if container.isRunning {
-                Button { act(.stop, container) } label: { Label("停止", systemImage: "stop.circle") }
-                Button { act(.restart, container) } label: { Label("重启", systemImage: "arrow.clockwise.circle") }
+                Button { act(.stop, container) } label: { Label(L("停止"), systemImage: "stop.circle") }
+                Button { act(.restart, container) } label: { Label(L("重启"), systemImage: "arrow.clockwise.circle") }
             } else {
-                Button { act(.start, container) } label: { Label("启动", systemImage: "play.circle") }
+                Button { act(.start, container) } label: { Label(L("启动"), systemImage: "play.circle") }
             }
-            Button { logTarget = container } label: { Label("查看日志", systemImage: "doc.text.magnifyingglass") }
+            Button { logTarget = container } label: { Label(L("查看日志"), systemImage: "doc.text.magnifyingglass") }
             Divider()
             Button(role: .destructive) { viewModel.requestRemoval(container) } label: {
-                Label("删除", systemImage: "trash")
+                Label(L("删除"), systemImage: "trash")
             }
         } label: {
             Image(systemName: "ellipsis.circle").font(.system(size: 22)).foregroundStyle(.connAccent)
@@ -118,16 +118,16 @@ struct DockerView: View {
     private func unavailableView(_ availability: DockerAvailability) -> some View {
         let text: String = switch availability {
         case .notInstalled:
-            "未检测到 Docker CLI。请确认该服务器已安装 Docker。"
+            L("未检测到 Docker CLI。请确认该服务器已安装 Docker。")
         case .permissionDenied:
-            "当前用户无权访问 Docker。\n将用户加入 docker 组：\nsudo usermod -aG docker $USER\n然后重新登录后重试。"
+            L("当前用户无权访问 Docker。\n将用户加入 docker 组：\nsudo usermod -aG docker $USER\n然后重新登录后重试。")
         case .available:
             ""
         }
         return VStack(spacing: ConnSpacing.sm) {
             Image(systemName: "shippingbox").font(.system(size: 40, weight: .light)).foregroundStyle(.connMuted)
             Text(text).font(.connSubheadline).foregroundStyle(.connMuted).multilineTextAlignment(.center)
-            Button("重试") { Task { await viewModel.load() } }.font(.connBody).foregroundStyle(.connAccent)
+            Button(L("重试")) { Task { await viewModel.load() } }.font(.connBody).foregroundStyle(.connAccent)
         }
         .frame(maxWidth: .infinity).padding(.vertical, ConnSpacing.xl).padding(.horizontal, ConnSpacing.page)
     }
@@ -140,7 +140,7 @@ struct DockerView: View {
 
     private func runningStats(_ container: ContainerInfo) -> String {
         let cpu = container.cpuPercent.map { String(format: "CPU %.1f%%", $0) } ?? "CPU —"
-        let mem = container.memPercent.map { String(format: "内存 %.1f%%", $0) } ?? "内存 —"
+        let mem = container.memPercent.map { String(format: L("内存 %.1f%%"), $0) } ?? L("内存 —")
         return "\(container.status) · \(cpu) · \(mem)"
     }
 

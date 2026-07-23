@@ -34,11 +34,11 @@ struct TerminalCenterView: View {
 
     private var header: some View {
         HStack {
-            Text("终端")
+            Text(L("终端"))
                 .font(.connTitle)
                 .foregroundStyle(.connInk)
             Spacer()
-            IconChipButton("plus", tint: .accent, accessibilityLabel: "新会话") {
+            IconChipButton("plus", tint: .accent, accessibilityLabel: L("新会话")) {
                 showHostPicker = true
             }
         }
@@ -100,9 +100,9 @@ struct TerminalCenterView: View {
     private var emptyState: some View {
         EmptyState(
             systemName: "terminal",
-            title: "没有活跃会话",
-            message: "打开一台主机的终端，开始一个 SSH 会话",
-            primary: .init("新建会话") { showHostPicker = true }
+            title: L("没有活跃会话"),
+            message: L("打开一台主机的终端，开始一个 SSH 会话"),
+            primary: .init(L("新建会话")) { showHostPicker = true }
         )
         .padding(.top, ConnSpacing.xxl)
     }
@@ -147,11 +147,11 @@ struct TerminalHostPicker: View {
             }
             .scrollContentBackground(.hidden)
             .background(Color.connBg.ignoresSafeArea())
-            .navigationTitle("选择主机")
+            .navigationTitle(L("选择主机"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("取消") { dismiss() }
+                    Button(L("取消")) { dismiss() }
                 }
             }
             .task { hosts = (try? dependencies.hostRepository.allHosts()) ?? [] }

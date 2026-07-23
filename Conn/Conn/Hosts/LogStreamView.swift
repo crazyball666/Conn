@@ -29,7 +29,7 @@ struct LogStreamView: View {
     private var controlBar: some View {
         HStack(spacing: ConnSpacing.xs) {
             Image(systemName: "line.3.horizontal.decrease.circle").foregroundStyle(.connMuted)
-            TextField("过滤关键词", text: $viewModel.filterText)
+            TextField(L("过滤关键词"), text: $viewModel.filterText)
                 .font(.connData(.footnote))
                 .foregroundStyle(.connInk)
                 .autocorrectionDisabled()
@@ -38,7 +38,7 @@ struct LogStreamView: View {
                 viewModel.isFollowing.toggle()
             } label: {
                 Label(
-                    viewModel.isFollowing ? "跟随中" : "已暂停",
+                    viewModel.isFollowing ? L("跟随中") : L("已暂停"),
                     systemImage: viewModel.isFollowing ? "pause.circle" : "play.circle"
                 )
                 .font(.connFootnote)
@@ -57,7 +57,7 @@ struct LogStreamView: View {
                     ConnBanner(error, systemImage: "exclamationmark.triangle")
                         .padding(ConnSpacing.page)
                 } else if viewModel.isConnecting {
-                    ProgressView("连接中…")
+                    ProgressView(L("连接中…"))
                         .font(.connFootnote)
                         .foregroundStyle(.connMuted)
                         .frame(maxWidth: .infinity)

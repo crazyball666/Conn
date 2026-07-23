@@ -33,17 +33,17 @@ final class FileEditorViewModel {
 
     func load() async {
         if entry.size > maxEditBytes {
-            loadState = .readOnly("文件超过 1MB，暂不支持在线编辑。请下载后查看。")
+            loadState = .readOnly(L("文件超过 1MB，暂不支持在线编辑。请下载后查看。"))
             return
         }
         do {
             let data = try await filesystem().readAll(entry.path)
             if data.contains(0) {
-                loadState = .readOnly("二进制文件，无法以文本方式编辑。")
+                loadState = .readOnly(L("二进制文件，无法以文本方式编辑。"))
                 return
             }
             guard let text = String(bytes: data, encoding: .utf8) else {
-                loadState = .readOnly("非 UTF-8 编码，暂不支持在线编辑。")
+                loadState = .readOnly(L("非 UTF-8 编码，暂不支持在线编辑。"))
                 return
             }
             content = text
@@ -59,7 +59,7 @@ final class FileEditorViewModel {
         do {
             // 以「打开既有文件 + 截断写入」保持同一 inode → 权限/属主不变。
             try await filesystem().writeAll(Data(content.utf8), to: entry.path)
-            saveMessage = "已保存"
+            saveMessage = L("已保存")
         } catch {
             saveMessage = "保存失败：\(friendly(error))"
         }
@@ -94,14 +94,14 @@ struct FileEditorView: View {
             .toolbar {
                 if case .editing = viewModel.loadState {
                     ToolbarItem(placement: .topBarTrailing) {
-                        Button("保存") { Task { await viewModel.save() } }
+                        Button(L("保存")) { Task { await viewModel.save() } }
                             .fontWeight(.semibold)
                             .disabled(viewModel.isSaving)
                     }
                 }
             }
-            .alert("保存", isPresented: saveBinding) {
-                Button("好", role: .cancel) { viewModel.saveMessage = nil }
+            .alert(L("保存"), isPresented: saveBinding) {
+                Button(L("好"), role: .cancel) { viewModel.saveMessage = nil }
             } message: {
                 Text(viewModel.saveMessage ?? "")
             }
@@ -111,7 +111,7 @@ struct FileEditorView: View {
     private var content: some View {
         switch viewModel.loadState {
         case .loading:
-            ProgressView("读取文件…").font(.connFootnote).foregroundStyle(.connMuted)
+            ProgressView(L("读取文件…")).font(.connFootnote).foregroundStyle(.connMuted)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         case .editing:
             TextEditor(text: $viewModel.content)

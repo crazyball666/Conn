@@ -60,10 +60,10 @@ public enum ContainerAction: String, Sendable, CaseIterable, Identifiable {
 
     public var label: String {
         switch self {
-        case .start: "启动"
-        case .stop: "停止"
-        case .restart: "重启"
-        case .remove: "删除"
+        case .start: L("启动")
+        case .stop: L("停止")
+        case .restart: L("重启")
+        case .remove: L("删除")
         }
     }
 

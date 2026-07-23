@@ -19,7 +19,7 @@ final class HostFormViewModel {
     private let credentialStore: any CredentialStore
 
     var isEditing: Bool { editingHostID != nil }
-    var title: String { isEditing ? "编辑主机" : "添加主机" }
+    var title: String { isEditing ? L("编辑主机") : L("添加主机") }
 
     init(
         draft: HostDraft,
