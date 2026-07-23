@@ -11,22 +11,47 @@ public enum BuiltinSnippets {
         let danger: Bool?
     }
 
-    /// 从打包 JSON 载入内置片段。排序权重按文件顺序，保证展示稳定。
-    public static func load() -> [Snippet] {
+    private static func decodeDTOs() -> [DTO] {
         guard let url = Bundle.module.url(forResource: "builtin-snippets", withExtension: "json"),
               let data = try? Data(contentsOf: url),
               let dtos = try? JSONDecoder().decode([DTO].self, from: data)
         else { return [] }
+        return dtos
+    }
 
-        return dtos.enumerated().map { index, dto in
+    /// 从打包 JSON 载入内置片段。标题/分组按**当前语言**本地化；排序权重按文件顺序。
+    public static func load() -> [Snippet] {
+        decodeDTOs().enumerated().map { index, dto in
             Snippet(
-                title: dto.title,
+                title: L(dto.title),
                 command: dto.command,
-                folder: dto.folder,
+                folder: dto.folder.map { L($0) },
                 pinned: dto.pinned ?? false,
                 danger: dto.danger ?? false,
                 sortOrder: index
             )
+        }
+    }
+
+    /// 把已入库的、**未被用户改动**的内置片段的标题/分组更新到当前语言。
+    ///
+    /// 判定「未改动」：命令与某内置片段一致，且当前标题属于该内置标题的任一语言译文
+    /// （用户自行改过标题的则跳过，不覆盖）。App 启动时调用即可跟随语言切换。
+    public static func relocalize(in store: any SnippetRepository) {
+        guard let stored = try? store.allSnippets(), !stored.isEmpty else { return }
+        let byCommand = Dictionary(decodeDTOs().map { ($0.command, $0) }, uniquingKeysWith: { first, _ in first })
+
+        for snippet in stored {
+            guard let dto = byCommand[snippet.command] else { continue }
+            let titleVariants = allLanguageVariants(dto.title)
+            let localizedTitle = L(dto.title)
+            let localizedFolder = dto.folder.map { L($0) }
+            let titleUnedited = titleVariants.contains(snippet.title)
+            guard titleUnedited, snippet.title != localizedTitle || snippet.folder != localizedFolder else { continue }
+            var updated = snippet
+            updated.title = localizedTitle
+            updated.folder = localizedFolder
+            try? store.save(updated)
         }
     }
 }

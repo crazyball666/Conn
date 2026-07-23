@@ -105,7 +105,7 @@ struct SnippetsView: View {
                             Image(systemName: "exclamationmark.triangle.fill").font(.caption2).foregroundStyle(.connCrit)
                         }
                         if !snippet.variables.isEmpty {
-                            Text("\(snippet.variables.count) 变量")
+                            Text(String(format: L("%d 变量"), snippet.variables.count))
                                 .font(.connData(.caption2)).foregroundStyle(.connAccent)
                         }
                     }

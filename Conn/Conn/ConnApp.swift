@@ -253,11 +253,14 @@ struct AppDependencies {
         }
     }
 
-    /// 首启把内置模板库导入 `snippet` 表（幂等：已有片段则跳过）。
+    /// 首启把内置模板库导入 `snippet` 表（幂等：已有片段则跳过），
+    /// 并把未被用户改动的内置片段标题/分组更新到当前语言（跟随语言切换）。
     private static func importBuiltinSnippetsIfNeeded(_ store: SnippetStore) throws {
-        guard try store.count() == 0 else { return }
-        for snippet in BuiltinSnippets.load() {
-            try store.save(snippet)
+        if try store.count() == 0 {
+            for snippet in BuiltinSnippets.load() {
+                try store.save(snippet)
+            }
         }
+        BuiltinSnippets.relocalize(in: store)
     }
 }
