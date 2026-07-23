@@ -220,11 +220,15 @@
 				};
 			};
 			buildConfigurationList = 7C181A8B300CF0AD00307624 /* Build configuration list for PBXProject "Conn" */;
-			developmentRegion = en;
+			developmentRegion = "zh-Hans";
 			hasScannedForEncodings = 0;
 			knownRegions = (
 				en,
 				Base,
+				"zh-Hans",
+				"zh-Hant",
+				ja,
+				ko,
 			);
 			mainGroup = 7C181A87300CF0AD00307624;
 			minimizedProjectReferenceProxies = 1;

@@ -1,0 +1,86 @@
+{
+  "sourceLanguage" : "zh-Hans",
+  "strings" : {
+    "我的" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Me" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "マイページ" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "내 정보" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "我的" } }
+      }
+    },
+    "安全" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Security" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "セキュリティ" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "보안" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "安全" } }
+      }
+    },
+    "关于" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "About" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "情報" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "정보" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "關於" } }
+      }
+    },
+    "密钥管家" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Key Manager" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "鍵マネージャー" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "키 관리자" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "金鑰管家" } }
+      }
+    },
+    "隐私承诺" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Privacy Promise" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "プライバシーの約束" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "개인정보 약속" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "隱私承諾" } }
+      }
+    },
+    "无服务端 · 零遥测" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "No server · Zero telemetry" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "サーバーなし · テレメトリーゼロ" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "서버 없음 · 텔레메트리 없음" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "無伺服端 · 零遙測" } }
+      }
+    },
+    "版本" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Version" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "バージョン" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "버전" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "版本" } }
+      }
+    },
+    "语言" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Language" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "言語" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "언어" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "語言" } }
+      }
+    },
+    "跟随系统" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Follow System" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "システムに従う" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "시스템 설정 따르기" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "跟隨系統" } }
+      }
+    },
+    "数据仅存本机与你自己的 iCloud · 无账号 · 零上传" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Data stays on this device and your own iCloud · No account · Zero upload" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "データは本端末とあなた自身の iCloud にのみ保存 · アカウント不要 · アップロードなし" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "데이터는 이 기기와 본인 iCloud에만 저장 · 계정 없음 · 업로드 없음" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "資料僅存本機與你自己的 iCloud · 無帳號 · 零上傳" } }
+      }
+    }
+  },
+  "version" : "1.0"
+}

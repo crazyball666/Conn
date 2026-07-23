@@ -67,7 +67,7 @@ public struct ConnDock: View {
                 Image(systemName: tab.systemImage)
                     .font(.system(size: 19, weight: .medium))
                     .frame(height: ConnSize.dockGlyph)
-                Text(tab.title)
+                Text(L(tab.title))
                     .font(.system(size: 11))
             }
             .foregroundStyle(selection == tab ? Color.connAccent : .connMuted)

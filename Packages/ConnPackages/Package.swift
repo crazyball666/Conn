@@ -3,6 +3,7 @@ import PackageDescription
 
 let package = Package(
     name: "ConnPackages",
+    defaultLocalization: "zh-Hans",
     // macOS 声明仅用于 `swift test` 在 host 上跑测试（本机 macOS 26）；产品平台是 iOS 17。
     // macOS 15：Citadel 的 TTYOutput（PTY 输出流）标了 @available(macOS 15)，
     // 而 iOS 无此限制——提高 host 侧下限不影响 iOS 17 产品基线。

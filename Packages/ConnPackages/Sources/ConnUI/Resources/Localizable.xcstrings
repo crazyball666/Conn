@@ -1,0 +1,86 @@
+{
+  "sourceLanguage" : "zh-Hans",
+  "strings" : {
+    "仪表盘" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Dashboard" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "ダッシュボード" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "대시보드" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "儀表板" } }
+      }
+    },
+    "主机" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Hosts" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "ホスト" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "호스트" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "主機" } }
+      }
+    },
+    "终端" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Terminal" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "ターミナル" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "터미널" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "終端" } }
+      }
+    },
+    "命令" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Commands" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "コマンド" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "명령" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "命令" } }
+      }
+    },
+    "我的" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Me" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "マイページ" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "내 정보" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "我的" } }
+      }
+    },
+    "正常" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "OK" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "正常" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "정상" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "正常" } }
+      }
+    },
+    "警告" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Warning" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "警告" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "경고" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "警告" } }
+      }
+    },
+    "故障" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Critical" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "障害" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "장애" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "故障" } }
+      }
+    },
+    "离线" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Offline" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "オフライン" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "오프라인" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "離線" } }
+      }
+    },
+    "未知" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Unknown" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "不明" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "알 수 없음" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "未知" } }
+      }
+    }
+  },
+  "version" : "1.0"
+}

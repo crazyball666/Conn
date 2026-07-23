@@ -12,6 +12,7 @@ import SwiftUI
 @main
 struct ConnApp: App {
     private let dependencies = ConnApp.makeDependencies()
+    @State private var localization = LocalizationManager()
 
     /// 依赖选择：DEBUG 下 `CONN_DEMO=1` 走演示模式（Mock 引擎 + 假数据），
     /// 否则走生产（Citadel + GRDB 落盘）。Phase 10 会把演示开关搬到设置页。
@@ -27,8 +28,10 @@ struct ConnApp: App {
     var body: some Scene {
         WindowGroup {
             AppLockGate(lock: dependencies.appLock) {
-                rootView
+                // 切换语言即 bump id → 整树重建，全 App 立即改语言（含各包 L() 读取）。
+                rootView.id(localization.language)
             }
+            .environment(localization)
             // 深色是主人格（设计规范 §1：OLED + 运维人群夜间审美）。
             // Phase 11 接入「跟随系统 / 手动切换」的设置项。
             .preferredColorScheme(.dark)

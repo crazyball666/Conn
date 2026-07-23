@@ -19,11 +19,11 @@ public enum ConnHealthStatus: Sendable, CaseIterable {
 
     var label: String {
         switch self {
-        case .ok: "正常"
-        case .warn: "警告"
-        case .crit: "故障"
-        case .offline: "离线"
-        case .unknown: "未知"
+        case .ok: L("正常")
+        case .warn: L("警告")
+        case .crit: L("故障")
+        case .offline: L("离线")
+        case .unknown: L("未知")
         }
     }
 

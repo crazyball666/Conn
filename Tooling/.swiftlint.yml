@@ -43,7 +43,8 @@ identifier_name:
   min_length: 2
   # t = GRDB 建表闭包的官方惯用参数名（`db.create(table:) { t in ... }`）
   # r/g/b = 颜色分量惯用名（RGB 结构）
-  excluded: [id, ts, db, ip, os, x, y, t, r, g, b]
+  # L = 本地化助手 L("中文")（i18n 惯用简写，全 App 数百处调用）
+  excluded: [id, ts, db, ip, os, x, y, t, r, g, b, L]
 
 # 红线：禁止引入遥测/分析 SDK（技术实现方案 §2 禁止引入清单）
 custom_rules:
