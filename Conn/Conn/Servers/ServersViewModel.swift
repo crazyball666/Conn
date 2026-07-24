@@ -127,25 +127,26 @@ final class ServersViewModel {
             cpu: metrics?.cpu,
             memory: metrics?.mem,
             disk: metrics?.disk,
+            coresText: MetricFormat.cores(metrics?.cpuCores),
+            memTotalText: MetricFormat.compactBytes(metrics?.memTotalBytes),
+            diskTotalText: MetricFormat.compactBytes(metrics?.diskTotalBytes),
+            net: metrics.map { flow(upRate: $0.netTxRate, upTotal: $0.netTx, downRate: $0.netRxRate, downTotal: $0.netRx) },
+            io: metrics.map { flow(upRate: $0.ioWriteRate, upTotal: $0.ioWriteBytes, downRate: $0.ioReadRate, downTotal: $0.ioReadBytes) },
+            uptimeText: metrics?.uptimeSeconds.map { MetricFormat.compactUptime($0) },
+            loadText: metrics?.load1.map { String(format: "%.2f", $0) },
             issue: status == .offline ? (error ?? L("连接失败，下拉重试")) : nil,
-            note: host.note,
-            stats: stats(for: metrics)
+            note: host.note
         )
     }
 
-    /// 卡片二级指标网格（已格式化）。无采样时为空——只显示标题/状态/迷你条。
-    private func stats(for metrics: HostMetrics?) -> [HealthCard.Stat] {
-        guard let metrics else { return [] }
-        return [
-            .init(L("核心"), MetricFormat.cores(metrics.cpuCores)),
-            .init(L("运行"), MetricFormat.uptime(metrics.uptimeSeconds)),
-            .init(L("内存"), MetricFormat.pair(used: metrics.memUsedBytes, total: metrics.memTotalBytes)),
-            .init(L("磁盘"), MetricFormat.pair(used: metrics.diskUsedBytes, total: metrics.diskTotalBytes)),
-            .init(L("网络 ↓"), MetricFormat.rateAndTotal(rate: metrics.netRxRate, total: metrics.netRx)),
-            .init(L("网络 ↑"), MetricFormat.rateAndTotal(rate: metrics.netTxRate, total: metrics.netTx)),
-            .init(L("IO 读"), MetricFormat.rateAndTotal(rate: metrics.ioReadRate, total: metrics.ioReadBytes)),
-            .init(L("IO 写"), MetricFormat.rateAndTotal(rate: metrics.ioWriteRate, total: metrics.ioWriteBytes))
-        ]
+    /// 组装网络/IO 的 ↑↓（速率·总量）已格式化读数。
+    private func flow(upRate: Double?, upTotal: Int64?, downRate: Double?, downTotal: Int64?) -> HealthCard.Flow {
+        HealthCard.Flow(
+            upRate: MetricFormat.compactBytes(upRate),
+            upTotal: MetricFormat.compactBytes(upTotal),
+            downRate: MetricFormat.compactBytes(downRate),
+            downTotal: MetricFormat.compactBytes(downTotal)
+        )
     }
 
     /// 实时采集优先；无采集但有错误 → 离线；两者皆无 → 未知（首采尚未回来）。

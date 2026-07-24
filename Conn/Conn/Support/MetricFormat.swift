@@ -40,6 +40,36 @@ enum MetricFormat {
         count.map { String(format: L("%d 核"), $0) } ?? "—"
     }
 
+    /// 紧凑字节：单字母单位、最多 1 位小数（卡片密排用）。「455 B / 2.7 K / 7.7 G」。
+    static func compactBytes(_ bytes: Double?) -> String {
+        guard let bytes, bytes >= 0 else { return "—" }
+        let units = ["B", "K", "M", "G", "T", "P"]
+        var value = bytes
+        var index = 0
+        while value >= 1024, index < units.count - 1 {
+            value /= 1024
+            index += 1
+        }
+        if index == 0 { return "\(Int(value)) B" }
+        let text = value >= 100 ? String(format: "%.0f", value) : String(format: "%.1f", value)
+        return "\(text) \(units[index])"
+    }
+
+    static func compactBytes(_ bytes: Int64?) -> String {
+        compactBytes(bytes.map { Double($0) })
+    }
+
+    /// 紧凑运行时长：「15 天」/「20 时」/「45 分」（卡片头部用）。
+    static func compactUptime(_ seconds: Double?) -> String {
+        guard let seconds else { return "—" }
+        let days = Int(seconds) / 86400
+        let hours = (Int(seconds) % 86400) / 3600
+        let minutes = (Int(seconds) % 3600) / 60
+        if days > 0 { return String(format: L("%d 天"), days) }
+        if hours > 0 { return String(format: L("%d 时"), hours) }
+        return String(format: L("%d 分"), minutes)
+    }
+
     /// 运行时长：「N 天 N 小时」，不足一天用「N 小时」。
     static func uptime(_ seconds: Double?) -> String {
         guard let seconds else { return "—" }
