@@ -46,7 +46,7 @@ struct RootTabView: View {
     private var tabRoot: some View {
         switch selection {
         case .dashboard:
-            DashboardView(dependencies: dependencies)
+            DashboardView(dependencies: dependencies) { selection = .hosts }
         case .hosts:
             HostListView(dependencies: dependencies)
         case .terminal:

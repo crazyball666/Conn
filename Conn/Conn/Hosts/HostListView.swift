@@ -13,6 +13,7 @@ struct HostFormRequest: Identifiable {
 struct HostListView: View {
     @State private var viewModel: HostListViewModel
     @State private var formRequest: HostFormRequest?
+    @State private var pendingDelete: Host?
     private let dependencies: AppDependencies
 
     init(dependencies: AppDependencies) {
@@ -52,6 +53,20 @@ struct HostListView: View {
             ) {
                 viewModel.load()
             }
+        }
+        .confirmationDialog(
+            L("删除主机"),
+            isPresented: Binding(get: { pendingDelete != nil }, set: { if !$0 { pendingDelete = nil } }),
+            titleVisibility: .visible,
+            presenting: pendingDelete
+        ) { host in
+            Button(L("删除"), role: .destructive) {
+                viewModel.delete(host)
+                pendingDelete = nil
+            }
+            Button(L("取消"), role: .cancel) { pendingDelete = nil }
+        } message: { host in
+            Text(String(format: L("「%@」将从列表中移除，可随时重新添加（不影响服务器本身）。"), host.name))
         }
         .navigationDestination(for: Host.self) { host in
             HostDetailView(host: host, dependencies: dependencies)
@@ -174,9 +189,15 @@ struct HostListView: View {
         }
         .buttonStyle(ConnPressStyle())
         .padding(.horizontal, ConnSpacing.page)
-        .swipeActions(edge: .trailing) {
-            Button(L("删除"), role: .destructive) { viewModel.delete(host) }
-            Button(L("编辑")) { startEditing(host) }.tint(.connAccent)
+        // 长按呼出编辑/删除。注意：`.swipeActions` 只在 List 内生效,此处是
+        // ScrollView + LazyVStack,故用 contextMenu（删除走强确认对话框）。
+        .contextMenu {
+            Button { startEditing(host) } label: {
+                Label(L("编辑"), systemImage: "pencil")
+            }
+            Button(role: .destructive) { pendingDelete = host } label: {
+                Label(L("删除"), systemImage: "trash")
+            }
         }
     }
 
@@ -184,9 +205,8 @@ struct HostListView: View {
         EmptyState(
             systemName: "server.rack",
             title: L("还没有主机"),
-            message: L("添加第一台服务器，或先用演示模式逛一圈"),
-            primary: .init(L("添加我的服务器")) { startAdding() },
-            secondary: .init(L("先逛逛演示模式")) {}
+            message: L("添加你的第一台服务器，开始监控与管理"),
+            primary: .init(L("添加我的服务器")) { startAdding() }
         )
         .padding(.top, ConnSpacing.xxl)
     }

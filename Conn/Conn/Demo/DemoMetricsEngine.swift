@@ -1,3 +1,5 @@
+// 仅 DEBUG 编译：演示/截图/冒烟数据源，不进入发行包。
+#if DEBUG
 import ConnMonitor
 import ConnSSH
 import Foundation
@@ -132,3 +134,4 @@ final class DemoMetricsEngine: @unchecked Sendable {
         min(max(value, low), high)
     }
 }
+#endif

@@ -1,3 +1,5 @@
+// 仅 DEBUG 编译：演示/截图/冒烟数据源，不进入发行包。
+#if DEBUG
 import ConnKit
 import ConnSSH
 import ConnStore
@@ -44,3 +46,4 @@ enum DemoData {
         }
     }
 }
+#endif

@@ -142,7 +142,6 @@ struct AppDependencies {
             let hostStore = HostStore(database: database)
             let groupStore = HostGroupStore(database: database)
             let keyStore = SSHKeyStore(database: database)
-            try seedIfNeeded(hostStore)
 
             // SSH 栈：Citadel 引擎 + GRDB 指纹库（TOFU 跨重启留存）。
             let hostKeyStore = GRDBHostKeyStore(database: database)
@@ -187,8 +186,9 @@ struct AppDependencies {
         }
     }
 
-    /// 演示依赖：内存库 + Mock 引擎（假指标/容器/日志）。无需任何服务器即可
-    /// 完整体验监控/Docker/日志/片段（Phase 7–9），也是 App Store 审核走查路径。
+    #if DEBUG
+    /// 演示依赖（**仅 DEBUG 编译**）：内存库 + Mock 引擎（假指标/容器/日志）。
+    /// 不进入发行包——仅供开发期截图与冒烟联调（`CONN_DEMO` / `CONN_SMOKE_*`）。
     /// 演示数据由 `DemoData` 生成并经 `MockSSHTransport.dynamicResponder` 注入。
     static func demo() -> AppDependencies {
         do {
@@ -223,34 +223,12 @@ struct AppDependencies {
             fatalError("演示库初始化失败：\(error)")
         }
     }
+    #endif
 
     /// `Application Support/Conn/conn.sqlite`
     private static func databaseURL() -> URL {
         let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
         return base.appendingPathComponent("Conn/conn.sqlite")
-    }
-
-    /// 首次启动写入几台示例主机，让仪表盘不是空的。
-    ///
-    /// Phase 10 会用完整的演示模式（`MockSSHTransport` + 假指标发生器）替换它。
-    private static func seedIfNeeded(_ store: HostStore) throws {
-        guard try store.allHosts().isEmpty else { return }
-        let samples = [
-            Host(name: "web-01", address: "10.0.0.1", username: "root", tags: ["prod", "web"], status: .ok),
-            Host(name: "db-master", address: "10.0.0.2", username: "root", tags: ["prod", "db"], status: .warn),
-            Host(
-                name: "cache-01",
-                address: "10.0.0.3",
-                username: "deploy",
-                port: 2222,
-                tags: ["staging"],
-                status: .crit
-            ),
-            Host(name: "nas", address: "192.168.1.10", username: "admin", tags: ["home"], status: .unknown)
-        ]
-        for host in samples {
-            try store.save(host)
-        }
     }
 
     /// 首启把内置模板库导入 `snippet` 表（幂等：已有片段则跳过），

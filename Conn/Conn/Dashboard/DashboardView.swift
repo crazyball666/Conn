@@ -10,9 +10,12 @@ struct DashboardView: View {
     @State private var viewModel: DashboardViewModel
     @State private var selectedHost: Host?
     private let dependencies: AppDependencies
+    /// 空态「添加服务器」跳到「主机」标签（表单在那儿）。由根视图注入切 Tab 闭包。
+    private let onAddHost: () -> Void
 
-    init(dependencies: AppDependencies) {
+    init(dependencies: AppDependencies, onAddHost: @escaping () -> Void = {}) {
         self.dependencies = dependencies
+        self.onAddHost = onAddHost
         _viewModel = State(initialValue: DashboardViewModel(
             hostStore: dependencies.hostRepository,
             monitor: dependencies.monitor
@@ -81,14 +84,13 @@ struct DashboardView: View {
                 .padding(.top, ConnSpacing.lg)
 
             LazyVGrid(
-                columns: Array(repeating: GridItem(spacing: ConnSpacing.xs), count: 3),
+                columns: Array(repeating: GridItem(spacing: ConnSpacing.xs), count: 2),
                 spacing: ConnSpacing.xs
             ) {
                 ActionTile(L("全部巡检"), systemName: "arrow.clockwise") {
                     Task { await viewModel.refresh() }
                 }
                 ActionTile(L("批量执行"), systemName: "square.stack.3d.up") {}
-                ActionTile(L("演示模式"), systemName: "play.rectangle") {}
             }
         }
         .padding(.horizontal, ConnSpacing.page)
@@ -99,9 +101,8 @@ struct DashboardView: View {
         EmptyState(
             systemName: "server.rack",
             title: L("还没有主机"),
-            message: L("添加第一台服务器，或先用演示模式逛一圈"),
-            primary: .init(L("添加我的服务器")) {},
-            secondary: .init(L("先逛逛演示模式")) {}
+            message: L("添加你的第一台服务器，开始监控与管理"),
+            primary: .init(L("添加我的服务器")) { onAddHost() }
         )
         .padding(.top, ConnSpacing.xxl)
     }

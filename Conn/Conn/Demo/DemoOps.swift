@@ -1,3 +1,5 @@
+// 仅 DEBUG 编译：演示/截图/冒烟数据源，不进入发行包。
+#if DEBUG
 import ConnSSH
 import Foundation
 
@@ -88,3 +90,4 @@ enum DemoOps {
         (1 ... count).map { "\(prefix)\(body($0))" }.joined(separator: "\n")
     }
 }
+#endif
