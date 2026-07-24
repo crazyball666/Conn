@@ -21,11 +21,21 @@ enum ProcParsers {
         return CPUJiffies(total: total, idle: idle)
     }
 
-    /// `/proc/meminfo` → 内存使用率 0–100。
+    /// `/proc/stat` → 逻辑核心数（`cpu0`、`cpu1`… 每核一行；`cpu ` 汇总行不计）。
+    static func parseCoreCount(_ section: String) -> Int? {
+        var count = 0
+        for line in section.split(separator: "\n")
+        where line.hasPrefix("cpu") && (line.dropFirst(3).first?.isNumber ?? false) {
+            count += 1
+        }
+        return count > 0 ? count : nil
+    }
+
+    /// `/proc/meminfo` → （总字节, 已用字节）。
     ///
     /// 优先 `MemAvailable`（内核 3.14+ 的权威可用内存）；缺失时回退
-    /// `MemFree + Buffers + Cached`。
-    static func parseMemPercent(_ section: String) -> Double? {
+    /// `MemFree + Buffers + Cached`。字段单位 kB → ×1024 转字节。
+    static func parseMemInfo(_ section: String) -> (totalBytes: Double, usedBytes: Double)? {
         var values: [String: Double] = [:]
         for line in section.split(separator: "\n") {
             let parts = line.split(separator: ":")
@@ -37,15 +47,55 @@ enum ProcParsers {
                 values[key] = number
             }
         }
-        guard let total = values["MemTotal"], total > 0 else { return nil }
-        let available: Double
+        guard let totalKB = values["MemTotal"], totalKB > 0 else { return nil }
+        let availableKB: Double
         if let memAvailable = values["MemAvailable"] {
-            available = memAvailable
+            availableKB = memAvailable
         } else {
-            available = (values["MemFree"] ?? 0) + (values["Buffers"] ?? 0) + (values["Cached"] ?? 0)
+            availableKB = (values["MemFree"] ?? 0) + (values["Buffers"] ?? 0) + (values["Cached"] ?? 0)
         }
-        let used = max(0, total - available)
-        return min(100, used / total * 100)
+        let usedKB = max(0, totalKB - availableKB)
+        return (totalKB * 1024, usedKB * 1024)
+    }
+
+    /// `/proc/meminfo` → 内存使用率 0–100。
+    static func parseMemPercent(_ section: String) -> Double? {
+        guard let info = parseMemInfo(section), info.totalBytes > 0 else { return nil }
+        return min(100, info.usedBytes / info.totalBytes * 100)
+    }
+
+    /// `/proc/diskstats` → 累计读/写字节（整盘扇区求和 ×512）。
+    ///
+    /// 扇区在 `/proc/diskstats` 里固定按 512 字节计（与物理扇区大小无关）。
+    /// 只累加整盘、排除分区（避免与整盘重复）与 loop/ram/dm 等虚拟设备。
+    /// 列：major minor name reads reads_merged **sectors_read** … writes writes_merged **sectors_written** …
+    static func parseDiskstats(_ section: String) -> (read: Int64, write: Int64)? {
+        var readSectors: Int64 = 0
+        var writeSectors: Int64 = 0
+        var matched = false
+        for line in section.split(separator: "\n") {
+            let cols = line.split(whereSeparator: { $0 == " " || $0 == "\t" })
+            guard cols.count >= 10, isWholeDisk(String(cols[2])),
+                  let readSec = Int64(cols[5]), let writeSec = Int64(cols[9]) else { continue }
+            readSectors += readSec
+            writeSectors += writeSec
+            matched = true
+        }
+        return matched ? (readSectors * 512, writeSectors * 512) : nil
+    }
+
+    /// 判断是否整盘（用于 diskstats 汇总，排除分区/虚拟设备防重复计数）。
+    private static func isWholeDisk(_ name: String) -> Bool {
+        for prefix in ["loop", "ram", "dm-", "sr", "fd", "zram"] where name.hasPrefix(prefix) {
+            return false
+        }
+        // nvme0n1 / mmcblk0 为整盘,其分区名含 "p<n>"（nvme0n1p1、mmcblk0p1）。
+        if name.hasPrefix("nvme") || name.hasPrefix("mmcblk") {
+            return !name.contains("p")
+        }
+        // sd/vd/xvd/hd 等：整盘无尾随数字,分区有（sda vs sda1）。
+        if let last = name.last { return !last.isNumber }
+        return false
     }
 
     /// `/proc/loadavg` → 1 分钟平均负载。

@@ -34,9 +34,11 @@ enum DemoData {
     /// 写入演示主机（含一台故障机、多种标签、覆盖 prod/staging/home）。
     static func seedHosts(into store: HostStore) throws {
         let hosts = [
-            Host(name: "web-01", address: "10.20.0.11", username: "root", tags: ["prod", "web"]),
+            Host(name: "web-01", address: "10.20.0.11", username: "root", tags: ["prod", "web"],
+                 note: "主站 Nginx 入口"),
             Host(name: "api-02", address: "10.20.0.12", username: "deploy", tags: ["prod", "api"]),
-            Host(name: "db-master", address: faultHostAddress, username: "root", tags: ["prod", "db"]),
+            Host(name: "db-master", address: faultHostAddress, username: "root", tags: ["prod", "db"],
+                 note: "生产主库，勿直接重启"),
             Host(name: "cache-01", address: "10.20.0.21", username: "deploy", tags: ["staging"]),
             Host(name: "worker-1", address: "10.20.0.31", username: "root", tags: ["staging", "batch"]),
             Host(name: "home-nas", address: "192.168.1.10", username: "admin", tags: ["home"])

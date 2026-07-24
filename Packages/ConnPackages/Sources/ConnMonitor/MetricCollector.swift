@@ -7,15 +7,34 @@ import Foundation
 /// 用 actor 而非 struct，因为它要跨调用保留每主机上次的 CPU jiffies 快照
 /// （CPU 利用率必须两次采样差分，方案 §4.3）。
 public actor MetricCollector {
+    /// 速率差分基线：累计计数 + 服务器 uptime（作时钟）。
+    private struct RateBaseline {
+        var netRx: Int64?
+        var netTx: Int64?
+        var ioRead: Int64?
+        var ioWrite: Int64?
+        var uptime: Double?
+    }
+
+    /// 本次网络/IO 速率（字节/秒）。首采或重启时相应项为 nil。
+    private struct Rates {
+        var netRx: Double?
+        var netTx: Double?
+        var ioRead: Double?
+        var ioWrite: Double?
+    }
+
     private var previousCPU: [String: CPUJiffies] = [:]
+    private var previousRate: [String: RateBaseline] = [:]
 
     public init() {}
 
-    /// 采一次。首次调用某主机时 CPU 为 nil（无可差分的上次快照），下次起有值。
+    /// 采一次。首次调用某主机时 CPU/速率为 nil（无可差分的上次快照），下次起有值。
     public func collect(host: ConnKit.Host, session: any SSHSession) async throws -> HostMetrics {
         let result = try await session.exec(CollectionScript.command)
         let parsed = MetricParser.parse(result.stdoutText)
 
+        // CPU：jiffies 自归一,无需时钟。
         var cpuUsage: Double?
         if let current = parsed.cpu {
             if let previous = previousCPU[host.id] {
@@ -23,6 +42,9 @@ public actor MetricCollector {
             }
             previousCPU[host.id] = current
         }
+
+        // 网络/IO 速率：用服务器自身 uptime 作时钟差分（免客户端时钟漂移/网络延迟）。
+        let rates = updateRates(host: host, parsed: parsed)
 
         let diskPercent = parsed.diskPercent
         let sample = MetricSample(
@@ -38,11 +60,22 @@ public actor MetricCollector {
         return HostMetrics(
             hostID: host.id,
             cpu: cpuUsage,
+            cpuCores: parsed.cpuCores,
             mem: parsed.memPercent,
+            memTotalBytes: parsed.memTotalBytes,
+            memUsedBytes: parsed.memUsedBytes,
             disk: diskPercent,
+            diskUsedBytes: parsed.diskUsedBytes,
+            diskTotalBytes: parsed.diskTotalBytes,
             load1: parsed.load1,
             netRx: parsed.netRxBytes,
             netTx: parsed.netTxBytes,
+            netRxRate: rates.netRx,
+            netTxRate: rates.netTx,
+            ioReadBytes: parsed.ioReadBytes,
+            ioWriteBytes: parsed.ioWriteBytes,
+            ioReadRate: rates.ioRead,
+            ioWriteRate: rates.ioWrite,
             processes: parsed.processes,
             uptimeSeconds: parsed.uptimeSeconds,
             severity: HealthEvaluator.severity(cpu: cpuUsage, mem: parsed.memPercent, disk: diskPercent),
@@ -50,9 +83,39 @@ public actor MetricCollector {
         )
     }
 
-    /// 清除某主机的 CPU 差分基线（断连或切主机时调用，避免拿旧基线算出跳变）。
+    /// 更新差分基线并返回本次网络/IO 速率（字节/秒）。首采或重启时相应项为 nil。
+    private func updateRates(host: ConnKit.Host, parsed: ParsedMetrics) -> Rates {
+        guard let uptime = parsed.uptimeSeconds else { return Rates() }
+        var result = Rates()
+        if let prev = previousRate[host.id], let prevUptime = prev.uptime {
+            let dt = uptime - prevUptime
+            result = Rates(
+                netRx: Self.rate(parsed.netRxBytes, prev.netRx, over: dt),
+                netTx: Self.rate(parsed.netTxBytes, prev.netTx, over: dt),
+                ioRead: Self.rate(parsed.ioReadBytes, prev.ioRead, over: dt),
+                ioWrite: Self.rate(parsed.ioWriteBytes, prev.ioWrite, over: dt)
+            )
+        }
+        previousRate[host.id] = RateBaseline(
+            netRx: parsed.netRxBytes, netTx: parsed.netTxBytes,
+            ioRead: parsed.ioReadBytes, ioWrite: parsed.ioWriteBytes,
+            uptime: uptime
+        )
+        return result
+    }
+
+    /// 累计计数差分求速率（字节/秒）。计数缺失、时间无增量或计数回绕（重启）时返回 nil。
+    private static func rate(_ current: Int64?, _ previous: Int64?, over dt: Double) -> Double? {
+        guard let current, let previous, dt > 0 else { return nil }
+        let delta = current - previous
+        guard delta >= 0 else { return nil } // 回绕/重启：宁可不显示也不显示错值
+        return Double(delta) / dt
+    }
+
+    /// 清除某主机的差分基线（断连或切主机时调用，避免拿旧基线算出跳变）。
     public func reset(hostID: String) {
         previousCPU[hostID] = nil
+        previousRate[hostID] = nil
     }
 }
 

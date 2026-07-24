@@ -7,33 +7,48 @@ import Foundation
 /// 差分，故此处只留 jiffies 快照，利用率由 `MetricCollector` 跨样本算出。
 public struct ParsedMetrics: Sendable, Equatable {
     public var cpu: CPUJiffies?
+    public var cpuCores: Int?
     public var memPercent: Double?
+    public var memTotalBytes: Double?
+    public var memUsedBytes: Double?
     public var load1: Double?
     public var diskUsedBytes: Double?
     public var diskTotalBytes: Double?
     public var netRxBytes: Int64?
     public var netTxBytes: Int64?
+    public var ioReadBytes: Int64?
+    public var ioWriteBytes: Int64?
     public var uptimeSeconds: Double?
     public var processes: [RemoteProcess]
 
     public init(
         cpu: CPUJiffies? = nil,
+        cpuCores: Int? = nil,
         memPercent: Double? = nil,
+        memTotalBytes: Double? = nil,
+        memUsedBytes: Double? = nil,
         load1: Double? = nil,
         diskUsedBytes: Double? = nil,
         diskTotalBytes: Double? = nil,
         netRxBytes: Int64? = nil,
         netTxBytes: Int64? = nil,
+        ioReadBytes: Int64? = nil,
+        ioWriteBytes: Int64? = nil,
         uptimeSeconds: Double? = nil,
         processes: [RemoteProcess] = []
     ) {
         self.cpu = cpu
+        self.cpuCores = cpuCores
         self.memPercent = memPercent
+        self.memTotalBytes = memTotalBytes
+        self.memUsedBytes = memUsedBytes
         self.load1 = load1
         self.diskUsedBytes = diskUsedBytes
         self.diskTotalBytes = diskTotalBytes
         self.netRxBytes = netRxBytes
         self.netTxBytes = netTxBytes
+        self.ioReadBytes = ioReadBytes
+        self.ioWriteBytes = ioWriteBytes
         self.uptimeSeconds = uptimeSeconds
         self.processes = processes
     }
@@ -51,16 +66,25 @@ public enum MetricParser {
     public static func parse(_ output: String) -> ParsedMetrics {
         let sections = splitSections(output)
         func section(_ key: String) -> String { sections[key] ?? "" }
+        let statSection = section(CollectionScript.Sentinel.stat)
+        let memSection = section(CollectionScript.Sentinel.mem)
         let disk = ProcParsers.parseDisk(section(CollectionScript.Sentinel.disk))
         let net = ProcParsers.parseNet(section(CollectionScript.Sentinel.net))
+        let mem = ProcParsers.parseMemInfo(memSection)
+        let io = ProcParsers.parseDiskstats(section(CollectionScript.Sentinel.io))
         return ParsedMetrics(
-            cpu: ProcParsers.parseStat(section(CollectionScript.Sentinel.stat)),
-            memPercent: ProcParsers.parseMemPercent(section(CollectionScript.Sentinel.mem)),
+            cpu: ProcParsers.parseStat(statSection),
+            cpuCores: ProcParsers.parseCoreCount(statSection),
+            memPercent: ProcParsers.parseMemPercent(memSection),
+            memTotalBytes: mem?.totalBytes,
+            memUsedBytes: mem?.usedBytes,
             load1: ProcParsers.parseLoad1(section(CollectionScript.Sentinel.load)),
             diskUsedBytes: disk?.used,
             diskTotalBytes: disk?.total,
             netRxBytes: net?.rx,
             netTxBytes: net?.tx,
+            ioReadBytes: io?.read,
+            ioWriteBytes: io?.write,
             uptimeSeconds: ProcParsers.parseUptime(section(CollectionScript.Sentinel.uptime)),
             processes: ProcessParser.parse(
                 psSection: section(CollectionScript.Sentinel.ps),
@@ -74,7 +98,8 @@ public enum MetricParser {
         let known: Set<String> = [
             CollectionScript.Sentinel.stat, CollectionScript.Sentinel.mem,
             CollectionScript.Sentinel.load, CollectionScript.Sentinel.disk,
-            CollectionScript.Sentinel.net, CollectionScript.Sentinel.uptime,
+            CollectionScript.Sentinel.net, CollectionScript.Sentinel.io,
+            CollectionScript.Sentinel.uptime,
             CollectionScript.Sentinel.ps, CollectionScript.Sentinel.top,
             CollectionScript.Sentinel.end
         ]

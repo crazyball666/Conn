@@ -49,10 +49,14 @@ public struct HealthCard: View {
         public let status: ConnHealthStatus
         /// CPU 使用率 0–100。nil 表示尚无采样。
         public let cpu: Double?
+        /// CPU 逻辑核心数。nil 表示尚无采样。
+        public let cpuCores: Int?
         public let memory: Double?
         public let disk: Double?
         /// 故障态下的一行处置提示，如「22 端口无响应」。
         public let issue: String?
+        /// 用户备注（便于记忆）。有则在卡片上显示一行。
+        public let note: String?
 
         public init(
             id: String,
@@ -60,18 +64,22 @@ public struct HealthCard: View {
             address: String,
             status: ConnHealthStatus,
             cpu: Double? = nil,
+            cpuCores: Int? = nil,
             memory: Double? = nil,
             disk: Double? = nil,
-            issue: String? = nil
+            issue: String? = nil,
+            note: String? = nil
         ) {
             self.id = id
             self.name = name
             self.address = address
             self.status = status
             self.cpu = cpu
+            self.cpuCores = cpuCores
             self.memory = memory
             self.disk = disk
             self.issue = issue
+            self.note = note
         }
     }
 
@@ -92,6 +100,9 @@ public struct HealthCard: View {
                         .font(.connSubheadline)
                         .foregroundStyle(.connMuted)
                         .padding(.top, ConnSpacing.xs)
+                }
+                if hasMeta {
+                    metaLine.padding(.top, ConnSpacing.xs)
                 }
                 if hasMetrics {
                     metricBars.padding(.top, 10)
@@ -131,6 +142,32 @@ public struct HealthCard: View {
             MiniMetricBar(label: L("内存"), value: model.memory, tint: .connInfo)
             MiniMetricBar(label: L("磁盘"), value: model.disk, tint: .connDisk)
         }
+    }
+
+    /// 核心数 + 备注：一行轻量元信息（都可缺省）。
+    private var metaLine: some View {
+        HStack(spacing: ConnSpacing.xs) {
+            if let cores = model.cpuCores {
+                Label(String(format: L("%d 核"), cores), systemImage: "cpu")
+                    .font(.connData(.caption2))
+                    .foregroundStyle(.connMuted)
+                    .labelStyle(.titleAndIcon)
+            }
+            if let note = model.note, !note.isEmpty {
+                if model.cpuCores != nil {
+                    Text("·").foregroundStyle(.connDim)
+                }
+                Text(note)
+                    .font(.connFootnote)
+                    .foregroundStyle(.connMuted)
+                    .lineLimit(1)
+            }
+            Spacer(minLength: 0)
+        }
+    }
+
+    private var hasMeta: Bool {
+        model.cpuCores != nil || (model.note.map { !$0.isEmpty } ?? false)
     }
 
     /// 故障态左侧 3pt 红条。

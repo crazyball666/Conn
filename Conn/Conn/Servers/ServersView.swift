@@ -86,7 +86,7 @@ struct ServersView: View {
         HStack(alignment: .top) {
             VStack(alignment: .leading, spacing: 2) {
                 Text(L("服务器"))
-                    .font(.connTitle)
+                    .font(.system(.title2, weight: .bold))
                     .connDisplayTracking()
                     .foregroundStyle(.connInk)
                 if !viewModel.hosts.isEmpty {

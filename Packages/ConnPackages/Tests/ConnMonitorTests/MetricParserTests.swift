@@ -27,6 +27,10 @@ struct MetricParserTests {
      face |bytes    packets errs drop fifo frame compressed multicast|bytes    packets errs drop fifo colls carrier compressed
         lo:    1000      10    0    0    0     0          0         0     1000      10    0    0    0     0       0          0
       eth0: 5000000    4000    0    0    0     0          0         0  3000000    3500    0    0    0     0       0          0
+    __CONN_IO__
+       8       0 sda 1000 0 200000 500 800 0 100000 400 0 300 900
+       8       1 sda1 500 0 50000 200 400 0 20000 100 0 100 300
+     252       0 dm-0 300 0 10000 100 200 0 5000 50 0 50 150
     __CONN_UPTIME__
     123456.78 987654.32
     __CONN_PS__
@@ -61,6 +65,17 @@ struct MetricParserTests {
         #expect(parsed.netRxBytes == 5_000_000) // 排除 lo
         #expect(parsed.netTxBytes == 3_000_000)
         #expect(parsed.uptimeSeconds == 123_456.78)
+    }
+
+    @Test("GNU：核心数 / 内存字节 / 磁盘 IO 总量")
+    func gnuExtras() {
+        let parsed = MetricParser.parse(gnuOutput)
+        #expect(parsed.cpuCores == 1) // 仅 cpu0 一行
+        #expect(parsed.memTotalBytes == 4_096_000 * 1024)
+        #expect(parsed.memUsedBytes == 2_048_000 * 1024) // total - MemAvailable
+        // sda 整盘扇区读/写 ×512；排除分区 sda1 与 dm-0
+        #expect(parsed.ioReadBytes == Int64(200_000 * 512))
+        #expect(parsed.ioWriteBytes == Int64(100_000 * 512))
     }
 
     @Test("GNU：进程按 ps 解析")

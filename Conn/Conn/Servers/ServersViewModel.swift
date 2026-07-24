@@ -125,9 +125,11 @@ final class ServersViewModel {
             address: host.displayAddress,
             status: status,
             cpu: metrics?.cpu,
+            cpuCores: metrics?.cpuCores,
             memory: metrics?.mem,
             disk: metrics?.disk,
-            issue: status == .offline ? (error ?? L("连接失败，下拉重试")) : nil
+            issue: status == .offline ? (error ?? L("连接失败，下拉重试")) : nil,
+            note: host.note
         )
     }
 

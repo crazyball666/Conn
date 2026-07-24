@@ -15,6 +15,8 @@ final class DemoMetricsEngine: @unchecked Sendable {
         var idle: Int64
         var rx: Int64
         var tx: Int64
+        var ioRead: Int64
+        var ioWrite: Int64
         var tick: Int
     }
 
@@ -28,7 +30,8 @@ final class DemoMetricsEngine: @unchecked Sendable {
 
         let fault = endpoint.host == DemoData.faultHostAddress
         var state = states[endpoint.host]
-            ?? State(total: 400_000, idle: 300_000, rx: 5_000_000, tx: 3_000_000, tick: 0)
+            ?? State(total: 400_000, idle: 300_000, rx: 5_000_000, tx: 3_000_000,
+                     ioRead: 40_000_000, ioWrite: 22_000_000, tick: 0)
         let phase = Double(abs(endpoint.host.hashValue) % 360)
         let cpu = fault ? 0.94 : clamp(0.32 + 0.22 * sin(Double(state.tick) / 6 + phase), 0.04, 0.9)
         let mem = fault ? 0.92 : clamp(0.45 + 0.18 * sin(Double(state.tick) / 9 + phase + 1), 0.2, 0.88)
@@ -39,6 +42,9 @@ final class DemoMetricsEngine: @unchecked Sendable {
         state.idle += Int64(Double(step) * (1 - cpu))
         state.rx += Int64(80_000 + 140_000 * (0.5 + 0.5 * sin(Double(state.tick) / 4 + phase)))
         state.tx += Int64(40_000 + 90_000 * (0.5 + 0.5 * sin(Double(state.tick) / 5 + phase)))
+        // IO 扇区累加（512B/扇区）：读 ~1.5MB/s、写 ~0.8MB/s 上下浮动。
+        state.ioRead += Int64(3_000 + 2_400 * (0.5 + 0.5 * sin(Double(state.tick) / 6 + phase)))
+        state.ioWrite += Int64(1_600 + 1_200 * (0.5 + 0.5 * sin(Double(state.tick) / 7 + phase)))
         state.tick += 1
         states[endpoint.host] = state
 
@@ -55,7 +61,9 @@ final class DemoMetricsEngine: @unchecked Sendable {
             sentinel.load, String(format: "%.2f %.2f %.2f 2/431 12345", load1, load1 * 0.9, load1 * 0.8),
             sentinel.disk, diskLines(usedFraction: disk),
             sentinel.net, netLines(rx: state.rx, tx: state.tx),
-            sentinel.uptime, "864000.42 3456789.10",
+            sentinel.io, diskstatsLine(read: state.ioRead, write: state.ioWrite),
+            // uptime 随 tick 递增(≈3s/次),让相邻样本可差分出网络/IO 速率。
+            sentinel.uptime, String(format: "%.2f 3456789.10", 864_000 + Double(state.tick) * 3),
             sentinel.ps, psLines(cpu: cpu, mem: mem),
             sentinel.top, "",
             sentinel.end
@@ -66,7 +74,17 @@ final class DemoMetricsEngine: @unchecked Sendable {
         let busy = max(0, total - idle)
         let user = Int64(Double(busy) * 0.7)
         let system = busy - user
-        return "cpu  \(user) 0 \(system) \(idle) 0 0 0 0 0 0"
+        // 汇总行 + 4 个逻辑核行（供核心数解析）。
+        let aggregate = "cpu  \(user) 0 \(system) \(idle) 0 0 0 0 0 0"
+        let cores = (0 ..< 4).map { index in
+            "cpu\(index) \(user / 4) 0 \(system / 4) \(idle / 4) 0 0 0 0 0 0"
+        }
+        return ([aggregate] + cores).joined(separator: "\n")
+    }
+
+    /// `/proc/diskstats` 一行（vda 整盘）：第 6 列扇区读、第 10 列扇区写。
+    private func diskstatsLine(read: Int64, write: Int64) -> String {
+        "252       0 vda 100000 0 \(read) 50000 80000 0 \(write) 40000 0 30000 90000"
     }
 
     private func memLines(usedFraction: Double) -> String {

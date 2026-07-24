@@ -1,6 +1,14 @@
 {
   "sourceLanguage" : "zh-Hans",
   "strings" : {
+    "%d 核" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "%d cores" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "%dコア" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "%d코어" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "%d 核" } }
+      }
+    },
     "服务器" : {
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Servers" } },

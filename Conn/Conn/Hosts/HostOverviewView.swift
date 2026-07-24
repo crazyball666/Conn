@@ -16,7 +16,7 @@ struct HostOverviewView: View {
             if let error = viewModel.errorText, viewModel.latest == nil {
                 ConnBanner(error, systemImage: "wifi.slash")
             }
-            systemInfo
+            metricSections
             processes
         }
         .padding(.bottom, ConnSpacing.lg)
@@ -47,17 +47,47 @@ struct HostOverviewView: View {
         }
     }
 
-    // MARK: - 系统信息
+    // MARK: - 指标分组（系统 / 网络 / 磁盘 IO）
 
-    private var systemInfo: some View {
+    private var metricSections: some View {
+        VStack(alignment: .leading, spacing: ConnSpacing.md) {
+            infoCard(rows: [
+                (L("核心数"), coresText),
+                (L("内存"), memText),
+                (L("磁盘"), diskText),
+                (L("负载（1 分钟）"), load1Text),
+                (L("运行时长"), uptimeText)
+            ])
+            labeledCard(L("网络"), rows: [
+                (L("下行速率"), rateText(latest?.netRxRate)),
+                (L("上行速率"), rateText(latest?.netTxRate)),
+                (L("下行总量"), byteText(latest?.netRx)),
+                (L("上行总量"), byteText(latest?.netTx))
+            ])
+            labeledCard(L("磁盘 IO"), rows: [
+                (L("读速率"), rateText(latest?.ioReadRate)),
+                (L("写速率"), rateText(latest?.ioWriteRate)),
+                (L("读总量"), byteText(latest?.ioReadBytes)),
+                (L("写总量"), byteText(latest?.ioWriteBytes))
+            ])
+        }
+    }
+
+    private func infoCard(rows: [(String, String)]) -> some View {
         VStack(spacing: 0) {
-            infoRow(L("负载（1 分钟）"), value: viewModel.latest?.load1.map { String(format: "%.2f", $0) } ?? "—")
-            hairline
-            infoRow(L("磁盘"), value: diskText)
-            hairline
-            infoRow(L("运行时长"), value: uptimeText)
+            ForEach(Array(rows.enumerated()), id: \.offset) { index, row in
+                if index > 0 { hairline }
+                infoRow(row.0, value: row.1)
+            }
         }
         .connSurface(cornerRadius: ConnRadius.card)
+    }
+
+    private func labeledCard(_ title: String, rows: [(String, String)]) -> some View {
+        VStack(alignment: .leading, spacing: ConnSpacing.xs) {
+            Text(title).font(.connCaption).foregroundStyle(.connMuted).connEyebrowTracking()
+            infoCard(rows: rows)
+        }
     }
 
     private func infoRow(_ label: String, value: String) -> some View {
@@ -129,13 +159,42 @@ struct HostOverviewView: View {
 
     // MARK: - 派生文本 / 绑定
 
+    private var latest: HostMetrics? { viewModel.latest }
+
+    private var coresText: String {
+        latest?.cpuCores.map { String(format: L("%d 核"), $0) } ?? "—"
+    }
+
+    private var memText: String {
+        pairText(used: latest?.memUsedBytes, total: latest?.memTotalBytes)
+    }
+
     private var diskText: String {
-        guard let sample = viewModel.latest?.sample, sample.diskTotal > 0 else { return "—" }
+        pairText(used: latest?.diskUsedBytes, total: latest?.diskTotalBytes)
+    }
+
+    private var load1Text: String {
+        latest?.load1.map { String(format: "%.2f", $0) } ?? "—"
+    }
+
+    /// 「已用 / 总量」格式；任一缺失显示「—」。
+    private func pairText(used: Double?, total: Double?) -> String {
+        guard let used, let total, total > 0 else { return "—" }
+        return "\(byteString(used)) / \(byteString(total))"
+    }
+
+    private func byteText(_ bytes: Int64?) -> String {
+        bytes.map { byteString(Double($0)) } ?? "—"
+    }
+
+    private func rateText(_ bytesPerSecond: Double?) -> String {
+        bytesPerSecond.map { byteString($0) + "/s" } ?? "—"
+    }
+
+    private func byteString(_ bytes: Double) -> String {
         let formatter = ByteCountFormatter()
         formatter.countStyle = .binary
-        let used = formatter.string(fromByteCount: Int64(sample.diskUsed))
-        let total = formatter.string(fromByteCount: Int64(sample.diskTotal))
-        return "\(used) / \(total)"
+        return formatter.string(fromByteCount: Int64(max(0, bytes)))
     }
 
     private var uptimeText: String {
