@@ -125,12 +125,27 @@ final class ServersViewModel {
             address: host.displayAddress,
             status: status,
             cpu: metrics?.cpu,
-            cpuCores: metrics?.cpuCores,
             memory: metrics?.mem,
             disk: metrics?.disk,
             issue: status == .offline ? (error ?? L("连接失败，下拉重试")) : nil,
-            note: host.note
+            note: host.note,
+            stats: stats(for: metrics)
         )
+    }
+
+    /// 卡片二级指标网格（已格式化）。无采样时为空——只显示标题/状态/迷你条。
+    private func stats(for metrics: HostMetrics?) -> [HealthCard.Stat] {
+        guard let metrics else { return [] }
+        return [
+            .init(L("核心"), MetricFormat.cores(metrics.cpuCores)),
+            .init(L("运行"), MetricFormat.uptime(metrics.uptimeSeconds)),
+            .init(L("内存"), MetricFormat.pair(used: metrics.memUsedBytes, total: metrics.memTotalBytes)),
+            .init(L("磁盘"), MetricFormat.pair(used: metrics.diskUsedBytes, total: metrics.diskTotalBytes)),
+            .init(L("网络 ↓"), MetricFormat.rateAndTotal(rate: metrics.netRxRate, total: metrics.netRx)),
+            .init(L("网络 ↑"), MetricFormat.rateAndTotal(rate: metrics.netTxRate, total: metrics.netTx)),
+            .init(L("IO 读"), MetricFormat.rateAndTotal(rate: metrics.ioReadRate, total: metrics.ioReadBytes)),
+            .init(L("IO 写"), MetricFormat.rateAndTotal(rate: metrics.ioWriteRate, total: metrics.ioWriteBytes))
+        ]
     }
 
     /// 实时采集优先；无采集但有错误 → 离线；两者皆无 → 未知（首采尚未回来）。

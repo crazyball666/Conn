@@ -52,23 +52,23 @@ struct HostOverviewView: View {
     private var metricSections: some View {
         VStack(alignment: .leading, spacing: ConnSpacing.md) {
             infoCard(rows: [
-                (L("核心数"), coresText),
-                (L("内存"), memText),
-                (L("磁盘"), diskText),
-                (L("负载（1 分钟）"), load1Text),
-                (L("运行时长"), uptimeText)
+                (L("核心数"), MetricFormat.cores(latest?.cpuCores)),
+                (L("内存"), MetricFormat.pair(used: latest?.memUsedBytes, total: latest?.memTotalBytes)),
+                (L("磁盘"), MetricFormat.pair(used: latest?.diskUsedBytes, total: latest?.diskTotalBytes)),
+                (L("负载（1 分钟）"), MetricFormat.load(latest?.load1)),
+                (L("运行时长"), MetricFormat.uptime(latest?.uptimeSeconds))
             ])
             labeledCard(L("网络"), rows: [
-                (L("下行速率"), rateText(latest?.netRxRate)),
-                (L("上行速率"), rateText(latest?.netTxRate)),
-                (L("下行总量"), byteText(latest?.netRx)),
-                (L("上行总量"), byteText(latest?.netTx))
+                (L("下行速率"), MetricFormat.rate(latest?.netRxRate)),
+                (L("上行速率"), MetricFormat.rate(latest?.netTxRate)),
+                (L("下行总量"), MetricFormat.bytes(latest?.netRx)),
+                (L("上行总量"), MetricFormat.bytes(latest?.netTx))
             ])
             labeledCard(L("磁盘 IO"), rows: [
-                (L("读速率"), rateText(latest?.ioReadRate)),
-                (L("写速率"), rateText(latest?.ioWriteRate)),
-                (L("读总量"), byteText(latest?.ioReadBytes)),
-                (L("写总量"), byteText(latest?.ioWriteBytes))
+                (L("读速率"), MetricFormat.rate(latest?.ioReadRate)),
+                (L("写速率"), MetricFormat.rate(latest?.ioWriteRate)),
+                (L("读总量"), MetricFormat.bytes(latest?.ioReadBytes)),
+                (L("写总量"), MetricFormat.bytes(latest?.ioWriteBytes))
             ])
         }
     }
@@ -160,49 +160,6 @@ struct HostOverviewView: View {
     // MARK: - 派生文本 / 绑定
 
     private var latest: HostMetrics? { viewModel.latest }
-
-    private var coresText: String {
-        latest?.cpuCores.map { String(format: L("%d 核"), $0) } ?? "—"
-    }
-
-    private var memText: String {
-        pairText(used: latest?.memUsedBytes, total: latest?.memTotalBytes)
-    }
-
-    private var diskText: String {
-        pairText(used: latest?.diskUsedBytes, total: latest?.diskTotalBytes)
-    }
-
-    private var load1Text: String {
-        latest?.load1.map { String(format: "%.2f", $0) } ?? "—"
-    }
-
-    /// 「已用 / 总量」格式；任一缺失显示「—」。
-    private func pairText(used: Double?, total: Double?) -> String {
-        guard let used, let total, total > 0 else { return "—" }
-        return "\(byteString(used)) / \(byteString(total))"
-    }
-
-    private func byteText(_ bytes: Int64?) -> String {
-        bytes.map { byteString(Double($0)) } ?? "—"
-    }
-
-    private func rateText(_ bytesPerSecond: Double?) -> String {
-        bytesPerSecond.map { byteString($0) + "/s" } ?? "—"
-    }
-
-    private func byteString(_ bytes: Double) -> String {
-        let formatter = ByteCountFormatter()
-        formatter.countStyle = .binary
-        return formatter.string(fromByteCount: Int64(max(0, bytes)))
-    }
-
-    private var uptimeText: String {
-        guard let seconds = viewModel.latest?.uptimeSeconds else { return "—" }
-        let days = Int(seconds) / 86400
-        let hours = (Int(seconds) % 86400) / 3600
-        return days > 0 ? String(format: L("%d 天 %d 小时"), days, hours) : String(format: L("%d 小时"), hours)
-    }
 
     private var killPrompt: String {
         guard let target = viewModel.killTarget else { return "" }

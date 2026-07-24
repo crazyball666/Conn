@@ -33,15 +33,28 @@ public enum ConnHealthStatus: Sendable, CaseIterable {
     }
 }
 
-/// 主机健康卡（仪表盘 S1 的主角）。
+/// 主机健康卡（服务器页 S1 的主角）。
 ///
-/// 设计规范 §5：Surface 底 + 16pt 连续圆角 + 顶边微光；左上主机名 + 地址（mono），
-/// 右上状态点 + 文字；下方 CPU/内存/磁盘三迷你条，**各用指标专属色**；
+/// 设计规范 §5：Surface 底 + 16pt 连续圆角 + 顶边微光。**标题为备注优先**
+/// （用户的记忆锚点，如「hk」），无备注才用名称/地址；地址退居 mono 副标题。
+/// 下方 CPU/内存/磁盘三迷你条 + 二列指标网格（核数/运行/内存/磁盘/网络/IO）。
 /// 故障态整卡左侧 3pt 红色描边条。
 ///
-/// 无障碍（设计规范 §7）：整卡聚合朗读为「web-01，正常，CPU 32%，内存 61%，磁盘 48%」。
+/// 展示口径的字节/速率格式化在 Feature 层完成后以字符串传入（`stats`），
+/// 保持设计系统无格式化/领域逻辑。
 public struct HealthCard: View {
-    /// 卡片所需的展示数据。由 Feature 层从 `Host` + 最新 `MetricSample` 组装。
+    /// 卡片二级指标网格里的一格：标签 + 已格式化的值。
+    public struct Stat: Identifiable, Sendable, Equatable {
+        public let label: String
+        public let value: String
+        public var id: String { label }
+        public init(_ label: String, _ value: String) {
+            self.label = label
+            self.value = value
+        }
+    }
+
+    /// 卡片所需的展示数据。由 Feature 层从 `Host` + 最新 `HostMetrics` 组装。
     public struct Model: Identifiable, Sendable, Equatable {
         public let id: String
         public let name: String
@@ -49,14 +62,14 @@ public struct HealthCard: View {
         public let status: ConnHealthStatus
         /// CPU 使用率 0–100。nil 表示尚无采样。
         public let cpu: Double?
-        /// CPU 逻辑核心数。nil 表示尚无采样。
-        public let cpuCores: Int?
         public let memory: Double?
         public let disk: Double?
         /// 故障态下的一行处置提示，如「22 端口无响应」。
         public let issue: String?
-        /// 用户备注（便于记忆）。有则在卡片上显示一行。
+        /// 用户备注（便于记忆）。有则作为卡片主标题优先显示。
         public let note: String?
+        /// 二级指标网格（已格式化）。为空则不显示网格。
+        public let stats: [Stat]
 
         public init(
             id: String,
@@ -64,22 +77,28 @@ public struct HealthCard: View {
             address: String,
             status: ConnHealthStatus,
             cpu: Double? = nil,
-            cpuCores: Int? = nil,
             memory: Double? = nil,
             disk: Double? = nil,
             issue: String? = nil,
-            note: String? = nil
+            note: String? = nil,
+            stats: [Stat] = []
         ) {
             self.id = id
             self.name = name
             self.address = address
             self.status = status
             self.cpu = cpu
-            self.cpuCores = cpuCores
             self.memory = memory
             self.disk = disk
             self.issue = issue
             self.note = note
+            self.stats = stats
+        }
+
+        /// 卡片主标题：备注优先（用户的记忆锚点），否则用名称/地址。
+        var title: String {
+            if let note, !note.trimmingCharacters(in: .whitespaces).isEmpty { return note }
+            return name
         }
     }
 
@@ -101,11 +120,13 @@ public struct HealthCard: View {
                         .foregroundStyle(.connMuted)
                         .padding(.top, ConnSpacing.xs)
                 }
-                if hasMeta {
-                    metaLine.padding(.top, ConnSpacing.xs)
-                }
                 if hasMetrics {
                     metricBars.padding(.top, 10)
+                }
+                if !model.stats.isEmpty {
+                    Rectangle().fill(Color.connLine).frame(height: 0.5)
+                        .padding(.top, ConnSpacing.sm)
+                    statGrid.padding(.top, ConnSpacing.sm)
                 }
             }
             .padding(ConnSpacing.cardPadding)
@@ -124,12 +145,14 @@ public struct HealthCard: View {
     private var header: some View {
         HStack(alignment: .top) {
             VStack(alignment: .leading, spacing: 2) {
-                Text(model.name)
+                Text(model.title)
                     .font(.connHeadline)
                     .foregroundStyle(.connInk)
+                    .lineLimit(1)
                 Text(model.address)
                     .font(.connData())
                     .foregroundStyle(.connMuted)
+                    .lineLimit(1)
             }
             Spacer(minLength: ConnSpacing.xs)
             StatusPill(model.status.label, semantic: model.status.pillSemantic)
@@ -144,30 +167,31 @@ public struct HealthCard: View {
         }
     }
 
-    /// 核心数 + 备注：一行轻量元信息（都可缺省）。
-    private var metaLine: some View {
-        HStack(spacing: ConnSpacing.xs) {
-            if let cores = model.cpuCores {
-                Label(String(format: L("%d 核"), cores), systemImage: "cpu")
-                    .font(.connData(.caption2))
-                    .foregroundStyle(.connMuted)
-                    .labelStyle(.titleAndIcon)
-            }
-            if let note = model.note, !note.isEmpty {
-                if model.cpuCores != nil {
-                    Text("·").foregroundStyle(.connDim)
+    /// 二级指标网格：两列，每格标签在上、值在下（mono、等宽数字）。
+    private var statGrid: some View {
+        LazyVGrid(
+            columns: [
+                GridItem(.flexible(), spacing: ConnSpacing.sm, alignment: .leading),
+                GridItem(.flexible(), spacing: ConnSpacing.sm, alignment: .leading)
+            ],
+            alignment: .leading,
+            spacing: ConnSpacing.sm
+        ) {
+            ForEach(model.stats) { stat in
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(stat.label)
+                        .font(.connData(.caption2))
+                        .foregroundStyle(.connMuted)
+                    Text(stat.value)
+                        .font(.connData(.footnote))
+                        .connTabularNumbers()
+                        .foregroundStyle(.connInk)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.75)
                 }
-                Text(note)
-                    .font(.connFootnote)
-                    .foregroundStyle(.connMuted)
-                    .lineLimit(1)
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
-            Spacer(minLength: 0)
         }
-    }
-
-    private var hasMeta: Bool {
-        model.cpuCores != nil || (model.note.map { !$0.isEmpty } ?? false)
     }
 
     /// 故障态左侧 3pt 红条。
@@ -191,7 +215,7 @@ public struct HealthCard: View {
     }
 
     private var accessibilityDescription: String {
-        var parts = ["\(model.name)，\(model.status.label)"]
+        var parts = ["\(model.title)，\(model.status.label)"]
         if let cpu = model.cpu {
             parts.append("CPU \(Int(cpu))%")
         }
@@ -269,21 +293,20 @@ struct MiniMetricBar: View {
 }
 
 #Preview("HealthCard · 深色") {
-    VStack(spacing: ConnSpacing.stackGap) {
+    let demoStats: [HealthCard.Stat] = [
+        .init("核心", "2 核"), .init("运行", "10 天 2 小时"),
+        .init("内存", "3.0 / 8.0 GB"), .init("磁盘", "27 / 40 GB"),
+        .init("网络 ↓", "60 KB/s · 5.5 MB"), .init("网络 ↑", "36 KB/s · 3.3 MB"),
+        .init("IO 读", "835 KB/s · 19 GB"), .init("IO 写", "439 KB/s · 8 GB")
+    ]
+    return VStack(spacing: ConnSpacing.stackGap) {
         HealthCard(.init(
-            id: "1", name: "web-01", address: "root@10.0.0.1",
-            status: .ok, cpu: 32, memory: 61, disk: 48
-        )) {}
-        HealthCard(.init(
-            id: "2", name: "db-master", address: "root@10.0.0.2",
-            status: .warn, cpu: 94, memory: 71, disk: 78
+            id: "1", name: "38.147.173.228", address: "root@38.147.173.228:62256",
+            status: .ok, cpu: 10, memory: 38, disk: 68, note: "hk", stats: demoStats
         )) {}
         HealthCard(.init(
             id: "3", name: "cache-01", address: "root@10.0.0.3",
             status: .crit, issue: "连接超时：22 端口无响应"
-        )) {}
-        HealthCard(.init(
-            id: "4", name: "新主机", address: "root@10.0.0.4", status: .unknown
         )) {}
     }
     .padding(ConnSpacing.page)
@@ -293,16 +316,10 @@ struct MiniMetricBar: View {
 }
 
 #Preview("HealthCard · 浅色") {
-    VStack(spacing: ConnSpacing.stackGap) {
-        HealthCard(.init(
-            id: "1", name: "web-01", address: "root@10.0.0.1",
-            status: .ok, cpu: 32, memory: 61, disk: 48
-        )) {}
-        HealthCard(.init(
-            id: "3", name: "cache-01", address: "root@10.0.0.3",
-            status: .crit, issue: "连接超时：22 端口无响应"
-        )) {}
-    }
+    HealthCard(.init(
+        id: "1", name: "web-01", address: "root@10.0.0.1",
+        status: .ok, cpu: 32, memory: 61, disk: 48, note: "主站入口"
+    )) {}
     .padding(ConnSpacing.page)
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
     .background(Color.connBg)
