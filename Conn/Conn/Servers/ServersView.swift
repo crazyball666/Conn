@@ -31,12 +31,10 @@ struct ServersView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
-                header
                 if viewModel.hosts.isEmpty {
                     emptyState
                 } else {
-                    summaryPills
-                    searchBar
+                    searchRow
                     if !viewModel.allTags.isEmpty {
                         tagFilter
                     }
@@ -82,60 +80,30 @@ struct ServersView: View {
 
     // MARK: - 区块
 
-    private var header: some View {
-        HStack(alignment: .top) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(L("服务器"))
-                    .font(.system(.title2, weight: .bold))
-                    .connDisplayTracking()
+    /// 搜索框 + 添加按钮同排（页面已无大标题，搜索即页首）。
+    private var searchRow: some View {
+        HStack(spacing: ConnSpacing.xs) {
+            HStack(spacing: ConnSpacing.xs) {
+                Image(systemName: "magnifyingglass").foregroundStyle(.connMuted)
+                TextField(L("搜索主机名或地址"), text: $viewModel.searchText)
+                    .font(.connSubheadline)
                     .foregroundStyle(.connInk)
-                if !viewModel.hosts.isEmpty {
-                    Text(viewModel.lastScanText)
-                        .font(.connSubheadline)
-                        .foregroundStyle(.connMuted)
-                }
+                    .autocorrectionDisabled()
+                    .textInputAutocapitalization(.never)
             }
-            Spacer()
+            .padding(.horizontal, ConnSpacing.sm)
+            .padding(.vertical, 10)
+            .background(Color.connSurface, in: .rect(cornerRadius: ConnRadius.control, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: ConnRadius.control, style: .continuous)
+                    .strokeBorder(Color.connLine, lineWidth: 1)
+            )
             IconChipButton("plus", tint: .accent, accessibilityLabel: L("添加主机")) {
                 startAdding()
             }
         }
         .padding(.horizontal, ConnSpacing.page)
-        .padding(.top, ConnSpacing.xs)
-        .padding(.bottom, ConnSpacing.sm)
-    }
-
-    private var summaryPills: some View {
-        HStack(spacing: ConnSpacing.xs) {
-            StatusPill(String(format: L("%d 台主机"), viewModel.totalCount), semantic: .accent, showsSymbol: false)
-            if viewModel.abnormalCount > 0 {
-                StatusPill(String(format: L("%d 台异常"), viewModel.abnormalCount), semantic: .crit)
-            } else {
-                StatusPill(L("全部正常"), semantic: .good)
-            }
-            Spacer(minLength: 0)
-        }
-        .padding(.horizontal, ConnSpacing.page)
-        .padding(.bottom, ConnSpacing.sm)
-    }
-
-    private var searchBar: some View {
-        HStack(spacing: ConnSpacing.xs) {
-            Image(systemName: "magnifyingglass").foregroundStyle(.connMuted)
-            TextField(L("搜索主机名或地址"), text: $viewModel.searchText)
-                .font(.connSubheadline)
-                .foregroundStyle(.connInk)
-                .autocorrectionDisabled()
-                .textInputAutocapitalization(.never)
-        }
-        .padding(.horizontal, ConnSpacing.sm)
-        .padding(.vertical, 10)
-        .background(Color.connSurface, in: .rect(cornerRadius: ConnRadius.control, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: ConnRadius.control, style: .continuous)
-                .strokeBorder(Color.connLine, lineWidth: 1)
-        )
-        .padding(.horizontal, ConnSpacing.page)
+        .padding(.top, ConnSpacing.sm)
         .padding(.bottom, ConnSpacing.sm)
     }
 

@@ -34,9 +34,6 @@ struct TerminalCenterView: View {
 
     private var header: some View {
         HStack {
-            Text(L("终端"))
-                .font(.connTitle)
-                .foregroundStyle(.connInk)
             Spacer()
             IconChipButton("plus", tint: .accent, accessibilityLabel: L("新会话")) {
                 showHostPicker = true

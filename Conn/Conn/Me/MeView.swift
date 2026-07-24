@@ -11,13 +11,6 @@ struct MeView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: ConnSpacing.stackGap) {
-                Text(L("我的"))
-                    .font(.connTitle)
-                    .foregroundStyle(.connInk)
-                    .padding(.horizontal, ConnSpacing.page)
-                    .padding(.top, ConnSpacing.xs)
-                    .padding(.bottom, ConnSpacing.sm)
-
                 section(L("语言")) {
                     languageRow
                 }
@@ -35,6 +28,7 @@ struct MeView: View {
 
                 footer
             }
+            .padding(.top, ConnSpacing.sm)
             .padding(.bottom, ConnSpacing.lg)
         }
         .scrollBounceBehavior(.basedOnSize)

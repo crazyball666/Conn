@@ -49,7 +49,6 @@ struct SnippetsView: View {
 
     private var header: some View {
         HStack(alignment: .center) {
-            Text(L("命令")).font(.connTitle).foregroundStyle(.connInk)
             Spacer()
             NavigationLink {
                 RunHistoryView(dependencies: dependencies)
