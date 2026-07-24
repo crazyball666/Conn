@@ -75,7 +75,6 @@ struct ServersView: View {
         }
         .navigationDestination(item: $selectedHost) { host in
             HostDetailView(host: host, dependencies: dependencies)
-                .toolbar(.hidden, for: .tabBar)
         }
     }
 

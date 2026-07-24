@@ -17,17 +17,21 @@ struct RootTabView: View {
         self.dependencies = dependencies
     }
 
-    /// 系统原生 `TabView`——iOS 26 自动带液态玻璃底栏，深浅色随系统。
+    /// 单一 `NavigationStack` 包裹整个 `TabView`——push 子页时**整块界面（含底栏）
+    /// 作为一层被推走**，而不是把底栏当独立层去隐藏（那会导致返回动画结束后底栏才
+    /// 迟迟出现）。系统原生底栏：iOS 26 液态玻璃、深浅色随系统。
     ///
-    /// 每个 Tab 各包一层 `NavigationStack`（push 导航前提；根内容自绘标题故隐藏
-    /// 系统 nav bar）。子页面用 `.toolbar(.hidden, for: .tabBar)` 隐藏底栏——
-    /// 底栏只在各 Tab 首页出现（见各 push 目的地）。
+    /// 各 Tab 首页自绘标题，故在根层隐藏系统 nav bar；push 出去的子页各自带回退
+    /// nav bar。子页的 navigationDestination/NavigationLink 就近挂到这唯一的外层栈。
     var body: some View {
-        TabView(selection: $selection) {
-            tab(.servers) { ServersView(dependencies: dependencies) }
-            tab(.terminal) { TerminalCenterView(store: terminalStore, dependencies: dependencies) }
-            tab(.commands) { SnippetsView(dependencies: dependencies) }
-            tab(.me) { MeView(dependencies: dependencies) }
+        NavigationStack {
+            TabView(selection: $selection) {
+                tab(.servers) { ServersView(dependencies: dependencies) }
+                tab(.terminal) { TerminalCenterView(store: terminalStore, dependencies: dependencies) }
+                tab(.commands) { SnippetsView(dependencies: dependencies) }
+                tab(.me) { MeView(dependencies: dependencies) }
+            }
+            .toolbar(.hidden, for: .navigationBar)
         }
     }
 
@@ -35,12 +39,9 @@ struct RootTabView: View {
         _ tab: ConnDock.Tab,
         @ViewBuilder content: () -> some View
     ) -> some View {
-        NavigationStack {
-            content()
-                .toolbar(.hidden, for: .navigationBar)
-        }
-        .tabItem { Label(L(tab.title), systemImage: tab.systemImage) }
-        .tag(tab)
+        content()
+            .tabItem { Label(L(tab.title), systemImage: tab.systemImage) }
+            .tag(tab)
     }
 }
 

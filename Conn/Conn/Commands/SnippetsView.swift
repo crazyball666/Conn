@@ -52,7 +52,6 @@ struct SnippetsView: View {
             Spacer()
             NavigationLink {
                 RunHistoryView(dependencies: dependencies)
-                    .toolbar(.hidden, for: .tabBar)
             } label: {
                 Image(systemName: "clock.arrow.circlepath").font(.system(size: 18)).foregroundStyle(.connMuted)
             }

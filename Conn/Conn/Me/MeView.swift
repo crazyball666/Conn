@@ -76,7 +76,7 @@ struct MeView: View {
         tint: IconChip.Tint,
         @ViewBuilder destination: () -> some View
     ) -> some View {
-        NavigationLink(destination: destination().toolbar(.hidden, for: .tabBar)) {
+        NavigationLink(destination: destination()) {
             ConnListRow(
                 title: title,
                 leading: { IconChip(systemName, tint: tint) },
