@@ -6,16 +6,15 @@ import SwiftUI
 /// 选中项 accent 着色。原型受 HTML 限制未实现毛玻璃，此处按规范用
 /// `.ultraThinMaterial` 落地（冲突台账 C31）。
 public struct ConnDock: View {
-    /// 五个根 Tab（信息架构 §5.0）。
+    /// 四个根 Tab（信息架构 §5.0；「仪表盘 + 主机」已合并为「服务器」）。
     public enum Tab: String, CaseIterable, Identifiable, Sendable {
-        case dashboard, hosts, terminal, commands, me
+        case servers, terminal, commands, me
 
         public var id: String { rawValue }
 
         public var title: String {
             switch self {
-            case .dashboard: "仪表盘"
-            case .hosts: "主机"
+            case .servers: "服务器"
             case .terminal: "终端"
             case .commands: "命令"
             case .me: "我的"
@@ -24,8 +23,7 @@ public struct ConnDock: View {
 
         public var systemImage: String {
             switch self {
-            case .dashboard: "gauge.with.dots.needle.33percent"
-            case .hosts: "server.rack"
+            case .servers: "server.rack"
             case .terminal: "terminal"
             case .commands: "command"
             case .me: "person.crop.circle"
@@ -105,7 +103,7 @@ public struct ConnDock: View {
 }
 
 #Preview("ConnDock · 深色") {
-    @Previewable @State var selection: ConnDock.Tab = .dashboard
+    @Previewable @State var selection: ConnDock.Tab = .servers
     return ZStack(alignment: .bottom) {
         Color.connBg.ignoresSafeArea()
         ConnDock(selection: $selection)
@@ -114,7 +112,7 @@ public struct ConnDock: View {
 }
 
 #Preview("ConnDock · 浅色") {
-    @Previewable @State var selection: ConnDock.Tab = .hosts
+    @Previewable @State var selection: ConnDock.Tab = .terminal
     return ZStack(alignment: .bottom) {
         Color.connBg.ignoresSafeArea()
         ConnDock(selection: $selection)

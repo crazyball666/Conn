@@ -8,7 +8,7 @@ import SwiftUI
 /// 设计规范 §4：5 Tab（仪表盘/主机/终端/命令/我的）。用自绘 `ConnDock` 而非
 /// 系统 `TabView`，因为原型的 Dock 是悬浮圆角样式，系统 TabBar 无法做到。
 struct RootTabView: View {
-    @State private var selection: ConnDock.Tab = .dashboard
+    @State private var selection: ConnDock.Tab = .servers
     /// 终端会话 store 提到根层，切走终端 Tab 时会话仍存活（后台保持）。
     @State private var terminalStore = TerminalSessionStore()
     private let dependencies: AppDependencies
@@ -45,10 +45,8 @@ struct RootTabView: View {
     @ViewBuilder
     private var tabRoot: some View {
         switch selection {
-        case .dashboard:
-            DashboardView(dependencies: dependencies) { selection = .hosts }
-        case .hosts:
-            HostListView(dependencies: dependencies)
+        case .servers:
+            ServersView(dependencies: dependencies)
         case .terminal:
             TerminalCenterView(store: terminalStore, dependencies: dependencies)
         case .commands:

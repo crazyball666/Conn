@@ -1,6 +1,14 @@
 {
   "sourceLanguage" : "zh-Hans",
   "strings" : {
+    "服务器" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Servers" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "サーバー" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "서버" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "伺服器" } }
+      }
+    },
     "仪表盘" : {
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Dashboard" } },

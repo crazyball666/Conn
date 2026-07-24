@@ -2,7 +2,6 @@ import ConnKit
 import ConnUI
 import SwiftUI
 
-/// 主机列表（原型 S2）：连接管理入口。
 /// 主机表单的呈现请求：新增（editingHostID == nil）或编辑一台已有主机。
 struct HostFormRequest: Identifiable {
     let id = UUID()
@@ -10,17 +9,22 @@ struct HostFormRequest: Identifiable {
     let editingHostID: String?
 }
 
-struct HostListView: View {
-    @State private var viewModel: HostListViewModel
+/// 「服务器」页：原「仪表盘 S1」+「主机 S2」合并为一屏。
+///
+/// PRD「观测先于操作」：健康视图为主——状态 + CPU/内存/磁盘 指标卡、故障置顶；
+/// 同页直接搜索 / 标签筛选 / 添加 / 编辑 / 删除，无需在两个 Tab 间跳转。
+struct ServersView: View {
+    @State private var viewModel: ServersViewModel
+    @State private var selectedHost: Host?
     @State private var formRequest: HostFormRequest?
     @State private var pendingDelete: Host?
     private let dependencies: AppDependencies
 
     init(dependencies: AppDependencies) {
         self.dependencies = dependencies
-        _viewModel = State(initialValue: HostListViewModel(
+        _viewModel = State(initialValue: ServersViewModel(
             hostStore: dependencies.hostRepository,
-            groupStore: dependencies.groupRepository
+            monitor: dependencies.monitor
         ))
     }
 
@@ -31,6 +35,7 @@ struct HostListView: View {
                 if viewModel.hosts.isEmpty {
                     emptyState
                 } else {
+                    summaryPills
                     searchBar
                     if !viewModel.allTags.isEmpty {
                         tagFilter
@@ -38,13 +43,15 @@ struct HostListView: View {
                     if viewModel.isAtFreeLimit {
                         limitBanner
                     }
-                    hostSections
+                    cards
                 }
             }
         }
         .scrollBounceBehavior(.basedOnSize)
         .background(Color.connBg.ignoresSafeArea())
-        .task { viewModel.load() }
+        .refreshable { await viewModel.refresh() }
+        .onAppear { viewModel.appear() }
+        .onDisappear { viewModel.disappear() }
         .sheet(item: $formRequest) { request in
             HostFormView(
                 dependencies: dependencies,
@@ -68,7 +75,7 @@ struct HostListView: View {
         } message: { host in
             Text(String(format: L("「%@」将从列表中移除，可随时重新添加（不影响服务器本身）。"), host.name))
         }
-        .navigationDestination(for: Host.self) { host in
+        .navigationDestination(item: $selectedHost) { host in
             HostDetailView(host: host, dependencies: dependencies)
         }
     }
@@ -76,10 +83,18 @@ struct HostListView: View {
     // MARK: - 区块
 
     private var header: some View {
-        HStack(alignment: .center) {
-            Text(L("主机"))
-                .font(.connTitle)
-                .foregroundStyle(.connInk)
+        HStack(alignment: .top) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(L("服务器"))
+                    .font(.connTitle)
+                    .connDisplayTracking()
+                    .foregroundStyle(.connInk)
+                if !viewModel.hosts.isEmpty {
+                    Text(viewModel.lastScanText)
+                        .font(.connSubheadline)
+                        .foregroundStyle(.connMuted)
+                }
+            }
             Spacer()
             IconChipButton("plus", tint: .accent, accessibilityLabel: L("添加主机")) {
                 startAdding()
@@ -87,6 +102,20 @@ struct HostListView: View {
         }
         .padding(.horizontal, ConnSpacing.page)
         .padding(.top, ConnSpacing.xs)
+        .padding(.bottom, ConnSpacing.sm)
+    }
+
+    private var summaryPills: some View {
+        HStack(spacing: ConnSpacing.xs) {
+            StatusPill(String(format: L("%d 台主机"), viewModel.totalCount), semantic: .accent, showsSymbol: false)
+            if viewModel.abnormalCount > 0 {
+                StatusPill(String(format: L("%d 台异常"), viewModel.abnormalCount), semantic: .crit)
+            } else {
+                StatusPill(L("全部正常"), semantic: .good)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, ConnSpacing.page)
         .padding(.bottom, ConnSpacing.sm)
     }
 
@@ -159,46 +188,31 @@ struct HostListView: View {
         .padding(.bottom, ConnSpacing.sm)
     }
 
-    private var hostSections: some View {
-        LazyVStack(alignment: .leading, spacing: ConnSpacing.md) {
-            ForEach(viewModel.groupedHosts, id: \.group) { section in
-                VStack(alignment: .leading, spacing: ConnSpacing.xs) {
-                    Text(section.group)
-                        .font(.connCaption)
-                        .foregroundStyle(.connMuted)
-                        .connEyebrowTracking()
-                        .padding(.horizontal, ConnSpacing.page)
-                    ForEach(section.hosts) { host in
-                        hostRow(host)
+    private var cards: some View {
+        LazyVStack(spacing: ConnSpacing.stackGap) {
+            ForEach(viewModel.cards) { card in
+                HealthCard(card) {
+                    selectedHost = viewModel.host(forID: card.id)
+                }
+                .contextMenu {
+                    Button {
+                        if let host = viewModel.host(forID: card.id) { startEditing(host) }
+                    } label: {
+                        Label(L("编辑"), systemImage: "pencil")
+                    }
+                    Button(role: .destructive) {
+                        pendingDelete = viewModel.host(forID: card.id)
+                    } label: {
+                        Label(L("删除"), systemImage: "trash")
                     }
                 }
+                .transition(.move(edge: .top).combined(with: .opacity))
             }
         }
-        .padding(.bottom, ConnSpacing.lg)
-    }
-
-    private func hostRow(_ host: Host) -> some View {
-        NavigationLink(value: host) {
-            ConnListRow(
-                title: host.name,
-                subtitle: host.displayAddress,
-                tags: host.tags.map { ConnRowTag($0, kind: $0.lowercased() == "prod" ? .danger : .neutral) },
-                leading: { ConnStatusDot(viewModel.presentationStatus(host)) },
-                trailing: { ConnChevron() }
-            )
-        }
-        .buttonStyle(ConnPressStyle())
         .padding(.horizontal, ConnSpacing.page)
-        // 长按呼出编辑/删除。注意：`.swipeActions` 只在 List 内生效,此处是
-        // ScrollView + LazyVStack,故用 contextMenu（删除走强确认对话框）。
-        .contextMenu {
-            Button { startEditing(host) } label: {
-                Label(L("编辑"), systemImage: "pencil")
-            }
-            Button(role: .destructive) { pendingDelete = host } label: {
-                Label(L("删除"), systemImage: "trash")
-            }
-        }
+        .padding(.bottom, ConnSpacing.lg)
+        // 故障置顶导致卡片重排时平滑滑动而非瞬跳；新卡片淡入。
+        .animation(.spring(response: 0.5, dampingFraction: 0.86), value: viewModel.cards)
     }
 
     private var emptyState: some View {
