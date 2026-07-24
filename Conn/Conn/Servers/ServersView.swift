@@ -18,6 +18,7 @@ struct ServersView: View {
     @State private var selectedHost: Host?
     @State private var formRequest: HostFormRequest?
     @State private var pendingDelete: Host?
+    @Environment(SettingsStore.self) private var settings
     private let dependencies: AppDependencies
 
     init(dependencies: AppDependencies) {
@@ -48,7 +49,7 @@ struct ServersView: View {
         .scrollBounceBehavior(.basedOnSize)
         .background(Color.connBg.ignoresSafeArea())
         .refreshable { await viewModel.refresh() }
-        .onAppear { viewModel.appear() }
+        .onAppear { viewModel.appear(interval: settings.refreshInterval.duration) }
         .onDisappear { viewModel.disappear() }
         .sheet(item: $formRequest) { request in
             HostFormView(

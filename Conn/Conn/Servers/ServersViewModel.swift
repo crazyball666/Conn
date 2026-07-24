@@ -34,10 +34,10 @@ final class ServersViewModel {
 
     // MARK: - 生命周期
 
-    /// 进入页面：读主机 + 启动 30s 轮询。
-    func appear() {
+    /// 进入页面：读主机 + 启动轮询（间隔由设置页决定，默认 30s）。
+    func appear(interval: Duration = .seconds(30)) {
         load()
-        monitor.startDashboard(hosts: hosts)
+        monitor.startDashboard(hosts: hosts, interval: interval)
     }
 
     /// 离开页面：停止轮询（页面不可见即停，方案 §4.3）。

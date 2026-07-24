@@ -20,9 +20,13 @@ final class AppLockController {
     /// App 切换器隐私遮罩是否显示（后台时盖住内容）。
     private(set) var showPrivacyShade = false
 
-    /// 是否启用应用锁。关闭时永远 unlocked。
+    /// UserDefaults 键：应用锁开关（设置页持久化）。
+    static let storageKey = "conn.appLock.enabled"
+
+    /// 是否启用应用锁。关闭时永远 unlocked。运行时切换即落盘。
     var isEnabled: Bool {
         didSet {
+            UserDefaults.standard.set(isEnabled, forKey: Self.storageKey)
             if !isEnabled {
                 state = .unlocked
             }

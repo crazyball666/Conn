@@ -1,112 +1,108 @@
 import ConnUI
 import SwiftUI
 
-/// 「我的」页（原型 S10 框架）。密钥管家、安全、关于等入口。
+/// 「我的」/设置页——原生 `Form` 分组（Apple 设置页风格）。
 ///
-/// Phase 5：接入密钥管家。同步/购买/设置等其余入口在后续 Phase 补。
+/// 外观（深浅色 / 主题色）、数据（刷新间隔）、安全（应用锁 / 密钥管家）、语言、关于。
 struct MeView: View {
     let dependencies: AppDependencies
     @Environment(LocalizationManager.self) private var localization
+    @Environment(SettingsStore.self) private var settings
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: ConnSpacing.stackGap) {
-                section(L("语言")) {
-                    languageRow
-                }
-
-                section(L("安全")) {
-                    navRow(L("密钥管家"), systemName: "key.fill", tint: .accent) {
-                        KeyManagerView(dependencies: dependencies)
-                    }
-                }
-
-                section(L("关于")) {
-                    infoRow(L("隐私承诺"), systemName: "hand.raised.fill", detail: L("无服务端 · 零遥测"))
-                    infoRow(L("版本"), systemName: "info.circle", detail: appVersion)
-                }
-
-                footer
-            }
-            .padding(.top, ConnSpacing.sm)
-            .padding(.bottom, ConnSpacing.lg)
-        }
-        .scrollBounceBehavior(.basedOnSize)
-        .background(Color.connBg.ignoresSafeArea())
-    }
-
-    private var languageRow: some View {
-        Menu {
-            ForEach(AppLanguage.allCases) { language in
-                Button {
-                    localization.language = language
+        @Bindable var localization = localization
+        @Bindable var settings = settings
+        Form {
+            Section(L("外观")) {
+                Picker(selection: $settings.appearance) {
+                    ForEach(AppAppearance.allCases) { Text($0.label).tag($0) }
                 } label: {
-                    if localization.language == language {
-                        Label(language.displayName, systemImage: "checkmark")
-                    } else {
-                        Text(language.displayName)
-                    }
+                    Label(L("深浅色"), systemImage: "circle.lefthalf.filled")
+                }
+                accentRow(selection: $settings.accent)
+            }
+
+            Section(L("数据")) {
+                Picker(selection: $settings.refreshInterval) {
+                    ForEach(RefreshInterval.allCases) { Text($0.label).tag($0) }
+                } label: {
+                    Label(L("刷新间隔"), systemImage: "arrow.clockwise")
                 }
             }
-        } label: {
-            ConnListRow(
-                title: localization.language.displayName,
-                leading: { IconChip("globe", tint: .accent) },
-                trailing: { ConnChevron() }
-            )
-        }
-        .padding(.horizontal, ConnSpacing.page)
-    }
 
-    private func section(_ title: String, @ViewBuilder content: () -> some View) -> some View {
-        VStack(alignment: .leading, spacing: ConnSpacing.xs) {
-            Text(title)
-                .font(.connCaption)
-                .foregroundStyle(.connMuted)
-                .connEyebrowTracking()
-                .padding(.horizontal, ConnSpacing.page)
-                .padding(.top, ConnSpacing.sm)
-            content()
-        }
-    }
-
-    private func navRow(
-        _ title: String,
-        systemName: String,
-        tint: IconChip.Tint,
-        @ViewBuilder destination: () -> some View
-    ) -> some View {
-        NavigationLink(destination: destination()) {
-            ConnListRow(
-                title: title,
-                leading: { IconChip(systemName, tint: tint) },
-                trailing: { ConnChevron() }
-            )
-        }
-        .buttonStyle(ConnPressStyle())
-        .padding(.horizontal, ConnSpacing.page)
-    }
-
-    private func infoRow(_ title: String, systemName: String, detail: String) -> some View {
-        ConnListRow(
-            title: title,
-            leading: { IconChip(systemName, tint: .neutral) },
-            trailing: {
-                Text(detail)
-                    .font(.connData(.caption))
-                    .foregroundStyle(.connMuted)
+            Section(L("安全")) {
+                Toggle(isOn: Binding(
+                    get: { dependencies.appLock.isEnabled },
+                    set: { dependencies.appLock.isEnabled = $0 }
+                )) {
+                    Label(
+                        String(format: L("应用锁（%@）"), dependencies.appLock.biometryName),
+                        systemImage: "lock.fill"
+                    )
+                }
+                NavigationLink {
+                    KeyManagerView(dependencies: dependencies)
+                } label: {
+                    Label(L("密钥管家"), systemImage: "key.fill")
+                }
             }
-        )
-        .padding(.horizontal, ConnSpacing.page)
+
+            Section(L("语言")) {
+                Picker(selection: $localization.language) {
+                    ForEach(AppLanguage.allCases) { Text($0.displayName).tag($0) }
+                } label: {
+                    Label(L("语言"), systemImage: "globe")
+                }
+            }
+
+            Section {
+                LabeledContent {
+                    Text(appVersion).foregroundStyle(.secondary)
+                } label: {
+                    Label(L("版本"), systemImage: "info.circle")
+                }
+            } footer: {
+                Text(L("数据仅存本机与你自己的 iCloud · 无账号 · 零上传"))
+                    .frame(maxWidth: .infinity)
+                    .multilineTextAlignment(.center)
+            }
+        }
     }
 
-    private var footer: some View {
-        Text(L("数据仅存本机与你自己的 iCloud · 无账号 · 零上传"))
-            .font(.connFootnote)
-            .foregroundStyle(.connMuted)
-            .frame(maxWidth: .infinity)
-            .multilineTextAlignment(.center)
-            .padding(.top, ConnSpacing.lg)
+    /// 主题色：一行标签 + 一排色卡（选中打勾）。
+    private func accentRow(selection: Binding<AppAccent>) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Label(L("主题色"), systemImage: "paintpalette.fill")
+            HStack(spacing: 0) {
+                ForEach(Array(AppAccent.allCases.enumerated()), id: \.element) { index, accent in
+                    swatch(accent, selection: selection)
+                    if index < AppAccent.allCases.count - 1 { Spacer(minLength: 0) }
+                }
+            }
+            .padding(.horizontal, 2)
+        }
+        .padding(.vertical, 4)
+    }
+
+    private func swatch(_ accent: AppAccent, selection: Binding<AppAccent>) -> some View {
+        Button {
+            selection.wrappedValue = accent
+        } label: {
+            Circle()
+                .fill(accent.color)
+                .frame(width: 26, height: 26)
+                .overlay {
+                    if selection.wrappedValue == accent {
+                        Image(systemName: "checkmark")
+                            .font(.system(size: 12, weight: .bold))
+                            .foregroundStyle(.white)
+                    }
+                }
+                .overlay { Circle().strokeBorder(.black.opacity(0.12), lineWidth: 0.5) }
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(accent.label)
+        .accessibilityAddTraits(selection.wrappedValue == accent ? [.isButton, .isSelected] : .isButton)
     }
 
     private var appVersion: String {

@@ -13,6 +13,7 @@ import SwiftUI
 struct ConnApp: App {
     private let dependencies = ConnApp.makeDependencies()
     @State private var localization = LocalizationManager()
+    @State private var settings = SettingsStore()
 
     /// 依赖选择：DEBUG 下 `CONN_DEMO=1` 走演示模式（Mock 引擎 + 假数据），
     /// 否则走生产（Citadel + GRDB 落盘）。Phase 10 会把演示开关搬到设置页。
@@ -28,12 +29,16 @@ struct ConnApp: App {
     var body: some Scene {
         WindowGroup {
             AppLockGate(lock: dependencies.appLock) {
-                // 切换语言即 bump id → 整树重建，全 App 立即改语言（含各包 L() 读取）。
-                rootView.id(localization.language)
+                // 切换语言 / 主题色即 bump id → 整树重建：语言令各包 L() 重取，
+                // 主题色令 40+ 处 connAccent 重读 ConnTheme（见 SettingsStore）。
+                rootView.id("\(localization.language.rawValue)-\(settings.accent.rawValue)")
             }
             .environment(localization)
-            // 深浅色跟随系统：色彩令牌在资源目录已备双外观（Any/Dark），
-            // 不再硬编码 .preferredColorScheme。
+            .environment(settings)
+            // 主题色着色系统控件（原生底栏选中态等）。
+            .tint(settings.accent.color)
+            // 深浅色：跟随系统 / 强制浅 / 强制深（设置页）。
+            .preferredColorScheme(settings.appearance.colorScheme)
         }
     }
 
@@ -76,6 +81,8 @@ struct ConnApp: App {
                 HostFormView(dependencies: dependencies, initialDraft: HostDraft(), editingHostID: nil) {}
             } else if ProcessInfo.processInfo.environment["CONN_SMOKE_CARDS"] != nil {
                 CardStatesSmokeView()
+            } else if ProcessInfo.processInfo.environment["CONN_SMOKE_ME"] != nil {
+                NavigationStack { MeView(dependencies: dependencies) }
             } else if ProcessInfo.processInfo.environment["CONN_SMOKE_EDITOR"] != nil, let host = smokeDetailHost() {
                 NavigationStack {
                     FileEditorView(
@@ -178,8 +185,9 @@ struct AppDependencies {
                 snippetRepository: snippetStore,
                 appLock: AppLockController(
                     authenticator: LABiometricAuthenticator(),
-                    // DEBUG 冒烟可强制开启应用锁验证锁屏；正常默认关闭（设置页开启）
-                    isEnabled: ProcessInfo.processInfo.environment["CONN_SMOKE_APPLOCK"] != nil
+                    // 设置页持久化的开关；DEBUG 冒烟可强制开启验证锁屏。
+                    isEnabled: UserDefaults.standard.bool(forKey: AppLockController.storageKey)
+                        || ProcessInfo.processInfo.environment["CONN_SMOKE_APPLOCK"] != nil
                 )
             )
         } catch {

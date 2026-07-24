@@ -33,11 +33,11 @@ public extension ShapeStyle where Self == Color {
 
     // MARK: - 品牌与交互
 
-    /// 品牌/交互色（电光长春花蓝）：链接、选中态、光标、图标。
+    /// 品牌/交互色（默认电光长春花蓝，可被设置页主题色覆盖，见 `ConnTheme`）。
     /// **禁止**用来表示"健康正常"——那是 `connGood` 的职责。
-    static var connAccent: Color { .token("connAccent") }
+    static var connAccent: Color { ConnTheme.accent }
     /// 填充按钮底色（配白字）。主按钮用 `connAccent → connAccentDeep` 纵向微渐变。
-    static var connAccentDeep: Color { .token("connAccentDeep") }
+    static var connAccentDeep: Color { ConnTheme.accentDeep }
 
     // MARK: - 状态
 
@@ -63,7 +63,7 @@ public extension ShapeStyle where Self == Color {
     /// 信息态底色。
     static var connInfoFill: Color { .token("connInfoFill") }
     /// 品牌态底色（Pro 徽章、选中态）。
-    static var connAccentFill: Color { .token("connAccentFill") }
+    static var connAccentFill: Color { ConnTheme.accentFill }
     /// 已停止态底色。
     static var connOffFill: Color { .token("connOffFill") }
 
