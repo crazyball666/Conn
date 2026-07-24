@@ -1,762 +1,789 @@
 {
-  "sourceLanguage": "zh-Hans",
-  "strings": {
-    "系统": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "System"
+  "sourceLanguage" : "zh-Hans",
+  "strings" : {
+    "CPU 占用 Top 10" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Top 10 by CPU"
           }
         },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "システム"
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CPU 使用 Top 10"
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "시스템"
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CPU 사용 Top 10"
           }
         },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "系統"
-          }
-        }
-      }
-    },
-    "磁盘": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Disk"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "ディスク"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "디스크"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "磁碟"
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CPU 佔用 Top 10"
           }
         }
       }
     },
-    "网络": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Network"
+    "inode 使用" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "inode usage"
           }
         },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "ネットワーク"
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "inode 使用量"
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "네트워크"
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "inode 사용량"
           }
         },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "網路"
-          }
-        }
-      }
-    },
-    "日志": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Logs"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "ログ"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "로그"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "日誌"
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "inode 使用量"
           }
         }
       }
     },
-    "服务": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Services"
+    "内存占用 Top 10" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Top 10 by memory"
           }
         },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "サービス"
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "メモリ使用 Top 10"
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "서비스"
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "메모리 사용 Top 10"
           }
         },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "服務"
-          }
-        }
-      }
-    },
-    "系统概览": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "System overview"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "システム概要"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "시스템 개요"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "系統概覽"
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "記憶體佔用 Top 10"
           }
         }
       }
     },
-    "内存占用 Top 10": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Top 10 by memory"
+    "内核消息" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kernel messages"
           }
         },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "メモリ使用 Top 10"
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "カーネルメッセージ"
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "메모리 사용 Top 10"
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "커널 메시지"
           }
         },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "記憶體佔用 Top 10"
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "核心訊息"
           }
         }
       }
     },
-    "CPU 占用 Top 10": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Top 10 by CPU"
+    "出口公网 IP" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Public egress IP"
           }
         },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "CPU 使用 Top 10"
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "送信元グローバル IP"
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "CPU 사용 Top 10"
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "외부 공인 IP"
           }
         },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "CPU 佔用 Top 10"
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "出口公網 IP"
           }
         }
       }
     },
-    "登录用户与负载": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Logged-in users & load"
+    "占用某端口的进程" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Process using a port"
           }
         },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "ログインユーザーと負荷"
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "特定ポートを使うプロセス"
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "로그인 사용자 및 부하"
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "특정 포트를 사용하는 프로세스"
           }
         },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "登入使用者與負載"
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "佔用某連接埠的程序"
           }
         }
       }
     },
-    "磁盘使用": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Disk usage"
+    "大文件定位" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Find large files"
           }
         },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "ディスク使用量"
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "大きいファイルを探す"
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "디스크 사용량"
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "큰 파일 찾기"
           }
         },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "磁碟使用量"
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "尋找大檔案"
           }
         }
       }
     },
-    "inode 使用": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "inode usage"
+    "大目录 Top 20" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Top 20 largest directories"
           }
         },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "inode 使用量"
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "大きいディレクトリ Top 20"
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "inode 사용량"
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "큰 디렉터리 Top 20"
           }
         },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "inode 使用量"
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最大目錄 Top 20"
           }
         }
       }
     },
-    "大目录 Top 20": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Top 20 largest directories"
+    "容器列表" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Container list"
           }
         },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "大きいディレクトリ Top 20"
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "コンテナ一覧"
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "큰 디렉터리 Top 20"
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "컨테이너 목록"
           }
         },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "最大目錄 Top 20"
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "容器列表"
           }
         }
       }
     },
-    "大文件定位": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Find large files"
+    "容器资源占用" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Container resource usage"
           }
         },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "大きいファイルを探す"
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "コンテナのリソース使用"
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "큰 파일 찾기"
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "컨테이너 리소스 사용"
           }
         },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "尋找大檔案"
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "容器資源佔用"
           }
         }
       }
     },
-    "清理 30 天前日志文件": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Delete logs older than 30 days"
+    "日志" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Logs"
           }
         },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "30 日以上前のログを削除"
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ログ"
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "30일 이상 지난 로그 삭제"
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "로그"
           }
         },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "清理 30 天前的日誌檔"
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "日誌"
           }
         }
       }
     },
-    "监听端口": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Listening ports"
+    "服务" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Services"
           }
         },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "リッスンポート"
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "サービス"
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "수신 포트"
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "서비스"
           }
         },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "監聽連接埠"
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "服務"
           }
         }
       }
     },
-    "占用某端口的进程": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Process using a port"
+    "服务状态" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Service status"
           }
         },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "特定ポートを使うプロセス"
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "サービスの状態"
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "특정 포트를 사용하는 프로세스"
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "서비스 상태"
           }
         },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "佔用某連接埠的程序"
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "服務狀態"
           }
         }
       }
     },
-    "连通性测试": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Connectivity test"
+    "某服务日志" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A service's log"
           }
         },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "接続テスト"
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "特定サービスのログ"
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "연결 테스트"
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "특정 서비스 로그"
           }
         },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "連通性測試"
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "某服務日誌"
           }
         }
       }
     },
-    "出口公网 IP": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Public egress IP"
+    "清理 30 天前日志文件" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delete logs older than 30 days"
           }
         },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "送信元グローバル IP"
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "30 日以上前のログを削除"
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "외부 공인 IP"
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "30일 이상 지난 로그 삭제"
           }
         },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "出口公網 IP"
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "清理 30 天前的日誌檔"
           }
         }
       }
     },
-    "连接统计": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Connection stats"
+    "清理无用镜像" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Prune unused images"
           }
         },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "接続統計"
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未使用イメージを削除"
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "연결 통계"
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "미사용 이미지 정리"
           }
         },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "連線統計"
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "清理無用映像檔"
           }
         }
       }
     },
-    "系统日志尾部": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Tail system log"
+    "登录用户与负载" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Logged-in users & load"
           }
         },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "システムログの末尾"
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ログインユーザーと負荷"
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "시스템 로그 끝부분"
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "로그인 사용자 및 부하"
           }
         },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "系統日誌尾部"
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "登入使用者與負載"
           }
         }
       }
     },
-    "某服务日志": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "A service's log"
+    "监听端口" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Listening ports"
           }
         },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "特定サービスのログ"
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "リッスンポート"
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "특정 서비스 로그"
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "수신 포트"
           }
         },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "某服務日誌"
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "監聽連接埠"
           }
         }
       }
     },
-    "内核消息": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Kernel messages"
+    "磁盘" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Disk"
           }
         },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "カーネルメッセージ"
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ディスク"
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "커널 메시지"
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "디스크"
           }
         },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "核心訊息"
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "磁碟"
           }
         }
       }
     },
-    "容器列表": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Container list"
+    "磁盘使用" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Disk usage"
           }
         },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "コンテナ一覧"
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ディスク使用量"
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "컨테이너 목록"
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "디스크 사용량"
           }
         },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "容器列表"
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "磁碟使用量"
           }
         }
       }
     },
-    "容器资源占用": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Container resource usage"
+    "系统" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "System"
           }
         },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "コンテナのリソース使用"
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "システム"
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "컨테이너 리소스 사용"
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "시스템"
           }
         },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "容器資源佔用"
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "系統"
           }
         }
       }
     },
-    "清理无用镜像": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Prune unused images"
+    "系统日志尾部" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tail system log"
           }
         },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "未使用イメージを削除"
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "システムログの末尾"
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "미사용 이미지 정리"
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "시스템 로그 끝부분"
           }
         },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "清理無用映像檔"
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "系統日誌尾部"
           }
         }
       }
     },
-    "服务状态": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Service status"
+    "系统概览" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "System overview"
           }
         },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "サービスの状態"
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "システム概要"
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "서비스 상태"
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "시스템 개요"
           }
         },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "服務狀態"
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "系統概覽"
           }
         }
       }
     },
-    "重启服务": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Restart service"
+    "网络" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Network"
           }
         },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "サービスを再起動"
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ネットワーク"
           }
         },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "서비스 재시작"
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "네트워크"
           }
         },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "重啟服務"
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "網路"
+          }
+        }
+      }
+    },
+    "连接统计" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Connection stats"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "接続統計"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "연결 통계"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "連線統計"
+          }
+        }
+      }
+    },
+    "连通性测试" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Connectivity test"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "接続テスト"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "연결 테스트"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "連通性測試"
+          }
+        }
+      }
+    },
+    "重启服务" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Restart service"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "サービスを再起動"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "서비스 재시작"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重啟服務"
           }
         }
       }
     }
   },
-  "version": "1.0"
+  "version" : "1.0"
 }

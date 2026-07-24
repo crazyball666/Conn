@@ -17,43 +17,30 @@ struct RootTabView: View {
         self.dependencies = dependencies
     }
 
+    /// 系统原生 `TabView`——iOS 26 自动带液态玻璃底栏，深浅色随系统。
+    ///
+    /// 每个 Tab 各包一层 `NavigationStack`（push 导航前提；根内容自绘标题故隐藏
+    /// 系统 nav bar）。子页面用 `.toolbar(.hidden, for: .tabBar)` 隐藏底栏——
+    /// 底栏只在各 Tab 首页出现（见各 push 目的地）。
     var body: some View {
-        content
-            // safeAreaInset 是「内容 + 悬浮底栏」的惯用写法：把 Dock 的高度并入
-            // 内容安全区，滚动内容不会被遮挡，也不必手写魔法数字。
-            .safeAreaInset(edge: .bottom, spacing: 0) {
-                ConnDock(selection: $selection)
-            }
-            .background(Color.connBg.ignoresSafeArea())
+        TabView(selection: $selection) {
+            tab(.servers) { ServersView(dependencies: dependencies) }
+            tab(.terminal) { TerminalCenterView(store: terminalStore, dependencies: dependencies) }
+            tab(.commands) { SnippetsView(dependencies: dependencies) }
+            tab(.me) { MeView(dependencies: dependencies) }
+        }
     }
 
-    /// 各 Tab 的根内容。
-    ///
-    /// **每个 Tab 必须包一层 `NavigationStack`**：ScrollView 直接作为窗口根视图时
-    /// 顶部 content inset 不生效，内容会顶进状态栏（已用红线基准实测确认）。
-    /// NavigationStack 提供了正确的安全区容器；同时它也是后续 push 导航
-    /// （主机→详情、我的→密钥管家）的前提，不是为绕开 bug 而加的补丁。
-    ///
-    /// 导航栏隐藏：原型各屏用的是自绘标题区（`ScreenHeader`），不用系统 nav bar。
-    private var content: some View {
+    private func tab(
+        _ tab: ConnDock.Tab,
+        @ViewBuilder content: () -> some View
+    ) -> some View {
         NavigationStack {
-            tabRoot
+            content()
                 .toolbar(.hidden, for: .navigationBar)
         }
-    }
-
-    @ViewBuilder
-    private var tabRoot: some View {
-        switch selection {
-        case .servers:
-            ServersView(dependencies: dependencies)
-        case .terminal:
-            TerminalCenterView(store: terminalStore, dependencies: dependencies)
-        case .commands:
-            SnippetsView(dependencies: dependencies)
-        case .me:
-            MeView(dependencies: dependencies)
-        }
+        .tabItem { Label(L(tab.title), systemImage: tab.systemImage) }
+        .tag(tab)
     }
 }
 

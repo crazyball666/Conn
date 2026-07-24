@@ -32,9 +32,8 @@ struct ConnApp: App {
                 rootView.id(localization.language)
             }
             .environment(localization)
-            // 深色是主人格（设计规范 §1：OLED + 运维人群夜间审美）。
-            // Phase 11 接入「跟随系统 / 手动切换」的设置项。
-            .preferredColorScheme(.dark)
+            // 深浅色跟随系统：色彩令牌在资源目录已备双外观（Any/Dark），
+            // 不再硬编码 .preferredColorScheme。
         }
     }
 
