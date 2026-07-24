@@ -54,7 +54,7 @@ struct TerminalScreen: View {
     private var connecting: some View {
         VStack(spacing: ConnSpacing.sm) {
             ProgressView().controlSize(.large).tint(.connAccent)
-            Text("正在连接 \(host.name)…")
+            Text(String(format: L("正在连接 %@…"), host.name))
                 .font(.connData())
                 .foregroundStyle(.connMuted)
         }

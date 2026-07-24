@@ -109,12 +109,17 @@ public final class MonitorScheduler {
             let result = try await collector.collect(host: host, session: session)
             metrics[host.id] = result
             errors[host.id] = nil
-            if let store {
+            // #18：首采 CPU 尚无差分(nil)，此时 sample.cpu 是占位 0，不落库以免污染历史。
+            if let store, result.cpu != nil {
                 let sample = result.sample
                 Task.detached(priority: .utility) { try? store.record(sample) }
             }
         } catch {
             errors[host.id] = Self.friendly(error)
+            // #1：清掉过期实时指标，主机立即显示离线/未知，而不是一直挂着旧的绿色读数。
+            metrics[host.id] = nil
+            // #2：驱逐可能已死的会话，下一轮采集重新握手 → 断网后自愈。
+            await connectionManager.invalidate(host: host)
         }
     }
 

@@ -54,7 +54,7 @@ struct AppLockGate<Content: View>: View {
                 Text(L("Conn 已锁定"))
                     .font(.connSectionTitle)
                     .foregroundStyle(.connInk)
-                ConnButton("用 \(lock.biometryName) 解锁") {
+                ConnButton(String(format: L("用 %@ 解锁"), lock.biometryName)) {
                     Task { await lock.unlock() }
                 }
                 .frame(maxWidth: 240)

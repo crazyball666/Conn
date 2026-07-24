@@ -76,6 +76,23 @@ public actor ConnectionManager {
         }
     }
 
+    /// 驱逐某主机的池化会话（不等待关闭）。
+    ///
+    /// 操作因传输层错误（通道 EOF、连接死）抛错时调用：把死会话踢出池，
+    /// **下次 `session(for:)` 会重新握手**——这样断网/服务器空闲超时后，
+    /// 仪表盘下一轮采集（3s/30s）即自动重连,而不是卡死到 App 重启。
+    /// 关闭在后台 fire-and-forget,避免对死 socket 调 `close()` 卡住调用方。
+    public func invalidate(host: ConnKit.Host) {
+        let key = poolKey(for: host)
+        guard let entry = entries.removeValue(forKey: key) else { return }
+        switch entry {
+        case let .connected(session):
+            Task { await session.close() }
+        case let .connecting(task):
+            task.cancel()
+        }
+    }
+
     /// 断开并移除某主机的会话。
     public func disconnect(host: ConnKit.Host) async {
         let key = poolKey(for: host)

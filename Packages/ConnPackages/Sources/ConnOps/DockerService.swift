@@ -9,6 +9,8 @@ public enum DockerAvailability: Sendable, Equatable {
     case notInstalled
     /// 装了但当前用户无权限、且无免密 sudo。
     case permissionDenied
+    /// 装了、有权限，但 Docker 守护进程没在跑。
+    case daemonNotRunning
 
     /// 直接可用时用的 sudo 前缀标志；不可用时 false。
     public var sudo: Bool {
@@ -33,9 +35,19 @@ public enum DockerService {
         if direct.contains("not found") || direct.contains("command not found") {
             return .notInstalled
         }
-        // 多半是 permission denied while trying to connect to the Docker daemon socket
         let elevated = try await session.exec(DockerCommand.availabilityProbe(sudo: true)).stdoutText
-        return elevated.contains("__EXIT__0") ? .available(sudo: true) : .permissionDenied
+        if elevated.contains("__EXIT__0") {
+            return .available(sudo: true)
+        }
+        // #20：守护进程没跑 vs 权限不足要分开——两者都提「docker daemon」，
+        // 但守护进程停机是「Cannot connect / Is the docker daemon running」，权限是「permission denied」。
+        if direct.contains("permission denied") {
+            return .permissionDenied
+        }
+        if direct.contains("Cannot connect to the Docker daemon") || direct.contains("daemon running") {
+            return .daemonNotRunning
+        }
+        return .permissionDenied
     }
 
     /// 列容器：并行拉 ps 与 stats 后合并。

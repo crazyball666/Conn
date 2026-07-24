@@ -63,4 +63,22 @@ struct DangerCommandRulesTests {
         let verdict = DangerCommandRules.evaluate("rm -rf /", isProduction: false)
         #expect(verdict.reason != nil)
     }
+
+    @Test("docker prune 任何环境都需确认（#8）")
+    func dockerPruneFlagged() {
+        #expect(DangerCommandRules.evaluate("docker image prune -f", isProduction: false).needsConfirmation)
+        #expect(DangerCommandRules.evaluate("docker system prune -af --volumes", isProduction: false).needsConfirmation)
+        #expect(DangerCommandRules.evaluate("docker container prune", isProduction: false).needsConfirmation)
+    }
+
+    @Test("find -delete 任何环境都需确认（#8）")
+    func findDeleteFlagged() {
+        #expect(DangerCommandRules.evaluate("find /var/log -name '*.log' -mtime +30 -delete", isProduction: false).needsConfirmation)
+    }
+
+    @Test("普通 find / docker 不误报")
+    func benignNotFlagged() {
+        #expect(!DangerCommandRules.evaluate("find /var/log -name '*.log'", isProduction: false).needsConfirmation)
+        #expect(!DangerCommandRules.evaluate("docker ps -a", isProduction: false).needsConfirmation)
+    }
 }

@@ -133,6 +133,14 @@ public actor MockRemoteFileSystem: RemoteFileSystem {
         Self.addAncestors(of: newPath, into: &nodes)
         nodes[newPath] = node
         nodes[path] = nil
+        // #13：目录改名要连同所有子孙一起重挂，否则子项被孤立、目录内容“消失”。
+        if node.kind == .directory {
+            let prefix = path + "/"
+            for key in nodes.keys where key.hasPrefix(prefix) {
+                nodes[newPath + "/" + String(key.dropFirst(prefix.count))] = nodes[key]
+                nodes[key] = nil
+            }
+        }
     }
 
     public func setPermissions(_ mode: UInt32, path: String) async throws {

@@ -121,6 +121,8 @@ struct DockerView: View {
             L("未检测到 Docker CLI。请确认该服务器已安装 Docker。")
         case .permissionDenied:
             L("当前用户无权访问 Docker。\n将用户加入 docker 组：\nsudo usermod -aG docker $USER\n然后重新登录后重试。")
+        case .daemonNotRunning:
+            L("Docker 守护进程未运行。\n请在服务器上启动：\nsudo systemctl start docker")
         case .available:
             ""
         }
@@ -154,7 +156,7 @@ struct DockerView: View {
     }
 
     private var removalPrompt: String {
-        viewModel.pendingRemoval.map { "删除容器 \($0.name)？此操作不可撤销（docker rm -f）。" } ?? ""
+        viewModel.pendingRemoval.map { String(format: L("删除容器 %@？此操作不可撤销（docker rm -f）。"), $0.name) } ?? ""
     }
 
     private var removalBinding: Binding<Bool> {

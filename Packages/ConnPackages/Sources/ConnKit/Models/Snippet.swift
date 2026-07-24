@@ -67,14 +67,15 @@ public struct Snippet: Identifiable, Codable, Sendable, Equatable {
         var result = command
         for variable in variables {
             let replacement = values[variable.name] ?? variable.defaultValue ?? ""
-            // 同时替换 {{name}} 与 {{name:default}} 两种写法
-            let patterns = [
-                "{{\(variable.name)}}",
-                variable.defaultValue.map { "{{\(variable.name):\($0)}}" }
-            ].compactMap { $0 }
-            for pattern in patterns {
-                result = result.replacingOccurrences(of: pattern, with: replacement)
-            }
+            // #22：用正则一次替换 {{name}} 与 {{name:任意默认值}} 两种写法——
+            // 旧实现按 parseVariables 记住的默认值拼字面量,当同名变量先出现无默认形式时,
+            // 带默认的那处会被漏替换、原样留进命令。
+            let escapedName = NSRegularExpression.escapedPattern(for: variable.name)
+            let pattern = "\\{\\{\(escapedName)(?::[^}]*)?\\}\\}"
+            guard let regex = try? NSRegularExpression(pattern: pattern) else { continue }
+            let range = NSRange(result.startIndex..., in: result)
+            let template = NSRegularExpression.escapedTemplate(for: replacement)
+            result = regex.stringByReplacingMatches(in: result, range: range, withTemplate: template)
         }
         return result
     }

@@ -50,4 +50,10 @@ public struct SnippetStore: SnippetRepository {
             try SnippetRecord.filter(sql: "deleted_at IS NULL").fetchCount(db)
         }
     }
+
+    public func totalCount() throws -> Int {
+        try database.writer.read { db in
+            try SnippetRecord.fetchCount(db) // 含软删除墓碑
+        }
+    }
 }

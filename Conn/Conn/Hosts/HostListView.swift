@@ -136,7 +136,8 @@ struct HostListView: View {
 
     private var limitBanner: some View {
         ConnBanner(
-            "免费版已用 \(viewModel.hosts.count)/\(viewModel.freeHostLimit) 台主机，升级专业版解锁无限主机",
+            String(format: L("免费版已用 %d/%d 台主机，升级专业版解锁无限主机"),
+                   viewModel.hosts.count, viewModel.freeHostLimit),
             systemImage: "info.circle"
         )
         .padding(.horizontal, ConnSpacing.page)

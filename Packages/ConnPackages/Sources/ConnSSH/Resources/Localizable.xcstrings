@@ -49,6 +49,22 @@
         "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "遞迴放開根目錄權限" } }
       }
     },
+    "find -delete 批量删除文件" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "find -delete bulk file deletion" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "find -delete による一括削除" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "find -delete 대량 파일 삭제" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "find -delete 批次刪除檔案" } }
+      }
+    },
+    "清理 Docker 资源（删除未使用的镜像/容器/卷）" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Prune Docker resources (removes unused images/containers/volumes)" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "Docker リソースの削除（未使用のイメージ/コンテナ/ボリュームを削除）" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "Docker 리소스 정리(미사용 이미지/컨테이너/볼륨 삭제)" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "清理 Docker 資源（刪除未使用的映像檔/容器/卷）" } }
+      }
+    },
     "在生产环境停止/重启服务" : {
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Stop/restart a service in production" } },

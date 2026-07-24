@@ -130,6 +130,7 @@ final class FileBrowserViewModel {
             await load()
         } catch {
             actionMessage = "\(label)失败：\(friendly(error))"
+            fileSystem = nil // #10：丢弃可能已死的 SFTP 通道，下次操作重开（与 load() 一致）
         }
     }
 

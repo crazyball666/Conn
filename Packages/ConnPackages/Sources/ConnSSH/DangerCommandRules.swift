@@ -24,7 +24,12 @@ public enum DangerCommandRules {
         (#"\bdd\b.*\bof=/dev/"#, "写入块设备（可能覆盖磁盘）"),
         (#":\(\)\s*\{\s*:\s*\|\s*:\s*&\s*\}\s*;\s*:"#, "fork 炸弹"),
         (#">\s*/dev/(sd|nvme|hd|vd)\w*"#, "覆写块设备"),
-        (#"\bchmod\s+-R\s+777\s+/\s*$"#, "递归放开根目录权限")
+        (#"\bchmod\s+-R\s+777\s+/\s*$"#, "递归放开根目录权限"),
+        // find ... -delete：批量删除，作用域大时不可逆
+        (#"\bfind\b.*\s-delete\b"#, "find -delete 批量删除文件"),
+        // docker prune：删除未使用的镜像/容器/卷/网络（-af/--volumes 破坏面更大）
+        (#"\bdocker\s+(image\s+|container\s+|volume\s+|network\s+|system\s+|builder\s+)?prune\b"#,
+         "清理 Docker 资源（删除未使用的镜像/容器/卷）")
     ]
 
     /// 生产敏感模式：仅在生产标签主机上需确认。

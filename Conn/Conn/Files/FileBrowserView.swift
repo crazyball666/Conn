@@ -125,7 +125,7 @@ struct FileBrowserView: View {
     private func downloadedBar(_ url: URL) -> some View {
         HStack {
             Image(systemName: "checkmark.circle.fill").foregroundStyle(.connGood)
-            Text("已下载 \(url.lastPathComponent)").font(.connFootnote).foregroundStyle(.connInk)
+            Text(String(format: L("已下载 %@"), url.lastPathComponent)).font(.connFootnote).foregroundStyle(.connInk)
             Spacer()
             ShareLink(item: url) { Text(L("分享")).font(.connFootnote).foregroundStyle(.connAccent) }
             Button { viewModel.downloadedURL = nil } label: {

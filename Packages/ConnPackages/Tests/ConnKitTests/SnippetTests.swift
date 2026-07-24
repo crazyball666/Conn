@@ -54,4 +54,14 @@ struct SnippetTests {
         let snippet = Snippet(title: "查日志", command: "tail -n {{lines:200}} {{path}}")
         #expect(snippet.variables == Snippet.parseVariables(from: snippet.command))
     }
+
+    @Test("同名变量先出现无默认形式时，带默认的那处也被替换、不留占位符（#22）")
+    func rendersMixedDefaultForms() {
+        // {{x}} 先、{{x:hi}} 后：两处都要被替换成实参值，绝不能把 {{x:hi}} 原样留进命令
+        let snippet = Snippet(title: "t", command: "echo {{x}} and {{x:hi}}")
+        #expect(snippet.render(values: ["x": "V"]) == "echo V and V")
+        // 关键：无论如何最终命令里都不能残留 {{ 占位符
+        #expect(!snippet.render(values: [:]).contains("{{"))
+        #expect(!snippet.render(values: ["x": "V"]).contains("{{"))
+    }
 }

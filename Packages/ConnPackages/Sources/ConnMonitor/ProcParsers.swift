@@ -14,7 +14,9 @@ enum ProcParsers {
         let values = fields.compactMap { Double($0) }
         // 至少要有 user…idle…iowait 前 5 项才可信
         guard values.count >= 5 else { return nil }
-        let total = values.reduce(0, +)
+        // #17：只累加前 8 项 user..steal。guest/guest_nice(第 9/10 项)已并入 user/nice，
+        // 全量求和会在虚拟化宿主上重复计入 → CPU% 偏高。
+        let total = values.prefix(8).reduce(0, +)
         let idle = values[3] + values[4] // idle + iowait
         return CPUJiffies(total: total, idle: idle)
     }

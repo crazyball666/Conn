@@ -53,8 +53,8 @@ final class HostOverviewViewModel {
             let session = try await connectionManager.session(for: host)
             let result = try await ProcessControl.kill(pid: target.pid, on: session)
             actionMessage = result.isSuccess
-                ? "已向 \(target.command)（PID \(target.pid)）发送结束信号"
-                : "结束 \(target.command) 失败：\(result.stderrText)"
+                ? String(format: L("已向 %@（PID %d）发送结束信号"), target.command, target.pid)
+                : String(format: L("结束 %@ 失败：%@"), target.command, result.stderrText)
         } catch {
             actionMessage = "结束进程失败：\(error.localizedDescription)"
         }

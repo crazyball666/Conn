@@ -59,4 +59,14 @@ struct DockerParserTests {
     func emptyOutput() {
         #expect(DockerParser.parse(psOutput: "", statsOutput: "").isEmpty)
     }
+
+    @Test("stats 用 64 位全 id、ps 用 12 位短 id 仍能合并（#11）")
+    func mergesShortVsFullID() {
+        let ps = #"{"ID":"a1b2c3d4e5f6","Image":"nginx","Names":"web","State":"running","Status":"Up 1h"}"#
+        let fullID = "a1b2c3d4e5f6" + String(repeating: "0", count: 52) // 64 位
+        let stats = #"{"ID":""# + fullID + #"","CPUPerc":"5.00%","MemPerc":"2.00%","MemUsage":"10MiB / 2GiB","Name":"web"}"#
+        let containers = DockerParser.parse(psOutput: ps, statsOutput: stats)
+        #expect(containers.first?.cpuPercent == 5.0)
+        #expect(containers.first?.memPercent == 2.0)
+    }
 }

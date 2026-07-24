@@ -77,7 +77,9 @@ struct LogStreamView: View {
                 .padding(.horizontal, ConnSpacing.page)
                 .padding(.vertical, ConnSpacing.xs)
             }
-            .onChange(of: viewModel.lines.count) {
+            // #6：观测单调递增的末行 id，而非 lines.count——环缓冲满 5000 行后
+            // count 恒为 5000 不再变化，onChange 不触发，跟随会假死。id 一直增。
+            .onChange(of: viewModel.lines.last?.id) {
                 guard viewModel.isFollowing else { return }
                 withAnimation(.easeOut(duration: 0.15)) {
                     proxy.scrollTo(bottomAnchor, anchor: .bottom)

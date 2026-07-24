@@ -8,7 +8,11 @@ public enum DockerParser {
         let stats = parseStats(statsOutput)
         return containers.map { container in
             var merged = container
-            if let stat = stats[container.id] {
+            // #11：精确匹配优先；否则前缀匹配——`docker ps` 给 12 位短 id，
+            // 某些 docker 版本 `docker stats` 给 64 位全 id，直接查表会全 miss → 永远显示「—」。
+            let stat = stats[container.id]
+                ?? stats.first { $0.key.hasPrefix(container.id) || container.id.hasPrefix($0.key) }?.value
+            if let stat {
                 merged.cpuPercent = stat.cpu
                 merged.memPercent = stat.mem
                 merged.memUsage = stat.memUsage

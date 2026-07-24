@@ -256,7 +256,9 @@ struct AppDependencies {
     /// 首启把内置模板库导入 `snippet` 表（幂等：已有片段则跳过），
     /// 并把未被用户改动的内置片段标题/分组更新到当前语言（跟随语言切换）。
     private static func importBuiltinSnippetsIfNeeded(_ store: SnippetStore) throws {
-        if try store.count() == 0 {
+        // #D：用 totalCount（含墓碑）判空——用户把片段全删后墓碑仍在，
+        // 不会被误判成「从未导入」而把内置片段重新塞回来。演示用内存库每次全新，仍会导入。
+        if try store.totalCount() == 0 {
             for snippet in BuiltinSnippets.load() {
                 try store.save(snippet)
             }

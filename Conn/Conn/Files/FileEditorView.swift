@@ -24,6 +24,8 @@ final class FileEditorViewModel {
     private let connectionManager: ConnectionManager
     let entry: FileEntry
     private let maxEditBytes: UInt64 = 1024 * 1024
+    // #16：缓存 SFTP 通道，load + save 复用一条，不每次开新通道泄漏。
+    private var cachedFileSystem: (any RemoteFileSystem)?
 
     init(host: Host, dependencies: AppDependencies, entry: FileEntry) {
         self.host = host
@@ -57,16 +59,28 @@ final class FileEditorViewModel {
         isSaving = true
         defer { isSaving = false }
         do {
-            // 以「打开既有文件 + 截断写入」保持同一 inode → 权限/属主不变。
-            try await filesystem().writeAll(Data(content.utf8), to: entry.path)
+            // #4：写临时文件 → 保留原权限 → 原子改名替换。避免「先截断原文件再写」——
+            // 半途掉线会把正在用的配置文件（如 nginx.conf）清空/写坏。临时文件失败时原文件不动。
+            let fileSystem = try await filesystem()
+            let tempPath = entry.path + ".conntmp"
+            try await fileSystem.writeAll(Data(content.utf8), to: tempPath)
+            let mode = (try? await fileSystem.stat(entry.path).permissions) ?? entry.permissions
+            if let mode { try? await fileSystem.setPermissions(mode & 0o7777, path: tempPath) }
+            // SFTP rename 不覆盖已存在目标：先删原文件再改名（窗口毫秒级，失败时 .conntmp 仍在可恢复）。
+            try? await fileSystem.remove(entry.path)
+            try await fileSystem.rename(tempPath, to: entry.path)
             saveMessage = L("已保存")
         } catch {
+            cachedFileSystem = nil // 出错丢弃可能已死的通道
             saveMessage = "保存失败：\(friendly(error))"
         }
     }
 
     private func filesystem() async throws -> any RemoteFileSystem {
-        try await connectionManager.session(for: host).sftp()
+        if let cachedFileSystem { return cachedFileSystem }
+        let opened = try await connectionManager.session(for: host).sftp()
+        cachedFileSystem = opened
+        return opened
     }
 
     private func friendly(_ error: Error) -> String {

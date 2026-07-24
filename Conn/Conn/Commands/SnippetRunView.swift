@@ -53,7 +53,7 @@ struct SnippetRunView: View {
                 )
             }
             .confirmationDialog(
-                pendingReason.map { "命中风险：\($0)。仍要执行？" } ?? L("确认执行？"),
+                pendingReason.map { String(format: L("命中风险：%@。仍要执行？"), $0) } ?? L("确认执行？"),
                 isPresented: dangerBinding, titleVisibility: .visible
             ) {
                 Button(L("仍要执行"), role: .destructive) { if let mode = pendingMode { execute(mode) }; pendingMode = nil }

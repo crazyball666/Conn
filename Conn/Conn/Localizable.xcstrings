@@ -5180,6 +5180,258 @@
           }
         }
       }
+    },
+    "Docker 守护进程未运行。\n请在服务器上启动：\nsudo systemctl start docker": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The Docker daemon isn't running.\nStart it on the server:\nsudo systemctl start docker"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Docker デーモンが起動していません。\nサーバーで起動してください：\nsudo systemctl start docker"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Docker 데몬이 실행 중이 아닙니다.\n서버에서 시작하세요:\nsudo systemctl start docker"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Docker 守護行程未執行。\n請在伺服器上啟動：\nsudo systemctl start docker"
+          }
+        }
+      }
+    },
+    "正在连接 %@…": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Connecting to %@…"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ に接続中…"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@에 연결 중…"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在連線 %@…"
+          }
+        }
+      }
+    },
+    "用 %@ 解锁": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unlock with %@"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ でロック解除"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@(으)로 잠금 해제"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "用 %@ 解鎖"
+          }
+        }
+      }
+    },
+    "已下载 %@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Downloaded %@"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ をダウンロードしました"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 다운로드됨"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已下載 %@"
+          }
+        }
+      }
+    },
+    "命中风险：%@。仍要执行？": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Risk: %@. Run anyway?"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "リスク：%@。それでも実行しますか？"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "위험: %@. 그래도 실행하시겠습니까?"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "命中風險：%@。仍要執行？"
+          }
+        }
+      }
+    },
+    "已向 %@（PID %d）发送结束信号": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sent termination signal to %@ (PID %d)"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@（PID %d）に終了シグナルを送信しました"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@(PID %d)에 종료 신호를 보냈습니다"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已向 %@（PID %d）發送結束信號"
+          }
+        }
+      }
+    },
+    "结束 %@ 失败：%@": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Failed to end %@: %@"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ の終了に失敗：%@"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 종료 실패: %@"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "結束 %@ 失敗：%@"
+          }
+        }
+      }
+    },
+    "删除容器 %@？此操作不可撤销（docker rm -f）。": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Delete container %@? This cannot be undone (docker rm -f)."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "コンテナ %@ を削除しますか？元に戻せません（docker rm -f）。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "컨테이너 %@를 삭제하시겠습니까? 되돌릴 수 없습니다(docker rm -f)."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "刪除容器 %@？此操作無法復原（docker rm -f）。"
+          }
+        }
+      }
+    },
+    "免费版已用 %d/%d 台主机，升级专业版解锁无限主机": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Free plan: %d/%d hosts used. Upgrade to Pro for unlimited hosts."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "無料版：%d/%d 台使用中。Pro 版で無制限に。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "무료 버전: %d/%d대 사용 중. Pro로 업그레이드하면 무제한."
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "免費版已用 %d/%d 台主機，升級專業版解鎖無限主機"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

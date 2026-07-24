@@ -104,6 +104,20 @@ struct MockRemoteFileSystemTests {
         #expect(!(try await fileSystem.list("/home/deploy")).contains { $0.name == "renamed" })
     }
 
+    @Test("重命名目录会带上子孙（不孤立子项）")
+    func renameDirectoryMovesChildren() async throws {
+        let fileSystem = MockRemoteFileSystem()
+        // /home/deploy/app 下有 config.yml 与 app.log
+        try await fileSystem.rename("/home/deploy/app", to: "/home/deploy/app2")
+        let entries = try await fileSystem.list("/home/deploy/app2")
+        #expect(entries.contains { $0.name == "config.yml" })
+        #expect(entries.contains { $0.name == "app.log" })
+        // 旧路径的子项应已不可访问
+        await #expect(throws: SFTPFileError.self) {
+            try await fileSystem.stat("/home/deploy/app/config.yml")
+        }
+    }
+
     @Test("chmod 只改权限位、保留类型位")
     func chmod() async throws {
         let fileSystem = MockRemoteFileSystem()

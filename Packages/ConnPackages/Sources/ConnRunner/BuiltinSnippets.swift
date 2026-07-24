@@ -43,15 +43,25 @@ public enum BuiltinSnippets {
 
         for snippet in stored {
             guard let dto = byCommand[snippet.command] else { continue }
-            let titleVariants = allLanguageVariants(dto.title)
-            let localizedTitle = L(dto.title)
-            let localizedFolder = dto.folder.map { L($0) }
-            let titleUnedited = titleVariants.contains(snippet.title)
-            guard titleUnedited, snippet.title != localizedTitle || snippet.folder != localizedFolder else { continue }
             var updated = snippet
-            updated.title = localizedTitle
-            updated.folder = localizedFolder
-            try? store.save(updated)
+            var changed = false
+            // 标题：仅当仍等于某语言译文（未被用户改过）才更新到当前语言。
+            if allLanguageVariants(dto.title).contains(snippet.title) {
+                let localized = L(dto.title)
+                if localized != snippet.title {
+                    updated.title = localized
+                    changed = true
+                }
+            }
+            // 分组（#9）：仅当仍是内置默认分组时才更新；用户挪到自定义分组的不覆盖。
+            if let folderKey = dto.folder, allLanguageVariants(folderKey).contains(snippet.folder ?? "") {
+                let localized = L(folderKey)
+                if localized != snippet.folder {
+                    updated.folder = localized
+                    changed = true
+                }
+            }
+            if changed { try? store.save(updated) }
         }
     }
 }

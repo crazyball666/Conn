@@ -9,6 +9,9 @@ public protocol SnippetRepository: Sendable {
     func save(_ snippet: Snippet) throws
     /// 软删除（写墓碑）。
     func softDelete(id: String) throws
-    /// 未删除片段数量（首启导入判空 / 免费额度用）。
+    /// 未删除片段数量（免费额度用）。
     func count() throws -> Int
+    /// 全部行数，**含软删除墓碑**。首启导入判空用它：用户删光后墓碑仍在，
+    /// 不会被当成「从未导入」而重新导入内置片段。
+    func totalCount() throws -> Int
 }
