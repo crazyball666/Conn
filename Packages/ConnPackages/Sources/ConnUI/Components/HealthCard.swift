@@ -25,8 +25,6 @@ public enum ConnHealthStatus: Sendable, CaseIterable {
         case .unknown: L("未知")
         }
     }
-
-    var isCritical: Bool { self == .crit || self == .offline }
 }
 
 /// 主机健康卡（服务器页 S1 的主角）。
@@ -142,7 +140,6 @@ public struct HealthCard: View {
             }
             .padding(ConnSpacing.cardPadding)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(alignment: .leading) { critEdge }
             .connSurface(cornerRadius: ConnRadius.card)
         }
         .buttonStyle(ConnPressStyle())
@@ -197,14 +194,52 @@ public struct HealthCard: View {
 
     // MARK: - 指标带（恒定高度 + 加载/错误蒙层）
 
-    /// 指标带始终参与布局（撑住高度）；未加载时以透明度隐藏，叠加 spinner / 错误。
+    /// 指标带始终参与布局（撑住高度）；未加载时以透明度隐藏，叠加骨架微光 / 错误。
     private var bandArea: some View {
         ZStack {
             metricBand.opacity(isLoaded ? 1 : 0)
-            ProgressView().tint(.connMuted).opacity(isLoading ? 1 : 0)
+            loadingSkeleton.opacity(isLoading ? 1 : 0)
             errorView.opacity(isFailed ? 1 : 0)
         }
         .animation(.easeInOut(duration: 0.25), value: model.loadState)
+    }
+
+    // MARK: - 加载骨架（微光扫过，镜像真实指标带布局）
+
+    private var loadingSkeleton: some View {
+        HStack(alignment: .top, spacing: ConnSpacing.xs) {
+            skeletonRing
+            skeletonRing
+            skeletonRing
+            skeletonColumn
+            skeletonColumn
+        }
+        .shimmering()
+    }
+
+    private var skeletonRing: some View {
+        VStack(spacing: 4) {
+            skeletonBar(width: 22)
+            Circle().stroke(Color.connTrack, lineWidth: ringStroke)
+                .frame(width: ringDiameter, height: ringDiameter)
+            skeletonBar(width: 30)
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    private var skeletonColumn: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            skeletonBar(width: 28)
+            skeletonBar(width: 46)
+            skeletonBar(width: 38)
+            skeletonBar(width: 46)
+            skeletonBar(width: 38)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func skeletonBar(width: CGFloat) -> some View {
+        Capsule().fill(Color.connTrack).frame(width: width, height: 7)
     }
 
     private var errorView: some View {
@@ -279,20 +314,6 @@ public struct HealthCard: View {
         .minimumScaleFactor(0.7)
     }
 
-    /// 故障态左侧 3pt 红条。
-    @ViewBuilder
-    private var critEdge: some View {
-        if model.status.isCritical {
-            UnevenRoundedRectangle(
-                topLeadingRadius: ConnRadius.card,
-                bottomLeadingRadius: ConnRadius.card,
-                style: .continuous
-            )
-            .fill(Color.connCrit)
-            .frame(width: ConnSize.critEdgeWidth)
-        }
-    }
-
     // MARK: - 派生
 
     private var isLoaded: Bool { model.loadState == .loaded }
@@ -333,6 +354,46 @@ public struct HealthCard: View {
         }
         return parts.joined(separator: "，")
     }
+}
+
+/// 骨架微光：一束高光沿骨架形状横扫，循环往复（比系统菊花更「有设计感」）。
+///
+/// 高光用 `connInk` 半透明——浅色下是柔和暗扫、深色下是柔和亮扫，两主题皆可见。
+/// 尊重「减弱动态效果」：开启时退化为静态骨架（去扫光）。
+private struct ShimmerModifier: ViewModifier {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var phase: CGFloat = -1
+
+    func body(content: Content) -> some View {
+        content
+            .overlay {
+                if !reduceMotion {
+                    GeometryReader { geometry in
+                        let width = geometry.size.width
+                        LinearGradient(
+                            colors: [.clear, Color.connInk.opacity(0.14), .clear],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                        .frame(width: width * 0.45)
+                        .offset(x: phase * width)
+                    }
+                    .mask(content)
+                    .allowsHitTesting(false)
+                }
+            }
+            .onAppear {
+                guard !reduceMotion else { return }
+                withAnimation(.linear(duration: 1.25).repeatForever(autoreverses: false)) {
+                    phase = 1.6
+                }
+            }
+    }
+}
+
+private extension View {
+    /// 给骨架加循环微光扫过效果。
+    func shimmering() -> some View { modifier(ShimmerModifier()) }
 }
 
 #Preview("HealthCard · 深色") {
