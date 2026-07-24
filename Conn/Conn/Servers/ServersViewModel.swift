@@ -119,6 +119,16 @@ final class ServersViewModel {
         let metrics = monitor.metrics[host.id]
         let error = monitor.errors[host.id]
         let status = presentationStatus(metrics: metrics, hasError: error != nil)
+        let loadState: HealthCard.LoadState
+        if metrics != nil {
+            loadState = .loaded
+        } else if let error, !error.isEmpty {
+            loadState = .failed(error)
+        } else if error != nil {
+            loadState = .failed(L("连接失败，下拉重试"))
+        } else {
+            loadState = .loading
+        }
         return HealthCard.Model(
             id: host.id,
             name: host.name,
@@ -134,7 +144,7 @@ final class ServersViewModel {
             io: metrics.map { flow(upRate: $0.ioWriteRate, upTotal: $0.ioWriteBytes, downRate: $0.ioReadRate, downTotal: $0.ioReadBytes) },
             uptimeText: metrics?.uptimeSeconds.map { MetricFormat.compactUptime($0) },
             loadText: metrics?.load1.map { String(format: "%.2f", $0) },
-            issue: status == .offline ? (error ?? L("连接失败，下拉重试")) : nil,
+            loadState: loadState,
             note: host.note
         )
     }

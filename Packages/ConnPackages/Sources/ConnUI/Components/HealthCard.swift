@@ -31,10 +31,18 @@ public enum ConnHealthStatus: Sendable, CaseIterable {
 
 /// 主机健康卡（服务器页 S1 的主角）。
 ///
-/// 紧凑单行指标带（参考竞品密排）：CPU/内存/磁盘 三枚小环（环心百分比、环下绝对量），
-/// 网络/IO 各一列 ↑↓（速率在上、总量在下）。**标题备注优先**（用户的记忆锚点），
-/// 运行时长与负载缩进卡头右上。故障态整卡左侧 3pt 红条。
+/// 紧凑单行指标带：CPU/内存/磁盘 三枚小环（环心百分比、环下绝对量），
+/// 网络/IO 各一列 ↑↓。**标题备注优先**；运行时长与负载缩进卡头右上。
+/// **卡片高度恒定**：指标带始终占位，加载中盖 spinner、失败盖错误文案，
+/// 加载成功淡出蒙层显示数据——不再「加载后突然变高」。故障态左侧 3pt 红条。
 public struct HealthCard: View {
+    /// 采集加载态：加载中 / 已加载 / 失败（带原因）。
+    public enum LoadState: Sendable, Equatable {
+        case loading
+        case loaded
+        case failed(String)
+    }
+
     /// 网络/IO 的双向读数（已格式化）：上/下行的速率与累计。
     public struct Flow: Sendable, Equatable {
         public let upRate: String
@@ -55,21 +63,18 @@ public struct HealthCard: View {
         public let name: String
         public let address: String
         public let status: ConnHealthStatus
-        /// 环形百分比 0–100，nil 显示「—」。
         public let cpu: Double?
         public let memory: Double?
         public let disk: Double?
-        /// 环下绝对量（已格式化）：核心数 / 内存总量 / 磁盘总量。
         public let coresText: String
         public let memTotalText: String
         public let diskTotalText: String
         public let net: Flow?
         public let io: Flow?
-        /// 卡头右上：运行时长与 1 分钟负载（已格式化，缺则 nil）。
         public let uptimeText: String?
         public let loadText: String?
-        /// 故障态一行处置提示。
-        public let issue: String?
+        /// 加载态：驱动指标带的 spinner / 错误蒙层。
+        public let loadState: LoadState
         /// 用户备注（便于记忆）。有则作为卡片主标题优先显示。
         public let note: String?
 
@@ -88,7 +93,7 @@ public struct HealthCard: View {
             io: Flow? = nil,
             uptimeText: String? = nil,
             loadText: String? = nil,
-            issue: String? = nil,
+            loadState: LoadState = .loaded,
             note: String? = nil
         ) {
             self.id = id
@@ -105,7 +110,7 @@ public struct HealthCard: View {
             self.io = io
             self.uptimeText = uptimeText
             self.loadText = loadText
-            self.issue = issue
+            self.loadState = loadState
             self.note = note
         }
 
@@ -119,6 +124,10 @@ public struct HealthCard: View {
     private let model: Model
     private let onTap: () -> Void
 
+    // 尺寸：环偏小、弧偏粗（圆润），环内/环下文字偏小，与标题层次协调。
+    private let ringDiameter: CGFloat = 40
+    private let ringStroke: CGFloat = 5.5
+
     public init(_ model: Model, onTap: @escaping () -> Void) {
         self.model = model
         self.onTap = onTap
@@ -128,16 +137,8 @@ public struct HealthCard: View {
         Button(action: onTap) {
             VStack(alignment: .leading, spacing: 0) {
                 header
-                if let issue = model.issue {
-                    Text(issue)
-                        .font(.connSubheadline)
-                        .foregroundStyle(.connMuted)
-                        .padding(.top, ConnSpacing.xs)
-                }
-                if hasMetrics {
-                    Rectangle().fill(Color.connLine).frame(height: 0.5).padding(.vertical, ConnSpacing.sm)
-                    metricBand
-                }
+                Rectangle().fill(Color.connLine).frame(height: 0.5).padding(.vertical, ConnSpacing.sm)
+                bandArea
             }
             .padding(ConnSpacing.cardPadding)
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -160,7 +161,7 @@ public struct HealthCard: View {
                     .foregroundStyle(.connInk)
                     .lineLimit(1)
                 Text(model.address)
-                    .font(.connData())
+                    .font(.connData(.caption2))
                     .foregroundStyle(.connMuted)
                     .lineLimit(1)
             }
@@ -194,7 +195,30 @@ public struct HealthCard: View {
         }
     }
 
-    // MARK: - 指标带
+    // MARK: - 指标带（恒定高度 + 加载/错误蒙层）
+
+    /// 指标带始终参与布局（撑住高度）；未加载时以透明度隐藏，叠加 spinner / 错误。
+    private var bandArea: some View {
+        ZStack {
+            metricBand.opacity(isLoaded ? 1 : 0)
+            ProgressView().tint(.connMuted).opacity(isLoading ? 1 : 0)
+            errorView.opacity(isFailed ? 1 : 0)
+        }
+        .animation(.easeInOut(duration: 0.25), value: model.loadState)
+    }
+
+    private var errorView: some View {
+        VStack(spacing: 4) {
+            Image(systemName: "wifi.slash").font(.system(size: 15)).foregroundStyle(.connCrit)
+            Text(errorMessage)
+                .font(.connFootnote)
+                .foregroundStyle(.connMuted)
+                .multilineTextAlignment(.center)
+                .lineLimit(2)
+                .minimumScaleFactor(0.85)
+        }
+        .padding(.horizontal, ConnSpacing.sm)
+    }
 
     private var metricBand: some View {
         HStack(alignment: .top, spacing: ConnSpacing.xs) {
@@ -210,21 +234,21 @@ public struct HealthCard: View {
         VStack(spacing: 4) {
             Text(label).font(.connData(.caption2)).foregroundStyle(.connMuted)
             ZStack {
-                Circle().stroke(Color.connTrack, lineWidth: 4)
+                Circle().stroke(Color.connTrack, lineWidth: ringStroke)
                 Circle().trim(from: 0, to: fraction(value))
-                    .stroke(ringColor(value, tint), style: StrokeStyle(lineWidth: 4, lineCap: .round))
+                    .stroke(ringColor(value, tint), style: StrokeStyle(lineWidth: ringStroke, lineCap: .round))
                     .rotationEffect(.degrees(-90))
-                    .shadow(color: ringColor(value, tint).opacity(0.35), radius: 2)
+                    .shadow(color: ringColor(value, tint).opacity(0.3), radius: 2)
                     .animation(.spring(response: 0.5, dampingFraction: 0.9), value: value)
                 Text(value.map { "\(Int($0))%" } ?? "—")
-                    .font(.system(size: 12, weight: .semibold, design: .rounded))
+                    .font(.system(size: 11, weight: .semibold, design: .rounded))
                     .connTabularNumbers()
                     .foregroundStyle(.connInk)
                     .minimumScaleFactor(0.8)
             }
-            .frame(width: 46, height: 46)
+            .frame(width: ringDiameter, height: ringDiameter)
             Text(sub)
-                .font(.connData(.caption2))
+                .font(.system(size: 10, design: .monospaced))
                 .foregroundStyle(.connMuted)
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
@@ -271,8 +295,16 @@ public struct HealthCard: View {
 
     // MARK: - 派生
 
-    private var hasMetrics: Bool {
-        model.cpu != nil || model.memory != nil || model.disk != nil || model.net != nil || model.io != nil
+    private var isLoaded: Bool { model.loadState == .loaded }
+    private var isLoading: Bool { model.loadState == .loading }
+    private var isFailed: Bool {
+        if case .failed = model.loadState { return true }
+        return false
+    }
+
+    private var errorMessage: String {
+        if case .failed(let message) = model.loadState { return message }
+        return ""
     }
 
     private func fraction(_ value: Double?) -> CGFloat {
@@ -289,10 +321,16 @@ public struct HealthCard: View {
 
     private var accessibilityDescription: String {
         var parts = ["\(model.title)，\(model.status.label)"]
-        if let cpu = model.cpu { parts.append("CPU \(Int(cpu))%") }
-        if let memory = model.memory { parts.append("内存 \(Int(memory))%") }
-        if let disk = model.disk { parts.append("磁盘 \(Int(disk))%") }
-        if let issue = model.issue { parts.append(issue) }
+        switch model.loadState {
+        case .loading:
+            parts.append(L("采集中…"))
+        case .failed(let message):
+            parts.append(message)
+        case .loaded:
+            if let cpu = model.cpu { parts.append("CPU \(Int(cpu))%") }
+            if let memory = model.memory { parts.append("内存 \(Int(memory))%") }
+            if let disk = model.disk { parts.append("磁盘 \(Int(disk))%") }
+        }
         return parts.joined(separator: "，")
     }
 }
@@ -303,13 +341,17 @@ public struct HealthCard: View {
     return VStack(spacing: ConnSpacing.stackGap) {
         HealthCard(.init(
             id: "1", name: "38.147.173.228", address: "root@38.147.173.228:62256",
-            status: .ok, cpu: 3, memory: 38, disk: 68,
+            status: .ok, cpu: 8, memory: 38, disk: 68,
             coresText: "2 核", memTotalText: "3.6 G", diskTotalText: "30 G",
-            net: net, io: io, uptimeText: "15 天", loadText: "0.10", note: "hk"
+            net: net, io: io, uptimeText: "15 天", loadText: "0.09", note: "hk"
         )) {}
         HealthCard(.init(
-            id: "2", name: "db-master", address: "root@10.0.0.2",
-            status: .crit, issue: "连接超时：22 端口无响应"
+            id: "2", name: "loading-host", address: "root@10.0.0.9",
+            status: .unknown, loadState: .loading
+        )) {}
+        HealthCard(.init(
+            id: "3", name: "db-master", address: "root@10.0.0.2",
+            status: .offline, loadState: .failed("连接超时：22 端口无响应")
         )) {}
     }
     .padding(ConnSpacing.page)

@@ -1,6 +1,14 @@
 {
   "sourceLanguage" : "zh-Hans",
   "strings" : {
+    "采集中…" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Collecting…" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "収集中…" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "수집 중…" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "採集中…" } }
+      }
+    },
     "—" : {
 
     },
