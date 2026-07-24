@@ -11,7 +11,6 @@ final class HostFormViewModel {
     var draft: HostDraft
     var password = ""
     var passphrase = ""
-    var showAdvanced = false
     private(set) var fieldErrors: [HostDraft.Field: String] = [:]
 
     let editingHostID: String?

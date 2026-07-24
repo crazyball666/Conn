@@ -73,6 +73,8 @@ struct ConnApp: App {
                 }
             } else if ProcessInfo.processInfo.environment["CONN_SMOKE_SNIPPETS"] != nil {
                 NavigationStack { SnippetsView(dependencies: dependencies) }
+            } else if ProcessInfo.processInfo.environment["CONN_SMOKE_HOSTFORM"] != nil {
+                HostFormView(dependencies: dependencies, initialDraft: HostDraft(), editingHostID: nil) {}
             } else if ProcessInfo.processInfo.environment["CONN_SMOKE_EDITOR"] != nil, let host = smokeDetailHost() {
                 NavigationStack {
                     FileEditorView(
