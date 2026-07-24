@@ -194,8 +194,11 @@ struct MiniMetricBar: View {
                 ZStack(alignment: .leading) {
                     Capsule().fill(Color.connTrack)
                     Capsule()
-                        .fill(barColor)
-                        .frame(width: geometry.size.width * fraction)
+                        .fill(barGradient)
+                        .frame(width: max(ConnSize.miniBarHeight, geometry.size.width * fraction))
+                        .shadow(color: barColor.opacity(0.5), radius: 2, y: 0)
+                        // 指标一变,条子平滑补到新长度(不弹跳)。
+                        .animation(.spring(response: 0.5, dampingFraction: 0.9), value: value)
                 }
             }
             .frame(height: ConnSize.miniBarHeight)
@@ -216,6 +219,15 @@ struct MiniMetricBar: View {
             return .connWarn
         }
         return tint
+    }
+
+    /// 条子沿长度方向的微渐变——头亮尾淡,增加质感。
+    private var barGradient: LinearGradient {
+        LinearGradient(
+            colors: [barColor, barColor.opacity(0.62)],
+            startPoint: .leading,
+            endPoint: .trailing
+        )
     }
 }
 

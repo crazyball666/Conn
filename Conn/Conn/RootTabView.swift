@@ -84,6 +84,7 @@ struct ScreenHeader: View {
         VStack(alignment: .leading, spacing: 2) {
             Text(title)
                 .font(.connTitle)
+                .connDisplayTracking()
                 .foregroundStyle(.connInk)
             if let subtitle {
                 Text(subtitle)

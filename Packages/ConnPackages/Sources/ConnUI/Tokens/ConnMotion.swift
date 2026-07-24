@@ -35,8 +35,9 @@ public struct ConnPressStyle: ButtonStyle {
     public func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .scaleEffect(scale(for: configuration.isPressed))
-            .opacity(configuration.isPressed ? 0.9 : 1)
-            .animation(.easeOut(duration: ConnMotion.pressDuration), value: configuration.isPressed)
+            .opacity(configuration.isPressed ? 0.92 : 1)
+            // 弹簧回弹比线性 easeOut 更「活」——按下即缩、松开带一丝回弹,像真实按键。
+            .animation(.spring(response: 0.28, dampingFraction: 0.62), value: configuration.isPressed)
     }
 
     private func scale(for pressed: Bool) -> CGFloat {

@@ -49,7 +49,7 @@ struct HostDetailView: View {
     private var header: some View {
         HStack(alignment: .center) {
             VStack(alignment: .leading, spacing: 2) {
-                Text(host.name).font(.connTitle).foregroundStyle(.connInk)
+                Text(host.name).font(.connTitle).connDisplayTracking().foregroundStyle(.connInk)
                 Text(host.displayAddress).font(.connData()).foregroundStyle(.connMuted)
             }
             Spacer()

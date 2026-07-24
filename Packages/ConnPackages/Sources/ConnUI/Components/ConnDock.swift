@@ -39,6 +39,8 @@ public struct ConnDock: View {
         _selection = selection
     }
 
+    @Namespace private var indicatorNamespace
+
     public var body: some View {
         HStack(spacing: 0) {
             ForEach(Tab.allCases) { tab in
@@ -49,7 +51,16 @@ public struct ConnDock: View {
         .background(.ultraThinMaterial, in: shape)
         .background(Color.connBar.opacity(0.72), in: shape)
         .overlay(shape.strokeBorder(Color.connLine, lineWidth: 1))
+        // 顶边接光，让 Dock 也像一块玻璃。
+        .overlay(
+            shape.strokeBorder(
+                LinearGradient(colors: [.white.opacity(0.10), .clear], startPoint: .top, endPoint: .center),
+                lineWidth: 1
+            )
+        )
         .shadow(color: .black.opacity(0.30), radius: 24, y: 8)
+        // 选中指示器随切换平滑滑动（快而不弹,不喧宾）。
+        .animation(.spring(response: 0.34, dampingFraction: 0.82), value: selection)
         .padding(.horizontal, ConnSize.dockHorizontalInset)
         .padding(.bottom, ConnSize.dockBottomInset)
     }
@@ -67,12 +78,24 @@ public struct ConnDock: View {
                 Image(systemName: tab.systemImage)
                     .font(.system(size: 19, weight: .medium))
                     .frame(height: ConnSize.dockGlyph)
+                    // 图标在被选中时轻弹一下——一个不打扰的微交互。
+                    .symbolEffect(.bounce, value: selection == tab)
                 Text(L(tab.title))
-                    .font(.system(size: 11))
+                    .font(.system(size: 11, weight: selection == tab ? .semibold : .regular))
             }
             .foregroundStyle(selection == tab ? Color.connAccent : .connMuted)
             .frame(maxWidth: .infinity)
             .frame(height: ConnSize.dockHeight)
+            .background {
+                // 选中态背后的辉光胶囊,借 matchedGeometry 从旧位置平滑滑过来。
+                if selection == tab {
+                    Capsule(style: .continuous)
+                        .fill(Color.connAccentFill)
+                        .matchedGeometryEffect(id: "dockIndicator", in: indicatorNamespace)
+                        .padding(.vertical, 7)
+                        .padding(.horizontal, 8)
+                }
+            }
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)

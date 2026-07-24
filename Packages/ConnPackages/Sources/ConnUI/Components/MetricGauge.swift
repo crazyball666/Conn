@@ -40,14 +40,25 @@ public struct MetricGauge: View {
                 .stroke(Color.connTrack, lineWidth: ConnSize.gaugeLineWidth)
             Circle()
                 .trim(from: 0, to: fraction)
-                .stroke(
-                    arcColor,
-                    style: StrokeStyle(lineWidth: ConnSize.gaugeLineWidth, lineCap: .round)
-                )
+                .stroke(arcGradient, style: StrokeStyle(lineWidth: ConnSize.gaugeLineWidth, lineCap: .round))
                 .rotationEffect(.degrees(-90))
+                // 弧线自带一点辉光——航电仪表观感，也让读数在深底上更「亮」。
+                .shadow(color: arcColor.opacity(0.35), radius: 3)
+                // 数据一变，环平滑补到新值（临界阻尼、不弹跳）。
+                .animation(.spring(response: 0.55, dampingFraction: 0.9), value: value)
             valueText
         }
         .frame(width: ConnSize.gaugeDiameter, height: ConnSize.gaugeDiameter)
+    }
+
+    /// 弧线渐变：从略暗扫到满色，制造光泽方向感。
+    private var arcGradient: AngularGradient {
+        AngularGradient(
+            gradient: Gradient(colors: [arcColor.opacity(0.55), arcColor]),
+            center: .center,
+            startAngle: .degrees(0),
+            endAngle: .degrees(360)
+        )
     }
 
     private var valueText: some View {

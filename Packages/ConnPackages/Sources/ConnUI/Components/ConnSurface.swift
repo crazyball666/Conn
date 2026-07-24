@@ -13,35 +13,45 @@ public struct ConnSurfaceModifier: ViewModifier {
 
     public func body(content: Content) -> some View {
         content
-            .background(Color.connSurface, in: shape)
+            .background {
+                shape.fill(Color.connSurface)
+                // 从上打光的体积渐变——顶部微提亮，让平面卡片有「被光照到」的立体感。
+                shape.fill(
+                    LinearGradient(
+                        colors: [.white.opacity(colorScheme == .dark ? 0.045 : 0.5), .clear],
+                        startPoint: .top,
+                        endPoint: .center
+                    )
+                )
+            }
             .overlay(topEdgeHighlight)
             .overlay(shape.strokeBorder(borderColor ?? .connLine, lineWidth: 1))
             .compositingGroup()
-            .shadow(
-                color: colorScheme == .light ? Color.black.opacity(0.07) : .clear,
-                radius: colorScheme == .light ? 4 : 0,
-                y: colorScheme == .light ? 1 : 0
-            )
+            // 一层克制的落影：深色下也给一点漂浮感，但绝不喧宾夺主（保持「平面但有深度」）。
+            .shadow(color: ambientShadow, radius: ambientRadius, y: ambientY)
     }
 
     private var shape: RoundedRectangle {
         .rect(cornerRadius: cornerRadius, style: .continuous)
     }
 
-    /// 顶边 1px 微光。仅深色下出现——浅色档原型用的是投影而非 inset 高光。
-    @ViewBuilder
+    private var ambientShadow: Color {
+        colorScheme == .light ? .black.opacity(0.08) : .black.opacity(0.22)
+    }
+
+    private var ambientRadius: CGFloat { colorScheme == .light ? 5 : 9 }
+    private var ambientY: CGFloat { colorScheme == .light ? 2 : 4 }
+
+    /// 顶边 1px 微光——模拟玻璃边缘接住光。深色更明显。
     private var topEdgeHighlight: some View {
-        if colorScheme == .dark {
-            shape
-                .strokeBorder(
-                    LinearGradient(
-                        colors: [.white.opacity(0.05), .clear],
-                        startPoint: .top,
-                        endPoint: .center
-                    ),
-                    lineWidth: 1
-                )
-        }
+        shape.strokeBorder(
+            LinearGradient(
+                colors: [.white.opacity(colorScheme == .dark ? 0.09 : 0.65), .clear],
+                startPoint: .top,
+                endPoint: .center
+            ),
+            lineWidth: 1
+        )
     }
 }
 

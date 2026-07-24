@@ -54,6 +54,14 @@ public extension View {
         tracking(0.6)
     }
 
+    /// 大标题光学字距（设计规范 §15：字号越大，字母间距视觉上越松，需收紧）。
+    ///
+    /// 仅用于 `connTitle`/`connSectionTitle` 级别的展示型标题——拉丁文与数字
+    /// （如「db-master」「94%」）在大字号下收紧后更紧致、更有分量。正文不收。
+    func connDisplayTracking() -> some View {
+        tracking(-0.5)
+    }
+
     /// 把点击热区撑到 HIG 要求的 44×44pt，**不改变视觉尺寸**。
     ///
     /// 设计规范 §0 例外一：原型中存在视觉尺寸小于 44pt 的可点元素

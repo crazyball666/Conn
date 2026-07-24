@@ -64,9 +64,12 @@ struct DashboardView: View {
                 HealthCard(card) {
                     selectedHost = viewModel.host(forID: card.id)
                 }
+                .transition(.move(edge: .top).combined(with: .opacity))
             }
         }
         .padding(.horizontal, ConnSpacing.page)
+        // 故障置顶导致卡片重排时,平滑滑动而非瞬跳；新卡片淡入。
+        .animation(.spring(response: 0.5, dampingFraction: 0.86), value: viewModel.cards)
     }
 
     private var quickActions: some View {
