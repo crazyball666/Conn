@@ -60,10 +60,9 @@ struct ServersView: View {
                 viewModel.load()
             }
         }
-        .confirmationDialog(
+        .alert(
             L("删除主机"),
             isPresented: Binding(get: { pendingDelete != nil }, set: { if !$0 { pendingDelete = nil } }),
-            titleVisibility: .visible,
             presenting: pendingDelete
         ) { host in
             Button(L("删除"), role: .destructive) {

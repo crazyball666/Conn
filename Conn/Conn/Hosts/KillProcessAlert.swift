@@ -14,24 +14,20 @@ struct KillProcessAlert: ViewModifier {
 
     func body(content: Content) -> some View {
         content
-            .confirmationDialog(prompt, isPresented: confirmBinding, titleVisibility: .visible) {
+            .alert(L("结束进程"), isPresented: confirmBinding, presenting: target) { process in
                 Button(L("结束进程"), role: .destructive) {
-                    guard let process = target else { return }
                     target = nil
                     Task { result = await viewModel.performKill(process) }
                 }
                 Button(L("取消"), role: .cancel) { target = nil }
+            } message: { process in
+                Text(String(format: L("结束 %@（PID %d）？将发送 SIGTERM。"), process.command, process.pid))
             }
             .alert(L("进程操作"), isPresented: resultBinding) {
                 Button(L("好"), role: .cancel) { result = nil }
             } message: {
                 Text(result ?? "")
             }
-    }
-
-    private var prompt: String {
-        guard let process = target else { return "" }
-        return String(format: L("结束 %@（PID %d）？将发送 SIGTERM。"), process.command, process.pid)
     }
 
     private var confirmBinding: Binding<Bool> {
