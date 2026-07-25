@@ -36,14 +36,13 @@ struct HostDetailView: View {
     }
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: ConnSpacing.md) {
-                segmentPicker
-                content
-            }
-            .padding(.horizontal, ConnSpacing.page)
-            .padding(.top, ConnSpacing.xs)
+        VStack(alignment: .leading, spacing: ConnSpacing.md) {
+            segmentPicker
+            content
         }
+        .padding(.horizontal, ConnSpacing.page)
+        .padding(.top, ConnSpacing.xs)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .background(Color.connBg.ignoresSafeArea())
         .navigationTitle(displayTitle)
         .navigationBarTitleDisplayMode(.inline)

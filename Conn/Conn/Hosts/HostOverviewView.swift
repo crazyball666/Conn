@@ -9,17 +9,20 @@ struct HostOverviewView: View {
     let viewModel: HostOverviewViewModel
 
     var body: some View {
-        VStack(alignment: .leading, spacing: ConnSpacing.md) {
-            if let error = viewModel.errorText, viewModel.latest == nil {
-                ConnBanner(error, systemImage: "wifi.slash")
+        ScrollView {
+            VStack(alignment: .leading, spacing: ConnSpacing.md) {
+                if let error = viewModel.errorText, viewModel.latest == nil {
+                    ConnBanner(error, systemImage: "wifi.slash")
+                }
+                systemCard
+                cpuSection
+                memorySection
+                diskSection
+                networkSection
             }
-            systemCard
-            cpuSection
-            memorySection
-            diskSection
-            networkSection
+            .padding(.bottom, ConnSpacing.lg)
         }
-        .padding(.bottom, ConnSpacing.lg)
+        .scrollBounceBehavior(.basedOnSize)
         .onChange(of: viewModel.latest) { _, _ in viewModel.record() }
     }
 

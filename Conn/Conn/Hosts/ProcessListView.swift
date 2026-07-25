@@ -16,23 +16,26 @@ struct ProcessListView: View {
     @State private var resultMessage: String?
 
     var body: some View {
-        VStack(alignment: .leading, spacing: ConnSpacing.xs) {
-            searchField
-            eyebrow
-            if displayedProcesses.isEmpty {
-                emptyState
-            } else {
-                columnHeader
-                LazyVStack(spacing: 0) {
-                    ForEach(Array(displayedProcesses.enumerated()), id: \.element.id) { index, process in
-                        if index > 0 { rowDivider }
-                        row(process)
+        ScrollView {
+            VStack(alignment: .leading, spacing: ConnSpacing.xs) {
+                searchField
+                eyebrow
+                if displayedProcesses.isEmpty {
+                    emptyState
+                } else {
+                    columnHeader
+                    LazyVStack(spacing: 0) {
+                        ForEach(Array(displayedProcesses.enumerated()), id: \.element.id) { index, process in
+                            if index > 0 { rowDivider }
+                            row(process)
+                        }
                     }
+                    .connSurface(cornerRadius: ConnRadius.card)
                 }
-                .connSurface(cornerRadius: ConnRadius.card)
             }
+            .padding(.bottom, ConnSpacing.lg)
         }
-        .padding(.bottom, ConnSpacing.lg)
+        .scrollBounceBehavior(.basedOnSize)
         .modifier(KillProcessAlert(viewModel: viewModel, target: $killTarget, result: $resultMessage))
     }
 

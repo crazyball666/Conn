@@ -91,20 +91,20 @@ struct DockerView: View {
             }
             .padding(.vertical, ConnSpacing.md)
         case .ready:
-            ScrollView {
-                VStack(spacing: ConnSpacing.sm) {
-                    Picker(L("段"), selection: $tab) {
-                        ForEach(Tab.allCases) { Text(L($0.rawValue)).tag($0) }
-                    }
-                    .pickerStyle(.segmented)
+            VStack(spacing: ConnSpacing.sm) {
+                Picker(L("段"), selection: $tab) {
+                    ForEach(Tab.allCases) { Text(L($0.rawValue)).tag($0) }
+                }
+                .pickerStyle(.segmented)
+                ScrollView {
                     switch tab {
                     case .containers: containerList
                     case .images: imageSection
                     }
                 }
+                .scrollBounceBehavior(.basedOnSize)
+                .refreshable { await refresh() }
             }
-            .scrollBounceBehavior(.basedOnSize)
-            .refreshable { await refresh() }
         }
     }
 

@@ -82,19 +82,22 @@ struct LogCenterView: View {
     }
 
     private var sourceList: some View {
-        VStack(spacing: ConnSpacing.sm) {
-            if viewModel.sources.isEmpty {
-                Text(L("未发现常见日志源。\n可在终端里直接查看自定义路径。"))
-                    .font(.connSubheadline).foregroundStyle(.connMuted).multilineTextAlignment(.center)
-                    .padding(.vertical, ConnSpacing.xl)
-            } else {
-                ForEach(viewModel.sources) { source in
-                    Button { selectedSource = source } label: { row(source) }
-                        .buttonStyle(ConnPressStyle())
+        ScrollView {
+            VStack(spacing: ConnSpacing.sm) {
+                if viewModel.sources.isEmpty {
+                    Text(L("未发现常见日志源。\n可在终端里直接查看自定义路径。"))
+                        .font(.connSubheadline).foregroundStyle(.connMuted).multilineTextAlignment(.center)
+                        .padding(.vertical, ConnSpacing.xl)
+                } else {
+                    ForEach(viewModel.sources) { source in
+                        Button { selectedSource = source } label: { row(source) }
+                            .buttonStyle(ConnPressStyle())
+                    }
                 }
             }
+            .padding(.bottom, ConnSpacing.lg)
         }
-        .padding(.bottom, ConnSpacing.lg)
+        .scrollBounceBehavior(.basedOnSize)
     }
 
     private func row(_ source: LogSource) -> some View {
