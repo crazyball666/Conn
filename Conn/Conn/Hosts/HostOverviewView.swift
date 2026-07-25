@@ -31,11 +31,11 @@ struct HostOverviewView: View {
         section(L("系统")) {
             HStack(alignment: .firstTextBaseline, spacing: ConnSpacing.sm) {
                 Text(latest?.osName ?? "—")
-                    .font(.connData(.caption2)).foregroundStyle(.connMuted)
+                    .font(.connData(.caption2)).fontWeight(.semibold).foregroundStyle(.connMuted)
                     .lineLimit(1).minimumScaleFactor(0.6)
                 Spacer(minLength: ConnSpacing.sm)
                 Text(MetricFormat.uptime(latest?.uptimeSeconds))
-                    .font(.connData(.caption2)).connTabularNumbers().foregroundStyle(.connMuted)
+                    .font(.connData(.caption2)).fontWeight(.semibold).connTabularNumbers().foregroundStyle(.connMuted)
                     .lineLimit(1).minimumScaleFactor(0.6)
             }
             sectionDivider
