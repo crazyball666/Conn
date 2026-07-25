@@ -98,6 +98,7 @@ struct LogCenterView: View {
             .padding(.bottom, ConnSpacing.lg)
         }
         .scrollBounceBehavior(.basedOnSize)
+        .scrollIndicators(.hidden)
     }
 
     private func row(_ source: LogSource) -> some View {

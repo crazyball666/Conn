@@ -231,6 +231,7 @@ struct FileBrowserView: View {
             }
         }
         .scrollBounceBehavior(.basedOnSize)
+        .scrollIndicators(.hidden)
         .refreshable {
             let clock = ContinuousClock()
             let start = clock.now

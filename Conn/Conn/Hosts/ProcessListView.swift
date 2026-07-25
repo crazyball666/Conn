@@ -36,6 +36,7 @@ struct ProcessListView: View {
             .padding(.bottom, ConnSpacing.lg)
         }
         .scrollBounceBehavior(.basedOnSize)
+        .scrollIndicators(.hidden)
         .modifier(KillProcessAlert(viewModel: viewModel, target: $killTarget, result: $resultMessage))
     }
 

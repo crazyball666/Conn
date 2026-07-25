@@ -103,6 +103,7 @@ struct DockerView: View {
                     }
                 }
                 .scrollBounceBehavior(.basedOnSize)
+                .scrollIndicators(.hidden)
                 .refreshable { await refresh() }
             }
         }

@@ -23,6 +23,7 @@ struct HostOverviewView: View {
             .padding(.bottom, ConnSpacing.lg)
         }
         .scrollBounceBehavior(.basedOnSize)
+        .scrollIndicators(.hidden)
         .onChange(of: viewModel.latest) { _, _ in viewModel.record() }
     }
 

@@ -41,6 +41,7 @@ struct ContainerDetailView: View {
             .padding(.horizontal, ConnSpacing.page)
             .padding(.vertical, ConnSpacing.md)
         }
+        .scrollIndicators(.hidden)
         .background(Color.connBg.ignoresSafeArea())
         .navigationTitle(container.name)
         .navigationBarTitleDisplayMode(.inline)
