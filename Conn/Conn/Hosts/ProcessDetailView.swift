@@ -11,6 +11,8 @@ struct ProcessDetailView: View {
     let viewModel: HostOverviewViewModel
 
     @State private var commandExpanded = false
+    @State private var killTarget: RemoteProcess?
+    @State private var resultMessage: String?
 
     var body: some View {
         ScrollView {
@@ -26,6 +28,7 @@ struct ProcessDetailView: View {
         .background(Color.connBg.ignoresSafeArea())
         .navigationTitle(live.command)
         .navigationBarTitleDisplayMode(.inline)
+        .modifier(KillProcessAlert(viewModel: viewModel, target: $killTarget, result: $resultMessage))
     }
 
     /// 最新快照里的同 PID 进程；已退出则回落入场快照。
@@ -125,7 +128,7 @@ struct ProcessDetailView: View {
 
     private var killButton: some View {
         Button {
-            viewModel.requestKill(live)
+            killTarget = live
         } label: {
             Label(L("结束进程"), systemImage: "xmark.octagon")
                 .font(.connBody).foregroundStyle(.connCrit)

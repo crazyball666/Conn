@@ -13,9 +13,6 @@ import Observation
 @MainActor
 final class HostOverviewViewModel {
     let monitor: MonitorScheduler
-    /// 待确认结束的进程（二次确认，PRD §5.4）。
-    var killTarget: RemoteProcess?
-    var actionMessage: String?
 
     private let host: Host
     private let connectionManager: ConnectionManager
@@ -112,22 +109,17 @@ final class HostOverviewViewModel {
     func appear() { monitor.startDetail(host: host) }
     func disappear() { monitor.stop() }
 
-    func requestKill(_ process: RemoteProcess) {
-        killTarget = process
-    }
-
-    /// 确认后发 SIGTERM。失败进 `actionMessage` 提示。
-    func confirmKill() async {
-        guard let target = killTarget else { return }
-        killTarget = nil
+    /// 向进程发 SIGTERM，返回结果文案。二次确认与结果提示由各视图自持有本地状态呈现
+    /// ——详情页是列表推入的子层，集中在祖先视图的对话框在被覆盖时呈现不可靠。
+    func performKill(_ process: RemoteProcess) async -> String {
         do {
             let session = try await connectionManager.session(for: host)
-            let result = try await ProcessControl.kill(pid: target.pid, on: session)
-            actionMessage = result.isSuccess
-                ? String(format: L("已向 %@（PID %d）发送结束信号"), target.command, target.pid)
-                : String(format: L("结束 %@ 失败：%@"), target.command, result.stderrText)
+            let result = try await ProcessControl.kill(pid: process.pid, on: session)
+            return result.isSuccess
+                ? String(format: L("已向 %@（PID %d）发送结束信号"), process.command, process.pid)
+                : String(format: L("结束 %@ 失败：%@"), process.command, result.stderrText)
         } catch {
-            actionMessage = "结束进程失败：\(error.localizedDescription)"
+            return String(format: L("结束进程失败：%@"), error.localizedDescription)
         }
     }
 }

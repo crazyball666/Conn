@@ -11,6 +11,8 @@ struct ProcessListView: View {
     enum SortKey { case cpu, mem }
     @State private var sortKey: SortKey = .cpu
     @State private var ascending = false
+    @State private var killTarget: RemoteProcess?
+    @State private var resultMessage: String?
 
     var body: some View {
         VStack(alignment: .leading, spacing: ConnSpacing.xs) {
@@ -29,6 +31,7 @@ struct ProcessListView: View {
             }
         }
         .padding(.bottom, ConnSpacing.lg)
+        .modifier(KillProcessAlert(viewModel: viewModel, target: $killTarget, result: $resultMessage))
     }
 
     /// 按当前排序键与方向排好序的全量进程。
@@ -100,7 +103,7 @@ struct ProcessListView: View {
         .buttonStyle(.plain)
         .contextMenu {
             Button(role: .destructive) {
-                viewModel.requestKill(process)
+                killTarget = process
             } label: {
                 Label(L("结束进程"), systemImage: "xmark.octagon")
             }

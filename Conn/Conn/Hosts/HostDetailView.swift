@@ -45,30 +45,6 @@ struct HostDetailView: View {
         .toolbar { terminalToolbarItem }
         .onAppear { monitorVM.appear() }
         .onDisappear { monitorVM.disappear() }
-        // 结束进程的二次确认与结果提示集中在此——无论触发自进程列表的长按操作栏，
-        // 还是进程详情页的按钮（详情为本页推入的子层），都由这一处对话框呈现。
-        .confirmationDialog(killPrompt, isPresented: killDialogBinding, titleVisibility: .visible) {
-            Button(L("结束进程"), role: .destructive) { Task { await monitorVM.confirmKill() } }
-            Button(L("取消"), role: .cancel) { monitorVM.killTarget = nil }
-        }
-        .alert(L("进程操作"), isPresented: actionMessageBinding) {
-            Button(L("好"), role: .cancel) { monitorVM.actionMessage = nil }
-        } message: {
-            Text(monitorVM.actionMessage ?? "")
-        }
-    }
-
-    private var killPrompt: String {
-        guard let target = monitorVM.killTarget else { return "" }
-        return String(format: L("结束 %@（PID %d）？将发送 SIGTERM。"), target.command, target.pid)
-    }
-
-    private var killDialogBinding: Binding<Bool> {
-        Binding(get: { monitorVM.killTarget != nil }, set: { if !$0 { monitorVM.killTarget = nil } })
-    }
-
-    private var actionMessageBinding: Binding<Bool> {
-        Binding(get: { monitorVM.actionMessage != nil }, set: { if !$0 { monitorVM.actionMessage = nil } })
     }
 
     /// 终端入口：导航栏右上角图标，直接推入终端会话（无中间落地页）。
