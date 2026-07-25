@@ -14,6 +14,8 @@ public enum CollectionScript {
         public static let load = "__CONN_LOAD__"
         public static let disk = "__CONN_DISK__"
         public static let net = "__CONN_NET__"
+        public static let snmp = "__CONN_SNMP__"
+        public static let ipaddr = "__CONN_IPADDR__"
         public static let io = "__CONN_IO__"
         public static let uptime = "__CONN_UPTIME__"
         public static let os = "__CONN_OS__"
@@ -31,6 +33,8 @@ public enum CollectionScript {
             "echo \(Sentinel.load)", "cat /proc/loadavg 2>/dev/null",
             "echo \(Sentinel.disk)", "df -P -k 2>/dev/null",
             "echo \(Sentinel.net)", "cat /proc/net/dev 2>/dev/null",
+            "echo \(Sentinel.snmp)", "cat /proc/net/snmp 2>/dev/null",
+            "echo \(Sentinel.ipaddr)", "ip -o -4 addr show 2>/dev/null",
             "echo \(Sentinel.io)", "cat /proc/diskstats 2>/dev/null",
             "echo \(Sentinel.uptime)", "cat /proc/uptime 2>/dev/null",
             "echo \(Sentinel.os)", "cat /etc/os-release 2>/dev/null",

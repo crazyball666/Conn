@@ -27,6 +27,11 @@ struct MetricParserTests {
      face |bytes    packets errs drop fifo frame compressed multicast|bytes    packets errs drop fifo colls carrier compressed
         lo:    1000      10    0    0    0     0          0         0     1000      10    0    0    0     0       0          0
       eth0: 5000000    4000    0    0    0     0          0         0  3000000    3500    0    0    0     0       0          0
+    __CONN_SNMP__
+    Tcp: RtoAlgorithm RtoMin RtoMax MaxConn ActiveOpens PassiveOpens AttemptFails EstabResets CurrEstab InSegs OutSegs RetransSegs InErrs OutRsts
+    Tcp: 1 200 120000 -1 1848 25000 1785 3000 42 5100000 5000000 12000 0 8000
+    __CONN_IPADDR__
+    2: eth0    inet 38.147.173.228/24 brd 38.147.173.255 scope global eth0
     __CONN_IO__
        8       0 sda 1000 0 200000 500 800 0 100000 400 0 300 900
        8       1 sda1 500 0 50000 200 400 0 20000 100 0 100 300
@@ -109,6 +114,20 @@ struct MetricParserTests {
         #expect(breakdown?.user == 50)
         #expect(breakdown?.system == 30)
         #expect(breakdown?.idle == 20)
+    }
+
+    @Test("网络：TCP 统计 · 各网卡 · IP")
+    func gnuNetwork() {
+        let parsed = MetricParser.parse(gnuOutput)
+        #expect(parsed.tcp?.activeOpens == 1848)
+        #expect(parsed.tcp?.passiveOpens == 25000)
+        #expect(parsed.tcp?.attemptFails == 1785)
+        // 重传率 = 12000 / 5000000 * 100 = 0.24%
+        #expect(abs((parsed.tcp?.retransRate ?? 0) - 0.24) < 0.0001)
+        // 各网卡：lo + eth0
+        #expect(parsed.netInterfaces.count == 2)
+        #expect(parsed.netInterfaces.contains { $0.name == "eth0" && $0.rx == 5_000_000 })
+        #expect(parsed.interfaceIPs["eth0"] == "38.147.173.228")
     }
 
     @Test("GNU：进程按 ps 解析")

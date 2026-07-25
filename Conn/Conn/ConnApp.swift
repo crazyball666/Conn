@@ -114,6 +114,7 @@ struct ConnApp: App {
             case "docker": .docker
             case "logs": .logs
             case "files": .files
+            case "processes": .processes
             default: .overview
             }
         }

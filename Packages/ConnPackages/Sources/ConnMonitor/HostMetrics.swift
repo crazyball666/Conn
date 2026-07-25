@@ -41,6 +41,10 @@ public struct HostMetrics: Sendable, Equatable {
     /// 收/发速率（字节/秒）。相邻样本差分得出。
     public let netRxRate: Double?
     public let netTxRate: Double?
+    /// 各网卡明细（累计 + 速率 + IP）。
+    public let interfaces: [NetInterface]
+    /// TCP 连接统计（重传率/主动/被动建连/建连失败）。
+    public let tcp: TCPStats?
     /// 磁盘 IO 累计读/写字节（`/proc/diskstats` 扇区 ×512）。
     public let ioReadBytes: Int64?
     public let ioWriteBytes: Int64?
@@ -76,6 +80,8 @@ public struct HostMetrics: Sendable, Equatable {
         netTx: Int64?,
         netRxRate: Double? = nil,
         netTxRate: Double? = nil,
+        interfaces: [NetInterface] = [],
+        tcp: TCPStats? = nil,
         ioReadBytes: Int64? = nil,
         ioWriteBytes: Int64? = nil,
         ioReadRate: Double? = nil,
@@ -107,6 +113,8 @@ public struct HostMetrics: Sendable, Equatable {
         self.netTx = netTx
         self.netRxRate = netRxRate
         self.netTxRate = netTxRate
+        self.interfaces = interfaces
+        self.tcp = tcp
         self.ioReadBytes = ioReadBytes
         self.ioWriteBytes = ioWriteBytes
         self.ioReadRate = ioReadRate

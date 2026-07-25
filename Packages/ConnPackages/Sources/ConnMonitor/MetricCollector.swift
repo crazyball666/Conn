@@ -16,6 +16,12 @@ public actor MetricCollector {
         var uptime: Double?
     }
 
+    /// 各网卡差分基线：上次各网卡累计 + 服务器 uptime。
+    private struct InterfaceBaseline {
+        var uptime: Double
+        var interfaces: [String: RawInterface]
+    }
+
     /// 本次网络/IO 速率（字节/秒）。首采或重启时相应项为 nil。
     private struct Rates {
         var netRx: Double?
@@ -28,6 +34,7 @@ public actor MetricCollector {
     private var previousTimes: [String: CPUTimes] = [:]
     private var previousPerCore: [String: [CPUJiffies]] = [:]
     private var previousRate: [String: RateBaseline] = [:]
+    private var previousInterfaces: [String: InterfaceBaseline] = [:]
 
     public init() {}
 
@@ -53,6 +60,9 @@ public actor MetricCollector {
 
         // 网络/IO 速率：用服务器自身 uptime 作时钟差分（免客户端时钟漂移/网络延迟）。
         let rates = updateRates(host: host, parsed: parsed)
+
+        // 各网卡明细（含速率）。
+        let interfaces = buildInterfaces(host: host, parsed: parsed)
 
         let diskPercent = parsed.diskPercent
         let sample = MetricSample(
@@ -88,6 +98,8 @@ public actor MetricCollector {
             netTx: parsed.netTxBytes,
             netRxRate: rates.netRx,
             netTxRate: rates.netTx,
+            interfaces: interfaces,
+            tcp: parsed.tcp,
             ioReadBytes: parsed.ioReadBytes,
             ioWriteBytes: parsed.ioWriteBytes,
             ioReadRate: rates.ioRead,
@@ -97,6 +109,38 @@ public actor MetricCollector {
             severity: HealthEvaluator.severity(cpu: cpuUsage, mem: parsed.memPercent, disk: diskPercent),
             sample: sample
         )
+    }
+
+    /// 组装各网卡明细（累计 + 速率 + IP）。速率按 uptime 差分；无基线时为 nil。
+    /// 排序：物理网卡在前（按流量降序），`lo` 置末。
+    private func buildInterfaces(host: ConnKit.Host, parsed: ParsedMetrics) -> [NetInterface] {
+        let current = parsed.netInterfaces
+        var rates: [String: (rx: Double?, tx: Double?)] = [:]
+        if let uptime = parsed.uptimeSeconds, let previous = previousInterfaces[host.id] {
+            let dt = uptime - previous.uptime
+            for iface in current where previous.interfaces[iface.name] != nil {
+                let prior = previous.interfaces[iface.name]!
+                rates[iface.name] = (Self.rate(iface.rx, prior.rx, over: dt), Self.rate(iface.tx, prior.tx, over: dt))
+            }
+        }
+        if let uptime = parsed.uptimeSeconds {
+            previousInterfaces[host.id] = InterfaceBaseline(
+                uptime: uptime,
+                interfaces: Dictionary(current.map { ($0.name, $0) }, uniquingKeysWith: { first, _ in first })
+            )
+        }
+        return current
+            .map { iface in
+                NetInterface(
+                    name: iface.name, ip: parsed.interfaceIPs[iface.name],
+                    rxRate: rates[iface.name]?.rx, txRate: rates[iface.name]?.tx,
+                    rxTotal: iface.rx, txTotal: iface.tx
+                )
+            }
+            .sorted { lhs, rhs in
+                if (lhs.name == "lo") != (rhs.name == "lo") { return rhs.name == "lo" }
+                return (lhs.rxTotal + lhs.txTotal) > (rhs.rxTotal + rhs.txTotal)
+            }
     }
 
     /// 汇总时间片差分求 CPU 各类占比。首采无基线时返回 nil。
@@ -150,6 +194,7 @@ public actor MetricCollector {
         previousTimes[hostID] = nil
         previousPerCore[hostID] = nil
         previousRate[hostID] = nil
+        previousInterfaces[hostID] = nil
     }
 }
 

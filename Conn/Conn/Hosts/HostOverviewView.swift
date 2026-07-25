@@ -19,19 +19,9 @@ struct HostOverviewView: View {
             memorySection
             diskSection
             networkSection
-            processes
         }
         .padding(.bottom, ConnSpacing.lg)
         .onChange(of: viewModel.latest) { _, _ in viewModel.record() }
-        .confirmationDialog(killPrompt, isPresented: killDialogBinding, titleVisibility: .visible) {
-            Button(L("结束进程"), role: .destructive) { Task { await viewModel.confirmKill() } }
-            Button(L("取消"), role: .cancel) { viewModel.killTarget = nil }
-        }
-        .alert(L("进程操作"), isPresented: actionMessageBinding) {
-            Button(L("好"), role: .cancel) { viewModel.actionMessage = nil }
-        } message: {
-            Text(viewModel.actionMessage ?? "")
-        }
     }
 
     // MARK: - 系统 / 负载
@@ -172,7 +162,19 @@ struct HostOverviewView: View {
                 down: viewModel.netRxHistory, downColor: .connInfo,
                 up: viewModel.netTxHistory, upColor: .connGood
             ))
+            if let tcp = latest?.tcp {
+                sectionDivider
+                tcpGrid(tcp)
+            }
+            if let interfaces = latest?.interfaces, !interfaces.isEmpty {
+                sectionDivider
+                interfaceList(interfaces)
+            }
         }
+    }
+
+    private var sectionDivider: some View {
+        Rectangle().fill(Color.connLine).frame(height: 0.5).padding(.vertical, 2)
     }
 
     private func rateSeries(down: [Double], downColor: Color, up: [Double], upColor: Color) -> [TrendSeries] {
@@ -275,19 +277,6 @@ struct HostOverviewView: View {
     // MARK: - 派生 / 绑定
 
     private var latest: HostMetrics? { viewModel.latest }
-
-    private var killPrompt: String {
-        guard let target = viewModel.killTarget else { return "" }
-        return String(format: L("结束 %@（PID %d）？将发送 SIGTERM。"), target.command, target.pid)
-    }
-
-    private var killDialogBinding: Binding<Bool> {
-        Binding(get: { viewModel.killTarget != nil }, set: { if !$0 { viewModel.killTarget = nil } })
-    }
-
-    private var actionMessageBinding: Binding<Bool> {
-        Binding(get: { viewModel.actionMessage != nil }, set: { if !$0 { viewModel.actionMessage = nil } })
-    }
 }
 
 // MARK: - CPU 明细（各类占比网格 + 构成堆叠图 + 各核占用条）
@@ -377,60 +366,60 @@ private extension HostOverviewView {
     }
 }
 
-// MARK: - 进程
+// MARK: - 网络明细（TCP 统计 + 各网卡）
 
 private extension HostOverviewView {
-    var processes: some View {
-        VStack(alignment: .leading, spacing: ConnSpacing.xs) {
-            Text(L("进程 · CPU 占用前列"))
-                .font(.connCaption).foregroundStyle(.connMuted).connEyebrowTracking()
-            if viewModel.topProcesses.isEmpty {
-                Text(viewModel.latest == nil ? L("采集中…") : L("暂无进程数据"))
-                    .font(.connFootnote).foregroundStyle(.connMuted)
-                    .padding(.vertical, ConnSpacing.sm)
-            } else {
-                VStack(spacing: 0) {
-                    ForEach(Array(viewModel.topProcesses.enumerated()), id: \.element.id) { index, process in
-                        if index > 0 {
-                            Rectangle().fill(Color.connLine).frame(height: 0.5)
-                                .padding(.leading, ConnSpacing.cardPadding)
-                        }
-                        processRow(process)
-                    }
-                }
-                .connSurface(cornerRadius: ConnRadius.card)
-            }
+    func tcpGrid(_ tcp: TCPStats) -> some View {
+        HStack(spacing: 0) {
+            tcpCell(L("重传率"), String(format: "%.1f%%", tcp.retransRate),
+                    tcp.retransRate > 2 ? .connWarn : .connInk)
+            tcpCell(L("主动建连"), tcp.activeOpens.formatted(), .connInk)
+            tcpCell(L("被动建连"), tcp.passiveOpens.formatted(), .connInk)
+            tcpCell(L("建连失败"), tcp.attemptFails.formatted(),
+                    tcp.attemptFails > 0 ? .connWarn : .connInk)
         }
     }
 
-    func processRow(_ process: RemoteProcess) -> some View {
-        HStack(spacing: ConnSpacing.sm) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(process.command).font(.connBody).foregroundStyle(.connInk).lineLimit(1)
-                Text("PID \(String(process.pid))").font(.connData(.caption2)).foregroundStyle(.connMuted)
-            }
-            Spacer(minLength: ConnSpacing.xs)
-            usageColumn("CPU", value: process.cpu)
-            usageColumn(L("内存"), value: process.mem)
-            Button {
-                viewModel.requestKill(process)
-            } label: {
-                Image(systemName: "xmark.circle").font(.system(size: 18)).foregroundStyle(.connCrit)
-            }
-            .buttonStyle(.plain)
-            .connHitTarget()
-            .accessibilityLabel("结束 \(process.command)")
-        }
-        .padding(.horizontal, ConnSpacing.cardPadding)
-        .padding(.vertical, ConnSpacing.sm)
-    }
-
-    func usageColumn(_ label: String, value: Double) -> some View {
-        VStack(alignment: .trailing, spacing: 1) {
-            Text(String(format: "%.0f%%", value)).font(.connData(.footnote)).connTabularNumbers()
-                .foregroundStyle(value > ConnThreshold.warn ? .connWarn : .connInk)
+    func tcpCell(_ label: String, _ value: String, _ color: Color) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
             Text(label).font(.connData(.caption2)).foregroundStyle(.connMuted)
+            Text(value).font(.connData(.footnote)).connTabularNumbers().foregroundStyle(color)
+                .lineLimit(1).minimumScaleFactor(0.7)
         }
-        .frame(width: 44)
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    func interfaceList(_ interfaces: [NetInterface]) -> some View {
+        VStack(spacing: 0) {
+            ForEach(Array(interfaces.enumerated()), id: \.element.id) { index, iface in
+                if index > 0 {
+                    Rectangle().fill(Color.connLine).frame(height: 0.5)
+                }
+                interfaceRow(iface)
+            }
+        }
+    }
+
+    func interfaceRow(_ iface: NetInterface) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            HStack {
+                Text(iface.name).font(.connData(.footnote)).foregroundStyle(.connInk).lineLimit(1)
+                Spacer()
+                if let ip = iface.ip {
+                    Text(ip).font(.connData(.caption2)).foregroundStyle(.connMuted)
+                }
+            }
+            HStack(spacing: ConnSpacing.md) {
+                Text("↑ \(MetricFormat.rate(iface.txRate))")
+                    .font(.connData(.caption2)).foregroundStyle(.connGood)
+                Text("↓ \(MetricFormat.rate(iface.rxRate))")
+                    .font(.connData(.caption2)).foregroundStyle(.connInfo)
+                Spacer()
+                Text("↑\(MetricFormat.bytes(iface.txTotal)) ↓\(MetricFormat.bytes(iface.rxTotal))")
+                    .font(.connData(.caption2)).foregroundStyle(.connDim)
+                    .lineLimit(1).minimumScaleFactor(0.7)
+            }
+        }
+        .padding(.vertical, ConnSpacing.xs)
     }
 }

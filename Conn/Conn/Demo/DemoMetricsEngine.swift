@@ -61,6 +61,8 @@ final class DemoMetricsEngine: @unchecked Sendable {
             sentinel.load, String(format: "%.2f %.2f %.2f 2/431 12345", load1, load1 * 0.9, load1 * 0.8),
             sentinel.disk, diskLines(usedFraction: disk),
             sentinel.net, netLines(rx: state.rx, tx: state.tx),
+            sentinel.snmp, snmpLines,
+            sentinel.ipaddr, ipLines,
             sentinel.io, diskstatsLine(read: state.ioRead, write: state.ioWrite),
             // uptime 随 tick 递增(≈3s/次),让相邻样本可差分出网络/IO 速率。
             sentinel.uptime, String(format: "%.2f 3456789.10", 864_000 + Double(state.tick) * 3),
@@ -127,10 +129,26 @@ final class DemoMetricsEngine: @unchecked Sendable {
         """
         Inter-|   Receive                    |  Transmit
          face |bytes packets errs drop fifo frame compressed multicast|bytes packets errs drop fifo colls carrier compressed
-            lo: 1000 10 0 0 0 0 0 0 1000 10 0 0 0 0 0 0
+            lo: 282000 100 0 0 0 0 0 0 282000 100 0 0 0 0 0 0
           eth0: \(rx) 40000 0 0 0 0 0 0 \(tx) 35000 0 0 0 0 0 0
+        br-70fa8e: \(rx / 6) 800 0 0 0 0 0 0 \(tx / 9) 600 0 0 0 0 0 0
+        docker0: 12000 20 0 0 0 0 0 0 0 0 0 0 0 0 0 0
         """
     }
+
+    /// /proc/net/snmp 的 Tcp 行（表头 + 值）。重传率 = RetransSegs/OutSegs ≈ 0.24%。
+    private let snmpLines = """
+    Tcp: RtoAlgorithm RtoMin RtoMax MaxConn ActiveOpens PassiveOpens AttemptFails EstabResets CurrEstab InSegs OutSegs RetransSegs InErrs OutRsts InCsumErrors
+    Tcp: 1 200 120000 -1 1848 25000 1785 3000 42 5100000 5000000 12000 0 8000 0
+    """
+
+    /// ip -o -4 addr show 输出（网卡 → IPv4）。
+    private let ipLines = """
+    1: lo    inet 127.0.0.1/8 scope host lo\\       valid_lft forever preferred_lft forever
+    2: eth0    inet 38.147.173.228/24 brd 38.147.173.255 scope global eth0\\       valid_lft forever preferred_lft forever
+    3: br-70fa8e    inet 172.19.0.1/16 brd 172.19.255.255 scope global br-70fa8e\\       valid_lft forever preferred_lft forever
+    4: docker0    inet 172.17.0.1/16 brd 172.17.255.255 scope global docker0\\       valid_lft forever preferred_lft forever
+    """
 
     private struct ProcSpec {
         let pid: Int

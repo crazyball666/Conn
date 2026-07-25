@@ -242,6 +242,52 @@ enum ProcParsers {
         return matched ? (rxSum, txSum) : nil
     }
 
+    /// `/proc/net/dev` → 各网卡累计收/发字节（保留 lo，含虚拟网卡）。速率由差分得出。
+    static func parseNetInterfaces(_ section: String) -> [RawInterface] {
+        var result: [RawInterface] = []
+        for line in section.split(separator: "\n") {
+            let parts = line.split(separator: ":")
+            guard parts.count == 2 else { continue }
+            let name = parts[0].trimmingCharacters(in: .whitespaces)
+            guard !name.isEmpty else { continue }
+            let stats = parts[1].split(whereSeparator: { $0 == " " || $0 == "\t" })
+            guard stats.count >= 9, let rx = Int64(stats[0]), let tx = Int64(stats[8]) else { continue }
+            result.append(RawInterface(name: name, rx: rx, tx: tx))
+        }
+        return result
+    }
+
+    /// `/proc/net/snmp` 的 Tcp 行 → TCP 统计（按表头列名定位，跨内核稳健）。
+    static func parseTCPStats(_ section: String) -> TCPStats? {
+        let tcpLines = section.split(separator: "\n").filter { $0.hasPrefix("Tcp:") }
+        guard tcpLines.count >= 2 else { return nil }
+        let headers = tcpLines[0].split(separator: " ").map(String.init)
+        let values = tcpLines[1].split(separator: " ").map(String.init)
+        func field(_ key: String) -> Int64? {
+            guard let index = headers.firstIndex(of: key), index < values.count else { return nil }
+            return Int64(values[index])
+        }
+        guard let active = field("ActiveOpens"), let passive = field("PassiveOpens"),
+              let fails = field("AttemptFails"), let out = field("OutSegs"),
+              let retrans = field("RetransSegs")
+        else { return nil }
+        let rate = out > 0 ? Double(retrans) / Double(out) * 100 : 0
+        return TCPStats(retransRate: rate, activeOpens: active, passiveOpens: passive, attemptFails: fails)
+    }
+
+    /// `ip -o -4 addr show` → 网卡名 → IPv4。行形如 `2: eth0    inet 1.2.3.4/24 …`。
+    static func parseIPs(_ section: String) -> [String: String] {
+        var result: [String: String] = [:]
+        for line in section.split(separator: "\n") {
+            let fields = line.split(whereSeparator: { $0 == " " || $0 == "\t" }).map(String.init)
+            guard fields.count >= 2, let inetIndex = fields.firstIndex(of: "inet"),
+                  inetIndex + 1 < fields.count else { continue }
+            let ip = fields[inetIndex + 1].split(separator: "/").first.map(String.init)
+            result[fields[1]] = ip ?? fields[inetIndex + 1]
+        }
+        return result
+    }
+
     /// `/proc/uptime` → 开机秒数（首个数字）。
     static func parseUptime(_ section: String) -> Double? {
         section

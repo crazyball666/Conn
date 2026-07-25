@@ -24,6 +24,9 @@ public struct ParsedMetrics: Sendable, Equatable {
     public var diskTotalBytes: Double?
     public var netRxBytes: Int64?
     public var netTxBytes: Int64?
+    public var netInterfaces: [RawInterface]
+    public var interfaceIPs: [String: String]
+    public var tcp: TCPStats?
     public var ioReadBytes: Int64?
     public var ioWriteBytes: Int64?
     public var uptimeSeconds: Double?
@@ -48,6 +51,9 @@ public struct ParsedMetrics: Sendable, Equatable {
         diskTotalBytes: Double? = nil,
         netRxBytes: Int64? = nil,
         netTxBytes: Int64? = nil,
+        netInterfaces: [RawInterface] = [],
+        interfaceIPs: [String: String] = [:],
+        tcp: TCPStats? = nil,
         ioReadBytes: Int64? = nil,
         ioWriteBytes: Int64? = nil,
         uptimeSeconds: Double? = nil,
@@ -71,6 +77,9 @@ public struct ParsedMetrics: Sendable, Equatable {
         self.diskTotalBytes = diskTotalBytes
         self.netRxBytes = netRxBytes
         self.netTxBytes = netTxBytes
+        self.netInterfaces = netInterfaces
+        self.interfaceIPs = interfaceIPs
+        self.tcp = tcp
         self.ioReadBytes = ioReadBytes
         self.ioWriteBytes = ioWriteBytes
         self.uptimeSeconds = uptimeSeconds
@@ -117,6 +126,9 @@ public enum MetricParser {
             diskTotalBytes: disk?.total,
             netRxBytes: net?.rx,
             netTxBytes: net?.tx,
+            netInterfaces: ProcParsers.parseNetInterfaces(section(CollectionScript.Sentinel.net)),
+            interfaceIPs: ProcParsers.parseIPs(section(CollectionScript.Sentinel.ipaddr)),
+            tcp: ProcParsers.parseTCPStats(section(CollectionScript.Sentinel.snmp)),
             ioReadBytes: io?.read,
             ioWriteBytes: io?.write,
             uptimeSeconds: ProcParsers.parseUptime(section(CollectionScript.Sentinel.uptime)),
@@ -132,7 +144,8 @@ public enum MetricParser {
         let known: Set<String> = [
             CollectionScript.Sentinel.stat, CollectionScript.Sentinel.mem,
             CollectionScript.Sentinel.load, CollectionScript.Sentinel.disk,
-            CollectionScript.Sentinel.net, CollectionScript.Sentinel.io,
+            CollectionScript.Sentinel.net, CollectionScript.Sentinel.snmp,
+            CollectionScript.Sentinel.ipaddr, CollectionScript.Sentinel.io,
             CollectionScript.Sentinel.uptime,
             CollectionScript.Sentinel.os, CollectionScript.Sentinel.cpuinfo,
             CollectionScript.Sentinel.ps, CollectionScript.Sentinel.top,

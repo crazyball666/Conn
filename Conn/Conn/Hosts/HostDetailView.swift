@@ -23,6 +23,7 @@ struct HostDetailView: View {
 
     enum Segment: String, CaseIterable, Identifiable {
         case overview = "概览"
+        case processes = "进程"
         case terminal = "终端"
         case files = "文件"
         case docker = "Docker"
@@ -65,6 +66,7 @@ struct HostDetailView: View {
     private var content: some View {
         switch segment {
         case .overview: HostOverviewView(viewModel: monitorVM)
+        case .processes: ProcessListView(viewModel: monitorVM)
         case .terminal: terminalSegment
         case .files: FileBrowserView(host: host, dependencies: dependencies)
         case .docker: DockerView(host: host, dependencies: dependencies)
