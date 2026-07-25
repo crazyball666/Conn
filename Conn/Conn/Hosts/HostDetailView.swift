@@ -24,7 +24,6 @@ struct HostDetailView: View {
     enum Segment: String, CaseIterable, Identifiable {
         case overview = "概览"
         case processes = "进程"
-        case terminal = "终端"
         case files = "文件"
         case docker = "Docker"
         case logs = "日志"
@@ -43,8 +42,23 @@ struct HostDetailView: View {
         .background(Color.connBg.ignoresSafeArea())
         .navigationTitle(displayTitle)
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar { terminalToolbarItem }
         .onAppear { monitorVM.appear() }
         .onDisappear { monitorVM.disappear() }
+    }
+
+    /// 终端入口：导航栏右上角图标，直接推入终端会话（无中间落地页）。
+    @ToolbarContentBuilder
+    private var terminalToolbarItem: some ToolbarContent {
+        ToolbarItem(placement: .topBarTrailing) {
+            NavigationLink {
+                TerminalScreen(host: host, dependencies: dependencies)
+            } label: {
+                Image(systemName: "terminal")
+                    .font(.system(size: 17, weight: .semibold))
+            }
+            .accessibilityLabel(L("打开终端"))
+        }
     }
 
     /// 导航栏标题：备注优先，否则主机名。
@@ -67,33 +81,10 @@ struct HostDetailView: View {
         switch segment {
         case .overview: HostOverviewView(viewModel: monitorVM)
         case .processes: ProcessListView(viewModel: monitorVM)
-        case .terminal: terminalSegment
         case .files: FileBrowserView(host: host, dependencies: dependencies)
         case .docker: DockerView(host: host, dependencies: dependencies)
         case .logs: LogCenterView(host: host, dependencies: dependencies)
         }
-    }
-
-    private var terminalSegment: some View {
-        VStack(spacing: ConnSpacing.sm) {
-            NavigationLink {
-                TerminalScreen(host: host, dependencies: dependencies)
-            } label: {
-                Label(L("打开终端会话"), systemImage: "terminal")
-                    .font(.connBody)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, ConnSpacing.sm)
-                    .foregroundStyle(.white)
-                    .background(
-                        LinearGradient(colors: [.connAccent, .connAccentDeep], startPoint: .top, endPoint: .bottom),
-                        in: .rect(cornerRadius: ConnRadius.control, style: .continuous)
-                    )
-            }
-            Text(L("在独立页面打开交互式 shell（PTY）"))
-                .font(.connFootnote)
-                .foregroundStyle(.connMuted)
-        }
-        .padding(.vertical, ConnSpacing.md)
     }
 
     private func placeholder(_ message: String, icon: String) -> some View {

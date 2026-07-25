@@ -14,7 +14,6 @@ struct HostOverviewView: View {
                 ConnBanner(error, systemImage: "wifi.slash")
             }
             systemCard
-            loadCard
             cpuSection
             memorySection
             diskSection
@@ -24,19 +23,22 @@ struct HostOverviewView: View {
         .onChange(of: viewModel.latest) { _, _ in viewModel.record() }
     }
 
-    // MARK: - 系统 / 负载
+    // MARK: - 系统（系统信息 + 负载合并一块）
 
+    /// 顶行：操作系统（左上角）+ 运行时长（右上角），无 key 字段；
+    /// 分隔线下方接负载 1/5/15 分钟三列。
     private var systemCard: some View {
         section(L("系统")) {
-            infoRows([
-                (L("操作系统"), latest?.osName ?? "—"),
-                (L("运行时长"), MetricFormat.uptime(latest?.uptimeSeconds))
-            ])
-        }
-    }
-
-    private var loadCard: some View {
-        section(L("负载")) {
+            HStack(alignment: .firstTextBaseline, spacing: ConnSpacing.sm) {
+                Text(latest?.osName ?? "—")
+                    .font(.connData(.callout)).foregroundStyle(.connInk)
+                    .lineLimit(1).minimumScaleFactor(0.6)
+                Spacer(minLength: ConnSpacing.sm)
+                Text(MetricFormat.uptime(latest?.uptimeSeconds))
+                    .font(.connData(.callout)).connTabularNumbers().foregroundStyle(.connInk)
+                    .lineLimit(1).minimumScaleFactor(0.6)
+            }
+            sectionDivider
             HStack(spacing: 0) {
                 loadColumn(L("1 分钟"), latest?.load1)
                 loadDivider
@@ -255,23 +257,6 @@ struct HostOverviewView: View {
     private func fraction(_ value: Double?) -> CGFloat {
         guard let value else { return 0 }
         return min(max(value / 100, 0), 1)
-    }
-
-    private func infoRows(_ rows: [(String, String)]) -> some View {
-        VStack(spacing: 0) {
-            ForEach(Array(rows.enumerated()), id: \.offset) { index, row in
-                if index > 0 {
-                    Rectangle().fill(Color.connLine).frame(height: 0.5)
-                }
-                HStack(spacing: ConnSpacing.sm) {
-                    Text(row.0).font(.connSubheadline).foregroundStyle(.connMuted)
-                    Spacer()
-                    Text(row.1).font(.connData()).connTabularNumbers().foregroundStyle(.connInk)
-                        .lineLimit(1).minimumScaleFactor(0.6).multilineTextAlignment(.trailing)
-                }
-                .padding(.vertical, ConnSpacing.sm)
-            }
-        }
     }
 
     // MARK: - 派生 / 绑定
