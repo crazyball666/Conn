@@ -33,7 +33,6 @@ struct HostDetailView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: ConnSpacing.md) {
-                header
                 segmentPicker
                 content
             }
@@ -41,20 +40,21 @@ struct HostDetailView: View {
             .padding(.top, ConnSpacing.xs)
         }
         .background(Color.connBg.ignoresSafeArea())
+        .navigationTitle(displayTitle)
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                StatusPill(resolvedStatus.text, semantic: resolvedStatus.semantic)
+            }
+        }
         .onAppear { monitorVM.appear() }
         .onDisappear { monitorVM.disappear() }
     }
 
-    private var header: some View {
-        HStack(alignment: .center) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(host.name).font(.connTitle).connDisplayTracking().foregroundStyle(.connInk)
-                Text(host.displayAddress).font(.connData()).foregroundStyle(.connMuted)
-            }
-            Spacer()
-            StatusPill(resolvedStatus.text, semantic: resolvedStatus.semantic)
-        }
+    /// 导航栏标题：备注优先，否则主机名。
+    private var displayTitle: String {
+        if let note = host.note, !note.trimmingCharacters(in: .whitespaces).isEmpty { return note }
+        return host.name
     }
 
     private var segmentPicker: some View {

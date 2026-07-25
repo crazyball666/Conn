@@ -20,6 +20,15 @@ final class HostOverviewViewModel {
     private let host: Host
     private let connectionManager: ConnectionManager
 
+    /// 折线图用的滚动历史（每 3s 一点，保留最近 `maxPoints` 个）。
+    private(set) var cpuHistory: [Double] = []
+    private(set) var memHistory: [Double] = []
+    private(set) var netRxHistory: [Double] = []
+    private(set) var netTxHistory: [Double] = []
+    private(set) var ioReadHistory: [Double] = []
+    private(set) var ioWriteHistory: [Double] = []
+    private let maxPoints = 40
+
     init(host: Host, dependencies: AppDependencies) {
         self.host = host
         connectionManager = dependencies.connectionManager
@@ -32,6 +41,24 @@ final class HostOverviewViewModel {
     /// 本次采集结果（读 `monitor.metrics` → 在 body 中被 Observation 追踪，实时刷新）。
     var latest: HostMetrics? { monitor.metrics[host.id] }
     var errorText: String? { monitor.errors[host.id] }
+
+    /// 每来一次新采样，把各指标追加进历史（缺失记 0）。View 在 `latest` 变化时调用。
+    func record() {
+        guard let metrics = latest else { return }
+        append(&cpuHistory, metrics.cpu ?? 0)
+        append(&memHistory, metrics.mem ?? 0)
+        append(&netRxHistory, metrics.netRxRate ?? 0)
+        append(&netTxHistory, metrics.netTxRate ?? 0)
+        append(&ioReadHistory, metrics.ioReadRate ?? 0)
+        append(&ioWriteHistory, metrics.ioWriteRate ?? 0)
+    }
+
+    private func append(_ array: inout [Double], _ value: Double) {
+        array.append(value)
+        if array.count > maxPoints {
+            array.removeFirst(array.count - maxPoints)
+        }
+    }
 
     /// 进程列表取 CPU 前 8（进程视角 P0）。
     var topProcesses: [RemoteProcess] {
