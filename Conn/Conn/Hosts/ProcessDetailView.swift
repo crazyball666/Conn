@@ -2,12 +2,15 @@ import ConnKit
 import ConnMonitor
 import ConnUI
 import SwiftUI
+import UIKit
 
 /// 单进程详情：运维视角的完整信息（属主 / 状态 / 线程 / RSS / 运行时长 / 完整命令行）
 /// + 结束进程。值随采集实时刷新（按 PID 从最新快照回读），进程退出后回落为入场快照。
 struct ProcessDetailView: View {
     let process: RemoteProcess
     let viewModel: HostOverviewViewModel
+
+    @State private var commandExpanded = false
 
     var body: some View {
         ScrollView {
@@ -74,15 +77,50 @@ struct ProcessDetailView: View {
         }
     }
 
-    // MARK: - 命令行
+    // MARK: - 命令行（终端风代码块 + 复制 + 折叠）
 
     private var commandSection: some View {
-        section(L("命令行")) {
-            Text(live.fullCommand ?? live.command)
-                .font(.connData(.footnote)).foregroundStyle(.connInk)
-                .textSelection(.enabled)
-                .frame(maxWidth: .infinity, alignment: .leading)
+        VStack(alignment: .leading, spacing: ConnSpacing.xs) {
+            HStack {
+                Text(L("命令行")).font(.connCaption).foregroundStyle(.connMuted).connEyebrowTracking()
+                Spacer()
+                Button {
+                    UIPasteboard.general.string = commandText
+                } label: {
+                    Image(systemName: "doc.on.doc").font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(.connAccent)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(L("复制命令"))
+            }
+            codeBlock
+            if isLongCommand {
+                Button(commandExpanded ? L("收起") : L("展开全部")) {
+                    withAnimation(.easeInOut(duration: 0.2)) { commandExpanded.toggle() }
+                }
+                .font(.connData(.caption2)).foregroundStyle(.connAccent)
+                .frame(maxWidth: .infinity, alignment: .center)
+                .padding(.top, 2)
+            }
         }
+    }
+
+    private var codeBlock: some View {
+        Text(commandText)
+            .font(.connData(.caption2)).foregroundStyle(.connTermFg)
+            .lineSpacing(3)
+            .textSelection(.enabled)
+            .lineLimit(commandExpanded ? nil : 6)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(ConnSpacing.cardPadding)
+            .background(Color.connTermBg, in: .rect(cornerRadius: ConnRadius.card, style: .continuous))
+    }
+
+    private var commandText: String { live.fullCommand ?? live.command }
+
+    /// 折叠阈值：长命令（如采集脚本本身）默认收起，避免整屏刷屏。
+    private var isLongCommand: Bool {
+        commandText.count > 140 || commandText.contains("\n")
     }
 
     private var killButton: some View {
