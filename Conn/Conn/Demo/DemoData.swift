@@ -23,7 +23,12 @@ enum DemoData {
         MockSSHTransport.Behavior(
             dynamicResponder: { command, endpoint in
                 if command.contains("/proc/stat") {
-                    return .init(stdout: metrics.metricOutput(for: endpoint))
+                    // 与生产一致：按命令实际取的段回数据（详情段看 os-release、进程段看 ps）。
+                    return .init(stdout: metrics.metricOutput(
+                        for: endpoint,
+                        includeExtended: command.contains("os-release"),
+                        includeProcesses: command.contains("ps -eo")
+                    ))
                 }
                 return DemoOps.response(command: command, endpoint: endpoint)
             },

@@ -41,6 +41,7 @@ struct TerminalScreen: View {
                 connecting
             case let .ready(session):
                 TerminalHostingView(session: session, theme: .conn)
+                    .padding(.horizontal, ConnSpacing.sm)
                     .ignoresSafeArea(.container, edges: .bottom)
             case let .failed(message):
                 failure(message)

@@ -13,9 +13,10 @@ struct HostDetailView: View {
     let dependencies: AppDependencies
     @State private var segment: Segment
     @State private var monitorVM: HostOverviewViewModel
-    // 文件 / Docker 的 VM 提到详情级持有——切换分段时不重建，故不重新加载（改下拉刷新）。
+    // 文件 / Docker / 日志 的 VM 提到详情级持有——切换分段时不重建，故不重新加载（改下拉刷新 / 重试）。
     @State private var fileVM: FileBrowserViewModel
     @State private var dockerVM: DockerViewModel
+    @State private var logVM: LogCenterViewModel
 
     init(host: Host, dependencies: AppDependencies, initialSegment: Segment = .overview) {
         self.host = host
@@ -24,6 +25,7 @@ struct HostDetailView: View {
         _monitorVM = State(initialValue: HostOverviewViewModel(host: host, dependencies: dependencies))
         _fileVM = State(initialValue: FileBrowserViewModel(host: host, dependencies: dependencies))
         _dockerVM = State(initialValue: DockerViewModel(host: host, dependencies: dependencies))
+        _logVM = State(initialValue: LogCenterViewModel(host: host, dependencies: dependencies))
     }
 
     enum Segment: String, CaseIterable, Identifiable {
@@ -87,7 +89,7 @@ struct HostDetailView: View {
         case .processes: ProcessListView(viewModel: monitorVM)
         case .files: FileBrowserView(host: host, dependencies: dependencies, viewModel: fileVM)
         case .docker: DockerView(host: host, dependencies: dependencies, viewModel: dockerVM)
-        case .logs: LogCenterView(host: host, dependencies: dependencies)
+        case .logs: LogCenterView(host: host, dependencies: dependencies, viewModel: logVM)
         }
     }
 

@@ -24,7 +24,7 @@ final class DemoMetricsEngine: @unchecked Sendable {
     private var states: [String: State] = [:]
 
     /// 生成一台主机一次采集的 sentinel 分段输出。
-    func metricOutput(for endpoint: SSHEndpoint) -> String {
+    func metricOutput(for endpoint: SSHEndpoint, includeExtended: Bool = true, includeProcesses: Bool = true) -> String {
         lock.lock()
         defer { lock.unlock() }
 
@@ -48,30 +48,45 @@ final class DemoMetricsEngine: @unchecked Sendable {
         state.tick += 1
         states[endpoint.host] = state
 
-        return render(state: state, cpu: cpu, mem: mem, disk: disk, load1: cpu * 4)
+        return render(
+            state: state, cpu: cpu, mem: mem, disk: disk,
+            flags: RenderFlags(extended: includeExtended, processes: includeProcesses)
+        )
     }
 
     // MARK: - 渲染各段
 
-    private func render(state: State, cpu: Double, mem: Double, disk: Double, load1: Double) -> String {
+    private func render(state: State, cpu: Double, mem: Double, disk: Double, flags: RenderFlags) -> String {
         let sentinel = CollectionScript.Sentinel.self
-        return [
+        let load1 = cpu * 4
+        var lines = [
             sentinel.stat, statLine(total: state.total, idle: state.idle, cpu: cpu),
             sentinel.mem, memLines(usedFraction: mem),
             sentinel.load, String(format: "%.2f %.2f %.2f 2/431 12345", load1, load1 * 0.9, load1 * 0.8),
             sentinel.disk, diskLines(usedFraction: disk),
             sentinel.net, netLines(rx: state.rx, tx: state.tx),
-            sentinel.snmp, snmpLines,
-            sentinel.ipaddr, ipLines,
             sentinel.io, diskstatsLine(read: state.ioRead, write: state.ioWrite),
             // uptime 随 tick 递增(≈3s/次),让相邻样本可差分出网络/IO 速率。
-            sentinel.uptime, String(format: "%.2f 3456789.10", 864_000 + Double(state.tick) * 3),
-            sentinel.os, "PRETTY_NAME=\"Ubuntu 24.04.1 LTS\"\nID=ubuntu\nVERSION_ID=\"24.04\"",
-            sentinel.cpuinfo, "model name\t: Intel(R) Xeon(R) CPU E5-2680 v4 @ 2.40GHz",
-            sentinel.ps, psLines(cpu: cpu, mem: mem),
-            sentinel.top, "",
-            sentinel.end
-        ].joined(separator: "\n")
+            sentinel.uptime, String(format: "%.2f 3456789.10", 864_000 + Double(state.tick) * 3)
+        ]
+        if flags.extended {
+            lines += [
+                sentinel.snmp, snmpLines,
+                sentinel.ipaddr, ipLines,
+                sentinel.os, "PRETTY_NAME=\"Ubuntu 24.04.1 LTS\"\nID=ubuntu\nVERSION_ID=\"24.04\"",
+                sentinel.cpuinfo, "model name\t: Intel(R) Xeon(R) CPU E5-2680 v4 @ 2.40GHz"
+            ]
+        }
+        if flags.processes {
+            lines += [sentinel.ps, psLines(cpu: cpu, mem: mem), sentinel.top, ""]
+        }
+        lines.append(sentinel.end)
+        return lines.joined(separator: "\n")
+    }
+
+    private struct RenderFlags {
+        let extended: Bool
+        let processes: Bool
     }
 
     private func statLine(total: Int64, idle: Int64, cpu: Double) -> String {

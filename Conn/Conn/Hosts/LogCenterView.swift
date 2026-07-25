@@ -17,6 +17,8 @@ final class LogCenterViewModel {
 
     private(set) var loadState: LoadState = .loading
     private(set) var sources: [LogSource] = []
+    /// 首次加载后置真——切换分段时不再自动重探（日志源基本静态）。
+    private(set) var hasLoaded = false
 
     private let host: Host
     private let connectionManager: ConnectionManager
@@ -26,7 +28,14 @@ final class LogCenterViewModel {
         connectionManager = dependencies.connectionManager
     }
 
+    /// 仅首次加载（分段出现时调用）。已加载则跳过。
+    func loadIfNeeded() async {
+        guard !hasLoaded else { return }
+        await load()
+    }
+
     func load() async {
+        hasLoaded = true
         loadState = .loading
         do {
             let session = try await connectionManager.session(for: host)
@@ -45,20 +54,21 @@ final class LogCenterViewModel {
 
 /// 日志中心（Phase 8）：journalctl / 常见日志文件快捷入口。
 struct LogCenterView: View {
-    @State private var viewModel: LogCenterViewModel
+    // VM 由详情级持有（HostDetailView）——切换分段时不重建、不重探（改按需/重试）。
+    let viewModel: LogCenterViewModel
     @State private var selectedSource: LogSource?
     private let host: Host
     private let dependencies: AppDependencies
 
-    init(host: Host, dependencies: AppDependencies) {
+    init(host: Host, dependencies: AppDependencies, viewModel: LogCenterViewModel) {
         self.host = host
         self.dependencies = dependencies
-        _viewModel = State(initialValue: LogCenterViewModel(host: host, dependencies: dependencies))
+        self.viewModel = viewModel
     }
 
     var body: some View {
         content
-            .task { await viewModel.load() }
+            .task { await viewModel.loadIfNeeded() }
             .navigationDestination(item: $selectedSource) { source in
                 LogStreamView(host: host, dependencies: dependencies, source: source)
             }

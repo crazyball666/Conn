@@ -25,24 +25,39 @@ public enum CollectionScript {
         public static let end = "__CONN_END__"
     }
 
-    /// 采集命令。所有子命令都 `2>/dev/null`，缺失的段落留空由解析器容忍。
-    public static var command: String {
-        [
+    /// 采集命令——按调用方所需**只取该取的段**，省掉不显示的查询与解析。所有子命令都
+    /// `2>/dev/null`，缺失的段落留空由解析器容忍。段间用 sentinel 分隔，解析器按标记定位、与顺序无关。
+    ///
+    /// - 核心段（恒取）：CPU/内存/负载/磁盘/网络/IO/开机时长——仪表盘卡片、状态胶囊、概览图都要。
+    /// - `includeExtended`：概览专属的详情段——系统名（os-release）、CPU 型号（cpuinfo）、
+    ///   TCP 重传（snmp）、各网卡（ip addr）。仪表盘/其它段不显示，去掉省 4 条命令 + 解析。
+    /// - `includeProcesses`：进程段（`ps` + `top`，最多 500 行）——仅「进程」段激活时才要。
+    public static func command(includeExtended: Bool = true, includeProcesses: Bool = true) -> String {
+        var parts = [
             "echo \(Sentinel.stat)", "cat /proc/stat 2>/dev/null",
             "echo \(Sentinel.mem)", "cat /proc/meminfo 2>/dev/null",
             "echo \(Sentinel.load)", "cat /proc/loadavg 2>/dev/null",
             "echo \(Sentinel.disk)", "df -P -k 2>/dev/null",
             "echo \(Sentinel.net)", "cat /proc/net/dev 2>/dev/null",
-            "echo \(Sentinel.snmp)", "cat /proc/net/snmp 2>/dev/null",
-            "echo \(Sentinel.ipaddr)", "ip -o -4 addr show 2>/dev/null",
             "echo \(Sentinel.io)", "cat /proc/diskstats 2>/dev/null",
-            "echo \(Sentinel.uptime)", "cat /proc/uptime 2>/dev/null",
-            "echo \(Sentinel.os)", "cat /etc/os-release 2>/dev/null",
-            "echo \(Sentinel.cpuinfo)", "grep -m1 'model name' /proc/cpuinfo 2>/dev/null",
-            "echo \(Sentinel.ps)",
-            "ps -eo pid,ppid,user,pcpu,pmem,rss,nlwp,stat,etimes,args --sort=-pcpu 2>/dev/null | head -n 500",
-            "echo \(Sentinel.top)", "top -bn1 2>/dev/null | head -n 24",
-            "echo \(Sentinel.end)"
-        ].joined(separator: "; ")
+            "echo \(Sentinel.uptime)", "cat /proc/uptime 2>/dev/null"
+        ]
+        if includeExtended {
+            parts += [
+                "echo \(Sentinel.snmp)", "cat /proc/net/snmp 2>/dev/null",
+                "echo \(Sentinel.ipaddr)", "ip -o -4 addr show 2>/dev/null",
+                "echo \(Sentinel.os)", "cat /etc/os-release 2>/dev/null",
+                "echo \(Sentinel.cpuinfo)", "grep -m1 'model name' /proc/cpuinfo 2>/dev/null"
+            ]
+        }
+        if includeProcesses {
+            parts += [
+                "echo \(Sentinel.ps)",
+                "ps -eo pid,ppid,user,pcpu,pmem,rss,nlwp,stat,etimes,args --sort=-pcpu 2>/dev/null | head -n 500",
+                "echo \(Sentinel.top)", "top -bn1 2>/dev/null | head -n 24"
+            ]
+        }
+        parts.append("echo \(Sentinel.end)")
+        return parts.joined(separator: "; ")
     }
 }

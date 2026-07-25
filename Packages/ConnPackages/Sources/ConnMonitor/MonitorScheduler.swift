@@ -17,6 +17,10 @@ public final class MonitorScheduler {
     /// 各主机最近一次采集错误（面向用户的短诊断），成功则清空。
     public private(set) var errors: [String: String] = [:]
     public private(set) var lastScanAt: Date?
+    /// 详情轮询是否附带概览详情段（系统名/CPU 型号/TCP 重传/网卡）——仅「概览」段激活时置真。
+    public var wantsExtended = false
+    /// 详情轮询是否附带进程列表——仅「进程」段激活时置真（VM 控制）。概览/仪表盘不采进程。
+    public var wantsProcesses = false
 
     private let connectionManager: ConnectionManager
     private let collector: MetricCollector
@@ -57,17 +61,23 @@ public final class MonitorScheduler {
         }
     }
 
-    /// 单机详情模式：只高频轮询这一台。
+    /// 单机详情模式：只高频轮询这一台。每轮按 `wantsProcesses` 决定是否附带进程列表。
     public func startDetail(host: ConnKit.Host, interval: Duration = .seconds(3)) {
         stop()
         task = Task { [weak self] in
             guard let self else { return }
             while !Task.isCancelled {
-                await self.collectOne(host)
+                await self.collectOne(host, includeExtended: self.wantsExtended, includeProcesses: self.wantsProcesses)
                 self.lastScanAt = self.now()
                 try? await Task.sleep(for: interval)
             }
         }
+    }
+
+    /// 立刻补采一次当前详情主机（切到概览/进程段时用——别等下一个轮询间隔才出详情/进程）。
+    public func refreshDetail(host: ConnKit.Host) async {
+        await collectOne(host, includeExtended: wantsExtended, includeProcesses: wantsProcesses)
+        lastScanAt = now()
     }
 
     /// 停止轮询（页面不可见 / 切走时调用）。
@@ -103,11 +113,19 @@ public final class MonitorScheduler {
     }
 
     /// 采一台。失败只记 `errors[host.id]`，不抛、不影响其他主机（方案 §4.3 验收）。
-    private func collectOne(_ host: ConnKit.Host) async {
+    /// 仪表盘轮询默认只取核心段；详情轮询按 `wantsExtended`/`wantsProcesses` 传入。
+    private func collectOne(
+        _ host: ConnKit.Host, includeExtended: Bool = false, includeProcesses: Bool = false
+    ) async {
         do {
             let session = try await connectionManager.session(for: host)
-            let result = try await collector.collect(host: host, session: session)
-            metrics[host.id] = result
+            let result = try await collector.collect(
+                host: host, session: session, includeExtended: includeExtended, includeProcesses: includeProcesses
+            )
+            // 本轮没采的段（切走的概览/进程段）沿用上次值，切回来不闪空/不重载。
+            metrics[host.id] = result.carryingOver(
+                metrics[host.id], keepExtended: !includeExtended, keepProcesses: !includeProcesses
+            )
             errors[host.id] = nil
             // #18：首采 CPU 尚无差分(nil)，此时 sample.cpu 是占位 0，不落库以免污染历史。
             if let store, result.cpu != nil {

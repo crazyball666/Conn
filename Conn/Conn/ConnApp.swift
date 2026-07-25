@@ -15,6 +15,12 @@ struct ConnApp: App {
     @State private var localization = LocalizationManager()
     @State private var settings = SettingsStore()
 
+    init() {
+        // 在任何视图（含 .searchable 搜索框）创建前配置 UIKit 外观——appearance 只对
+        // 之后创建的实例生效，放到 onAppear 里会与首个搜索框的创建竞态导致背景色不生效。
+        ConnAppearance.configureIfNeeded()
+    }
+
     /// 依赖选择：DEBUG 下 `CONN_DEMO=1` 走演示模式（Mock 引擎 + 假数据），
     /// 否则走生产（Citadel + GRDB 落盘）。Phase 10 会把演示开关搬到设置页。
     private static func makeDependencies() -> AppDependencies {
@@ -39,11 +45,8 @@ struct ConnApp: App {
             .tint(settings.accent.color)
             // 深浅色：跟随系统 / 强制浅 / 强制深（设置页）。
             .preferredColorScheme(settings.appearance.colorScheme)
-            // 全局「点击空白处收起键盘」+ 分段控件标题加粗放大（不改样式）。
-            .onAppear {
-                KeyboardDismisser.shared.installIfNeeded()
-                ConnAppearance.configureIfNeeded()
-            }
+            // 全局「点击空白处收起键盘」。
+            .onAppear { KeyboardDismisser.shared.installIfNeeded() }
         }
     }
 

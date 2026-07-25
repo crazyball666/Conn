@@ -9,6 +9,11 @@ struct HostFormRequest: Identifiable {
     let editingHostID: String?
 }
 
+/// 终端跳转目标——独立类型，避免与 `selectedHost`（同为 `Host`）的 navigationDestination 撞类型。
+private struct TerminalRoute: Hashable {
+    let host: Host
+}
+
 /// 「服务器」页：原「仪表盘 S1」+「主机 S2」合并为一屏。
 ///
 /// PRD「观测先于操作」：健康视图为主——状态 + CPU/内存/磁盘 指标卡、故障置顶；
@@ -16,6 +21,7 @@ struct HostFormRequest: Identifiable {
 struct ServersView: View {
     @State private var viewModel: ServersViewModel
     @State private var selectedHost: Host?
+    @State private var terminalRoute: TerminalRoute?
     @State private var formRequest: HostFormRequest?
     @State private var pendingDelete: Host?
     @Environment(SettingsStore.self) private var settings
@@ -30,24 +36,9 @@ struct ServersView: View {
     }
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 0) {
-                if viewModel.hosts.isEmpty {
-                    emptyState
-                } else {
-                    if !viewModel.allTags.isEmpty {
-                        tagFilter
-                    }
-                    if viewModel.isAtFreeLimit {
-                        limitBanner
-                    }
-                    cards
-                }
-            }
-        }
-        .scrollBounceBehavior(.basedOnSize)
-        .background(Color.connBg.ignoresSafeArea())
-        .navigationTitle(L("服务器"))
+        hostsContent
+            .background(Color.connBg.ignoresSafeArea())
+            .navigationTitle(L("服务器"))
         .searchable(text: $viewModel.searchText, prompt: L("搜索主机名或地址"))
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
@@ -83,9 +74,33 @@ struct ServersView: View {
         .navigationDestination(item: $selectedHost) { host in
             HostDetailView(host: host, dependencies: dependencies)
         }
+        .navigationDestination(item: $terminalRoute) { route in
+            TerminalScreen(host: route.host, dependencies: dependencies)
+        }
     }
 
     // MARK: - 区块
+
+    /// 无主机 → 空态垂直居中填满可视区；有主机 → 列表滚动。
+    @ViewBuilder
+    private var hostsContent: some View {
+        if viewModel.hosts.isEmpty {
+            emptyState.frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 0) {
+                    if !viewModel.allTags.isEmpty {
+                        tagFilter
+                    }
+                    if viewModel.isAtFreeLimit {
+                        limitBanner
+                    }
+                    cards
+                }
+            }
+            .scrollBounceBehavior(.basedOnSize)
+        }
+    }
 
     private var tagFilter: some View {
         ScrollView(.horizontal, showsIndicators: false) {
@@ -144,6 +159,11 @@ struct ServersView: View {
                 }
                 .contextMenu {
                     Button {
+                        if let host = viewModel.host(forID: card.id) { terminalRoute = TerminalRoute(host: host) }
+                    } label: {
+                        Label(L("终端"), systemImage: "terminal")
+                    }
+                    Button {
                         if let host = viewModel.host(forID: card.id) { startEditing(host) }
                     } label: {
                         Label(L("编辑"), systemImage: "pencil")
@@ -170,7 +190,6 @@ struct ServersView: View {
             message: L("添加你的第一台服务器，开始监控与管理"),
             primary: .init(L("添加我的服务器")) { startAdding() }
         )
-        .padding(.top, ConnSpacing.xxl)
     }
 
     // MARK: - 动作

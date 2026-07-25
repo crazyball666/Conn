@@ -38,6 +38,9 @@ struct ProcessListView: View {
         .scrollBounceBehavior(.basedOnSize)
         .scrollIndicators(.hidden)
         .modifier(KillProcessAlert(viewModel: viewModel, target: $killTarget, result: $resultMessage))
+        // 仅在「进程」段可见时才让采集脚本带 ps——概览等不采进程，省流量。
+        .onAppear { viewModel.setProcessSegmentActive(true) }
+        .onDisappear { viewModel.setProcessSegmentActive(false) }
     }
 
     /// 过滤（名称 / PID / 用户 / 命令行）+ 按当前排序键与方向排序后的进程。
@@ -173,6 +176,8 @@ struct ProcessListView: View {
 
     private var emptyMessage: String {
         if !searchText.trimmingCharacters(in: .whitespaces).isEmpty { return L("无匹配的进程") }
-        return viewModel.latest == nil ? L("采集中…") : L("暂无进程数据")
+        // 进程段激活后是按需拉取，未到手前显示「采集中」而非「暂无数据」。
+        if viewModel.processesLoading || viewModel.latest == nil { return L("采集中…") }
+        return L("暂无进程数据")
     }
 }

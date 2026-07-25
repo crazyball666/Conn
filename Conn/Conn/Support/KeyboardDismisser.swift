@@ -36,4 +36,20 @@ final class KeyboardDismisser: NSObject, UIGestureRecognizerDelegate {
     ) -> Bool {
         true
     }
+
+    /// 触点落在文本输入控件（或其内部，含选择手柄）上时**不接管**——否则会打断长按选择、
+    /// 复制/粘贴菜单、光标定位等系统文本交互。只在真正的空白处才收起键盘。
+    nonisolated func gestureRecognizer(
+        _ gestureRecognizer: UIGestureRecognizer,
+        shouldReceive touch: UITouch
+    ) -> Bool {
+        MainActor.assumeIsolated {
+            var view = touch.view
+            while let node = view {
+                if node is UITextField || node is UITextView { return false }
+                view = node.superview
+            }
+            return true
+        }
+    }
 }

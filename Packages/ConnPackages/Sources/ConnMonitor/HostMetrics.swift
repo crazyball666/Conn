@@ -124,4 +124,27 @@ public struct HostMetrics: Sendable, Equatable {
         self.severity = severity
         self.sample = sample
     }
+
+    /// 本轮未采的段用上一份快照补齐——切走概览/进程段后仍以核心段轮询（顶部状态胶囊），
+    /// 但让「系统名/CPU 型号/网卡/TCP」「进程列表」保留上次值，切回来时不闪空/不重载。
+    /// - `keepExtended`: 本轮**未采**概览详情段（沿用上次的 cpuModel/osName/interfaces/tcp）。
+    /// - `keepProcesses`: 本轮**未采**进程段（沿用上次的 processes）。
+    public func carryingOver(_ previous: HostMetrics?, keepExtended: Bool, keepProcesses: Bool) -> HostMetrics {
+        guard let previous, keepExtended || keepProcesses else { return self }
+        return HostMetrics(
+            hostID: hostID, cpu: cpu, cpuCores: cpuCores, cpuPerCore: cpuPerCore, cpuBreakdown: cpuBreakdown,
+            cpuModel: keepExtended ? previous.cpuModel : cpuModel,
+            osName: keepExtended ? previous.osName : osName,
+            mem: mem, memTotalBytes: memTotalBytes, memUsedBytes: memUsedBytes,
+            memBuffersCache: memBuffersCache, memFree: memFree,
+            disk: disk, diskUsedBytes: diskUsedBytes, diskTotalBytes: diskTotalBytes,
+            load1: load1, load5: load5, load15: load15,
+            netRx: netRx, netTx: netTx, netRxRate: netRxRate, netTxRate: netTxRate,
+            interfaces: keepExtended ? previous.interfaces : interfaces,
+            tcp: keepExtended ? previous.tcp : tcp,
+            ioReadBytes: ioReadBytes, ioWriteBytes: ioWriteBytes, ioReadRate: ioReadRate, ioWriteRate: ioWriteRate,
+            processes: keepProcesses ? previous.processes : processes,
+            uptimeSeconds: uptimeSeconds, severity: severity, sample: sample
+        )
+    }
 }

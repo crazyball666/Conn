@@ -39,8 +39,15 @@ public actor MetricCollector {
     public init() {}
 
     /// 采一次。首次调用某主机时 CPU/速率为 nil（无可差分的上次快照），下次起有值。
-    public func collect(host: ConnKit.Host, session: any SSHSession) async throws -> HostMetrics {
-        let result = try await session.exec(CollectionScript.command)
+    /// `includeExtended`/`includeProcesses` 决定脚本取哪些段——按调用界面所需裁剪，省无用查询。
+    public func collect(
+        host: ConnKit.Host,
+        session: any SSHSession,
+        includeExtended: Bool = true,
+        includeProcesses: Bool = true
+    ) async throws -> HostMetrics {
+        let command = CollectionScript.command(includeExtended: includeExtended, includeProcesses: includeProcesses)
+        let result = try await session.exec(command)
         let parsed = MetricParser.parse(result.stdoutText)
 
         // CPU：jiffies 自归一,无需时钟。

@@ -25,6 +25,9 @@ struct HostOverviewView: View {
         .scrollBounceBehavior(.basedOnSize)
         .scrollIndicators(.hidden)
         .onChange(of: viewModel.latest) { _, _ in viewModel.record() }
+        // 仅「概览」段可见时才让脚本带详情段（系统名/CPU 型号/TCP 重传/网卡）——其它段不采。
+        .onAppear { viewModel.setOverviewSegmentActive(true) }
+        .onDisappear { viewModel.setOverviewSegmentActive(false) }
     }
 
     // MARK: - 系统（系统信息 + 负载合并一块）
