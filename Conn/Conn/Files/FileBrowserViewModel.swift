@@ -46,10 +46,6 @@ final class FileBrowserViewModel {
         connectionManager = dependencies.connectionManager
     }
 
-    var visibleEntries: [FileEntry] {
-        showHidden ? entries : entries.filter { !$0.isHidden }
-    }
-
     var canGoUp: Bool { currentPath != "/" }
 
     // MARK: - 导航 / 列表
