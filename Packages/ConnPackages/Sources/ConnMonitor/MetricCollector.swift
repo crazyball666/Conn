@@ -25,6 +25,7 @@ public actor MetricCollector {
     }
 
     private var previousCPU: [String: CPUJiffies] = [:]
+    private var previousPerCore: [String: [CPUJiffies]] = [:]
     private var previousRate: [String: RateBaseline] = [:]
 
     public init() {}
@@ -42,6 +43,9 @@ public actor MetricCollector {
             }
             previousCPU[host.id] = current
         }
+
+        // 各核利用率：逐核 jiffies 差分。
+        let perCore = perCoreUsage(host: host, current: parsed.cpuPerCore)
 
         // 网络/IO 速率：用服务器自身 uptime 作时钟差分（免客户端时钟漂移/网络延迟）。
         let rates = updateRates(host: host, parsed: parsed)
@@ -61,13 +65,20 @@ public actor MetricCollector {
             hostID: host.id,
             cpu: cpuUsage,
             cpuCores: parsed.cpuCores,
+            cpuPerCore: perCore,
+            cpuModel: parsed.cpuModel,
+            osName: parsed.osName,
             mem: parsed.memPercent,
             memTotalBytes: parsed.memTotalBytes,
             memUsedBytes: parsed.memUsedBytes,
+            memBuffersCache: parsed.memBuffersCache,
+            memFree: parsed.memFree,
             disk: diskPercent,
             diskUsedBytes: parsed.diskUsedBytes,
             diskTotalBytes: parsed.diskTotalBytes,
             load1: parsed.load1,
+            load5: parsed.load5,
+            load15: parsed.load15,
             netRx: parsed.netRxBytes,
             netTx: parsed.netTxBytes,
             netRxRate: rates.netRx,
@@ -81,6 +92,15 @@ public actor MetricCollector {
             severity: HealthEvaluator.severity(cpu: cpuUsage, mem: parsed.memPercent, disk: diskPercent),
             sample: sample
         )
+    }
+
+    /// 逐核差分求各核利用率 0–100。首采（无基线）或核数变化时返回 nil。
+    private func perCoreUsage(host: ConnKit.Host, current: [CPUJiffies]) -> [Double]? {
+        defer { previousPerCore[host.id] = current.isEmpty ? nil : current }
+        guard let previous = previousPerCore[host.id], previous.count == current.count, !current.isEmpty else {
+            return nil
+        }
+        return zip(previous, current).map { CPUCalculator.usage(previous: $0, current: $1) ?? 0 }
     }
 
     /// 更新差分基线并返回本次网络/IO 速率（字节/秒）。首采或重启时相应项为 nil。
@@ -115,6 +135,7 @@ public actor MetricCollector {
     /// 清除某主机的差分基线（断连或切主机时调用，避免拿旧基线算出跳变）。
     public func reset(hostID: String) {
         previousCPU[hostID] = nil
+        previousPerCore[hostID] = nil
         previousRate[hostID] = nil
     }
 }

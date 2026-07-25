@@ -42,11 +42,6 @@ struct HostDetailView: View {
         .background(Color.connBg.ignoresSafeArea())
         .navigationTitle(displayTitle)
         .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                StatusPill(resolvedStatus.text, semantic: resolvedStatus.semantic)
-            }
-        }
         .onAppear { monitorVM.appear() }
         .onDisappear { monitorVM.disappear() }
     }

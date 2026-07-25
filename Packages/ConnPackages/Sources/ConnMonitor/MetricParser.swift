@@ -7,11 +7,18 @@ import Foundation
 /// 差分，故此处只留 jiffies 快照，利用率由 `MetricCollector` 跨样本算出。
 public struct ParsedMetrics: Sendable, Equatable {
     public var cpu: CPUJiffies?
+    public var cpuPerCore: [CPUJiffies]
     public var cpuCores: Int?
+    public var cpuModel: String?
+    public var osName: String?
     public var memPercent: Double?
     public var memTotalBytes: Double?
     public var memUsedBytes: Double?
+    public var memBuffersCache: Double?
+    public var memFree: Double?
     public var load1: Double?
+    public var load5: Double?
+    public var load15: Double?
     public var diskUsedBytes: Double?
     public var diskTotalBytes: Double?
     public var netRxBytes: Int64?
@@ -23,11 +30,18 @@ public struct ParsedMetrics: Sendable, Equatable {
 
     public init(
         cpu: CPUJiffies? = nil,
+        cpuPerCore: [CPUJiffies] = [],
         cpuCores: Int? = nil,
+        cpuModel: String? = nil,
+        osName: String? = nil,
         memPercent: Double? = nil,
         memTotalBytes: Double? = nil,
         memUsedBytes: Double? = nil,
+        memBuffersCache: Double? = nil,
+        memFree: Double? = nil,
         load1: Double? = nil,
+        load5: Double? = nil,
+        load15: Double? = nil,
         diskUsedBytes: Double? = nil,
         diskTotalBytes: Double? = nil,
         netRxBytes: Int64? = nil,
@@ -38,11 +52,18 @@ public struct ParsedMetrics: Sendable, Equatable {
         processes: [RemoteProcess] = []
     ) {
         self.cpu = cpu
+        self.cpuPerCore = cpuPerCore
         self.cpuCores = cpuCores
+        self.cpuModel = cpuModel
+        self.osName = osName
         self.memPercent = memPercent
         self.memTotalBytes = memTotalBytes
         self.memUsedBytes = memUsedBytes
+        self.memBuffersCache = memBuffersCache
+        self.memFree = memFree
         self.load1 = load1
+        self.load5 = load5
+        self.load15 = load15
         self.diskUsedBytes = diskUsedBytes
         self.diskTotalBytes = diskTotalBytes
         self.netRxBytes = netRxBytes
@@ -71,14 +92,23 @@ public enum MetricParser {
         let disk = ProcParsers.parseDisk(section(CollectionScript.Sentinel.disk))
         let net = ProcParsers.parseNet(section(CollectionScript.Sentinel.net))
         let mem = ProcParsers.parseMemInfo(memSection)
+        let memDetail = ProcParsers.parseMemBreakdown(memSection)
         let io = ProcParsers.parseDiskstats(section(CollectionScript.Sentinel.io))
+        let load = ProcParsers.parseLoadAvg(section(CollectionScript.Sentinel.load))
         return ParsedMetrics(
             cpu: ProcParsers.parseStat(statSection),
+            cpuPerCore: ProcParsers.parsePerCore(statSection),
             cpuCores: ProcParsers.parseCoreCount(statSection),
+            cpuModel: ProcParsers.parseCPUModel(section(CollectionScript.Sentinel.cpuinfo)),
+            osName: ProcParsers.parseOSName(section(CollectionScript.Sentinel.os)),
             memPercent: ProcParsers.parseMemPercent(memSection),
             memTotalBytes: mem?.totalBytes,
             memUsedBytes: mem?.usedBytes,
-            load1: ProcParsers.parseLoad1(section(CollectionScript.Sentinel.load)),
+            memBuffersCache: memDetail?.buffersCache,
+            memFree: memDetail?.free,
+            load1: load?.one,
+            load5: load?.five,
+            load15: load?.fifteen,
             diskUsedBytes: disk?.used,
             diskTotalBytes: disk?.total,
             netRxBytes: net?.rx,
@@ -100,6 +130,7 @@ public enum MetricParser {
             CollectionScript.Sentinel.load, CollectionScript.Sentinel.disk,
             CollectionScript.Sentinel.net, CollectionScript.Sentinel.io,
             CollectionScript.Sentinel.uptime,
+            CollectionScript.Sentinel.os, CollectionScript.Sentinel.cpuinfo,
             CollectionScript.Sentinel.ps, CollectionScript.Sentinel.top,
             CollectionScript.Sentinel.end
         ]

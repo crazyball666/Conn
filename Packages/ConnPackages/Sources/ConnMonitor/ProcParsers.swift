@@ -1,5 +1,20 @@
 import Foundation
 
+/// 1 / 5 / 15 分钟平均负载。
+struct LoadAverages: Sendable, Equatable {
+    let one: Double
+    let five: Double
+    let fifteen: Double
+}
+
+/// 内存明细（字节）：总量 / 已用 / 缓冲缓存 / 空闲。
+struct MemoryBreakdown: Sendable, Equatable {
+    let total: Double
+    let used: Double
+    let buffersCache: Double
+    let free: Double
+}
+
 /// `/proc` 与 `df` 各段的解析。全部纯函数。
 enum ProcParsers {
     /// `/proc/stat` 首行 → CPU jiffies 快照。
@@ -23,12 +38,24 @@ enum ProcParsers {
 
     /// `/proc/stat` → 逻辑核心数（`cpu0`、`cpu1`… 每核一行；`cpu ` 汇总行不计）。
     static func parseCoreCount(_ section: String) -> Int? {
-        var count = 0
+        let count = parsePerCore(section).count
+        return count > 0 ? count : nil
+    }
+
+    /// `/proc/stat` 每个 `cpuN` 行 → 各逻辑核 jiffies 快照（顺序即核序）。
+    /// 各核利用率由 `MetricCollector` 跨样本逐核差分算出。
+    static func parsePerCore(_ section: String) -> [CPUJiffies] {
+        var cores: [CPUJiffies] = []
         for line in section.split(separator: "\n")
         where line.hasPrefix("cpu") && (line.dropFirst(3).first?.isNumber ?? false) {
-            count += 1
+            let fields = line.split(whereSeparator: { $0 == " " || $0 == "\t" }).dropFirst()
+            let values = fields.compactMap { Double($0) }
+            guard values.count >= 5 else { continue }
+            let total = values.prefix(8).reduce(0, +)
+            let idle = values[3] + values[4]
+            cores.append(CPUJiffies(total: total, idle: idle))
         }
-        return count > 0 ? count : nil
+        return cores
     }
 
     /// `/proc/meminfo` → （总字节, 已用字节）。
@@ -100,10 +127,56 @@ enum ProcParsers {
 
     /// `/proc/loadavg` → 1 分钟平均负载。
     static func parseLoad1(_ section: String) -> Double? {
-        section
+        parseLoadAvg(section)?.one
+    }
+
+    /// `/proc/loadavg` → 1 / 5 / 15 分钟平均负载。
+    static func parseLoadAvg(_ section: String) -> LoadAverages? {
+        let fields = section
             .split(separator: "\n").first?
-            .split(separator: " ").first
-            .flatMap { Double($0) }
+            .split(separator: " ")
+            .compactMap { Double($0) } ?? []
+        guard fields.count >= 3 else { return nil }
+        return LoadAverages(one: fields[0], five: fields[1], fifteen: fields[2])
+    }
+
+    /// `/etc/os-release` → 发行版友好名（`PRETTY_NAME`）。
+    static func parseOSName(_ section: String) -> String? {
+        for line in section.split(separator: "\n") where line.hasPrefix("PRETTY_NAME=") {
+            let value = line.dropFirst("PRETTY_NAME=".count)
+                .trimmingCharacters(in: CharacterSet(charactersIn: "\"'"))
+            return value.isEmpty ? nil : value
+        }
+        return nil
+    }
+
+    /// `grep model name /proc/cpuinfo` → CPU 型号（冒号后部分）。
+    static func parseCPUModel(_ section: String) -> String? {
+        guard let line = section.split(separator: "\n").first,
+              let colon = line.firstIndex(of: ":") else { return nil }
+        let value = line[line.index(after: colon)...].trimmingCharacters(in: .whitespaces)
+        return value.isEmpty ? nil : value
+    }
+
+    /// `/proc/meminfo` → 四分（已用 / 缓冲缓存 / 空闲 / 总计）字节，供内存明细。
+    ///
+    /// 已用 = 总 − 空闲 − 缓冲缓存（`free` 口径，剔除可回收缓存）；三者之和 ≈ 总量。
+    static func parseMemBreakdown(_ section: String) -> MemoryBreakdown? {
+        var values: [String: Double] = [:]
+        for line in section.split(separator: "\n") {
+            let parts = line.split(separator: ":")
+            guard parts.count == 2 else { continue }
+            let key = parts[0].trimmingCharacters(in: .whitespaces)
+            if let number = parts[1].split(whereSeparator: { $0 == " " || $0 == "\t" })
+                .compactMap({ Double($0) }).first {
+                values[key] = number * 1024 // kB → 字节
+            }
+        }
+        guard let total = values["MemTotal"], total > 0 else { return nil }
+        let free = values["MemFree"] ?? 0
+        let buffersCache = (values["Buffers"] ?? 0) + (values["Cached"] ?? 0)
+        let used = max(0, total - free - buffersCache)
+        return MemoryBreakdown(total: total, used: used, buffersCache: buffersCache, free: free)
     }
 
     /// `df -P -k` → 根挂载点（`/`）的已用/总字节数。

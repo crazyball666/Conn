@@ -56,7 +56,7 @@ final class DemoMetricsEngine: @unchecked Sendable {
     private func render(state: State, cpu: Double, mem: Double, disk: Double, load1: Double) -> String {
         let sentinel = CollectionScript.Sentinel.self
         return [
-            sentinel.stat, statLine(total: state.total, idle: state.idle),
+            sentinel.stat, statLine(total: state.total, idle: state.idle, cpu: cpu),
             sentinel.mem, memLines(usedFraction: mem),
             sentinel.load, String(format: "%.2f %.2f %.2f 2/431 12345", load1, load1 * 0.9, load1 * 0.8),
             sentinel.disk, diskLines(usedFraction: disk),
@@ -64,20 +64,28 @@ final class DemoMetricsEngine: @unchecked Sendable {
             sentinel.io, diskstatsLine(read: state.ioRead, write: state.ioWrite),
             // uptime 随 tick 递增(≈3s/次),让相邻样本可差分出网络/IO 速率。
             sentinel.uptime, String(format: "%.2f 3456789.10", 864_000 + Double(state.tick) * 3),
+            sentinel.os, "PRETTY_NAME=\"Ubuntu 24.04.1 LTS\"\nID=ubuntu\nVERSION_ID=\"24.04\"",
+            sentinel.cpuinfo, "model name\t: Intel(R) Xeon(R) CPU E5-2680 v4 @ 2.40GHz",
             sentinel.ps, psLines(cpu: cpu, mem: mem),
             sentinel.top, "",
             sentinel.end
         ].joined(separator: "\n")
     }
 
-    private func statLine(total: Int64, idle: Int64) -> String {
+    private func statLine(total: Int64, idle: Int64, cpu: Double) -> String {
         let busy = max(0, total - idle)
         let user = Int64(Double(busy) * 0.7)
         let system = busy - user
-        // 汇总行 + 4 个逻辑核行（供核心数解析）。
+        // 汇总行 + 4 个逻辑核行。各核围绕总体使用率上下偏移 → 折线可区分。
+        // coreIdle 按 coreTotal 比例给出,故相邻样本差分正好还原每核目标使用率。
         let aggregate = "cpu  \(user) 0 \(system) \(idle) 0 0 0 0 0 0"
-        let cores = (0 ..< 4).map { index in
-            "cpu\(index) \(user / 4) 0 \(system / 4) \(idle / 4) 0 0 0 0 0 0"
+        let coreTotal = total / 4
+        let cores = (0 ..< 4).map { index -> String in
+            let target = min(0.99, max(0.02, cpu + (Double(index) - 1.5) * 0.04))
+            let coreIdle = Int64(Double(coreTotal) * (1 - target))
+            let coreBusy = coreTotal - coreIdle
+            let coreUser = Int64(Double(coreBusy) * 0.7)
+            return "cpu\(index) \(coreUser) 0 \(coreBusy - coreUser) \(coreIdle) 0 0 0 0 0 0"
         }
         return ([aggregate] + cores).joined(separator: "\n")
     }

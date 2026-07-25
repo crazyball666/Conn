@@ -33,6 +33,11 @@ struct MetricParserTests {
      252       0 dm-0 300 0 10000 100 200 0 5000 50 0 50 150
     __CONN_UPTIME__
     123456.78 987654.32
+    __CONN_OS__
+    PRETTY_NAME="Ubuntu 24.04.1 LTS"
+    ID=ubuntu
+    __CONN_CPUINFO__
+    model name	: Intel(R) Xeon(R) CPU E5-2698 v4 @ 2.20GHz
     __CONN_PS__
         PID %CPU %MEM COMMAND
           1  0.0  0.1 systemd
@@ -76,6 +81,19 @@ struct MetricParserTests {
         // sda 整盘扇区读/写 ×512；排除分区 sda1 与 dm-0
         #expect(parsed.ioReadBytes == Int64(200_000 * 512))
         #expect(parsed.ioWriteBytes == Int64(100_000 * 512))
+    }
+
+    @Test("GNU：负载 1/5/15 · 系统名 · CPU 型号 · 内存明细")
+    func gnuBasics() {
+        let parsed = MetricParser.parse(gnuOutput)
+        #expect(parsed.load1 == 0.42)
+        #expect(parsed.load5 == 0.35)
+        #expect(parsed.load15 == 0.30)
+        #expect(parsed.osName == "Ubuntu 24.04.1 LTS")
+        #expect(parsed.cpuModel == "Intel(R) Xeon(R) CPU E5-2698 v4 @ 2.20GHz")
+        // 空闲 = MemFree；缓冲缓存 = Buffers + Cached
+        #expect(parsed.memFree == 512_000 * 1024)
+        #expect(parsed.memBuffersCache == 900_000 * 1024)
     }
 
     @Test("GNU：进程按 ps 解析")

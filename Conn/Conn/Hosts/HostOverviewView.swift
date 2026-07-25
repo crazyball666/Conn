@@ -3,10 +3,12 @@ import ConnMonitor
 import ConnUI
 import SwiftUI
 
-/// 单机概览：分块（系统 / CPU / 内存 / 网络 / 磁盘 IO / 进程），
-/// 变化型指标用折线图展示趋势（实时累积最近 40 个采样点）。
+/// 单机概览：分块（系统 / 负载 / CPU / 内存 / 磁盘 / 网络 / 进程）。
+/// CPU 显示各核折线、内存显示三段堆叠占比、磁盘与磁盘 IO 合并一块。
 struct HostOverviewView: View {
     let viewModel: HostOverviewViewModel
+
+    private let corePalette: [Color] = [.connAccent, .connInfo, .connGood, .connWarn, .connDisk, .connCrit]
 
     var body: some View {
         VStack(alignment: .leading, spacing: ConnSpacing.md) {
@@ -14,22 +16,17 @@ struct HostOverviewView: View {
                 ConnBanner(error, systemImage: "wifi.slash")
             }
             systemCard
+            loadCard
             cpuSection
             memorySection
+            diskSection
             networkSection
-            ioSection
             processes
         }
         .padding(.bottom, ConnSpacing.lg)
         .onChange(of: viewModel.latest) { _, _ in viewModel.record() }
-        .confirmationDialog(
-            killPrompt,
-            isPresented: killDialogBinding,
-            titleVisibility: .visible
-        ) {
-            Button(L("结束进程"), role: .destructive) {
-                Task { await viewModel.confirmKill() }
-            }
+        .confirmationDialog(killPrompt, isPresented: killDialogBinding, titleVisibility: .visible) {
+            Button(L("结束进程"), role: .destructive) { Task { await viewModel.confirmKill() } }
             Button(L("取消"), role: .cancel) { viewModel.killTarget = nil }
         }
         .alert(L("进程操作"), isPresented: actionMessageBinding) {
@@ -39,31 +36,68 @@ struct HostOverviewView: View {
         }
     }
 
-    // MARK: - 系统
+    // MARK: - 系统 / 负载
 
     private var systemCard: some View {
         section(L("系统")) {
             infoRows([
-                (L("核心数"), MetricFormat.cores(latest?.cpuCores)),
-                (L("内存"), MetricFormat.pair(used: latest?.memUsedBytes, total: latest?.memTotalBytes)),
-                (L("磁盘"), MetricFormat.pair(used: latest?.diskUsedBytes, total: latest?.diskTotalBytes)),
-                (L("负载（1 分钟）"), MetricFormat.load(latest?.load1)),
+                (L("操作系统"), latest?.osName ?? "—"),
                 (L("运行时长"), MetricFormat.uptime(latest?.uptimeSeconds))
             ])
         }
     }
 
-    // MARK: - CPU / 内存（百分比 + 面积图）
+    private var loadCard: some View {
+        section(L("负载")) {
+            HStack(spacing: 0) {
+                loadColumn(L("1 分钟"), latest?.load1)
+                loadDivider
+                loadColumn(L("5 分钟"), latest?.load5)
+                loadDivider
+                loadColumn(L("15 分钟"), latest?.load15)
+            }
+        }
+    }
+
+    private func loadColumn(_ label: String, _ value: Double?) -> some View {
+        VStack(spacing: 3) {
+            Text(MetricFormat.load(value))
+                .font(.system(size: 20, weight: .semibold, design: .rounded))
+                .connTabularNumbers().foregroundStyle(.connInk)
+            Text(label).font(.connData(.caption2)).foregroundStyle(.connMuted)
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    private var loadDivider: some View {
+        Rectangle().fill(Color.connLine).frame(width: 0.5, height: 28)
+    }
+
+    // MARK: - CPU（型号 + 各核折线）
 
     private var cpuSection: some View {
         section("CPU") {
+            if let model = latest?.cpuModel, !model.isEmpty {
+                Text(model)
+                    .font(.connData(.caption2)).foregroundStyle(.connMuted)
+                    .lineLimit(1).minimumScaleFactor(0.7)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
             percentHeader(latest?.cpu, detail: MetricFormat.cores(latest?.cpuCores))
-            chartOrPlaceholder(
-                [TrendSeries(id: "cpu", color: .connAccent, values: viewModel.cpuHistory)],
-                domain: 0 ... 100, yFormat: { "\(Int($0))" }
-            )
+            chartOrPlaceholder(cpuSeries, domain: 0 ... 100, yFormat: { "\(Int($0))" })
         }
     }
+
+    private var cpuSeries: [TrendSeries] {
+        if viewModel.coreHistories.isEmpty {
+            return [TrendSeries(id: "cpu", color: .connAccent, values: viewModel.cpuHistory)]
+        }
+        return viewModel.coreHistories.enumerated().map { index, values in
+            TrendSeries(id: "core\(index)", color: corePalette[index % corePalette.count], values: values)
+        }
+    }
+
+    // MARK: - 内存（三段堆叠占比 + 明细）
 
     private var memorySection: some View {
         section(L("内存")) {
@@ -71,58 +105,82 @@ struct HostOverviewView: View {
                 latest?.mem,
                 detail: MetricFormat.pair(used: latest?.memUsedBytes, total: latest?.memTotalBytes)
             )
-            chartOrPlaceholder(
-                [TrendSeries(id: "mem", color: .connInfo, values: viewModel.memHistory)],
-                domain: 0 ... 100, yFormat: { "\(Int($0))" }
-            )
-        }
-    }
-
-    private func percentHeader(_ value: Double?, detail: String) -> some View {
-        HStack(alignment: .firstTextBaseline) {
-            HStack(alignment: .firstTextBaseline, spacing: 2) {
-                Text(value.map { "\(Int($0))" } ?? "—")
-                    .font(.system(size: 30, weight: .semibold, design: .rounded))
-                    .connTabularNumbers()
-                    .foregroundStyle(.connInk)
-                Text("%").font(.connSubheadline).foregroundStyle(.connMuted)
+            chartOrPlaceholder(memSeries, domain: 0 ... 100, yFormat: { "\(Int($0))" }, stacked: true)
+            HStack(spacing: 0) {
+                breakdownColumn(L("已用"), MetricFormat.bytes(latest?.memUsedBytes), .connCrit)
+                breakdownColumn(L("缓存"), MetricFormat.bytes(latest?.memBuffersCache), .connWarn)
+                breakdownColumn(L("空闲"), MetricFormat.bytes(latest?.memFree), .connGood)
             }
-            Spacer()
-            Text(detail).font(.connData(.footnote)).foregroundStyle(.connMuted)
         }
     }
 
-    // MARK: - 网络 / 磁盘 IO（双向速率折线 + 明细行）
-
-    private var networkSection: some View {
-        section(L("网络")) {
-            legend([(L("下行"), .connInfo), (L("上行"), .connGood)])
-            chartOrPlaceholder(rateSeries(
-                down: viewModel.netRxHistory, downColor: .connInfo,
-                up: viewModel.netTxHistory, upColor: .connGood
-            ))
-            infoRows([
-                (L("下行速率"), MetricFormat.rate(latest?.netRxRate)),
-                (L("上行速率"), MetricFormat.rate(latest?.netTxRate)),
-                (L("下行总量"), MetricFormat.bytes(latest?.netRx)),
-                (L("上行总量"), MetricFormat.bytes(latest?.netTx))
-            ])
-        }
+    private var memSeries: [TrendSeries] {
+        [
+            TrendSeries(id: L("已用"), color: .connCrit, values: viewModel.memUsedHistory),
+            TrendSeries(id: L("缓存"), color: .connWarn, values: viewModel.memCacheHistory),
+            TrendSeries(id: L("空闲"), color: .connGood, values: viewModel.memFreeHistory)
+        ]
     }
 
-    private var ioSection: some View {
-        section(L("磁盘 IO")) {
-            legend([(L("读"), .connDisk), (L("写"), .connWarn)])
+    private func breakdownColumn(_ label: String, _ value: String, _ dot: Color) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            HStack(spacing: 4) {
+                Circle().fill(dot).frame(width: 7, height: 7)
+                Text(label).font(.connData(.caption2)).foregroundStyle(.connMuted)
+            }
+            Text(value).font(.connData(.footnote)).connTabularNumbers().foregroundStyle(.connInk)
+                .lineLimit(1).minimumScaleFactor(0.7)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    // MARK: - 磁盘（占用条 + 磁盘 IO 折线，合并一块）
+
+    private var diskSection: some View {
+        section(L("磁盘")) {
+            percentHeader(
+                latest?.disk,
+                detail: MetricFormat.pair(used: latest?.diskUsedBytes, total: latest?.diskTotalBytes)
+            )
+            GeometryReader { geometry in
+                ZStack(alignment: .leading) {
+                    Capsule().fill(Color.connTrack)
+                    Capsule().fill(diskColor)
+                        .frame(width: max(6, geometry.size.width * fraction(latest?.disk)))
+                }
+            }
+            .frame(height: 8)
+            Rectangle().fill(Color.connLine).frame(height: 0.5).padding(.vertical, 2)
+            chartHeader(
+                legend: [(L("读"), .connDisk), (L("写"), .connWarn)],
+                totals: "\(L("读")) \(MetricFormat.bytes(latest?.ioReadBytes))  \(L("写")) \(MetricFormat.bytes(latest?.ioWriteBytes))"
+            )
             chartOrPlaceholder(rateSeries(
                 down: viewModel.ioReadHistory, downColor: .connDisk,
                 up: viewModel.ioWriteHistory, upColor: .connWarn
             ))
-            infoRows([
-                (L("读速率"), MetricFormat.rate(latest?.ioReadRate)),
-                (L("写速率"), MetricFormat.rate(latest?.ioWriteRate)),
-                (L("读总量"), MetricFormat.bytes(latest?.ioReadBytes)),
-                (L("写总量"), MetricFormat.bytes(latest?.ioWriteBytes))
-            ])
+        }
+    }
+
+    private var diskColor: Color {
+        guard let value = latest?.disk else { return .connTrack }
+        if value > ConnThreshold.crit { return .connCrit }
+        if value > ConnThreshold.warn { return .connWarn }
+        return .connDisk
+    }
+
+    // MARK: - 网络（双向折线 + 右上角累计量）
+
+    private var networkSection: some View {
+        section(L("网络")) {
+            chartHeader(
+                legend: [(L("下行"), .connInfo), (L("上行"), .connGood)],
+                totals: "↓ \(MetricFormat.bytes(latest?.netRx))  ↑ \(MetricFormat.bytes(latest?.netTx))"
+            )
+            chartOrPlaceholder(rateSeries(
+                down: viewModel.netRxHistory, downColor: .connInfo,
+                up: viewModel.netTxHistory, upColor: .connGood
+            ))
         }
     }
 
@@ -135,7 +193,6 @@ struct HostOverviewView: View {
 
     // MARK: - 通用块
 
-    /// 眉标 + Surface 卡片。
     private func section(_ title: String, @ViewBuilder content: () -> some View) -> some View {
         VStack(alignment: .leading, spacing: ConnSpacing.xs) {
             Text(title).font(.connCaption).foregroundStyle(.connMuted).connEyebrowTracking()
@@ -148,42 +205,63 @@ struct HostOverviewView: View {
         }
     }
 
-    /// 折线图；历史不足 2 点时显示等高占位（避免布局跳动）。
+    private func percentHeader(_ value: Double?, detail: String) -> some View {
+        HStack(alignment: .firstTextBaseline) {
+            HStack(alignment: .firstTextBaseline, spacing: 2) {
+                Text(value.map { "\(Int($0))" } ?? "—")
+                    .font(.system(size: 30, weight: .semibold, design: .rounded))
+                    .connTabularNumbers().foregroundStyle(.connInk)
+                Text("%").font(.connSubheadline).foregroundStyle(.connMuted)
+            }
+            Spacer()
+            Text(detail).font(.connData(.footnote)).foregroundStyle(.connMuted)
+        }
+    }
+
+    /// 图表上方：图例（左）+ 累计量（右上角小字）。
+    private func chartHeader(legend: [(String, Color)], totals: String) -> some View {
+        HStack {
+            HStack(spacing: ConnSpacing.sm) {
+                ForEach(Array(legend.enumerated()), id: \.offset) { _, item in
+                    HStack(spacing: 4) {
+                        Circle().fill(item.1).frame(width: 7, height: 7)
+                        Text(item.0).font(.connData(.caption2)).foregroundStyle(.connMuted)
+                    }
+                }
+            }
+            Spacer()
+            Text(totals).font(.connData(.caption2)).foregroundStyle(.connDim)
+                .lineLimit(1).minimumScaleFactor(0.7)
+        }
+    }
+
     private func chartOrPlaceholder(
         _ series: [TrendSeries],
         domain: ClosedRange<Double>? = nil,
-        yFormat: @escaping (Double) -> String = { MetricFormat.compactBytes($0) + "/s" }
+        yFormat: @escaping (Double) -> String = { MetricFormat.compactBytes($0) + "/s" },
+        stacked: Bool = false
     ) -> some View {
         let hasData = series.contains { $0.values.count >= 2 }
         let resolved = domain ?? autoDomain(series)
         return Group {
             if hasData {
-                MetricTrendChart(series: series, yDomain: resolved, yFormat: yFormat)
+                MetricTrendChart(series: series, yDomain: resolved, yFormat: yFormat, stacked: stacked)
             } else {
                 Text(L("采集中…"))
                     .font(.connFootnote).foregroundStyle(.connMuted)
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 58)
+                    .frame(maxWidth: .infinity).frame(height: 58)
             }
         }
     }
 
-    /// 速率图自动 Y 域：峰值上浮 25%，下限 1 KB 防止空图压扁。
     private func autoDomain(_ series: [TrendSeries]) -> ClosedRange<Double> {
         let peak = series.flatMap { $0.values }.max() ?? 0
         return 0 ... max(peak * 1.25, 1024)
     }
 
-    private func legend(_ items: [(String, Color)]) -> some View {
-        HStack(spacing: ConnSpacing.sm) {
-            ForEach(Array(items.enumerated()), id: \.offset) { _, item in
-                HStack(spacing: 4) {
-                    Circle().fill(item.1).frame(width: 7, height: 7)
-                    Text(item.0).font(.connData(.caption2)).foregroundStyle(.connMuted)
-                }
-            }
-            Spacer()
-        }
+    private func fraction(_ value: Double?) -> CGFloat {
+        guard let value else { return 0 }
+        return min(max(value / 100, 0), 1)
     }
 
     private func infoRows(_ rows: [(String, String)]) -> some View {
@@ -192,19 +270,39 @@ struct HostOverviewView: View {
                 if index > 0 {
                     Rectangle().fill(Color.connLine).frame(height: 0.5)
                 }
-                HStack {
+                HStack(spacing: ConnSpacing.sm) {
                     Text(row.0).font(.connSubheadline).foregroundStyle(.connMuted)
                     Spacer()
                     Text(row.1).font(.connData()).connTabularNumbers().foregroundStyle(.connInk)
+                        .lineLimit(1).minimumScaleFactor(0.6).multilineTextAlignment(.trailing)
                 }
                 .padding(.vertical, ConnSpacing.sm)
             }
         }
     }
 
-    // MARK: - 进程
+    // MARK: - 派生 / 绑定
 
-    private var processes: some View {
+    private var latest: HostMetrics? { viewModel.latest }
+
+    private var killPrompt: String {
+        guard let target = viewModel.killTarget else { return "" }
+        return String(format: L("结束 %@（PID %d）？将发送 SIGTERM。"), target.command, target.pid)
+    }
+
+    private var killDialogBinding: Binding<Bool> {
+        Binding(get: { viewModel.killTarget != nil }, set: { if !$0 { viewModel.killTarget = nil } })
+    }
+
+    private var actionMessageBinding: Binding<Bool> {
+        Binding(get: { viewModel.actionMessage != nil }, set: { if !$0 { viewModel.actionMessage = nil } })
+    }
+}
+
+// MARK: - 进程
+
+private extension HostOverviewView {
+    var processes: some View {
         VStack(alignment: .leading, spacing: ConnSpacing.xs) {
             Text(L("进程 · CPU 占用前列"))
                 .font(.connCaption).foregroundStyle(.connMuted).connEyebrowTracking()
@@ -227,7 +325,7 @@ struct HostOverviewView: View {
         }
     }
 
-    private func processRow(_ process: RemoteProcess) -> some View {
+    func processRow(_ process: RemoteProcess) -> some View {
         HStack(spacing: ConnSpacing.sm) {
             VStack(alignment: .leading, spacing: 2) {
                 Text(process.command).font(.connBody).foregroundStyle(.connInk).lineLimit(1)
@@ -249,29 +347,12 @@ struct HostOverviewView: View {
         .padding(.vertical, ConnSpacing.sm)
     }
 
-    private func usageColumn(_ label: String, value: Double) -> some View {
+    func usageColumn(_ label: String, value: Double) -> some View {
         VStack(alignment: .trailing, spacing: 1) {
             Text(String(format: "%.0f%%", value)).font(.connData(.footnote)).connTabularNumbers()
                 .foregroundStyle(value > ConnThreshold.warn ? .connWarn : .connInk)
             Text(label).font(.connData(.caption2)).foregroundStyle(.connMuted)
         }
         .frame(width: 44)
-    }
-
-    // MARK: - 派生 / 绑定
-
-    private var latest: HostMetrics? { viewModel.latest }
-
-    private var killPrompt: String {
-        guard let target = viewModel.killTarget else { return "" }
-        return String(format: L("结束 %@（PID %d）？将发送 SIGTERM。"), target.command, target.pid)
-    }
-
-    private var killDialogBinding: Binding<Bool> {
-        Binding(get: { viewModel.killTarget != nil }, set: { if !$0 { viewModel.killTarget = nil } })
-    }
-
-    private var actionMessageBinding: Binding<Bool> {
-        Binding(get: { viewModel.actionMessage != nil }, set: { if !$0 { viewModel.actionMessage = nil } })
     }
 }

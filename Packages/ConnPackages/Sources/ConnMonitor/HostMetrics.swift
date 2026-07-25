@@ -15,13 +15,24 @@ public struct HostMetrics: Sendable, Equatable {
     public let cpu: Double?
     /// CPU 逻辑核心数（`/proc/stat` 里 `cpuN` 行计数）。
     public let cpuCores: Int?
+    /// 各逻辑核使用率 0–100（顺序即核序）。首采无差分基线时为 nil。
+    public let cpuPerCore: [Double]?
+    /// CPU 型号（`/proc/cpuinfo` model name）。
+    public let cpuModel: String?
+    /// 发行版友好名（`/etc/os-release` PRETTY_NAME）。
+    public let osName: String?
     public let mem: Double?
     public let memTotalBytes: Double?
     public let memUsedBytes: Double?
+    /// 缓冲/缓存、空闲字节（内存明细）。
+    public let memBuffersCache: Double?
+    public let memFree: Double?
     public let disk: Double?
     public let diskUsedBytes: Double?
     public let diskTotalBytes: Double?
     public let load1: Double?
+    public let load5: Double?
+    public let load15: Double?
     /// 累计收/发字节（单调递增）。
     public let netRx: Int64?
     public let netTx: Int64?
@@ -44,13 +55,20 @@ public struct HostMetrics: Sendable, Equatable {
         hostID: String,
         cpu: Double?,
         cpuCores: Int? = nil,
+        cpuPerCore: [Double]? = nil,
+        cpuModel: String? = nil,
+        osName: String? = nil,
         mem: Double?,
         memTotalBytes: Double? = nil,
         memUsedBytes: Double? = nil,
+        memBuffersCache: Double? = nil,
+        memFree: Double? = nil,
         disk: Double?,
         diskUsedBytes: Double? = nil,
         diskTotalBytes: Double? = nil,
         load1: Double?,
+        load5: Double? = nil,
+        load15: Double? = nil,
         netRx: Int64?,
         netTx: Int64?,
         netRxRate: Double? = nil,
@@ -67,13 +85,20 @@ public struct HostMetrics: Sendable, Equatable {
         self.hostID = hostID
         self.cpu = cpu
         self.cpuCores = cpuCores
+        self.cpuPerCore = cpuPerCore
+        self.cpuModel = cpuModel
+        self.osName = osName
         self.mem = mem
         self.memTotalBytes = memTotalBytes
         self.memUsedBytes = memUsedBytes
+        self.memBuffersCache = memBuffersCache
+        self.memFree = memFree
         self.disk = disk
         self.diskUsedBytes = diskUsedBytes
         self.diskTotalBytes = diskTotalBytes
         self.load1 = load1
+        self.load5 = load5
+        self.load15 = load15
         self.netRx = netRx
         self.netTx = netTx
         self.netRxRate = netRxRate

@@ -22,7 +22,13 @@ final class HostOverviewViewModel {
 
     /// 折线图用的滚动历史（每 3s 一点，保留最近 `maxPoints` 个）。
     private(set) var cpuHistory: [Double] = []
+    /// 各逻辑核使用率历史，`coreHistories[核序]` = 该核的时间序列。
+    private(set) var coreHistories: [[Double]] = []
     private(set) var memHistory: [Double] = []
+    /// 内存三段占比历史（已用 / 缓存 / 空闲，% of total，堆叠到 100）。
+    private(set) var memUsedHistory: [Double] = []
+    private(set) var memCacheHistory: [Double] = []
+    private(set) var memFreeHistory: [Double] = []
     private(set) var netRxHistory: [Double] = []
     private(set) var netTxHistory: [Double] = []
     private(set) var ioReadHistory: [Double] = []
@@ -46,11 +52,33 @@ final class HostOverviewViewModel {
     func record() {
         guard let metrics = latest else { return }
         append(&cpuHistory, metrics.cpu ?? 0)
+        recordPerCore(metrics.cpuPerCore)
         append(&memHistory, metrics.mem ?? 0)
+        recordMemBreakdown(metrics)
         append(&netRxHistory, metrics.netRxRate ?? 0)
         append(&netTxHistory, metrics.netTxRate ?? 0)
         append(&ioReadHistory, metrics.ioReadRate ?? 0)
         append(&ioWriteHistory, metrics.ioWriteRate ?? 0)
+    }
+
+    private func recordPerCore(_ cores: [Double]?) {
+        guard let cores, !cores.isEmpty else { return }
+        if coreHistories.count != cores.count {
+            coreHistories = Array(repeating: [], count: cores.count)
+        }
+        for (index, value) in cores.enumerated() {
+            append(&coreHistories[index], value)
+        }
+    }
+
+    private func recordMemBreakdown(_ metrics: HostMetrics) {
+        guard let total = metrics.memTotalBytes, total > 0 else { return }
+        let cache = metrics.memBuffersCache ?? 0
+        let free = metrics.memFree ?? 0
+        let used = max(0, total - cache - free)
+        append(&memUsedHistory, used / total * 100)
+        append(&memCacheHistory, cache / total * 100)
+        append(&memFreeHistory, free / total * 100)
     }
 
     private func append(_ array: inout [Double], _ value: Double) {
