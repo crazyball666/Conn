@@ -94,9 +94,7 @@ struct FileBrowserView: View {
                     .foregroundStyle(.connAccent)
             }
             .accessibilityLabel(L("更多操作"))
-        }
-        .padding(.horizontal, ConnSpacing.page)
-    }
+        }    }
 
     @ViewBuilder
     private var breadcrumbItems: some View {
@@ -166,9 +164,7 @@ struct FileBrowserView: View {
         .overlay(
             RoundedRectangle(cornerRadius: ConnRadius.control, style: .continuous)
                 .strokeBorder(Color.connLine, lineWidth: 1)
-        )
-        .padding(.horizontal, ConnSpacing.page)
-    }
+        )    }
 
     // MARK: - 传输条
 
@@ -180,9 +176,7 @@ struct FileBrowserView: View {
             ))
             .font(.connFootnote).foregroundStyle(.connMuted)
             ProgressView(value: transfer.progress).tint(.connAccent)
-        }
-        .padding(.horizontal, ConnSpacing.page)
-    }
+        }    }
 
     private func downloadedBar(_ url: URL) -> some View {
         HStack {
@@ -195,9 +189,7 @@ struct FileBrowserView: View {
             }
         }
         .padding(.horizontal, ConnSpacing.cardPadding).padding(.vertical, ConnSpacing.sm)
-        .connSurface(cornerRadius: ConnRadius.card)
-        .padding(.horizontal, ConnSpacing.page)
-    }
+        .connSurface(cornerRadius: ConnRadius.card)    }
 
     // MARK: - 列表
 
@@ -211,7 +203,7 @@ struct FileBrowserView: View {
             VStack(spacing: ConnSpacing.sm) {
                 ConnBanner(message, systemImage: "exclamationmark.triangle")
                 Button(L("重试")) { Task { await viewModel.refresh() } }.font(.connBody).foregroundStyle(.connAccent)
-            }.padding(.vertical, ConnSpacing.md).padding(.horizontal, ConnSpacing.page)
+            }.padding(.vertical, ConnSpacing.md)
         case .ready:
             fileList
         }
@@ -237,7 +229,6 @@ struct FileBrowserView: View {
                     .connSurface(cornerRadius: ConnRadius.card)
                 }
             }
-            .padding(.horizontal, ConnSpacing.page)
         }
         .scrollBounceBehavior(.basedOnSize)
     }
