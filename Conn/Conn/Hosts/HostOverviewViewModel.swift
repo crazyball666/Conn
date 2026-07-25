@@ -104,9 +104,9 @@ final class HostOverviewViewModel {
         }
     }
 
-    /// 进程列表取 CPU 前 8（进程视角 P0）。
-    var topProcesses: [RemoteProcess] {
-        Array((latest?.processes ?? []).prefix(8))
+    /// 全量进程（排序/筛选交给进程段 UI）。
+    var processes: [RemoteProcess] {
+        latest?.processes ?? []
     }
 
     func appear() { monitor.startDetail(host: host) }

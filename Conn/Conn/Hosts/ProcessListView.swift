@@ -3,85 +3,132 @@ import ConnMonitor
 import ConnUI
 import SwiftUI
 
-/// 进程段：CPU 占用前列进程 + 结束（二次确认）。从概览拆出为独立段。
+/// 进程段：全量进程 + 可排序表头（CPU / 内存，升降序）+ 长按操作栏（结束进程）
+/// + 点击进详情。结束进程的二次确认与结果提示集中在父级 `HostDetailView`。
 struct ProcessListView: View {
     let viewModel: HostOverviewViewModel
 
+    enum SortKey { case cpu, mem }
+    @State private var sortKey: SortKey = .cpu
+    @State private var ascending = false
+
     var body: some View {
         VStack(alignment: .leading, spacing: ConnSpacing.xs) {
-            Text(L("进程 · CPU 占用前列"))
-                .font(.connCaption).foregroundStyle(.connMuted).connEyebrowTracking()
-            if viewModel.topProcesses.isEmpty {
-                Text(viewModel.latest == nil ? L("采集中…") : L("暂无进程数据"))
-                    .font(.connFootnote).foregroundStyle(.connMuted)
-                    .frame(maxWidth: .infinity, alignment: .center)
-                    .padding(.vertical, ConnSpacing.xl)
+            eyebrow
+            if sortedProcesses.isEmpty {
+                emptyState
             } else {
-                VStack(spacing: 0) {
-                    ForEach(Array(viewModel.topProcesses.enumerated()), id: \.element.id) { index, process in
-                        if index > 0 {
-                            Rectangle().fill(Color.connLine).frame(height: 0.5)
-                                .padding(.leading, ConnSpacing.cardPadding)
-                        }
-                        processRow(process)
+                columnHeader
+                LazyVStack(spacing: 0) {
+                    ForEach(Array(sortedProcesses.enumerated()), id: \.element.id) { index, process in
+                        if index > 0 { rowDivider }
+                        row(process)
                     }
                 }
                 .connSurface(cornerRadius: ConnRadius.card)
             }
         }
         .padding(.bottom, ConnSpacing.lg)
-        .confirmationDialog(killPrompt, isPresented: killDialogBinding, titleVisibility: .visible) {
-            Button(L("结束进程"), role: .destructive) { Task { await viewModel.confirmKill() } }
-            Button(L("取消"), role: .cancel) { viewModel.killTarget = nil }
-        }
-        .alert(L("进程操作"), isPresented: actionMessageBinding) {
-            Button(L("好"), role: .cancel) { viewModel.actionMessage = nil }
-        } message: {
-            Text(viewModel.actionMessage ?? "")
+    }
+
+    /// 按当前排序键与方向排好序的全量进程。
+    private var sortedProcesses: [RemoteProcess] {
+        let metric: (RemoteProcess) -> Double = sortKey == .cpu ? { $0.cpu } : { $0.mem }
+        return viewModel.processes.sorted { ascending ? metric($0) < metric($1) : metric($0) > metric($1) }
+    }
+
+    // MARK: - 头部
+
+    private var eyebrow: some View {
+        HStack {
+            Text(L("进程")).font(.connCaption).foregroundStyle(.connMuted).connEyebrowTracking()
+            Spacer()
+            Text(String(format: L("共 %d 个"), viewModel.processes.count))
+                .font(.connData(.caption2)).foregroundStyle(.connDim)
         }
     }
 
-    private func processRow(_ process: RemoteProcess) -> some View {
+    private var columnHeader: some View {
         HStack(spacing: ConnSpacing.sm) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(process.command).font(.connBody).foregroundStyle(.connInk).lineLimit(1)
-                Text("PID \(String(process.pid))").font(.connData(.caption2)).foregroundStyle(.connMuted)
-            }
+            Text(L("进程")).font(.connData(.caption2)).foregroundStyle(.connMuted)
             Spacer(minLength: ConnSpacing.xs)
-            usageColumn("CPU", value: process.cpu)
-            usageColumn(L("内存"), value: process.mem)
-            Button {
+            sortButton("CPU", key: .cpu)
+            sortButton(L("内存"), key: .mem)
+        }
+        .padding(.horizontal, ConnSpacing.cardPadding + 2)
+    }
+
+    private func sortButton(_ label: String, key: SortKey) -> some View {
+        Button {
+            if sortKey == key { ascending.toggle() } else { sortKey = key; ascending = false }
+        } label: {
+            HStack(spacing: 2) {
+                Text(label)
+                Image(systemName: sortIcon(for: key)).font(.system(size: 8, weight: .bold))
+            }
+            .font(.connData(.caption2))
+            .foregroundStyle(sortKey == key ? Color.connAccent : .connMuted)
+            .frame(width: 52, alignment: .trailing)
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func sortIcon(for key: SortKey) -> String {
+        guard sortKey == key else { return "chevron.up.chevron.down" }
+        return ascending ? "chevron.up" : "chevron.down"
+    }
+
+    // MARK: - 行
+
+    private func row(_ process: RemoteProcess) -> some View {
+        NavigationLink {
+            ProcessDetailView(process: process, viewModel: viewModel)
+        } label: {
+            HStack(spacing: ConnSpacing.sm) {
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(process.command).font(.connData(.footnote)).foregroundStyle(.connInk).lineLimit(1)
+                    Text(metaLine(process)).font(.connData(.caption2)).foregroundStyle(.connMuted).lineLimit(1)
+                }
+                Spacer(minLength: ConnSpacing.xs)
+                usageCell(process.cpu)
+                usageCell(process.mem)
+            }
+            .padding(.horizontal, ConnSpacing.cardPadding)
+            .padding(.vertical, 7)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .contextMenu {
+            Button(role: .destructive) {
                 viewModel.requestKill(process)
             } label: {
-                Image(systemName: "xmark.circle").font(.system(size: 18)).foregroundStyle(.connCrit)
+                Label(L("结束进程"), systemImage: "xmark.octagon")
             }
-            .buttonStyle(.plain)
-            .connHitTarget()
-            .accessibilityLabel("结束 \(process.command)")
         }
-        .padding(.horizontal, ConnSpacing.cardPadding)
-        .padding(.vertical, ConnSpacing.sm)
     }
 
-    private func usageColumn(_ label: String, value: Double) -> some View {
-        VStack(alignment: .trailing, spacing: 1) {
-            Text(String(format: "%.0f%%", value)).font(.connData(.footnote)).connTabularNumbers()
-                .foregroundStyle(value > ConnThreshold.warn ? .connWarn : .connInk)
-            Text(label).font(.connData(.caption2)).foregroundStyle(.connMuted)
-        }
-        .frame(width: 44)
+    /// 副标题：PID · 属主（属主缺失则仅 PID）。
+    private func metaLine(_ process: RemoteProcess) -> String {
+        var parts = ["PID \(process.pid)"]
+        if let user = process.user, !user.isEmpty { parts.append(user) }
+        return parts.joined(separator: " · ")
     }
 
-    private var killPrompt: String {
-        guard let target = viewModel.killTarget else { return "" }
-        return String(format: L("结束 %@（PID %d）？将发送 SIGTERM。"), target.command, target.pid)
+    private func usageCell(_ value: Double) -> some View {
+        Text(String(format: "%.0f%%", value))
+            .font(.connData(.caption2)).connTabularNumbers()
+            .foregroundStyle(value > ConnThreshold.warn ? .connWarn : .connInk)
+            .frame(width: 52, alignment: .trailing)
     }
 
-    private var killDialogBinding: Binding<Bool> {
-        Binding(get: { viewModel.killTarget != nil }, set: { if !$0 { viewModel.killTarget = nil } })
+    private var rowDivider: some View {
+        Rectangle().fill(Color.connLine).frame(height: 0.5).padding(.leading, ConnSpacing.cardPadding)
     }
 
-    private var actionMessageBinding: Binding<Bool> {
-        Binding(get: { viewModel.actionMessage != nil }, set: { if !$0 { viewModel.actionMessage = nil } })
+    private var emptyState: some View {
+        Text(viewModel.latest == nil ? L("采集中…") : L("暂无进程数据"))
+            .font(.connFootnote).foregroundStyle(.connMuted)
+            .frame(maxWidth: .infinity, alignment: .center)
+            .padding(.vertical, ConnSpacing.xl)
     }
 }

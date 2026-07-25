@@ -44,10 +44,10 @@ struct MetricParserTests {
     __CONN_CPUINFO__
     model name	: Intel(R) Xeon(R) CPU E5-2698 v4 @ 2.20GHz
     __CONN_PS__
-        PID %CPU %MEM COMMAND
-          1  0.0  0.1 systemd
-        234 12.5  4.2 nginx
-        567  8.1  2.0 mysqld
+      PID  PPID USER      %CPU %MEM   RSS NLWP STAT ELAPSED COMMAND
+        1     0 root       0.0  0.1  8500    1 Ss   864000 /sbin/init
+      234     1 www-data  12.5  4.2 120000    4 S    8130 nginx: worker process
+      567     1 mysql      8.1  2.0 512000   30 Sl   432000 /usr/sbin/mysqld
     __CONN_TOP__
     __CONN_END__
     """
@@ -130,14 +130,23 @@ struct MetricParserTests {
         #expect(parsed.interfaceIPs["eth0"] == "38.147.173.228")
     }
 
-    @Test("GNU：进程按 ps 解析")
+    @Test("GNU：进程按 ps 解析（含属主 / RSS / 状态 / 线程 / 运行时长）")
     func gnuProcesses() {
         let parsed = MetricParser.parse(gnuOutput)
         #expect(parsed.processes.count == 3)
-        #expect(parsed.processes.first?.pid == 1)
-        #expect(parsed.processes.first?.command == "systemd")
+        let first = parsed.processes.first
+        #expect(first?.pid == 1)
+        #expect(first?.ppid == 0)
+        #expect(first?.command == "init") // /sbin/init → basename
+        #expect(first?.user == "root")
+        #expect(first?.state == "Ss")
+        #expect(first?.threads == 1)
+        #expect(first?.memBytes == Int64(8500 * 1024))
+        #expect(first?.elapsedSeconds == Int64(864_000))
         #expect(parsed.processes[1].cpu == 12.5)
-        #expect(parsed.processes[1].command == "nginx")
+        #expect(parsed.processes[1].command == "nginx") // "nginx: worker process" → 短名
+        #expect(parsed.processes[1].fullCommand == "nginx: worker process")
+        #expect(parsed.processes[2].command == "mysqld")
     }
 
     // MARK: - BusyBox（Alpine 典型：ps -eo 无输出，回退 top）
@@ -189,6 +198,8 @@ struct MetricParserTests {
         #expect(parsed.processes.first?.command == "init")
         #expect(parsed.processes.first?.cpu == 3) // %CPU 列
         #expect(parsed.processes.first?.mem == 1) // %VSZ 列作近似
+        #expect(parsed.processes.first?.user == "root") // USER 列
+        #expect(parsed.processes.first?.state == "S") // STAT 列
         #expect(parsed.processes[1].command == "nginx")
         #expect(parsed.processes[1].cpu == 10)
     }

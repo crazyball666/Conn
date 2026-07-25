@@ -152,31 +152,82 @@ final class DemoMetricsEngine: @unchecked Sendable {
 
     private struct ProcSpec {
         let pid: Int
-        let name: String
+        let ppid: Int
+        let user: String
         let cpuMul: Double
         let memMul: Double
+        let rssKB: Int
+        let threads: Int
+        let state: String
+        let etimes: Int
+        let args: String
     }
 
     private struct DemoProc {
-        let pid: Int
-        let name: String
+        let spec: ProcSpec
         let cpu: Double
         let mem: Double
     }
 
+    /// 输出新版 `ps -eo pid,ppid,user,pcpu,pmem,rss,nlwp,stat,etimes,args` 格式，
+    /// 覆盖典型运维进程（Web/DB/缓存/运行时/容器/内核线程），字段随主机负载浮动。
     private func psLines(cpu: Double, mem: Double) -> String {
         let specs = [
-            ProcSpec(pid: 812, name: "nginx", cpuMul: 46, memMul: 6),
-            ProcSpec(pid: 1043, name: "mysqld", cpuMul: 31, memMul: 22),
-            ProcSpec(pid: 655, name: "redis-server", cpuMul: 14, memMul: 4),
-            ProcSpec(pid: 1187, name: "node", cpuMul: 22, memMul: 11),
-            ProcSpec(pid: 98, name: "python3", cpuMul: 9, memMul: 8)
+            ProcSpec(pid: 812, ppid: 1, user: "root", cpuMul: 6, memMul: 2,
+                     rssKB: 18_400, threads: 1, state: "Ss", etimes: 864_000,
+                     args: "nginx: master process /usr/sbin/nginx -g daemon on;"),
+            ProcSpec(pid: 815, ppid: 812, user: "www-data", cpuMul: 46, memMul: 6,
+                     rssKB: 96_200, threads: 4, state: "S", etimes: 863_400,
+                     args: "nginx: worker process"),
+            ProcSpec(pid: 1043, ppid: 1, user: "mysql", cpuMul: 31, memMul: 22,
+                     rssKB: 1_638_400, threads: 34, state: "Sl", etimes: 820_000,
+                     args: "/usr/sbin/mysqld"),
+            ProcSpec(pid: 1187, ppid: 1, user: "deploy", cpuMul: 22, memMul: 11,
+                     rssKB: 512_000, threads: 12, state: "Sl", etimes: 172_800,
+                     args: "node /srv/app/server.js"),
+            ProcSpec(pid: 1502, ppid: 1, user: "appuser", cpuMul: 18, memMul: 26,
+                     rssKB: 2_097_152, threads: 48, state: "Sl", etimes: 259_200,
+                     args: "java -Xmx2g -jar /srv/gateway.jar"),
+            ProcSpec(pid: 655, ppid: 1, user: "redis", cpuMul: 14, memMul: 4,
+                     rssKB: 128_000, threads: 5, state: "Sl", etimes: 604_800,
+                     args: "redis-server *:6379"),
+            ProcSpec(pid: 1301, ppid: 1, user: "postgres", cpuMul: 11, memMul: 9,
+                     rssKB: 220_000, threads: 1, state: "Ss", etimes: 700_000,
+                     args: "postgres: 15/main: writer process"),
+            ProcSpec(pid: 98, ppid: 1, user: "root", cpuMul: 9, memMul: 8,
+                     rssKB: 82_000, threads: 3, state: "S", etimes: 500_000,
+                     args: "/usr/bin/python3 /opt/agent/monitor.py"),
+            ProcSpec(pid: 720, ppid: 1, user: "root", cpuMul: 7, memMul: 7,
+                     rssKB: 92_000, threads: 14, state: "Ssl", etimes: 864_000,
+                     args: "/usr/bin/dockerd -H fd://"),
+            ProcSpec(pid: 688, ppid: 1, user: "root", cpuMul: 5, memMul: 5,
+                     rssKB: 64_000, threads: 10, state: "Ssl", etimes: 864_000,
+                     args: "/usr/bin/containerd"),
+            ProcSpec(pid: 900, ppid: 1, user: "root", cpuMul: 2, memMul: 1,
+                     rssKB: 12_800, threads: 1, state: "Ss", etimes: 864_000,
+                     args: "sshd: /usr/sbin/sshd -D"),
+            ProcSpec(pid: 1, ppid: 0, user: "root", cpuMul: 1, memMul: 1,
+                     rssKB: 11_200, threads: 1, state: "Ss", etimes: 864_000,
+                     args: "/sbin/init"),
+            ProcSpec(pid: 600, ppid: 1, user: "root", cpuMul: 1, memMul: 1,
+                     rssKB: 4_100, threads: 1, state: "Ss", etimes: 864_000,
+                     args: "/usr/sbin/cron -f"),
+            ProcSpec(pid: 12, ppid: 2, user: "root", cpuMul: 3, memMul: 0,
+                     rssKB: 0, threads: 1, state: "I", etimes: 864_000,
+                     args: "[kworker/0:1-events]")
         ]
         let rows = specs
-            .map { DemoProc(pid: $0.pid, name: $0.name, cpu: min(99, cpu * $0.cpuMul), mem: min(99, mem * $0.memMul)) }
+            .map { DemoProc(spec: $0, cpu: min(99, cpu * $0.cpuMul), mem: min(99.9, mem * $0.memMul)) }
             .sorted { $0.cpu > $1.cpu }
-            .map { String(format: "%7d %4.1f %4.1f %@", $0.pid, $0.cpu, $0.mem, $0.name) }
-        return (["    PID %CPU %MEM COMMAND"] + rows).joined(separator: "\n")
+            .map { row in
+                let spec = row.spec
+                return String(
+                    format: "%d %d %@ %.1f %.1f %d %d %@ %d %@",
+                    spec.pid, spec.ppid, spec.user, row.cpu, row.mem,
+                    spec.rssKB, spec.threads, spec.state, spec.etimes, spec.args
+                )
+            }
+        return (["  PID  PPID USER      %CPU %MEM   RSS NLWP STAT ELAPSED COMMAND"] + rows).joined(separator: "\n")
     }
 
     private func clamp(_ value: Double, _ low: Double, _ high: Double) -> Double {

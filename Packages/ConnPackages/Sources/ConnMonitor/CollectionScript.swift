@@ -39,7 +39,8 @@ public enum CollectionScript {
             "echo \(Sentinel.uptime)", "cat /proc/uptime 2>/dev/null",
             "echo \(Sentinel.os)", "cat /etc/os-release 2>/dev/null",
             "echo \(Sentinel.cpuinfo)", "grep -m1 'model name' /proc/cpuinfo 2>/dev/null",
-            "echo \(Sentinel.ps)", "ps -eo pid,pcpu,pmem,comm --sort=-pcpu 2>/dev/null | head -n 16",
+            "echo \(Sentinel.ps)",
+            "ps -eo pid,ppid,user,pcpu,pmem,rss,nlwp,stat,etimes,args --sort=-pcpu 2>/dev/null | head -n 500",
             "echo \(Sentinel.top)", "top -bn1 2>/dev/null | head -n 24",
             "echo \(Sentinel.end)"
         ].joined(separator: "; ")
