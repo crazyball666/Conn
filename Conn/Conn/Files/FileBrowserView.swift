@@ -231,7 +231,14 @@ struct FileBrowserView: View {
             }
         }
         .scrollBounceBehavior(.basedOnSize)
-        .refreshable { await viewModel.refresh() }
+        .refreshable {
+            let clock = ContinuousClock()
+            let start = clock.now
+            await viewModel.refresh()
+            let minimum = Duration.milliseconds(500)
+            let elapsed = clock.now - start
+            if elapsed < minimum { try? await Task.sleep(for: minimum - elapsed) }
+        }
     }
 
     private func row(_ entry: FileEntry) -> some View {

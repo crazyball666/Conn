@@ -70,6 +70,18 @@ final class DockerViewModel {
         }
     }
 
+    /// 下拉刷新容器：静默重拉，不切 `.loading`——保留分段与列表、避免闪烁。
+    /// 失败时保留上次结果，仅弹提示。
+    func refreshContainers() async {
+        guard availability.isUsable else { await load(); return }
+        do {
+            let session = try await connectionManager.session(for: host)
+            containers = try await DockerService.list(on: session, sudo: availability.sudo)
+        } catch {
+            actionMessage = String(format: L("%@ 失败：%@"), L("刷新"), friendly(error))
+        }
+    }
+
     func perform(_ action: ContainerAction, on container: ContainerInfo) async {
         busyContainerID = container.id
         defer { busyContainerID = nil }

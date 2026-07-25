@@ -84,8 +84,15 @@ final class FileBrowserViewModel {
         await load(path: RemotePath.parent(currentPath))
     }
 
+    /// 下拉刷新：静默重拉当前目录，不切 `.loading`——保留列表可见、避免闪烁。
+    /// 失败时保留上次结果，仅弹提示（不把列表替换成错误页）。
     func refresh() async {
-        await load()
+        do {
+            entries = try await filesystem().list(currentPath)
+        } catch {
+            actionMessage = String(format: L("%@ 失败：%@"), L("刷新"), friendly(error))
+            fileSystem = nil
+        }
     }
 
     // MARK: - 目录操作

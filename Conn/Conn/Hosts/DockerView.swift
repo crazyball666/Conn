@@ -108,12 +108,17 @@ struct DockerView: View {
         }
     }
 
-    /// 下拉刷新当前分段。
+    /// 下拉刷新当前分段（静默重拉，不切 loading；给刷新动画一个最短时长避免闪跳）。
     private func refresh() async {
+        let clock = ContinuousClock()
+        let start = clock.now
         switch tab {
-        case .containers: await viewModel.load()
+        case .containers: await viewModel.refreshContainers()
         case .images: await viewModel.loadImages()
         }
+        let minimum = Duration.milliseconds(500)
+        let elapsed = clock.now - start
+        if elapsed < minimum { try? await Task.sleep(for: minimum - elapsed) }
     }
 
     // MARK: - 容器
