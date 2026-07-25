@@ -1,3 +1,4 @@
+import ConnEditor
 import ConnKit
 import ConnSSH
 import ConnUI
@@ -91,9 +92,10 @@ final class FileEditorViewModel {
     }
 }
 
-/// 文本文件编辑器（Phase 6）。monospace `TextEditor`；语法高亮是 P1。
+/// 文本文件编辑器（Phase 6）。行号 + 语法高亮（Highlightr），主题跟随设置页。
 struct FileEditorView: View {
     @State private var viewModel: FileEditorViewModel
+    @Environment(SettingsStore.self) private var settings
 
     init(host: Host, dependencies: AppDependencies, entry: FileEntry) {
         _viewModel = State(initialValue: FileEditorViewModel(host: host, dependencies: dependencies, entry: entry))
@@ -128,14 +130,12 @@ struct FileEditorView: View {
             ProgressView(L("读取文件…")).font(.connFootnote).foregroundStyle(.connMuted)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         case .editing:
-            TextEditor(text: $viewModel.content)
-                .font(.system(size: 13, design: .monospaced))
-                .foregroundStyle(.connInk)
-                .scrollContentBackground(.hidden)
-                .background(Color.connBg)
-                .autocorrectionDisabled()
-                .textInputAutocapitalization(.never)
-                .padding(.horizontal, ConnSpacing.sm)
+            CodeEditor(
+                text: $viewModel.content,
+                language: CodeEditorCatalog.language(forFileName: viewModel.entry.name),
+                theme: settings.codeTheme
+            )
+            .ignoresSafeArea(.container, edges: .bottom)
         case let .readOnly(message):
             infoState(icon: "doc.plaintext", message: message)
         case let .failed(message):

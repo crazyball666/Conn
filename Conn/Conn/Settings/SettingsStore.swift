@@ -1,3 +1,4 @@
+import ConnEditor
 import ConnUI
 import Observation
 import SwiftUI
@@ -84,12 +85,18 @@ final class SettingsStore {
         didSet { UserDefaults.standard.set(refreshInterval.rawValue, forKey: Key.refresh) }
     }
 
+    /// 代码编辑器主题（highlight.js 主题 id）。
+    var codeTheme: String {
+        didSet { UserDefaults.standard.set(codeTheme, forKey: Key.codeTheme) }
+    }
+
     init() {
         let defaults = UserDefaults.standard
         appearance = AppAppearance(rawValue: defaults.string(forKey: Key.appearance) ?? "") ?? .system
         accent = AppAccent(rawValue: defaults.string(forKey: Key.accent) ?? "") ?? .brand
         let storedInterval = defaults.object(forKey: Key.refresh) as? Int ?? RefreshInterval.normal.rawValue
         refreshInterval = RefreshInterval(rawValue: storedInterval) ?? .normal
+        codeTheme = defaults.string(forKey: Key.codeTheme) ?? CodeEditorCatalog.defaultThemeID
         applyAccent()
     }
 
@@ -106,5 +113,6 @@ final class SettingsStore {
         static let appearance = "conn.settings.appearance"
         static let accent = "conn.settings.accent"
         static let refresh = "conn.settings.refreshInterval"
+        static let codeTheme = "conn.settings.codeTheme"
     }
 }

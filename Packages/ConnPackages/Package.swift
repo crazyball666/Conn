@@ -18,6 +18,7 @@ let package = Package(
         .library(name: "ConnOps", targets: ["ConnOps"]),
         .library(name: "ConnRunner", targets: ["ConnRunner"]),
         .library(name: "ConnTerminal", targets: ["ConnTerminal"]),
+        .library(name: "ConnEditor", targets: ["ConnEditor"]),
         .library(name: "ConnUI", targets: ["ConnUI"]),
     ],
     dependencies: [
@@ -29,6 +30,9 @@ let package = Package(
         // 终端模拟（S2）。必须 ≥1.8.0：iOS 中文输入由 PR #409 修复，更早版本
         // iOS 上无法输入中文。自写 UIViewRepresentable（库内 wrapper 是 DEBUG-only）。
         .package(url: "https://github.com/migueldeicaza/SwiftTerm.git", from: "1.14.0"),
+        // 代码高亮（文件编辑器）。封装 highlight.js（JavaScriptCore 内运行，全离线、
+        // 不联网、无遥测），180+ 语言 + ~40 主题。仅 ConnEditor target 引入。
+        .package(url: "https://github.com/raspu/Highlightr.git", from: "2.2.0"),
     ],
     targets: [
         // Domain：领域模型与仓库协议。零 UIKit、零三方依赖。
@@ -107,6 +111,18 @@ let package = Package(
             ]
         ),
 
+        // 代码编辑器：Highlightr（highlight.js）语法高亮 + 行号 gutter + 主题。
+        // 隔离在独立 target——只有它依赖 Highlightr，与 ConnTerminal 隔离 SwiftTerm 同理。
+        // 纯 UI/UIKit（UITextView），UIViewRepresentable 以 canImport(UIKit) 守卫，
+        // 主题/语言目录为跨平台纯逻辑，host 可测。
+        .target(
+            name: "ConnEditor",
+            dependencies: [
+                "ConnUI",
+                .product(name: "Highlightr", package: "Highlightr"),
+            ]
+        ),
+
         // 设计系统：设计规范.md 的代码化。
         //
         // **刻意零依赖**——连 ConnKit 都不依赖。组件一律 stateless（数据入参、
@@ -127,6 +143,7 @@ let package = Package(
         .testTarget(name: "ConnRunnerTests", dependencies: ["ConnRunner"]),
         .testTarget(name: "ConnCryptoTests", dependencies: ["ConnCrypto"]),
         .testTarget(name: "ConnTerminalTests", dependencies: ["ConnTerminal"]),
+        .testTarget(name: "ConnEditorTests", dependencies: ["ConnEditor"]),
         .testTarget(name: "ConnUITests", dependencies: ["ConnUI"]),
     ]
 )

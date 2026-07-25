@@ -1,3 +1,4 @@
+import ConnEditor
 import ConnUI
 import SwiftUI
 
@@ -27,6 +28,16 @@ struct MeView: View {
                     ForEach(RefreshInterval.allCases) { Text($0.label).tag($0) }
                 } label: {
                     Label(L("刷新间隔"), systemImage: "arrow.clockwise")
+                }
+            }
+
+            Section(L("编辑器")) {
+                Picker(selection: $settings.codeTheme) {
+                    ForEach(CodeEditorCatalog.themes) { theme in
+                        Text(theme.displayName).tag(theme.id)
+                    }
+                } label: {
+                    Label(L("代码主题"), systemImage: "chevron.left.forward.slash.chevron.right")
                 }
             }
 
