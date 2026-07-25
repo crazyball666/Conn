@@ -11,18 +11,20 @@ struct ProcessListView: View {
     enum SortKey { case cpu, mem }
     @State private var sortKey: SortKey = .cpu
     @State private var ascending = false
+    @State private var searchText = ""
     @State private var killTarget: RemoteProcess?
     @State private var resultMessage: String?
 
     var body: some View {
         VStack(alignment: .leading, spacing: ConnSpacing.xs) {
+            searchField
             eyebrow
-            if sortedProcesses.isEmpty {
+            if displayedProcesses.isEmpty {
                 emptyState
             } else {
                 columnHeader
                 LazyVStack(spacing: 0) {
-                    ForEach(Array(sortedProcesses.enumerated()), id: \.element.id) { index, process in
+                    ForEach(Array(displayedProcesses.enumerated()), id: \.element.id) { index, process in
                         if index > 0 { rowDivider }
                         row(process)
                     }
@@ -34,19 +36,49 @@ struct ProcessListView: View {
         .modifier(KillProcessAlert(viewModel: viewModel, target: $killTarget, result: $resultMessage))
     }
 
-    /// 按当前排序键与方向排好序的全量进程。
-    private var sortedProcesses: [RemoteProcess] {
+    /// 过滤（名称 / PID / 用户 / 命令行）+ 按当前排序键与方向排序后的进程。
+    private var displayedProcesses: [RemoteProcess] {
         let metric: (RemoteProcess) -> Double = sortKey == .cpu ? { $0.cpu } : { $0.mem }
-        return viewModel.processes.sorted { ascending ? metric($0) < metric($1) : metric($0) > metric($1) }
+        let sorted = viewModel.processes.sorted { ascending ? metric($0) < metric($1) : metric($0) > metric($1) }
+        let query = searchText.trimmingCharacters(in: .whitespaces).lowercased()
+        guard !query.isEmpty else { return sorted }
+        return sorted.filter { process in
+            process.command.lowercased().contains(query)
+                || String(process.pid).contains(query)
+                || (process.user?.lowercased().contains(query) ?? false)
+                || (process.fullCommand?.lowercased().contains(query) ?? false)
+        }
     }
 
     // MARK: - 头部
+
+    private var searchField: some View {
+        HStack(spacing: ConnSpacing.xs) {
+            Image(systemName: "magnifyingglass").font(.connFootnote).foregroundStyle(.connMuted)
+            TextField(L("搜索进程 / PID / 用户"), text: $searchText)
+                .font(.connSubheadline).foregroundStyle(.connInk)
+                .autocorrectionDisabled().textInputAutocapitalization(.never)
+            if !searchText.isEmpty {
+                Button { searchText = "" } label: {
+                    Image(systemName: "xmark.circle.fill").font(.connFootnote).foregroundStyle(.connMuted)
+                }
+                .buttonStyle(.plain).accessibilityLabel(L("清除"))
+            }
+        }
+        .padding(.horizontal, ConnSpacing.sm)
+        .padding(.vertical, 9)
+        .background(Color.connSurface, in: .rect(cornerRadius: ConnRadius.control, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: ConnRadius.control, style: .continuous)
+                .strokeBorder(Color.connLine, lineWidth: 1)
+        )
+    }
 
     private var eyebrow: some View {
         HStack {
             Text(L("进程")).font(.connCaption).foregroundStyle(.connMuted).connEyebrowTracking()
             Spacer()
-            Text(String(format: L("共 %d 个"), viewModel.processes.count))
+            Text(String(format: L("共 %d 个"), displayedProcesses.count))
                 .font(.connData(.caption2)).foregroundStyle(.connDim)
         }
     }
@@ -129,9 +161,14 @@ struct ProcessListView: View {
     }
 
     private var emptyState: some View {
-        Text(viewModel.latest == nil ? L("采集中…") : L("暂无进程数据"))
+        Text(emptyMessage)
             .font(.connFootnote).foregroundStyle(.connMuted)
             .frame(maxWidth: .infinity, alignment: .center)
             .padding(.vertical, ConnSpacing.xl)
+    }
+
+    private var emptyMessage: String {
+        if !searchText.trimmingCharacters(in: .whitespaces).isEmpty { return L("无匹配的进程") }
+        return viewModel.latest == nil ? L("采集中…") : L("暂无进程数据")
     }
 }
