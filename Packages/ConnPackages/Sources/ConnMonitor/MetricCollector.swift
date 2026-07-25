@@ -25,6 +25,7 @@ public actor MetricCollector {
     }
 
     private var previousCPU: [String: CPUJiffies] = [:]
+    private var previousTimes: [String: CPUTimes] = [:]
     private var previousPerCore: [String: [CPUJiffies]] = [:]
     private var previousRate: [String: RateBaseline] = [:]
 
@@ -43,6 +44,9 @@ public actor MetricCollector {
             }
             previousCPU[host.id] = current
         }
+
+        // CPU 各类占比：汇总时间片跨样本差分。
+        let breakdown = cpuBreakdown(host: host, current: parsed.cpuTimes)
 
         // 各核利用率：逐核 jiffies 差分。
         let perCore = perCoreUsage(host: host, current: parsed.cpuPerCore)
@@ -66,6 +70,7 @@ public actor MetricCollector {
             cpu: cpuUsage,
             cpuCores: parsed.cpuCores,
             cpuPerCore: perCore,
+            cpuBreakdown: breakdown,
             cpuModel: parsed.cpuModel,
             osName: parsed.osName,
             mem: parsed.memPercent,
@@ -92,6 +97,13 @@ public actor MetricCollector {
             severity: HealthEvaluator.severity(cpu: cpuUsage, mem: parsed.memPercent, disk: diskPercent),
             sample: sample
         )
+    }
+
+    /// 汇总时间片差分求 CPU 各类占比。首采无基线时返回 nil。
+    private func cpuBreakdown(host: ConnKit.Host, current: CPUTimes?) -> CPUBreakdown? {
+        defer { previousTimes[host.id] = current }
+        guard let current, let previous = previousTimes[host.id] else { return nil }
+        return CPUBreakdown.between(previous: previous, current: current)
     }
 
     /// 逐核差分求各核利用率 0–100。首采（无基线）或核数变化时返回 nil。
@@ -135,6 +147,7 @@ public actor MetricCollector {
     /// 清除某主机的差分基线（断连或切主机时调用，避免拿旧基线算出跳变）。
     public func reset(hostID: String) {
         previousCPU[hostID] = nil
+        previousTimes[hostID] = nil
         previousPerCore[hostID] = nil
         previousRate[hostID] = nil
     }

@@ -36,6 +36,22 @@ enum ProcParsers {
         return CPUJiffies(total: total, idle: idle)
     }
 
+    /// `/proc/stat` 汇总行 → 各时间片累计（供 CPU 各类占比差分）。
+    /// 行形如 `cpu user nice system idle iowait irq softirq steal …`。
+    static func parseStatTimes(_ section: String) -> CPUTimes? {
+        guard let line = section
+            .split(separator: "\n")
+            .first(where: { $0.hasPrefix("cpu ") || $0.hasPrefix("cpu\t") })
+        else { return nil }
+        let values = line.split(whereSeparator: { $0 == " " || $0 == "\t" }).dropFirst()
+            .compactMap { Double($0) }
+        guard values.count >= 8 else { return nil }
+        return CPUTimes(
+            user: values[0], nice: values[1], system: values[2], idle: values[3],
+            iowait: values[4], irq: values[5], softirq: values[6], steal: values[7]
+        )
+    }
+
     /// `/proc/stat` → 逻辑核心数（`cpu0`、`cpu1`… 每核一行；`cpu ` 汇总行不计）。
     static func parseCoreCount(_ section: String) -> Int? {
         let count = parsePerCore(section).count

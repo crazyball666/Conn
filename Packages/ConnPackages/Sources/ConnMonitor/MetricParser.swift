@@ -7,6 +7,7 @@ import Foundation
 /// 差分，故此处只留 jiffies 快照，利用率由 `MetricCollector` 跨样本算出。
 public struct ParsedMetrics: Sendable, Equatable {
     public var cpu: CPUJiffies?
+    public var cpuTimes: CPUTimes?
     public var cpuPerCore: [CPUJiffies]
     public var cpuCores: Int?
     public var cpuModel: String?
@@ -30,6 +31,7 @@ public struct ParsedMetrics: Sendable, Equatable {
 
     public init(
         cpu: CPUJiffies? = nil,
+        cpuTimes: CPUTimes? = nil,
         cpuPerCore: [CPUJiffies] = [],
         cpuCores: Int? = nil,
         cpuModel: String? = nil,
@@ -52,6 +54,7 @@ public struct ParsedMetrics: Sendable, Equatable {
         processes: [RemoteProcess] = []
     ) {
         self.cpu = cpu
+        self.cpuTimes = cpuTimes
         self.cpuPerCore = cpuPerCore
         self.cpuCores = cpuCores
         self.cpuModel = cpuModel
@@ -97,6 +100,7 @@ public enum MetricParser {
         let load = ProcParsers.parseLoadAvg(section(CollectionScript.Sentinel.load))
         return ParsedMetrics(
             cpu: ProcParsers.parseStat(statSection),
+            cpuTimes: ProcParsers.parseStatTimes(statSection),
             cpuPerCore: ProcParsers.parsePerCore(statSection),
             cpuCores: ProcParsers.parseCoreCount(statSection),
             cpuModel: ProcParsers.parseCPUModel(section(CollectionScript.Sentinel.cpuinfo)),

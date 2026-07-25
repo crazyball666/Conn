@@ -74,11 +74,16 @@ final class DemoMetricsEngine: @unchecked Sendable {
 
     private func statLine(total: Int64, idle: Int64, cpu: Double) -> String {
         let busy = max(0, total - idle)
-        let user = Int64(Double(busy) * 0.7)
-        let system = busy - user
+        // 汇总行按运维常见构成分配 busy：用户/系统/iowait/irq/softirq/steal。
+        let user = Int64(Double(busy) * 0.55)
+        let system = Int64(Double(busy) * 0.22)
+        let iowait = Int64(Double(busy) * 0.10)
+        let irq = Int64(Double(busy) * 0.03)
+        let softirq = Int64(Double(busy) * 0.05)
+        let steal = max(0, busy - user - system - iowait - irq - softirq)
         // 汇总行 + 4 个逻辑核行。各核围绕总体使用率上下偏移 → 折线可区分。
         // coreIdle 按 coreTotal 比例给出,故相邻样本差分正好还原每核目标使用率。
-        let aggregate = "cpu  \(user) 0 \(system) \(idle) 0 0 0 0 0 0"
+        let aggregate = "cpu  \(user) 0 \(system) \(idle) \(iowait) \(irq) \(softirq) \(steal) 0 0"
         let coreTotal = total / 4
         let cores = (0 ..< 4).map { index -> String in
             let target = min(0.99, max(0.02, cpu + (Double(index) - 1.5) * 0.04))

@@ -8,8 +8,6 @@ import SwiftUI
 struct HostOverviewView: View {
     let viewModel: HostOverviewViewModel
 
-    private let corePalette: [Color] = [.connAccent, .connInfo, .connGood, .connWarn, .connDisk, .connCrit]
-
     var body: some View {
         VStack(alignment: .leading, spacing: ConnSpacing.md) {
             if let error = viewModel.errorText, viewModel.latest == nil {
@@ -84,16 +82,9 @@ struct HostOverviewView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
             percentHeader(latest?.cpu, detail: MetricFormat.cores(latest?.cpuCores))
-            chartOrPlaceholder(cpuSeries, domain: 0 ... 100, yFormat: { "\(Int($0))" })
-        }
-    }
-
-    private var cpuSeries: [TrendSeries] {
-        if viewModel.coreHistories.isEmpty {
-            return [TrendSeries(id: "cpu", color: .connAccent, values: viewModel.cpuHistory)]
-        }
-        return viewModel.coreHistories.enumerated().map { index, values in
-            TrendSeries(id: "core\(index)", color: corePalette[index % corePalette.count], values: values)
+            cpuBreakdownGrid
+            cpuCompositionChart
+            cpuPerCoreBars
         }
     }
 
@@ -296,6 +287,93 @@ struct HostOverviewView: View {
 
     private var actionMessageBinding: Binding<Bool> {
         Binding(get: { viewModel.actionMessage != nil }, set: { if !$0 { viewModel.actionMessage = nil } })
+    }
+}
+
+// MARK: - CPU 明细（各类占比网格 + 构成堆叠图 + 各核占用条）
+
+/// CPU 各类时间占比的一格（标签 + 值 + 颜色）。
+private struct CPUStatItem: Identifiable {
+    let label: String
+    let value: Double?
+    let color: Color
+    var id: String { label }
+}
+
+private extension HostOverviewView {
+    var cpuBreakdownGrid: some View {
+        LazyVGrid(
+            columns: Array(repeating: GridItem(.flexible(), alignment: .leading), count: 4),
+            spacing: ConnSpacing.sm
+        ) {
+            ForEach(cpuBreakdownItems) { item in
+                VStack(alignment: .leading, spacing: 1) {
+                    HStack(spacing: 3) {
+                        Circle().fill(item.color).frame(width: 6, height: 6)
+                        Text(item.label).font(.connData(.caption2)).foregroundStyle(.connMuted)
+                            .lineLimit(1).minimumScaleFactor(0.7)
+                    }
+                    Text(item.value.map { String(format: "%.1f%%", $0) } ?? "—")
+                        .font(.connData(.footnote)).connTabularNumbers().foregroundStyle(.connInk)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+    }
+
+    var cpuBreakdownItems: [CPUStatItem] {
+        let breakdown = viewModel.latest?.cpuBreakdown
+        return [
+            CPUStatItem(label: L("用户"), value: breakdown?.user, color: .connAccent),
+            CPUStatItem(label: L("系统"), value: breakdown?.system, color: .connInfo),
+            CPUStatItem(label: L("IO 等待"), value: breakdown?.iowait, color: .connWarn),
+            CPUStatItem(label: L("空闲"), value: breakdown?.idle, color: .connDim),
+            CPUStatItem(label: L("nice"), value: breakdown?.nice, color: .connGood),
+            CPUStatItem(label: L("硬中断"), value: breakdown?.irq, color: .connDisk),
+            CPUStatItem(label: L("软中断"), value: breakdown?.softirq, color: .connCrit),
+            CPUStatItem(label: L("抢占"), value: breakdown?.steal, color: .connMuted)
+        ]
+    }
+
+    /// CPU 构成堆叠面积图（用户/系统/iowait/其他/空闲，堆到 100%）。空闲呈主导灰。
+    var cpuCompositionChart: some View {
+        chartOrPlaceholder([
+            TrendSeries(id: L("用户"), color: .connAccent, values: viewModel.cpuUserHistory),
+            TrendSeries(id: L("系统"), color: .connInfo, values: viewModel.cpuSystemHistory),
+            TrendSeries(id: L("IO 等待"), color: .connWarn, values: viewModel.cpuIowaitHistory),
+            TrendSeries(id: L("其他"), color: .connGood, values: viewModel.cpuOtherHistory),
+            TrendSeries(id: L("空闲"), color: .connTrack, values: viewModel.cpuIdleHistory)
+        ], domain: 0 ... 100, yFormat: { "\(Int($0))" }, stacked: true)
+    }
+
+    var cpuPerCoreBars: some View {
+        let cores = viewModel.latest?.cpuPerCore ?? []
+        return VStack(spacing: 6) {
+            ForEach(Array(cores.enumerated()), id: \.offset) { index, usage in
+                HStack(spacing: ConnSpacing.sm) {
+                    Text("CPU\(index)")
+                        .font(.connData(.caption2)).foregroundStyle(.connMuted)
+                        .frame(width: 42, alignment: .leading)
+                    GeometryReader { geometry in
+                        ZStack(alignment: .leading) {
+                            Capsule().fill(Color.connTrack)
+                            Capsule().fill(coreBarColor(usage))
+                                .frame(width: max(4, geometry.size.width * fraction(usage)))
+                        }
+                    }
+                    .frame(height: 6)
+                    Text("\(Int(usage))%")
+                        .font(.connData(.caption2)).connTabularNumbers().foregroundStyle(.connInk)
+                        .frame(width: 38, alignment: .trailing)
+                }
+            }
+        }
+    }
+
+    func coreBarColor(_ usage: Double) -> Color {
+        if usage > ConnThreshold.crit { return .connCrit }
+        if usage > ConnThreshold.warn { return .connWarn }
+        return .connAccent
     }
 }
 

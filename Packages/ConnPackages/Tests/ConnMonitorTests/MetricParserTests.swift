@@ -96,6 +96,21 @@ struct MetricParserTests {
         #expect(parsed.memBuffersCache == 900_000 * 1024)
     }
 
+    @Test("CPU 时间片解析 + 各类占比差分")
+    func cpuBreakdown() {
+        let times = MetricParser.parse(gnuOutput).cpuTimes
+        #expect(times?.user == 100)
+        #expect(times?.system == 50)
+        #expect(times?.iowait == 20)
+        #expect(times?.softirq == 5)
+        // 下一样本 user+50 system+30 idle+20（total+100）→ user 50% / system 30% / idle 20%
+        let next = CPUTimes(user: 150, nice: 10, system: 80, idle: 1020, iowait: 20, irq: 0, softirq: 5, steal: 0)
+        let breakdown = CPUBreakdown.between(previous: times!, current: next)
+        #expect(breakdown?.user == 50)
+        #expect(breakdown?.system == 30)
+        #expect(breakdown?.idle == 20)
+    }
+
     @Test("GNU：进程按 ps 解析")
     func gnuProcesses() {
         let parsed = MetricParser.parse(gnuOutput)

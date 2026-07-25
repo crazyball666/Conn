@@ -17,6 +17,8 @@ public struct HostMetrics: Sendable, Equatable {
     public let cpuCores: Int?
     /// 各逻辑核使用率 0–100（顺序即核序）。首采无差分基线时为 nil。
     public let cpuPerCore: [Double]?
+    /// CPU 各类时间占比（用户/系统/iowait/steal…）。首采无基线时为 nil。
+    public let cpuBreakdown: CPUBreakdown?
     /// CPU 型号（`/proc/cpuinfo` model name）。
     public let cpuModel: String?
     /// 发行版友好名（`/etc/os-release` PRETTY_NAME）。
@@ -56,6 +58,7 @@ public struct HostMetrics: Sendable, Equatable {
         cpu: Double?,
         cpuCores: Int? = nil,
         cpuPerCore: [Double]? = nil,
+        cpuBreakdown: CPUBreakdown? = nil,
         cpuModel: String? = nil,
         osName: String? = nil,
         mem: Double?,
@@ -86,6 +89,7 @@ public struct HostMetrics: Sendable, Equatable {
         self.cpu = cpu
         self.cpuCores = cpuCores
         self.cpuPerCore = cpuPerCore
+        self.cpuBreakdown = cpuBreakdown
         self.cpuModel = cpuModel
         self.osName = osName
         self.mem = mem
