@@ -73,7 +73,7 @@ final class FileEditorViewModel {
             saveMessage = L("已保存")
         } catch {
             cachedFileSystem = nil // 出错丢弃可能已死的通道
-            saveMessage = "保存失败：\(friendly(error))"
+            saveMessage = String(format: L("保存失败：%@"), friendly(error))
         }
     }
 

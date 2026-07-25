@@ -1,37 +1,35 @@
 import ConnKit
-import ConnTerminal
 import ConnUI
 import SwiftUI
 
-/// App 根导航：5 Tab + 悬浮 Dock。
+/// App 根导航：3 Tab（服务器 / 命令 / 设置）。
 ///
-/// 设计规范 §4：5 Tab（仪表盘/主机/终端/命令/我的）。用自绘 `ConnDock` 而非
-/// 系统 `TabView`，因为原型的 Dock 是悬浮圆角样式，系统 TabBar 无法做到。
+/// 终端不再单独占一个 Tab——从主机详情右上角的终端图标进入（会话随详情栈存活）。
 struct RootTabView: View {
     @State private var selection: ConnDock.Tab = .servers
-    /// 终端会话 store 提到根层，切走终端 Tab 时会话仍存活（后台保持）。
-    @State private var terminalStore = TerminalSessionStore()
     private let dependencies: AppDependencies
 
     init(dependencies: AppDependencies) {
         self.dependencies = dependencies
     }
 
-    /// 单一 `NavigationStack` 包裹整个 `TabView`——push 子页时**整块界面（含底栏）
-    /// 作为一层被推走**，而不是把底栏当独立层去隐藏（那会导致返回动画结束后底栏才
-    /// 迟迟出现）。系统原生底栏：iOS 26 液态玻璃、深浅色随系统。
+    /// 每个 Tab 各自一个 `NavigationStack`（SwiftUI 标准结构）——各首页由此获得系统导航栏
+    /// （大标题 + 系统搜索 `.searchable` + 右上角 toolbar 图标）；这些修饰只有挂在各自栈内的
+    /// 内容上才会生效，`TabView` 嵌在单一外层栈里时不会冒泡。
     ///
-    /// 各 Tab 首页自绘标题，故在根层隐藏系统 nav bar；push 出去的子页各自带回退
-    /// nav bar。子页的 navigationDestination/NavigationLink 就近挂到这唯一的外层栈。
+    /// push 详情页时**底栏常驻**（系统 App 标准做法：App Store / 音乐 / 播客 皆如此）——
+    /// 底栏不移动，故返回无延迟。系统原生底栏：iOS 26 液态玻璃、深浅色随系统。
     var body: some View {
-        NavigationStack {
-            TabView(selection: $selection) {
-                tab(.servers) { ServersView(dependencies: dependencies) }
-                tab(.terminal) { TerminalCenterView(store: terminalStore, dependencies: dependencies) }
-                tab(.commands) { SnippetsView(dependencies: dependencies) }
-                tab(.me) { MeView(dependencies: dependencies) }
+        TabView(selection: $selection) {
+            tab(.servers) {
+                NavigationStack { ServersView(dependencies: dependencies) }
             }
-            .toolbar(.hidden, for: .navigationBar)
+            tab(.commands) {
+                NavigationStack { SnippetsView(dependencies: dependencies) }
+            }
+            tab(.me) {
+                NavigationStack { MeView(dependencies: dependencies) }
+            }
         }
     }
 

@@ -21,7 +21,7 @@ final class SnippetsViewModel {
             snippets = try store.allSnippets()
             errorMessage = nil
         } catch {
-            errorMessage = "读取片段失败：\(error.localizedDescription)"
+            errorMessage = String(format: L("读取片段失败：%@"), error.localizedDescription)
             snippets = []
         }
     }
@@ -55,7 +55,7 @@ final class SnippetsViewModel {
             try store.save(snippet)
             load()
         } catch {
-            errorMessage = "保存失败：\(error.localizedDescription)"
+            errorMessage = String(format: L("保存失败：%@"), error.localizedDescription)
         }
     }
 

@@ -64,7 +64,7 @@ final class ConnectionTester {
             applyFailure(error)
         } catch {
             // 非 SSHError 的兜底
-            fail(at: 1, detail: "连接失败：\(error.localizedDescription)")
+            fail(at: 1, detail: String(format: L("连接失败：%@"), error.localizedDescription))
         }
 
         isRunning = false

@@ -35,7 +35,6 @@ struct ServersView: View {
                 if viewModel.hosts.isEmpty {
                     emptyState
                 } else {
-                    searchRow
                     if !viewModel.allTags.isEmpty {
                         tagFilter
                     }
@@ -48,6 +47,14 @@ struct ServersView: View {
         }
         .scrollBounceBehavior(.basedOnSize)
         .background(Color.connBg.ignoresSafeArea())
+        .navigationTitle(L("服务器"))
+        .searchable(text: $viewModel.searchText, prompt: L("搜索主机名或地址"))
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button { startAdding() } label: { Image(systemName: "plus") }
+                    .accessibilityLabel(L("添加主机"))
+            }
+        }
         .refreshable { await viewModel.refresh() }
         .onAppear { viewModel.appear(interval: settings.refreshInterval.duration) }
         .onDisappear { viewModel.disappear() }
@@ -79,33 +86,6 @@ struct ServersView: View {
     }
 
     // MARK: - 区块
-
-    /// 搜索框 + 添加按钮同排（页面已无大标题，搜索即页首）。
-    private var searchRow: some View {
-        HStack(spacing: ConnSpacing.xs) {
-            HStack(spacing: ConnSpacing.xs) {
-                Image(systemName: "magnifyingglass").foregroundStyle(.connMuted)
-                TextField(L("搜索主机名或地址"), text: $viewModel.searchText)
-                    .font(.connSubheadline)
-                    .foregroundStyle(.connInk)
-                    .autocorrectionDisabled()
-                    .textInputAutocapitalization(.never)
-            }
-            .padding(.horizontal, ConnSpacing.sm)
-            .padding(.vertical, 10)
-            .background(Color.connSurface, in: .rect(cornerRadius: ConnRadius.control, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: ConnRadius.control, style: .continuous)
-                    .strokeBorder(Color.connLine, lineWidth: 1)
-            )
-            IconChipButton("plus", tint: .accent, accessibilityLabel: L("添加主机")) {
-                startAdding()
-            }
-        }
-        .padding(.horizontal, ConnSpacing.page)
-        .padding(.top, ConnSpacing.sm)
-        .padding(.bottom, ConnSpacing.sm)
-    }
 
     private var tagFilter: some View {
         ScrollView(.horizontal, showsIndicators: false) {

@@ -50,7 +50,7 @@ final class ServersViewModel {
             hosts = try hostStore.allHosts()
             errorMessage = nil
         } catch {
-            errorMessage = "读取主机失败：\(error.localizedDescription)"
+            errorMessage = String(format: L("读取主机失败：%@"), error.localizedDescription)
             hosts = []
         }
     }

@@ -17,7 +17,7 @@ public struct ConnDock: View {
             case .servers: "服务器"
             case .terminal: "终端"
             case .commands: "命令"
-            case .me: "我的"
+            case .me: "设置"
             }
         }
 
@@ -26,7 +26,7 @@ public struct ConnDock: View {
             case .servers: "server.rack"
             case .terminal: "terminal"
             case .commands: "command"
-            case .me: "person.crop.circle"
+            case .me: "gearshape"
             }
         }
     }

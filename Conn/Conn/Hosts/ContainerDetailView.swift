@@ -36,7 +36,6 @@ struct ContainerDetailView: View {
                     listSection(L("环境变量"), detail.env, icon: "leaf")
                     commandSection(detail)
                 }
-                removeButton
             }
             .padding(.horizontal, ConnSpacing.page)
             .padding(.vertical, ConnSpacing.md)
@@ -66,28 +65,41 @@ struct ContainerDetailView: View {
         detail.map { $0.statusText == "running" } ?? container.isRunning
     }
 
-    // MARK: - 操作栏
+    /// 活动态（运行 / 重启中 / 暂停）——都可停止、重启。
+    private var isActive: Bool {
+        if let status = detail?.statusText {
+            return status == "running" || status == "restarting" || status == "paused"
+        }
+        return container.isActive
+    }
+
+    // MARK: - 操作栏（启停 / 重启 / 控制台 / 日志 / 删除 同排）
 
     private var actionBar: some View {
         HStack(spacing: ConnSpacing.sm) {
-            if isRunning {
+            if isActive {
                 actionButton(L("停止"), "stop.circle") { perform(.stop) }
                 actionButton(L("重启"), "arrow.clockwise.circle") { perform(.restart) }
-                actionButton(L("控制台"), "terminal") { route = .console }
+                if isRunning {
+                    actionButton(L("控制台"), "terminal") { route = .console }
+                }
             } else {
                 actionButton(L("启动"), "play.circle") { perform(.start) }
             }
             actionButton(L("日志"), "doc.text.magnifyingglass") { route = .logs }
+            actionButton(L("删除"), "trash", tint: .connCrit) { showRemoveConfirm = true }
         }
     }
 
-    private func actionButton(_ label: String, _ icon: String, action: @escaping () -> Void) -> some View {
+    private func actionButton(
+        _ label: String, _ icon: String, tint: Color = .connAccent, action: @escaping () -> Void
+    ) -> some View {
         Button(action: action) {
             VStack(spacing: 4) {
                 Image(systemName: icon).font(.system(size: 18))
-                Text(label).font(.connData(.caption2))
+                Text(label).font(.connData(.caption2)).lineLimit(1).minimumScaleFactor(0.7)
             }
-            .foregroundStyle(.connAccent)
+            .foregroundStyle(tint)
             .frame(maxWidth: .infinity)
             .padding(.vertical, ConnSpacing.sm)
             .connSurface(cornerRadius: ConnRadius.card)
@@ -141,17 +153,6 @@ struct ContainerDetailView: View {
                 }
             }
         }
-    }
-
-    private var removeButton: some View {
-        Button { showRemoveConfirm = true } label: {
-            Label(L("删除容器"), systemImage: "trash")
-                .font(.connBody).foregroundStyle(.connCrit)
-                .frame(maxWidth: .infinity).padding(.vertical, ConnSpacing.sm)
-                .connSurface(cornerRadius: ConnRadius.control)
-        }
-        .buttonStyle(.plain)
-        .padding(.top, ConnSpacing.xs)
     }
 
     // MARK: - 导航目的地

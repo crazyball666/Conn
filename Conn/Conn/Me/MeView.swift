@@ -27,7 +27,12 @@ struct MeView: View {
                 Picker(selection: $settings.refreshInterval) {
                     ForEach(RefreshInterval.allCases) { Text($0.label).tag($0) }
                 } label: {
-                    Label(L("刷新间隔"), systemImage: "arrow.clockwise")
+                    Label(L("主页刷新间隔"), systemImage: "arrow.clockwise")
+                }
+                Picker(selection: $settings.dockerRefreshInterval) {
+                    ForEach(RefreshInterval.allCases) { Text($0.label).tag($0) }
+                } label: {
+                    Label(L("容器刷新间隔"), systemImage: "shippingbox")
                 }
             }
 
@@ -37,7 +42,7 @@ struct MeView: View {
                         Text(theme.displayName).tag(theme.id)
                     }
                 } label: {
-                    Label(L("代码主题"), systemImage: "chevron.left.forward.slash.chevron.right")
+                    Label(L("代码主题"), systemImage: "curlybraces")
                 }
             }
 
@@ -78,6 +83,7 @@ struct MeView: View {
                     .multilineTextAlignment(.center)
             }
         }
+        .navigationTitle(L("设置"))
     }
 
     /// 主题色：一行标签 + 一排色卡（选中打勾）。

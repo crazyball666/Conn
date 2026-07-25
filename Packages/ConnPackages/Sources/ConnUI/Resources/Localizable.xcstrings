@@ -1,14 +1,6 @@
 {
   "sourceLanguage" : "zh-Hans",
   "strings" : {
-    "采集中…" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Collecting…" } },
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "収集中…" } },
-        "ko" : { "stringUnit" : { "state" : "translated", "value" : "수집 중…" } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "採集中…" } }
-      }
-    },
     "—" : {
 
     },
@@ -185,6 +177,7 @@
       }
     },
     "我的" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -436,6 +429,34 @@
         }
       }
     },
+    "网络" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Network"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ネットワーク"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "네트워크"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "網路"
+          }
+        }
+      }
+    },
     "警告" : {
       "localizations" : {
         "en" : {
@@ -460,6 +481,34 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "警告"
+          }
+        }
+      }
+    },
+    "采集中…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Collecting…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "収集中…"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "수집 중…"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "採集中…"
           }
         }
       }

@@ -88,7 +88,7 @@ struct TerminalScreen: View {
         } catch let error as SSHError {
             phase = .failed(error.diagnosis)
         } catch {
-            phase = .failed("连接失败：\(error.localizedDescription)")
+            phase = .failed(String(format: L("连接失败：%@"), error.localizedDescription))
         }
     }
 }

@@ -49,7 +49,7 @@ extension FileBrowserViewModel {
 
             // 完整性校验：下完的字节数应等于远端大小；不符则保留断点、不交付损坏文件。
             guard Self.fileSize(partial) == entry.size else {
-                actionMessage = "下载不完整（大小不符），已保留断点可重试"
+                actionMessage = L("下载不完整（大小不符），已保留断点可重试")
                 return
             }
             if FileManager.default.fileExists(atPath: destination.path) {
@@ -58,7 +58,7 @@ extension FileBrowserViewModel {
             try FileManager.default.moveItem(at: partial, to: destination)
             downloadedURL = destination
         } catch {
-            actionMessage = "下载失败：\(friendly(error))（已保留断点，重试可续传）"
+            actionMessage = String(format: L("下载失败：%@（已保留断点，重试可续传）"), friendly(error))
         }
     }
 
@@ -99,7 +99,7 @@ extension FileBrowserViewModel {
             }
             await load()
         } catch {
-            actionMessage = "上传失败：\(friendly(error))"
+            actionMessage = String(format: L("上传失败：%@"), friendly(error))
         }
     }
 

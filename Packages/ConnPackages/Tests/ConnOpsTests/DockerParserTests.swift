@@ -8,10 +8,10 @@ struct DockerParserTests {
     """
 
     private let stats = """
-    {"CPUPerc":"1.50%","ID":"a1b2c3d4e5f6","MemPerc":"3.20%","MemUsage":"12MiB / 2GiB","Name":"nginx-proxy"}
+    {"CPUPerc":"1.50%","ID":"a1b2c3d4e5f6","MemPerc":"3.20%","MemUsage":"12MiB / 2GiB","NetIO":"1.2kB / 3.4kB","BlockIO":"0B / 8.19kB"}
     """
 
-    @Test("ps + stats 合并")
+    @Test("ps + stats 合并（含网络 / 块 IO）")
     func mergePSAndStats() {
         let containers = DockerParser.parse(psOutput: psModern, statsOutput: stats)
         #expect(containers.count == 2)
@@ -22,6 +22,17 @@ struct DockerParserTests {
         #expect(nginx?.cpuPercent == 1.5)
         #expect(nginx?.memPercent == 3.2)
         #expect(nginx?.memUsage == "12MiB / 2GiB")
+        #expect(nginx?.netIO == "1.2kB / 3.4kB")
+        #expect(nginx?.blockIO == "0B / 8.19kB")
+    }
+
+    @Test("重启中容器可停止（isActive）")
+    func restartingIsActive() {
+        let ps = #"{"ID":"r1","Image":"x","Names":"loop","State":"restarting","Status":"Restarting (1) 2s ago"}"#
+        let container = DockerParser.parse(psOutput: ps, statsOutput: "").first
+        #expect(container?.state == .restarting)
+        #expect(container?.isRunning == false)
+        #expect(container?.isActive == true) // 重启中也应能停止
     }
 
     @Test("已停容器无 stats，cpu/mem 为 nil")

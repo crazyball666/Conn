@@ -7,6 +7,7 @@ import SwiftUI
 /// + 镜像（列表 / 删除 / 清理悬空）。分段切换，操作走行内菜单。
 struct DockerView: View {
     let viewModel: DockerViewModel
+    @Environment(SettingsStore.self) private var settings
     @State private var tab: Tab = .containers
     @State private var route: Route?
     private let host: Host
@@ -34,6 +35,7 @@ struct DockerView: View {
     var body: some View {
         content
             .task { await viewModel.loadIfNeeded() }
+            .task { await autoRefreshLoop() }
             .alert(L("删除容器"), isPresented: removalBinding, presenting: viewModel.pendingRemoval) { _ in
                 Button(L("删除容器"), role: .destructive) { Task { await viewModel.confirmRemoval() } }
                 Button(L("取消"), role: .cancel) { viewModel.pendingRemoval = nil }
@@ -109,6 +111,18 @@ struct DockerView: View {
         }
     }
 
+    /// 按设置页的刷新间隔周期性静默刷新当前分段（仅在 Docker 段可见时运行）。
+    private func autoRefreshLoop() async {
+        while !Task.isCancelled {
+            try? await Task.sleep(for: .seconds(settings.dockerRefreshInterval.rawValue))
+            guard !Task.isCancelled, viewModel.hasLoaded else { continue }
+            switch tab {
+            case .containers: await viewModel.refreshContainers()
+            case .images: await viewModel.loadImages()
+            }
+        }
+    }
+
     /// 下拉刷新当前分段（静默重拉，不切 loading；给刷新动画一个最短时长避免闪跳）。
     private func refresh() async {
         let clock = ContinuousClock()
@@ -130,59 +144,20 @@ struct DockerView: View {
                 Text(L("该主机上没有容器")).font(.connSubheadline).foregroundStyle(.connMuted)
                     .padding(.vertical, ConnSpacing.xl)
             } else {
-                ForEach(viewModel.containers) { container in
-                    containerRow(container)
+                ForEach(sortedContainers) { container in
+                    ContainerCard(container: container) { route = .detail(container) }
                 }
             }
         }
         .padding(.bottom, ConnSpacing.lg)
     }
 
-    private func containerRow(_ container: ContainerInfo) -> some View {
-        HStack(spacing: ConnSpacing.sm) {
-            Button { route = .detail(container) } label: {
-                HStack(spacing: ConnSpacing.sm) {
-                    ConnStatusDot(status(for: container.state))
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(container.name).font(.connHeadline).foregroundStyle(.connInk).lineLimit(1)
-                        Text(container.image).font(.connData(.caption2)).foregroundStyle(.connMuted).lineLimit(1)
-                        Text(container.isRunning ? runningStats(container) : container.status)
-                            .font(.connData(.caption2)).foregroundStyle(.connMuted).lineLimit(1)
-                    }
-                    Spacer(minLength: ConnSpacing.xs)
-                }
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            if viewModel.busyContainerID == container.id {
-                ProgressView()
-            } else {
-                containerMenu(container)
-            }
-        }
-        .padding(ConnSpacing.cardPadding)
-        .connSurface(cornerRadius: ConnRadius.card)
-    }
-
-    private func containerMenu(_ container: ContainerInfo) -> some View {
-        Menu {
-            if container.isRunning {
-                Button { act(.stop, container) } label: { Label(L("停止"), systemImage: "stop.circle") }
-                Button { act(.restart, container) } label: { Label(L("重启"), systemImage: "arrow.clockwise.circle") }
-                Button { route = .console(container) } label: { Label(L("控制台"), systemImage: "terminal") }
-            } else {
-                Button { act(.start, container) } label: { Label(L("启动"), systemImage: "play.circle") }
-            }
-            Button { route = .logs(container) } label: { Label(L("查看日志"), systemImage: "doc.text.magnifyingglass") }
-            Button { route = .detail(container) } label: { Label(L("详情"), systemImage: "info.circle") }
-            Divider()
-            Button(role: .destructive) { viewModel.requestRemoval(container) } label: {
-                Label(L("删除"), systemImage: "trash")
-            }
-        } label: {
-            Image(systemName: "ellipsis.circle").font(.system(size: 22)).foregroundStyle(.connAccent)
-        }
-        .connHitTarget()
+    /// 运行中优先：运行 → 其它活动（重启中/暂停）→ 已停止；组内保持 docker 原序。
+    private var sortedContainers: [ContainerInfo] {
+        let running = viewModel.containers.filter(\.isRunning)
+        let otherActive = viewModel.containers.filter { $0.isActive && !$0.isRunning }
+        let inactive = viewModel.containers.filter { !$0.isActive }
+        return running + otherActive + inactive
     }
 
     // MARK: - 镜像
@@ -232,19 +207,15 @@ struct DockerView: View {
             Spacer(minLength: ConnSpacing.xs)
             if viewModel.busyImageID == image.id {
                 ProgressView()
-            } else {
-                Menu {
-                    Button(role: .destructive) { viewModel.requestImageRemoval(image) } label: {
-                        Label(L("删除"), systemImage: "trash")
-                    }
-                } label: {
-                    Image(systemName: "ellipsis.circle").font(.system(size: 20)).foregroundStyle(.connAccent)
-                }
-                .connHitTarget()
             }
         }
         .padding(ConnSpacing.cardPadding)
         .connSurface(cornerRadius: ConnRadius.card)
+        .contextMenu {
+            Button(role: .destructive) { viewModel.requestImageRemoval(image) } label: {
+                Label(L("删除"), systemImage: "trash")
+            }
+        }
     }
 
     // MARK: - 不可用引导
@@ -269,25 +240,6 @@ struct DockerView: View {
     }
 
     // MARK: - 辅助
-
-    private func act(_ action: ContainerAction, _ container: ContainerInfo) {
-        Task { await viewModel.perform(action, on: container) }
-    }
-
-    private func runningStats(_ container: ContainerInfo) -> String {
-        let cpu = container.cpuPercent.map { String(format: "CPU %.1f%%", $0) } ?? "CPU —"
-        let mem = container.memPercent.map { String(format: L("内存 %.1f%%"), $0) } ?? L("内存 —")
-        return "\(container.status) · \(cpu) · \(mem)"
-    }
-
-    private func status(for state: ContainerInfo.State) -> ConnHealthStatus {
-        switch state {
-        case .running: .ok
-        case .paused, .restarting: .warn
-        case .dead: .crit
-        case .exited, .created, .removing, .unknown: .unknown
-        }
-    }
 
     private var removalBinding: Binding<Bool> {
         Binding(get: { viewModel.pendingRemoval != nil }, set: { if !$0 { viewModel.pendingRemoval = nil } })

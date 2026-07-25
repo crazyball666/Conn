@@ -23,8 +23,6 @@ struct SnippetsView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
-                header
-                searchBar
                 if viewModel.sections.isEmpty {
                     empty
                 } else {
@@ -34,6 +32,24 @@ struct SnippetsView: View {
         }
         .scrollBounceBehavior(.basedOnSize)
         .background(Color.connBg.ignoresSafeArea())
+        .navigationTitle(L("命令"))
+        .searchable(text: $viewModel.searchText, prompt: L("搜索片段"))
+        .toolbar {
+            ToolbarItemGroup(placement: .topBarTrailing) {
+                NavigationLink {
+                    RunHistoryView(dependencies: dependencies)
+                } label: {
+                    Image(systemName: "clock.arrow.circlepath")
+                }
+                .accessibilityLabel(L("执行历史"))
+                Button {
+                    formRequest = SnippetFormRequest(snippet: nil)
+                } label: {
+                    Image(systemName: "plus")
+                }
+                .accessibilityLabel(L("新增片段"))
+            }
+        }
         .task { viewModel.load() }
         .sheet(item: $runTarget) { snippet in
             SnippetRunView(snippet: snippet, dependencies: dependencies)
@@ -46,37 +62,6 @@ struct SnippetsView: View {
     }
 
     // MARK: - 区块
-
-    private var header: some View {
-        HStack(alignment: .center) {
-            Spacer()
-            NavigationLink {
-                RunHistoryView(dependencies: dependencies)
-            } label: {
-                Image(systemName: "clock.arrow.circlepath").font(.system(size: 18)).foregroundStyle(.connMuted)
-            }
-            .connHitTarget()
-            IconChipButton("plus", tint: .accent, accessibilityLabel: L("新增片段")) {
-                formRequest = SnippetFormRequest(snippet: nil)
-            }
-        }
-        .padding(.horizontal, ConnSpacing.page)
-        .padding(.top, ConnSpacing.xs)
-        .padding(.bottom, ConnSpacing.sm)
-    }
-
-    private var searchBar: some View {
-        HStack(spacing: ConnSpacing.xs) {
-            Image(systemName: "magnifyingglass").foregroundStyle(.connMuted)
-            TextField(L("搜索片段"), text: $viewModel.searchText)
-                .font(.connSubheadline).foregroundStyle(.connInk)
-                .autocorrectionDisabled().textInputAutocapitalization(.never)
-        }
-        .padding(.horizontal, ConnSpacing.sm).padding(.vertical, 10)
-        .background(Color.connSurface, in: .rect(cornerRadius: ConnRadius.control, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: ConnRadius.control, style: .continuous).strokeBorder(Color.connLine, lineWidth: 1))
-        .padding(.horizontal, ConnSpacing.page).padding(.bottom, ConnSpacing.sm)
-    }
 
     private var sectionsView: some View {
         LazyVStack(alignment: .leading, spacing: ConnSpacing.md) {

@@ -85,6 +85,11 @@ final class SettingsStore {
         didSet { UserDefaults.standard.set(refreshInterval.rawValue, forKey: Key.refresh) }
     }
 
+    /// Docker 容器/镜像数据的刷新间隔（详情页 Docker 段自动刷新）。
+    var dockerRefreshInterval: RefreshInterval {
+        didSet { UserDefaults.standard.set(dockerRefreshInterval.rawValue, forKey: Key.dockerRefresh) }
+    }
+
     /// 代码编辑器主题（highlight.js 主题 id）。
     var codeTheme: String {
         didSet { UserDefaults.standard.set(codeTheme, forKey: Key.codeTheme) }
@@ -96,6 +101,8 @@ final class SettingsStore {
         accent = AppAccent(rawValue: defaults.string(forKey: Key.accent) ?? "") ?? .brand
         let storedInterval = defaults.object(forKey: Key.refresh) as? Int ?? RefreshInterval.normal.rawValue
         refreshInterval = RefreshInterval(rawValue: storedInterval) ?? .normal
+        let storedDocker = defaults.object(forKey: Key.dockerRefresh) as? Int ?? RefreshInterval.normal.rawValue
+        dockerRefreshInterval = RefreshInterval(rawValue: storedDocker) ?? .normal
         codeTheme = defaults.string(forKey: Key.codeTheme) ?? CodeEditorCatalog.defaultThemeID
         applyAccent()
     }
@@ -113,6 +120,7 @@ final class SettingsStore {
         static let appearance = "conn.settings.appearance"
         static let accent = "conn.settings.accent"
         static let refresh = "conn.settings.refreshInterval"
+        static let dockerRefresh = "conn.settings.dockerRefreshInterval"
         static let codeTheme = "conn.settings.codeTheme"
     }
 }

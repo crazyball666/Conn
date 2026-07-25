@@ -91,11 +91,11 @@ final class DockerViewModel {
             audit(command: "docker \(action.verb) \(container.name)", result: result)
             let detail = result.stderrText.isEmpty ? result.stdoutText : result.stderrText
             actionMessage = result.isSuccess
-                ? "\(action.label) \(container.name) 成功"
-                : "\(action.label) \(container.name) 失败：\(detail)"
-            await load()
+                ? String(format: L("%@ %@ 成功"), action.label, container.name)
+                : String(format: L("%@ %@ 失败：%@"), action.label, container.name, detail)
+            await refreshContainers()
         } catch {
-            actionMessage = "\(action.label) 失败：\(friendly(error))"
+            actionMessage = String(format: L("%@ 失败：%@"), action.label, friendly(error))
         }
     }
 

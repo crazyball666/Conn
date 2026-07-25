@@ -209,7 +209,7 @@ struct SnippetRunView: View {
             if let sshError = error as? SSHError {
                 errorText = sshError.diagnosis.split(separator: "\n").first.map(String.init) ?? L("执行失败")
             } else {
-                errorText = "执行失败：\(error.localizedDescription)"
+                errorText = String(format: L("执行失败：%@"), error.localizedDescription)
             }
         }
     }

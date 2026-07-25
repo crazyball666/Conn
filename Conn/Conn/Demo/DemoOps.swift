@@ -54,9 +54,9 @@ enum DemoOps {
     """
 
     private static let statsJSON = """
-    {"ID":"a1b2c3d4e5f6","CPUPerc":"2.30%","MemPerc":"4.10%","MemUsage":"78.5MiB / 2GiB","Name":"web-nginx"}
-    {"ID":"b2c3d4e5f6a7","CPUPerc":"1.05%","MemPerc":"12.40%","MemUsage":"248MiB / 2GiB","Name":"pg-main"}
-    {"ID":"c3d4e5f6a7b8","CPUPerc":"0.30%","MemPerc":"1.80%","MemUsage":"36MiB / 2GiB","Name":"redis-cache"}
+    {"ID":"a1b2c3d4e5f6","CPUPerc":"2.30%","MemPerc":"4.10%","MemUsage":"78.5MiB / 2GiB","NetIO":"1.2GB / 340MB","BlockIO":"12MB / 4.1GB"}
+    {"ID":"b2c3d4e5f6a7","CPUPerc":"1.05%","MemPerc":"12.40%","MemUsage":"248MiB / 2GiB","NetIO":"820MB / 1.5GB","BlockIO":"0B / 22GB"}
+    {"ID":"c3d4e5f6a7b8","CPUPerc":"0.30%","MemPerc":"1.80%","MemUsage":"36MiB / 2GiB","NetIO":"44MB / 88MB","BlockIO":"0B / 512MB"}
     """
 
     private static let imagesJSON = """

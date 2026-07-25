@@ -16,6 +16,8 @@ public enum DockerParser {
                 merged.cpuPercent = stat.cpu
                 merged.memPercent = stat.mem
                 merged.memUsage = stat.memUsage
+                merged.netIO = stat.netIO
+                merged.blockIO = stat.blockIO
             }
             return merged
         }
@@ -56,6 +58,8 @@ public enum DockerParser {
         let cpu: Double?
         let mem: Double?
         let memUsage: String
+        let netIO: String?
+        let blockIO: String?
     }
 
     static func parseStats(_ output: String) -> [String: Stat] {
@@ -64,7 +68,9 @@ public enum DockerParser {
             result[line.id] = Stat(
                 cpu: percent(line.cpuPerc),
                 mem: percent(line.memPerc),
-                memUsage: line.memUsage
+                memUsage: line.memUsage,
+                netIO: line.netIO,
+                blockIO: line.blockIO
             )
         }
         return result
@@ -165,9 +171,12 @@ private struct StatsLine: Decodable {
     let cpuPerc: String
     let memPerc: String
     let memUsage: String
+    let netIO: String?
+    let blockIO: String?
 
     enum CodingKeys: String, CodingKey {
         case id = "ID", cpuPerc = "CPUPerc", memPerc = "MemPerc", memUsage = "MemUsage"
+        case netIO = "NetIO", blockIO = "BlockIO"
     }
 }
 

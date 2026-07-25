@@ -21,8 +21,14 @@ public struct ContainerInfo: Identifiable, Sendable, Equatable, Hashable {
     public var memPercent: Double?
     /// 内存用量串，如 `5MiB / 2GiB`。
     public var memUsage: String?
+    /// 网络累计（收 / 发），如 `1.2kB / 3.4kB`（docker stats NetIO）。
+    public var netIO: String?
+    /// 块设备累计（读 / 写），如 `0B / 8.19kB`（docker stats BlockIO）。
+    public var blockIO: String?
 
     public var isRunning: Bool { state == .running }
+    /// 是否处于活动态（运行 / 重启中 / 暂停）——这些都可以被「停止」。
+    public var isActive: Bool { state == .running || state == .restarting || state == .paused }
 
     public init(
         id: String,
@@ -33,7 +39,9 @@ public struct ContainerInfo: Identifiable, Sendable, Equatable, Hashable {
         ports: String,
         cpuPercent: Double? = nil,
         memPercent: Double? = nil,
-        memUsage: String? = nil
+        memUsage: String? = nil,
+        netIO: String? = nil,
+        blockIO: String? = nil
     ) {
         self.id = id
         self.name = name
@@ -44,6 +52,8 @@ public struct ContainerInfo: Identifiable, Sendable, Equatable, Hashable {
         self.cpuPercent = cpuPercent
         self.memPercent = memPercent
         self.memUsage = memUsage
+        self.netIO = netIO
+        self.blockIO = blockIO
     }
 }
 

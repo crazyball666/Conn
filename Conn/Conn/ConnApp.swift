@@ -39,6 +39,11 @@ struct ConnApp: App {
             .tint(settings.accent.color)
             // 深浅色：跟随系统 / 强制浅 / 强制深（设置页）。
             .preferredColorScheme(settings.appearance.colorScheme)
+            // 全局「点击空白处收起键盘」+ 分段控件标题加粗放大（不改样式）。
+            .onAppear {
+                KeyboardDismisser.shared.installIfNeeded()
+                ConnAppearance.configureIfNeeded()
+            }
         }
     }
 
