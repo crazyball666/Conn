@@ -27,6 +27,8 @@ final class FileBrowserViewModel {
     private(set) var currentPath = "/"
     private(set) var entries: [FileEntry] = []
     var showHidden = false
+    /// 首次加载后置真——切换分段/从编辑器返回时不再自动重拉（改下拉刷新）。
+    private(set) var hasLoaded = false
 
     // 操作确认/表单状态
     var pendingDeletion: FileEntry?
@@ -50,8 +52,16 @@ final class FileBrowserViewModel {
 
     // MARK: - 导航 / 列表
 
+    /// 仅首次加载（分段出现时调用）。已加载则跳过，避免每次切换重拉。
+    func loadIfNeeded() async {
+        guard !hasLoaded else { return }
+        hasLoaded = true
+        await load()
+    }
+
     func load(path: String? = nil) async {
         let target = path ?? currentPath
+        hasLoaded = true
         loadState = .loading
         do {
             let list = try await filesystem().list(target)

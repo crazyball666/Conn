@@ -6,16 +6,16 @@ import SwiftUI
 /// Docker 管理（Phase 8+）：容器（列表 / 详情 / 启停重启 / 日志 / 控制台 / 删除）
 /// + 镜像（列表 / 删除 / 清理悬空）。分段切换，操作走行内菜单。
 struct DockerView: View {
-    @State private var viewModel: DockerViewModel
+    let viewModel: DockerViewModel
     @State private var tab: Tab = .containers
     @State private var route: Route?
     private let host: Host
     private let dependencies: AppDependencies
 
-    init(host: Host, dependencies: AppDependencies) {
+    init(host: Host, dependencies: AppDependencies, viewModel: DockerViewModel) {
         self.host = host
         self.dependencies = dependencies
-        _viewModel = State(initialValue: DockerViewModel(host: host, dependencies: dependencies))
+        self.viewModel = viewModel
     }
 
     enum Tab: String, CaseIterable, Identifiable { case containers = "容器", images = "镜像"; var id: String { rawValue } }
@@ -33,7 +33,7 @@ struct DockerView: View {
 
     var body: some View {
         content
-            .task { await viewModel.load() }
+            .task { await viewModel.loadIfNeeded() }
             .alert(L("删除容器"), isPresented: removalBinding, presenting: viewModel.pendingRemoval) { _ in
                 Button(L("删除容器"), role: .destructive) { Task { await viewModel.confirmRemoval() } }
                 Button(L("取消"), role: .cancel) { viewModel.pendingRemoval = nil }
@@ -91,16 +91,28 @@ struct DockerView: View {
             }
             .padding(.vertical, ConnSpacing.md)
         case .ready:
-            VStack(spacing: ConnSpacing.sm) {
-                Picker(L("段"), selection: $tab) {
-                    ForEach(Tab.allCases) { Text(L($0.rawValue)).tag($0) }
-                }
-                .pickerStyle(.segmented)
-                switch tab {
-                case .containers: containerList
-                case .images: imageSection
+            ScrollView {
+                VStack(spacing: ConnSpacing.sm) {
+                    Picker(L("段"), selection: $tab) {
+                        ForEach(Tab.allCases) { Text(L($0.rawValue)).tag($0) }
+                    }
+                    .pickerStyle(.segmented)
+                    switch tab {
+                    case .containers: containerList
+                    case .images: imageSection
+                    }
                 }
             }
+            .scrollBounceBehavior(.basedOnSize)
+            .refreshable { await refresh() }
+        }
+    }
+
+    /// 下拉刷新当前分段。
+    private func refresh() async {
+        switch tab {
+        case .containers: await viewModel.load()
+        case .images: await viewModel.loadImages()
         }
     }
 
@@ -199,7 +211,7 @@ struct DockerView: View {
             }
         }
         .padding(.bottom, ConnSpacing.lg)
-        .task { await viewModel.loadImages() }
+        .task { await viewModel.loadImagesIfNeeded() }
     }
 
     private func imageRow(_ image: ImageInfo) -> some View {

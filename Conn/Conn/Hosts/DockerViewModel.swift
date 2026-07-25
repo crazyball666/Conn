@@ -16,6 +16,8 @@ final class DockerViewModel {
     }
 
     private(set) var loadState: LoadState = .loading
+    /// 首次加载后置真——切换分段时不再自动重拉（改下拉刷新）。
+    private(set) var hasLoaded = false
     private(set) var containers: [ContainerInfo] = []
     /// 正在执行操作的容器 id（禁用该行按钮 + 显示忙碌）。
     private(set) var busyContainerID: String?
@@ -44,7 +46,14 @@ final class DockerViewModel {
     /// 当前是否需 sudo（供容器日志沿用同一提权）。
     var usesSudo: Bool { availability.sudo }
 
+    /// 仅首次加载（分段出现时调用）。已加载则跳过。
+    func loadIfNeeded() async {
+        guard !hasLoaded else { return }
+        await load()
+    }
+
     func load() async {
+        hasLoaded = true
         loadState = .loading
         do {
             let session = try await connectionManager.session(for: host)
@@ -104,6 +113,12 @@ final class DockerViewModel {
     }
 
     // MARK: - 镜像
+
+    /// 仅首次加载镜像（镜像分段出现时调用）。
+    func loadImagesIfNeeded() async {
+        guard !imagesLoaded else { return }
+        await loadImages()
+    }
 
     func loadImages() async {
         guard availability.isUsable else { return }

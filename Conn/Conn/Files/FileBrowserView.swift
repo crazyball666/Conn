@@ -7,7 +7,7 @@ import UniformTypeIdentifiers
 /// SFTP 文件浏览（Phase 6）——系统「文件」App 风格：面包屑导航 + 搜索 +
 /// 分组列表（按类型着色图标）+ 操作收进右上角「•••」菜单，逐条操作走长按菜单。
 struct FileBrowserView: View {
-    @State private var viewModel: FileBrowserViewModel
+    let viewModel: FileBrowserViewModel
     @State private var showUpload = false
     @State private var textPrompt: TextPrompt?
     @State private var promptText = ""
@@ -18,10 +18,10 @@ struct FileBrowserView: View {
     private let host: Host
     private let dependencies: AppDependencies
 
-    init(host: Host, dependencies: AppDependencies) {
+    init(host: Host, dependencies: AppDependencies, viewModel: FileBrowserViewModel) {
         self.host = host
         self.dependencies = dependencies
-        _viewModel = State(initialValue: FileBrowserViewModel(host: host, dependencies: dependencies))
+        self.viewModel = viewModel
     }
 
     enum SortField { case name, date, size }
@@ -49,7 +49,7 @@ struct FileBrowserView: View {
             content
         }
         .padding(.bottom, ConnSpacing.md)
-        .task { await viewModel.load() }
+        .task { await viewModel.loadIfNeeded() }
         .fileImporter(isPresented: $showUpload, allowedContentTypes: [.item]) { result in
             if case let .success(url) = result {
                 Task { await viewModel.upload(from: url) }
@@ -231,6 +231,7 @@ struct FileBrowserView: View {
             }
         }
         .scrollBounceBehavior(.basedOnSize)
+        .refreshable { await viewModel.refresh() }
     }
 
     private func row(_ entry: FileEntry) -> some View {
