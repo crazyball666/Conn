@@ -19,6 +19,31 @@ public enum DockerCommand {
         prefix(sudo) + "docker \(action.verb) \(id)"
     }
 
+    /// 容器详情（`docker inspect`，返回 JSON 数组）。
+    public static func inspect(id: String, sudo: Bool) -> String {
+        prefix(sudo) + "docker inspect \(id)"
+    }
+
+    /// 进入容器控制台：在 PTY 里 exec，优先 bash 回退 sh（Alpine 等仅 sh）。
+    public static func console(id: String, sudo: Bool) -> String {
+        prefix(sudo) + "docker exec -it \(id) sh -c 'command -v bash >/dev/null 2>&1 && exec bash || exec sh'"
+    }
+
+    /// 全部镜像，JSON 每行一个。
+    public static func images(sudo: Bool) -> String {
+        prefix(sudo) + "docker images --format '{{json .}}'"
+    }
+
+    /// 删除镜像（`reference` 为 `repo:tag` 或镜像 ID）。
+    public static func removeImage(reference: String, sudo: Bool) -> String {
+        prefix(sudo) + "docker rmi \(reference)"
+    }
+
+    /// 清理悬空镜像（无 tag）。
+    public static func pruneImages(sudo: Bool) -> String {
+        prefix(sudo) + "docker image prune -f"
+    }
+
     /// 跟随容器日志（execStream 用）。合并 stderr。
     public static func logs(id: String, tail: Int = 200, sudo: Bool) -> String {
         prefix(sudo) + "docker logs -f --tail \(tail) \(id) 2>&1"

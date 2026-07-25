@@ -658,10 +658,6 @@
 			isa = XCSwiftPackageProductDependency;
 			productName = ConnTerminal;
 		};
-		7CAA0011300CF0AD00307624 /* ConnEditor */ = {
-			isa = XCSwiftPackageProductDependency;
-			productName = ConnEditor;
-		};
 		7CAA0002300CF0AD00307624 /* ConnMonitor */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = ConnMonitor;
@@ -673,6 +669,10 @@
 		7CAA0006300CF0AD00307624 /* ConnRunner */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = ConnRunner;
+		};
+		7CAA0011300CF0AD00307624 /* ConnEditor */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = ConnEditor;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

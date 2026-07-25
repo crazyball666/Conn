@@ -9,30 +9,30 @@ import Foundation
 /// 再判 journalctl 跟随；可用性探测 `docker ps -q` 要先于 `docker ps -a`。
 enum DemoOps {
     static func response(command: String, endpoint: SSHEndpoint) -> MockSSHTransport.CommandResponse? {
+        dockerResponse(command) ?? logResponse(command)
+    }
+
+    private static func dockerResponse(_ command: String) -> MockSSHTransport.CommandResponse? {
         if command.contains("docker ps -q") {
             return .init(stdout: "a1b2c3d4e5f6\nb2c3d4e5f6a7\n__EXIT__0")
         }
-        if command.contains("docker ps -a --format") {
-            return .init(stdout: containersJSON)
-        }
-        if command.contains("docker stats") {
-            return .init(stdout: statsJSON)
-        }
-        if command.contains("docker logs") {
-            return .init(stdout: containerLog)
-        }
-        if let verb = dockerWriteVerb(in: command) {
-            return .init(stdout: "\(verb) ok")
-        }
+        if command.contains("docker ps -a --format") { return .init(stdout: containersJSON) }
+        if command.contains("docker stats") { return .init(stdout: statsJSON) }
+        if command.contains("docker inspect") { return .init(stdout: inspectJSON) }
+        if command.contains("docker image prune") { return .init(stdout: "Total reclaimed space: 128MB") }
+        if command.contains("docker images") { return .init(stdout: imagesJSON) }
+        if command.contains("docker rmi") { return .init(stdout: "Untagged: old:latest\nDeleted: sha256:aaa") }
+        if command.contains("docker logs") { return .init(stdout: containerLog) }
+        if let verb = dockerWriteVerb(in: command) { return .init(stdout: "\(verb) ok") }
+        return nil
+    }
+
+    private static func logResponse(_ command: String) -> MockSSHTransport.CommandResponse? {
         if command.contains("__JOURNAL__") {
             return .init(stdout: "__JOURNAL__\n__FILE__ nginx-error\n__FILE__ syslog\n__FILE__ auth")
         }
-        if command.contains("journalctl") {
-            return .init(stdout: journalLog)
-        }
-        if command.contains("tail -n"), command.contains("-F") {
-            return .init(stdout: fileLog)
-        }
+        if command.contains("journalctl") { return .init(stdout: journalLog) }
+        if command.contains("tail -n"), command.contains("-F") { return .init(stdout: fileLog) }
         return nil
     }
 
@@ -57,6 +57,44 @@ enum DemoOps {
     {"ID":"a1b2c3d4e5f6","CPUPerc":"2.30%","MemPerc":"4.10%","MemUsage":"78.5MiB / 2GiB","Name":"web-nginx"}
     {"ID":"b2c3d4e5f6a7","CPUPerc":"1.05%","MemPerc":"12.40%","MemUsage":"248MiB / 2GiB","Name":"pg-main"}
     {"ID":"c3d4e5f6a7b8","CPUPerc":"0.30%","MemPerc":"1.80%","MemUsage":"36MiB / 2GiB","Name":"redis-cache"}
+    """
+
+    private static let imagesJSON = """
+    {"ID":"a1b2c3d4e5f6","Repository":"nginx","Tag":"1.25","Size":"142MB","CreatedSince":"2 weeks ago"}
+    {"ID":"b2c3d4e5f6a7","Repository":"postgres","Tag":"16","Size":"438MB","CreatedSince":"3 weeks ago"}
+    {"ID":"c3d4e5f6a7b8","Repository":"redis","Tag":"7-alpine","Size":"41MB","CreatedSince":"1 month ago"}
+    {"ID":"e5f6a7b8c9d0","Repository":"backup","Tag":"latest","Size":"210MB","CreatedSince":"5 days ago"}
+    {"ID":"f6a7b8c9d0e1","Repository":"<none>","Tag":"<none>","Size":"88MB","CreatedSince":"2 months ago"}
+    """
+
+    private static let inspectJSON = """
+    [{
+      "Id": "a1b2c3d4e5f6a1b2c3d4e5f6",
+      "Name": "/web-nginx",
+      "Created": "2026-07-20T06:13:00.123456789Z",
+      "Path": "/docker-entrypoint.sh",
+      "Args": ["nginx", "-g", "daemon off;"],
+      "RestartCount": 0,
+      "State": {"Status": "running", "StartedAt": "2026-07-20T06:13:05Z", "Health": {"Status": "healthy"}},
+      "Image": "sha256:abc",
+      "Config": {
+        "Image": "nginx:1.25",
+        "Env": ["PATH=/usr/local/sbin:/usr/local/bin", "NGINX_VERSION=1.25.3", "TZ=Asia/Shanghai"],
+        "Cmd": ["nginx", "-g", "daemon off;"]
+      },
+      "HostConfig": {"RestartPolicy": {"Name": "unless-stopped"}},
+      "NetworkSettings": {
+        "Ports": {
+          "80/tcp": [{"HostIp": "0.0.0.0", "HostPort": "80"}],
+          "443/tcp": [{"HostIp": "0.0.0.0", "HostPort": "443"}]
+        },
+        "Networks": {"bridge": {"IPAddress": "172.18.0.2"}}
+      },
+      "Mounts": [
+        {"Source": "/srv/nginx/conf.d", "Destination": "/etc/nginx/conf.d", "RW": false},
+        {"Source": "/srv/www", "Destination": "/usr/share/nginx/html", "RW": true}
+      ]
+    }]
     """
 
     // MARK: - 日志假数据

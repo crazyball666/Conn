@@ -68,6 +68,30 @@ public enum DockerService {
         try await session.exec(DockerCommand.action(action, id: id, sudo: sudo))
     }
 
+    /// 容器详情（inspect）。解析失败返回 nil。
+    public static func inspect(id: String, on session: any SSHSession, sudo: Bool) async throws -> ContainerDetail? {
+        let result = try await session.exec(DockerCommand.inspect(id: id, sudo: sudo))
+        return DockerParser.parseInspect(result.stdoutText)
+    }
+
+    /// 列镜像。
+    public static func listImages(on session: any SSHSession, sudo: Bool) async throws -> [ImageInfo] {
+        let result = try await session.exec(DockerCommand.images(sudo: sudo))
+        return DockerParser.parseImages(result.stdoutText)
+    }
+
+    /// 删除镜像。
+    public static func removeImage(
+        reference: String, on session: any SSHSession, sudo: Bool
+    ) async throws -> ExecResult {
+        try await session.exec(DockerCommand.removeImage(reference: reference, sudo: sudo))
+    }
+
+    /// 清理悬空镜像。
+    public static func pruneImages(on session: any SSHSession, sudo: Bool) async throws -> ExecResult {
+        try await session.exec(DockerCommand.pruneImages(sudo: sudo))
+    }
+
     /// 跟随容器日志流。
     public static func logStream(
         id: String,

@@ -23,6 +23,13 @@ final class DockerViewModel {
     var pendingRemoval: ContainerInfo?
     var actionMessage: String?
 
+    // 镜像
+    private(set) var images: [ImageInfo] = []
+    private(set) var imagesLoaded = false
+    private(set) var imagesError: String?
+    private(set) var busyImageID: String?
+    var pendingImageRemoval: ImageInfo?
+
     private let host: Host
     private let connectionManager: ConnectionManager
     private let runHistory: any RunHistoryRepository
@@ -79,6 +86,74 @@ final class DockerViewModel {
         guard let container = pendingRemoval else { return }
         pendingRemoval = nil
         await perform(.remove, on: container)
+    }
+
+    /// 容器详情（inspect）——供详情页加载。
+    func detail(for container: ContainerInfo) async -> ContainerDetail? {
+        do {
+            let session = try await connectionManager.session(for: host)
+            return try await DockerService.inspect(id: container.id, on: session, sudo: availability.sudo)
+        } catch {
+            return nil
+        }
+    }
+
+    /// 进入容器控制台的命令（PTY 里 exec）。
+    func consoleCommand(for container: ContainerInfo) -> String {
+        DockerCommand.console(id: container.id, sudo: availability.sudo)
+    }
+
+    // MARK: - 镜像
+
+    func loadImages() async {
+        guard availability.isUsable else { return }
+        do {
+            let session = try await connectionManager.session(for: host)
+            images = try await DockerService.listImages(on: session, sudo: availability.sudo)
+            imagesError = nil
+        } catch {
+            imagesError = friendly(error)
+        }
+        imagesLoaded = true
+    }
+
+    func requestImageRemoval(_ image: ImageInfo) {
+        pendingImageRemoval = image
+    }
+
+    func confirmImageRemoval() async {
+        guard let image = pendingImageRemoval else { return }
+        pendingImageRemoval = nil
+        busyImageID = image.id
+        defer { busyImageID = nil }
+        await runImageOp(String(format: L("删除镜像 %@"), image.displayName)) { session, sudo in
+            try await DockerService.removeImage(reference: image.reference, on: session, sudo: sudo)
+        }
+    }
+
+    func pruneImages() async {
+        await runImageOp(L("清理悬空镜像")) { session, sudo in
+            try await DockerService.pruneImages(on: session, sudo: sudo)
+        }
+    }
+
+    /// 镜像写操作统一执行 + 审计 + 刷新 + 结果提示。
+    private func runImageOp(
+        _ label: String,
+        _ operation: (any SSHSession, Bool) async throws -> ExecResult
+    ) async {
+        do {
+            let session = try await connectionManager.session(for: host)
+            let result = try await operation(session, availability.sudo)
+            audit(command: label, result: result)
+            let detail = result.stderrText.isEmpty ? result.stdoutText : result.stderrText
+            actionMessage = result.isSuccess
+                ? String(format: L("%@ 成功"), label)
+                : String(format: L("%@ 失败：%@"), label, detail)
+            await loadImages()
+        } catch {
+            actionMessage = String(format: L("%@ 失败：%@"), label, friendly(error))
+        }
     }
 
     // MARK: - 私有
