@@ -92,9 +92,6 @@ struct ServersView: View {
                     if !viewModel.allTags.isEmpty {
                         tagFilter
                     }
-                    if viewModel.isAtFreeLimit {
-                        limitBanner
-                    }
                     cards
                 }
             }
@@ -139,16 +136,6 @@ struct ServersView: View {
                 .connHitTarget()
         }
         .buttonStyle(ConnPressStyle())
-    }
-
-    private var limitBanner: some View {
-        ConnBanner(
-            String(format: L("免费版已用 %d/%d 台主机，升级专业版解锁无限主机"),
-                   viewModel.hosts.count, viewModel.freeHostLimit),
-            systemImage: "info.circle"
-        )
-        .padding(.horizontal, ConnSpacing.page)
-        .padding(.bottom, ConnSpacing.sm)
     }
 
     private var cards: some View {

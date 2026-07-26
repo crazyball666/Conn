@@ -133,7 +133,7 @@ public final class MonitorScheduler {
                 Task.detached(priority: .utility) { try? store.record(sample) }
             }
         } catch {
-            errors[host.id] = Self.friendly(error)
+            errors[host.id] = error.friendlyDiagnosis
             // #1：清掉过期实时指标，主机立即显示离线/未知，而不是一直挂着旧的绿色读数。
             metrics[host.id] = nil
             // #2：驱逐可能已死的会话，下一轮采集重新握手 → 断网后自愈。
@@ -141,11 +141,4 @@ public final class MonitorScheduler {
         }
     }
 
-    private static func friendly(_ error: Error) -> String {
-        if let sshError = error as? SSHError {
-            // 只取诊断首行，卡片上不铺整段
-            return sshError.diagnosis.split(separator: "\n").first.map(String.init) ?? sshError.diagnosis
-        }
-        return error.localizedDescription
-    }
 }

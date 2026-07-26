@@ -69,7 +69,7 @@ final class LogStreamViewModel {
             // 正常停止
         } catch {
             isConnecting = false
-            errorText = friendly(error)
+            errorText = error.friendlyDiagnosis
         }
     }
 
@@ -104,10 +104,4 @@ final class LogStreamViewModel {
         }
     }
 
-    private func friendly(_ error: Error) -> String {
-        if let sshError = error as? SSHError {
-            return sshError.diagnosis.split(separator: "\n").first.map(String.init) ?? sshError.diagnosis
-        }
-        return error.localizedDescription
-    }
 }

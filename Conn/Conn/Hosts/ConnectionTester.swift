@@ -63,8 +63,9 @@ final class ConnectionTester {
         } catch let error as SSHError {
             applyFailure(error)
         } catch {
-            // 非 SSHError 的兜底
-            fail(at: 1, detail: String(format: L("连接失败：%@"), error.localizedDescription))
+            // 非 SSHError 的兜底（如 Citadel 内部错误）：用 friendlyDiagnosis 取最干净的一行
+            // 描述（避免裸暴露 `Citadel.SFTPMessage.Status错误1.` 这类类型名）。
+            fail(at: 1, detail: String(format: L("连接失败：%@"), error.friendlyDiagnosis))
         }
 
         isRunning = false
@@ -85,6 +86,11 @@ final class ConnectionTester {
             passUpTo(2)
             fail(at: 3, detail: error.diagnosis)
         case .jumpChainFailed, .channelClosed:
+            passUpTo(0)
+            fail(at: 1, detail: error.diagnosis)
+        case .sftpError:
+            // SFTP 阶段错误在连接阶段不应出现（连接测试只走 SSH 握手）。
+            // 兜底归到「连接端口」失败。
             passUpTo(0)
             fail(at: 1, detail: error.diagnosis)
         }

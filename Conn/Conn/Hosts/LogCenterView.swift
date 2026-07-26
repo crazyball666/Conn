@@ -46,7 +46,7 @@ final class LogCenterViewModel {
             if let sshError = error as? SSHError {
                 loadState = .failed(sshError.diagnosis.split(separator: "\n").first.map(String.init) ?? L("连接失败"))
             } else {
-                loadState = .failed(error.localizedDescription)
+                loadState = .failed(error.friendlyDiagnosis)
             }
         }
     }

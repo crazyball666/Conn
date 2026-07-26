@@ -4,6 +4,21 @@ import ConnUI
 import SwiftUI
 import UniformTypeIdentifiers
 
+/// 目录选择器请求（移动/复制合用一个 sheet——避免同一视图挂多个 `.sheet(item:)` 冲突）。
+private enum DirectoryPickerRequest: Identifiable {
+    case move(FileEntry)
+    case copy(FileEntry)
+
+    var id: String {
+        switch self {
+        case let .move(entry): "move-\(entry.path)"
+        case let .copy(entry): "copy-\(entry.path)"
+        }
+    }
+
+    var isMove: Bool { if case .move = self { true } else { false } }
+}
+
 /// SFTP 文件浏览（Phase 6）——系统「文件」App 风格：面包屑导航 + 搜索 +
 /// 分组列表（按类型着色图标）+ 操作收进右上角「•••」菜单，逐条操作走长按菜单。
 struct FileBrowserView: View {
@@ -12,6 +27,7 @@ struct FileBrowserView: View {
     @State private var textPrompt: TextPrompt?
     @State private var promptText = ""
     @State private var editorEntry: FileEntry?
+    @State private var directoryPicker: DirectoryPickerRequest?
     @State private var searchText = ""
     @State private var sortField: SortField = .name
     @State private var sortAscending = true
@@ -24,18 +40,22 @@ struct FileBrowserView: View {
         self.viewModel = viewModel
     }
 
-    enum SortField { case name, date, size }
+    enum SortField { case name, date, size, kind }
 
     private enum TextPrompt: Identifiable {
         case mkdir
+        case touchFile
         case rename(FileEntry)
         case chmod(FileEntry)
+        case jumpPath
 
         var id: String {
             switch self {
             case .mkdir: "mkdir"
+            case .touchFile: "touchFile"
             case let .rename(entry): "rename-\(entry.path)"
             case let .chmod(entry): "chmod-\(entry.path)"
+            case .jumpPath: "jumpPath"
             }
         }
     }
@@ -49,6 +69,10 @@ struct FileBrowserView: View {
             content
         }
         .padding(.bottom, ConnSpacing.md)
+        // 撑满可视区，让 loading 蒙层整块覆盖文件列表（否则只盖到内容高度、会跳）。
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .overlay { operationOverlay }
+        .animation(.easeInOut(duration: 0.15), value: viewModel.busyLabel)
         .task { await viewModel.loadIfNeeded() }
         .fileImporter(isPresented: $showUpload, allowedContentTypes: [.item]) { result in
             if case let .success(url) = result {
@@ -58,9 +82,23 @@ struct FileBrowserView: View {
         .navigationDestination(item: $editorEntry) { entry in
             FileEditorView(host: host, dependencies: dependencies, entry: entry)
         }
+        .sheet(item: $directoryPicker) { request in
+            DirectoryPickerView(
+                title: request.isMove ? L("移动到") : L("复制到"),
+                host: host,
+                connectionManager: dependencies.connectionManager,
+                initialPath: viewModel.currentPath
+            ) { destination in
+                switch request { // 弹窗同步交回路径，操作在父视图另起 Task（不随弹窗销毁）
+                case let .move(entry): Task { await viewModel.move(entry, to: destination) }
+                case let .copy(entry): Task { await viewModel.copy(entry, to: destination) }
+                }
+            }
+        }
         .alert(L("删除"), isPresented: deletionBinding, presenting: viewModel.pendingDeletion) { entry in
+            // 直接把 entry 传进去——不能靠 confirmDeletion 里读 pendingDeletion（alert 关闭已清空）。
             Button(String(format: L("删除 %@"), entry.name), role: .destructive) {
-                Task { await viewModel.confirmDeletion() }
+                Task { await viewModel.delete(entry) }
             }
             Button(L("取消"), role: .cancel) { viewModel.pendingDeletion = nil }
         } message: { entry in
@@ -107,8 +145,8 @@ struct FileBrowserView: View {
                 if !crumb.isCurrent { Task { await viewModel.load(path: crumb.path) } }
             } label: {
                 crumb.isRoot
-                    ? AnyView(Image(systemName: "externaldrive").font(.system(size: 13)))
-                    : AnyView(Text(crumb.label).font(.connData(.footnote)))
+                    ? AnyView(Image(systemName: "externaldrive").font(.system(size: 15)))
+                    : AnyView(Text(crumb.label).font(.connData(.subheadline)))
             }
             .buttonStyle(.plain)
             .foregroundStyle(crumb.isCurrent ? Color.connInk : .connAccent)
@@ -121,14 +159,21 @@ struct FileBrowserView: View {
     private var menuContent: some View {
         Button { showUpload = true } label: { Label(L("上传文件"), systemImage: "square.and.arrow.up") }
         Button { promptText = ""; textPrompt = .mkdir } label: { Label(L("新建文件夹"), systemImage: "folder.badge.plus") }
+        Button { promptText = ""; textPrompt = .touchFile } label: { Label(L("新建文件"), systemImage: "doc.badge.plus") }
         Divider()
         Menu {
             sortMenuButton(.name, L("名称"))
             sortMenuButton(.date, L("修改日期"))
             sortMenuButton(.size, L("大小"))
+            sortMenuButton(.kind, L("类型"))
         } label: { Label(L("排序方式"), systemImage: "arrow.up.arrow.down") }
         Toggle(isOn: Binding(get: { viewModel.showHidden }, set: { viewModel.showHidden = $0 })) {
             Label(L("显示隐藏文件"), systemImage: "eye.slash")
+        }
+        Divider()
+        Button { viewModel.copyCurrentPath() } label: { Label(L("复制当前目录路径"), systemImage: "doc.on.clipboard") }
+        Button { promptText = viewModel.currentPath; textPrompt = .jumpPath } label: {
+            Label(L("跳转指定目录"), systemImage: "arrow.right.circle")
         }
         Divider()
         Button { Task { await viewModel.refresh() } } label: { Label(L("刷新"), systemImage: "arrow.clockwise") }
@@ -280,6 +325,14 @@ struct FileBrowserView: View {
         Button { promptText = entry.octalPermissions ?? "644"; textPrompt = .chmod(entry) } label: {
             Label(L("修改权限"), systemImage: "lock")
         }
+        if entry.isDirectory {
+            Button { Task { await viewModel.compress(entry) } } label: {
+                Label(L("压缩"), systemImage: "archivebox")
+            }
+        }
+        Divider()
+        Button { directoryPicker = .move(entry) } label: { Label(L("移动"), systemImage: "arrow.right.square") }
+        Button { directoryPicker = .copy(entry) } label: { Label(L("复制"), systemImage: "doc.on.doc") }
         Divider()
         Button(role: .destructive) { viewModel.pendingDeletion = entry } label: {
             Label(L("删除"), systemImage: "trash")
@@ -290,7 +343,26 @@ struct FileBrowserView: View {
 // MARK: - 派生 / 辅助
 
 private extension FileBrowserView {
-    /// 过滤（隐藏项 + 搜索）+ 排序（目录优先，再按字段）后的条目。
+    /// 文件操作进行中的 loading 蒙层：透明浮层（列表仍可见、仅拦截交互）+ 居中卡片（转圈 + 提示）。
+    @ViewBuilder
+    var operationOverlay: some View {
+        if let label = viewModel.busyLabel {
+            ZStack {
+                Color.black.opacity(0.06) // 极淡遮罩：拦截交互、暗示忙碌，底下列表仍清晰可见
+                VStack(spacing: ConnSpacing.sm) {
+                    ProgressView().controlSize(.large).tint(.connAccent)
+                    Text(String(format: L("%@中…"), label))
+                        .font(.connFootnote).foregroundStyle(.connMuted)
+                }
+                .padding(ConnSpacing.xl)
+                .connSurface(cornerRadius: ConnRadius.card)
+                .shadow(color: .black.opacity(0.18), radius: 14, y: 5)
+            }
+            .transition(.opacity)
+        }
+    }
+
+    /// 过滤（隐藏项 + 搜索）+ 排序（目录优先，再按字段；`kind` 排序也走 `sortAscending` 翻转）后的条目。
     var displayedEntries: [FileEntry] {
         var list = viewModel.showHidden ? viewModel.entries : viewModel.entries.filter { !$0.isHidden }
         let query = searchText.trimmingCharacters(in: .whitespaces).lowercased()
@@ -302,6 +374,7 @@ private extension FileBrowserView {
             case .name: ascending = lhs.name.localizedStandardCompare(rhs.name) == .orderedAscending
             case .date: ascending = (lhs.modifiedAt ?? .distantPast) < (rhs.modifiedAt ?? .distantPast)
             case .size: ascending = lhs.size < rhs.size
+            case .kind: ascending = lhs.kind < rhs.kind // FileKind 枚举序：directory<file<symlink<other
             }
             return sortAscending ? ascending : !ascending
         }
@@ -340,7 +413,7 @@ private extension FileBrowserView {
             ("gearshape", ["conf", "cnf", "ini", "cfg", "toml", "yaml", "yml", "env", "properties"]),
             ("curlybraces", ["json", "xml", "plist"]),
             ("doc.text", ["md", "markdown", "txt", "text", "rst"]),
-            ("chevron.left.forward.slash.chevron.right",
+            ("chevron.left.forwardslash.chevron.right",
              ["js", "ts", "py", "go", "rb", "php", "c", "cpp", "h", "swift", "rs", "java", "sql"]),
             ("cylinder.split.1x2", ["db", "sqlite", "sqlite3"]),
             ("doc.richtext", ["pdf"]),
@@ -386,8 +459,10 @@ private extension FileBrowserView {
         textPrompt = nil
         switch prompt {
         case .mkdir: Task { await viewModel.createDirectory(named: promptText) }
+        case .touchFile: Task { await viewModel.createFile(named: promptText) }
         case let .rename(entry): Task { await viewModel.rename(entry, to: promptText) }
         case let .chmod(entry): Task { await viewModel.chmod(entry, octal: promptText) }
+        case .jumpPath: Task { await viewModel.jumpTo(path: promptText) }
         case nil: break
         }
     }
@@ -395,8 +470,10 @@ private extension FileBrowserView {
     var promptTitle: String {
         switch textPrompt {
         case .mkdir: L("新建文件夹")
+        case .touchFile: L("新建文件")
         case .rename: L("重命名")
         case .chmod: L("修改权限（八进制）")
+        case .jumpPath: L("跳转指定目录")
         case nil: ""
         }
     }
@@ -404,6 +481,7 @@ private extension FileBrowserView {
     var promptPlaceholder: String {
         switch textPrompt {
         case .chmod: L("如 644")
+        case .jumpPath: L("绝对路径，如 /var/log")
         default: L("名称")
         }
     }

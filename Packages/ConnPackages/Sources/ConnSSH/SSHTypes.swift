@@ -140,8 +140,18 @@ public enum SSHError: Error, Sendable, Equatable {
     /// 跳板链在第 `hopIndex`（从 0 起）级失败，该级主机名为 `hopHost`。
     case jumpChainFailed(hopIndex: Int, hopHost: String)
     case channelClosed
+    /// SFTP 子层错误：来自 Citadel 的 `SFTPMessage.Status`。
+    ///
+    /// `code` 是 SFTP 协议错误码（来自 `SFTPStatusCode.rawValue`），`message` 是**服务器
+    /// 返回的原始消息**（英文，如 "No such file or directory"）——直接展示给用户，
+    /// 不做翻译：i18n 的边界是 Conn 的产品文案，服务器消息是远端事实，由服务器自己负责语言。
+    /// `CitadelFileSystem` 负责把 Citadel 类型包成这个 case（避免上层看到 Citadel）。
+    case sftpError(code: UInt32, message: String)
 
     /// 面向用户的诊断：原因 + 下一步。按当前语言本地化（含 `%@`/`%d` 占位）。
+    ///
+    /// 对 `.sftpError` 而言，**直接返回 server message**——服务器返回的消息按它自己的
+    /// 语言展示，不在客户端做无谓翻译。
     public var diagnosis: String {
         switch self {
         case let .connectionRefused(endpoint):
@@ -176,6 +186,25 @@ public enum SSHError: Error, Sendable, Equatable {
                    hopIndex + 1, hopHost)
         case .channelClosed:
             L("连接通道已关闭。\n下一步：下拉重连，或检查服务器端会话是否被终止。")
+        case let .sftpError(_, message):
+            // 服务器消息按它自己的语言展示，不在客户端做翻译（边界划分）。
+            message
         }
+    }
+}
+
+/// 把任意 `Error` 翻译成给用户看的一行诊断文案。
+///
+/// - 优先用 `SSHError.diagnosis`（已是业务层友好文案，含本地化）
+/// - 其它错误降级到 `localizedDescription`（系统/三方库错误，依赖它们自己提供的描述）
+///
+/// **ViewModel 统一用这个**，不要直接 `error.localizedDescription`——否则会裸暴露
+/// Citadel 内部类型名（如 `Citadel.SFTPMessage.Status错误1.`）。
+public extension Error {
+    var friendlyDiagnosis: String {
+        if let sshError = self as? SSHError {
+            return sshError.diagnosis.split(separator: "\n").first.map(String.init) ?? sshError.diagnosis
+        }
+        return localizedDescription
     }
 }

@@ -49,6 +49,10 @@ struct TerminalScreen: View {
         }
         .navigationTitle(host.name)
         .navigationBarTitleDisplayMode(.inline)
+        // 终端背景是 connTermBg（深色），nav bar 透明露出底色，强制 dark scheme 让
+        // 标题/返回箭头按深色模式渲染（浅色字），否则会出现「黑字黑底看不见」。
+        .toolbarBackground(.hidden, for: .navigationBar)
+        .toolbarColorScheme(.dark, for: .navigationBar)
         .task { await connect() }
     }
 
@@ -89,7 +93,7 @@ struct TerminalScreen: View {
         } catch let error as SSHError {
             phase = .failed(error.diagnosis)
         } catch {
-            phase = .failed(String(format: L("连接失败：%@"), error.localizedDescription))
+            phase = .failed(String(format: L("连接失败：%@"), error.friendlyDiagnosis))
         }
     }
 }

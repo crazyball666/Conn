@@ -66,7 +66,7 @@ final class DockerViewModel {
             containers = try await DockerService.list(on: session, sudo: probe.sudo)
             loadState = .ready
         } catch {
-            loadState = .failed(friendly(error))
+            loadState = .failed(error.friendlyDiagnosis)
         }
     }
 
@@ -78,7 +78,7 @@ final class DockerViewModel {
             let session = try await connectionManager.session(for: host)
             containers = try await DockerService.list(on: session, sudo: availability.sudo)
         } catch {
-            actionMessage = String(format: L("%@ 失败：%@"), L("刷新"), friendly(error))
+            actionMessage = String(format: L("%@ 失败：%@"), L("刷新"), error.friendlyDiagnosis)
         }
     }
 
@@ -95,7 +95,7 @@ final class DockerViewModel {
                 : String(format: L("%@ %@ 失败：%@"), action.label, container.name, detail)
             await refreshContainers()
         } catch {
-            actionMessage = String(format: L("%@ 失败：%@"), action.label, friendly(error))
+            actionMessage = String(format: L("%@ 失败：%@"), action.label, error.friendlyDiagnosis)
         }
     }
 
@@ -139,7 +139,7 @@ final class DockerViewModel {
             images = try await DockerService.listImages(on: session, sudo: availability.sudo)
             imagesError = nil
         } catch {
-            imagesError = friendly(error)
+            imagesError = error.friendlyDiagnosis
         }
         imagesLoaded = true
     }
@@ -179,7 +179,7 @@ final class DockerViewModel {
                 : String(format: L("%@ 失败：%@"), label, detail)
             await loadImages()
         } catch {
-            actionMessage = String(format: L("%@ 失败：%@"), label, friendly(error))
+            actionMessage = String(format: L("%@ 失败：%@"), label, error.friendlyDiagnosis)
         }
     }
 
@@ -194,10 +194,4 @@ final class DockerViewModel {
         ))
     }
 
-    private func friendly(_ error: Error) -> String {
-        if let sshError = error as? SSHError {
-            return sshError.diagnosis.split(separator: "\n").first.map(String.init) ?? sshError.diagnosis
-        }
-        return error.localizedDescription
-    }
 }

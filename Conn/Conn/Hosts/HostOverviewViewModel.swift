@@ -142,7 +142,7 @@ final class HostOverviewViewModel {
                 ? String(format: L("已向 %@（PID %d）发送结束信号"), process.command, process.pid)
                 : String(format: L("结束 %@ 失败：%@"), process.command, result.stderrText)
         } catch {
-            return String(format: L("结束进程失败：%@"), error.localizedDescription)
+            return String(format: L("结束进程失败：%@"), error.friendlyDiagnosis)
         }
     }
 }

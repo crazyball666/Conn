@@ -58,7 +58,7 @@ extension FileBrowserViewModel {
             try FileManager.default.moveItem(at: partial, to: destination)
             downloadedURL = destination
         } catch {
-            actionMessage = String(format: L("下载失败：%@（已保留断点，重试可续传）"), friendly(error))
+            actionMessage = String(format: L("下载失败：%@（已保留断点，重试可续传）"), error.friendlyDiagnosis)
         }
     }
 
@@ -99,7 +99,7 @@ extension FileBrowserViewModel {
             }
             await load()
         } catch {
-            actionMessage = String(format: L("上传失败：%@"), friendly(error))
+            actionMessage = String(format: L("上传失败：%@"), error.friendlyDiagnosis)
         }
     }
 

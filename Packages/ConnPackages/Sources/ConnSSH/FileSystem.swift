@@ -1,7 +1,10 @@
 import Foundation
 
 /// 远端文件类型。
-public enum FileKind: Sendable, Equatable {
+///
+/// `Comparable` 顺序：directory < file < symlink < other——文件管理器按「类型」
+/// 排序时把目录集中到一段，便于一眼看结构（ViewModel 排序会再叠加「目录永远在前」）。
+public enum FileKind: Sendable, Equatable, Comparable {
     case directory, file, symlink, other
 }
 

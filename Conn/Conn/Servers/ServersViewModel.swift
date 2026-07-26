@@ -1,5 +1,6 @@
 import ConnKit
 import ConnMonitor
+import ConnSSH
 import ConnUI
 import Foundation
 import Observation
@@ -24,9 +25,6 @@ final class ServersViewModel {
     /// 采集调度。View 在 appear/disappear 控制生命周期。
     let monitor: MonitorScheduler
 
-    /// 免费版主机上限。Phase 10 接入 ConnEntitlement.Gate 前先硬编码。
-    let freeHostLimit = 3
-
     init(hostStore: any HostRepository, monitor: MonitorScheduler) {
         self.hostStore = hostStore
         self.monitor = monitor
@@ -50,7 +48,7 @@ final class ServersViewModel {
             hosts = try hostStore.allHosts()
             errorMessage = nil
         } catch {
-            errorMessage = String(format: L("读取主机失败：%@"), error.localizedDescription)
+            errorMessage = String(format: L("读取主机失败：%@"), error.friendlyDiagnosis)
             hosts = []
         }
     }
@@ -88,9 +86,6 @@ final class ServersViewModel {
         let mapped: [HealthCard.Model] = hosts.map { card(for: $0) }
         return mapped.count { $0.status == .crit || $0.status == .warn || $0.status == .offline }
     }
-
-    /// 是否已达免费版上限（超出时新增触发 Paywall——Phase 10 接）。
-    var isAtFreeLimit: Bool { hosts.count >= freeHostLimit }
 
     var lastScanText: String {
         guard let lastScanAt = monitor.lastScanAt else { return L("尚未巡检") }

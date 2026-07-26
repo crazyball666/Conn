@@ -52,7 +52,7 @@ final class FileEditorViewModel {
             content = text
             loadState = .editing
         } catch {
-            loadState = .failed(friendly(error))
+            loadState = .failed(error.friendlyDiagnosis)
         }
     }
 
@@ -73,7 +73,7 @@ final class FileEditorViewModel {
             saveMessage = L("已保存")
         } catch {
             cachedFileSystem = nil // 出错丢弃可能已死的通道
-            saveMessage = String(format: L("保存失败：%@"), friendly(error))
+            saveMessage = String(format: L("保存失败：%@"), error.friendlyDiagnosis)
         }
     }
 
@@ -84,12 +84,6 @@ final class FileEditorViewModel {
         return opened
     }
 
-    private func friendly(_ error: Error) -> String {
-        if let sshError = error as? SSHError {
-            return sshError.diagnosis.split(separator: "\n").first.map(String.init) ?? sshError.diagnosis
-        }
-        return error.localizedDescription
-    }
 }
 
 /// 文本文件编辑器（Phase 6）。行号 + 语法高亮（Highlightr），主题跟随设置页。
