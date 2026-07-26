@@ -12,7 +12,9 @@ struct CodeEditorCatalogTests {
         #expect(CodeEditorCatalog.language(forFileName: "data.json") == "json")
         #expect(CodeEditorCatalog.language(forFileName: "Dockerfile") == "dockerfile")
         #expect(CodeEditorCatalog.language(forFileName: "Makefile") == "makefile")
-        #expect(CodeEditorCatalog.language(forFileName: "/etc/hosts") == nil) // 无扩展、非特例
+        #expect(CodeEditorCatalog.language(forFileName: "pass.txt") == "plaintext")
+        #expect(CodeEditorCatalog.language(forFileName: "/etc/hosts") == "plaintext")
+        #expect(CodeEditorCatalog.language(forFileName: "README.unknown") == "plaintext")
     }
 
     @Test("主题目录含默认项且可回退")

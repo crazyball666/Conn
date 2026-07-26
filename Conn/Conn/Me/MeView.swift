@@ -37,12 +37,15 @@ struct MeView: View {
             }
 
             Section(L("编辑器")) {
-                Picker(selection: $settings.codeTheme) {
-                    ForEach(CodeEditorCatalog.themes) { theme in
-                        Text(theme.displayName).tag(theme.id)
-                    }
+                NavigationLink {
+                    CodeEditorSettingsView()
                 } label: {
-                    Label(L("代码主题"), systemImage: "curlybraces")
+                    Label(L("编辑器设置"), systemImage: "curlybraces")
+                }
+                NavigationLink {
+                    TerminalSettingsView()
+                } label: {
+                    Label(L("终端设置"), systemImage: "terminal")
                 }
             }
 

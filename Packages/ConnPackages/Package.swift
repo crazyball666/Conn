@@ -29,7 +29,7 @@ let package = Package(
         .package(url: "https://github.com/orlandos-nl/Citadel.git", from: "0.12.1"),
         // 终端模拟（S2）。必须 ≥1.8.0：iOS 中文输入由 PR #409 修复，更早版本
         // iOS 上无法输入中文。自写 UIViewRepresentable（库内 wrapper 是 DEBUG-only）。
-        .package(url: "https://github.com/migueldeicaza/SwiftTerm.git", from: "1.14.0"),
+        .package(url: "https://github.com/migueldeicaza/SwiftTerm.git", from: "1.15.0"),
         // 代码高亮（文件编辑器）。封装 highlight.js（JavaScriptCore 内运行，全离线、
         // 不联网、无遥测），180+ 语言 + ~40 主题。仅 ConnEditor target 引入。
         .package(url: "https://github.com/raspu/Highlightr.git", from: "2.2.0"),

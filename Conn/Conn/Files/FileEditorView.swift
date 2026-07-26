@@ -127,7 +127,7 @@ struct FileEditorView: View {
             CodeEditor(
                 text: $viewModel.content,
                 language: CodeEditorCatalog.language(forFileName: viewModel.entry.name),
-                theme: settings.codeTheme
+                configuration: settings.codeEditorConfiguration
             )
             .ignoresSafeArea(.container, edges: .bottom)
         case let .readOnly(message):

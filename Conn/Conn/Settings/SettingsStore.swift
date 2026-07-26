@@ -1,4 +1,5 @@
 import ConnEditor
+import ConnTerminal
 import ConnUI
 import Observation
 import SwiftUI
@@ -70,41 +71,146 @@ enum RefreshInterval: Int, CaseIterable, Identifiable {
 @Observable
 @MainActor
 final class SettingsStore {
+    private let defaults: UserDefaults
+
     var appearance: AppAppearance {
-        didSet { UserDefaults.standard.set(appearance.rawValue, forKey: Key.appearance) }
+        didSet { defaults.set(appearance.rawValue, forKey: Key.appearance) }
     }
 
     var accent: AppAccent {
         didSet {
-            UserDefaults.standard.set(accent.rawValue, forKey: Key.accent)
+            defaults.set(accent.rawValue, forKey: Key.accent)
             applyAccent()
         }
     }
 
     var refreshInterval: RefreshInterval {
-        didSet { UserDefaults.standard.set(refreshInterval.rawValue, forKey: Key.refresh) }
+        didSet { defaults.set(refreshInterval.rawValue, forKey: Key.refresh) }
     }
 
     /// Docker 容器/镜像数据的刷新间隔（详情页 Docker 段自动刷新）。
     var dockerRefreshInterval: RefreshInterval {
-        didSet { UserDefaults.standard.set(dockerRefreshInterval.rawValue, forKey: Key.dockerRefresh) }
+        didSet { defaults.set(dockerRefreshInterval.rawValue, forKey: Key.dockerRefresh) }
     }
 
     /// 代码编辑器主题（highlight.js 主题 id）。
     var codeTheme: String {
-        didSet { UserDefaults.standard.set(codeTheme, forKey: Key.codeTheme) }
+        didSet { defaults.set(codeTheme, forKey: Key.codeTheme) }
     }
 
-    init() {
-        let defaults = UserDefaults.standard
+    var codeFontSize: Double {
+        didSet { defaults.set(codeFontSize, forKey: Key.codeFontSize) }
+    }
+
+    var codeShowsLineNumbers: Bool {
+        didSet { defaults.set(codeShowsLineNumbers, forKey: Key.codeShowsLineNumbers) }
+    }
+
+    var codeLineWrapping: Bool {
+        didSet { defaults.set(codeLineWrapping, forKey: Key.codeLineWrapping) }
+    }
+
+    var codeTabWidth: Int {
+        didSet { defaults.set(codeTabWidth, forKey: Key.codeTabWidth) }
+    }
+
+    var codeIndentStyle: CodeIndentStyle {
+        didSet { defaults.set(codeIndentStyle.rawValue, forKey: Key.codeIndentStyle) }
+    }
+
+    var terminalThemeID: String {
+        didSet { defaults.set(terminalThemeID, forKey: Key.terminalTheme) }
+    }
+
+    var terminalFontSize: Double {
+        didSet { defaults.set(terminalFontSize, forKey: Key.terminalFontSize) }
+    }
+
+    var terminalScrollback: Int {
+        didSet { defaults.set(terminalScrollback, forKey: Key.terminalScrollback) }
+    }
+
+    var terminalCursorShape: TerminalCursorShape {
+        didSet { defaults.set(terminalCursorShape.rawValue, forKey: Key.terminalCursorShape) }
+    }
+
+    var terminalCursorBlinking: Bool {
+        didSet { defaults.set(terminalCursorBlinking, forKey: Key.terminalCursorBlinking) }
+    }
+
+    var terminalKeybarEnabled: Bool {
+        didSet { defaults.set(terminalKeybarEnabled, forKey: Key.terminalKeybarEnabled) }
+    }
+
+    init(defaults: UserDefaults = .standard) {
+        self.defaults = defaults
         appearance = AppAppearance(rawValue: defaults.string(forKey: Key.appearance) ?? "") ?? .system
         accent = AppAccent(rawValue: defaults.string(forKey: Key.accent) ?? "") ?? .brand
         let storedInterval = defaults.object(forKey: Key.refresh) as? Int ?? RefreshInterval.normal.rawValue
         refreshInterval = RefreshInterval(rawValue: storedInterval) ?? .normal
         let storedDocker = defaults.object(forKey: Key.dockerRefresh) as? Int ?? RefreshInterval.normal.rawValue
         dockerRefreshInterval = RefreshInterval(rawValue: storedDocker) ?? .normal
-        codeTheme = defaults.string(forKey: Key.codeTheme) ?? CodeEditorCatalog.defaultThemeID
+        codeTheme = CodeEditorCatalog.theme(
+            id: defaults.string(forKey: Key.codeTheme) ?? CodeEditorCatalog.defaultThemeID
+        ).id
+        let storedCodeFontSize = defaults.object(forKey: Key.codeFontSize) == nil
+            ? 13
+            : defaults.double(forKey: Key.codeFontSize)
+        codeFontSize = (10 ... 24).contains(storedCodeFontSize) ? storedCodeFontSize : 13
+        codeShowsLineNumbers = defaults.object(forKey: Key.codeShowsLineNumbers) == nil
+            ? true
+            : defaults.bool(forKey: Key.codeShowsLineNumbers)
+        codeLineWrapping = defaults.object(forKey: Key.codeLineWrapping) == nil
+            ? true
+            : defaults.bool(forKey: Key.codeLineWrapping)
+        let storedCodeTabWidth = defaults.object(forKey: Key.codeTabWidth) == nil
+            ? 4
+            : defaults.integer(forKey: Key.codeTabWidth)
+        codeTabWidth = [2, 4, 8].contains(storedCodeTabWidth) ? storedCodeTabWidth : 4
+        codeIndentStyle = CodeIndentStyle(
+            rawValue: defaults.string(forKey: Key.codeIndentStyle) ?? ""
+        ) ?? .spaces
+        terminalThemeID = TerminalTheme.theme(
+            id: defaults.string(forKey: Key.terminalTheme) ?? TerminalTheme.conn.id
+        ).id
+        terminalFontSize = defaults.object(forKey: Key.terminalFontSize) == nil
+            ? 12
+            : defaults.double(forKey: Key.terminalFontSize)
+        terminalScrollback = defaults.object(forKey: Key.terminalScrollback) == nil
+            ? 500
+            : defaults.integer(forKey: Key.terminalScrollback)
+        terminalCursorShape = TerminalCursorShape(
+            rawValue: defaults.string(forKey: Key.terminalCursorShape) ?? ""
+        ) ?? .block
+        terminalCursorBlinking = defaults.object(forKey: Key.terminalCursorBlinking) == nil
+            ? true
+            : defaults.bool(forKey: Key.terminalCursorBlinking)
+        terminalKeybarEnabled = defaults.object(forKey: Key.terminalKeybarEnabled) == nil
+            ? true
+            : defaults.bool(forKey: Key.terminalKeybarEnabled)
         applyAccent()
+    }
+
+    var terminalConfiguration: TerminalConfiguration {
+        TerminalConfiguration(
+            theme: TerminalTheme.theme(id: terminalThemeID),
+            fontSize: terminalFontSize,
+            scrollback: terminalScrollback,
+            cursorShape: terminalCursorShape,
+            cursorBlinking: terminalCursorBlinking,
+            showsKeybar: terminalKeybarEnabled
+        )
+    }
+
+    var codeEditorConfiguration: CodeEditorConfiguration {
+        CodeEditorConfiguration(
+            theme: codeTheme,
+            fontSize: codeFontSize,
+            showsLineNumbers: codeShowsLineNumbers,
+            wrapsLines: codeLineWrapping,
+            tabWidth: codeTabWidth,
+            indentStyle: codeIndentStyle
+        )
     }
 
     /// 把当前主题色写入 `ConnTheme`（brand = 恢复设计令牌默认）。
@@ -122,5 +228,16 @@ final class SettingsStore {
         static let refresh = "conn.settings.refreshInterval"
         static let dockerRefresh = "conn.settings.dockerRefreshInterval"
         static let codeTheme = "conn.settings.codeTheme"
+        static let codeFontSize = "conn.settings.codeFontSize"
+        static let codeShowsLineNumbers = "conn.settings.codeShowsLineNumbers"
+        static let codeLineWrapping = "conn.settings.codeLineWrapping"
+        static let codeTabWidth = "conn.settings.codeTabWidth"
+        static let codeIndentStyle = "conn.settings.codeIndentStyle"
+        static let terminalTheme = "conn.settings.terminalTheme"
+        static let terminalFontSize = "conn.settings.terminalFontSize"
+        static let terminalScrollback = "conn.settings.terminalScrollback"
+        static let terminalCursorShape = "conn.settings.terminalCursorShape"
+        static let terminalCursorBlinking = "conn.settings.terminalCursorBlinking"
+        static let terminalKeybarEnabled = "conn.settings.terminalKeybarEnabled"
     }
 }

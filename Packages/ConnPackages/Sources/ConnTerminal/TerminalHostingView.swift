@@ -1,5 +1,6 @@
 #if canImport(UIKit)
     import ConnSSH
+    import ConnUI
     import SwiftTerm
     import SwiftUI
     import UIKit
@@ -14,18 +15,22 @@
     /// - 加速键条挂在 `inputAccessoryView`
     public struct TerminalHostingView: UIViewRepresentable {
         private let session: TerminalSession
-        private let theme: TerminalTheme
+        private let configuration: TerminalConfiguration
 
-        public init(session: TerminalSession, theme: TerminalTheme = .conn) {
+        public init(session: TerminalSession, configuration: TerminalConfiguration = .init()) {
             self.session = session
-            self.theme = theme
+            self.configuration = configuration
         }
 
         public func makeUIView(context: Context) -> KeybarTerminalView {
             let terminalView = KeybarTerminalView(frame: .zero)
             terminalView.terminalDelegate = context.coordinator
-            terminalView.installKeybar(coordinator: context.coordinator)
-            applyTheme(to: terminalView)
+            terminalView.configureKeybar(
+                enabled: configuration.showsKeybar,
+                coordinator: context.coordinator
+            )
+            applyConfiguration(to: terminalView)
+            terminalView.configureContentPadding(horizontal: ConnSpacing.sm)
 
             let coordinator = context.coordinator
             coordinator.terminalView = terminalView
@@ -40,24 +45,59 @@
         }
 
         public func updateUIView(_ terminalView: KeybarTerminalView, context: Context) {
-            applyTheme(to: terminalView)
+            terminalView.configureKeybar(
+                enabled: configuration.showsKeybar,
+                coordinator: context.coordinator
+            )
+            applyConfiguration(to: terminalView)
+            terminalView.configureContentPadding(horizontal: ConnSpacing.sm)
         }
 
         public func makeCoordinator() -> Coordinator {
             Coordinator(session: session)
         }
 
-        private func applyTheme(to terminalView: TerminalView) {
+        private func applyConfiguration(to terminalView: KeybarTerminalView) {
+            let fontSize = CGFloat(configuration.fontSize)
+            if abs(terminalView.font.pointSize - fontSize) > 0.01 {
+                terminalView.font = .monospacedSystemFont(ofSize: fontSize, weight: .regular)
+            }
+
             let terminal = terminalView.getTerminal()
+            if terminal.options.scrollback != configuration.scrollback {
+                terminalView.changeScrollback(configuration.scrollback)
+            }
+
+            let cursorStyle = swiftTermCursorStyle
+            if terminalView.configuredCursorShape != configuration.cursorShape
+                || terminalView.configuredCursorBlinking != configuration.cursorBlinking {
+                terminal.options.cursorStyle = cursorStyle
+                terminalView.cursorStyleChanged(source: terminal, newStyle: cursorStyle)
+                terminalView.configuredCursorShape = configuration.cursorShape
+                terminalView.configuredCursorBlinking = configuration.cursorBlinking
+            }
+
             func color(_ rgb: TerminalTheme.RGB) -> SwiftTerm.Color {
                 // 主题数据转 SwiftTerm 调色板类型——数据转换，非 UI 样式硬编码。
                 // swiftlint:disable:next no_hardcoded_hex
                 SwiftTerm.Color(red: UInt16(rgb.r) * 257, green: UInt16(rgb.g) * 257, blue: UInt16(rgb.b) * 257)
             }
+            let theme = configuration.theme
             terminal.installPalette(colors: theme.ansi.map(color))
             terminalView.nativeBackgroundColor = uiColor(theme.background)
             terminalView.nativeForegroundColor = uiColor(theme.foreground)
             terminalView.caretColor = uiColor(theme.cursor)
+        }
+
+        private var swiftTermCursorStyle: SwiftTerm.CursorStyle {
+            switch (configuration.cursorShape, configuration.cursorBlinking) {
+            case (.block, true): .blinkBlock
+            case (.block, false): .steadyBlock
+            case (.bar, true): .blinkBar
+            case (.bar, false): .steadyBar
+            case (.underline, true): .blinkUnderline
+            case (.underline, false): .steadyUnderline
+            }
         }
 
         private func uiColor(_ rgb: TerminalTheme.RGB) -> UIColor {
@@ -126,6 +166,50 @@
     /// 挂上键条即可（无需覆盖）。
     public final class KeybarTerminalView: TerminalView {
         private weak var coordinator: TerminalHostingView.Coordinator?
+        private var isKeybarEnabled = false
+        private var horizontalContentPadding: CGFloat = 0
+        fileprivate var configuredCursorShape: TerminalCursorShape?
+        fileprivate var configuredCursorBlinking: Bool?
+
+        /// SwiftTerm 将选择浮标画在文字坐标边缘。终端自身全宽、文字内容内移后，
+        /// 浮标仍处于控件可绘制范围内，不会被左右边界裁切。
+        func configureContentPadding(horizontal padding: CGFloat) {
+            let padding = max(0, padding)
+            horizontalContentPadding = padding
+            contentInset = UIEdgeInsets(
+                top: contentInset.top,
+                left: padding,
+                bottom: contentInset.bottom,
+                right: padding
+            )
+            verticalScrollIndicatorInsets = UIEdgeInsets(
+                top: verticalScrollIndicatorInsets.top,
+                left: padding,
+                bottom: verticalScrollIndicatorInsets.bottom,
+                right: padding
+            )
+            horizontalScrollIndicatorInsets = UIEdgeInsets(
+                top: horizontalScrollIndicatorInsets.top,
+                left: padding,
+                bottom: horizontalScrollIndicatorInsets.bottom,
+                right: padding
+            )
+            applyContentLayout()
+        }
+
+        override public func layoutSubviews() {
+            super.layoutSubviews()
+            applyContentLayout()
+        }
+
+        override public var contentOffset: CGPoint {
+            didSet {
+                guard horizontalContentPadding > 0 else { return }
+                let targetX = -horizontalContentPadding
+                guard abs(contentOffset.x - targetX) > 0.01 else { return }
+                super.contentOffset = CGPoint(x: targetX, y: contentOffset.y)
+            }
+        }
 
         /// 进入窗口后自动聚焦，弹出软键盘与加速键条（无需用户先点一下）。
         override public func didMoveToWindow() {
@@ -137,17 +221,51 @@
             }
         }
 
-        func installKeybar(coordinator: TerminalHostingView.Coordinator) {
+        private func applyContentLayout() {
+            let usableWidth = bounds.width - horizontalContentPadding * 2
+            let terminal = getTerminal()
+            guard horizontalContentPadding > 0,
+                  usableWidth > 0,
+                  terminal.cols > 0 else {
+                return
+            }
+
+            let cellWidth = getOptimalFrameSize().width / CGFloat(terminal.cols)
+            guard cellWidth > 0 else { return }
+
+            let targetColumns = max(1, Int(usableWidth / cellWidth))
+            if targetColumns != terminal.cols {
+                resize(cols: targetColumns, rows: terminal.rows)
+            }
+
+            let targetX = -horizontalContentPadding
+            if abs(contentOffset.x - targetX) > 0.01 {
+                contentOffset = CGPoint(x: targetX, y: contentOffset.y)
+            }
+        }
+
+        func configureKeybar(enabled: Bool, coordinator: TerminalHostingView.Coordinator) {
+            let needsRebuild = self.coordinator !== coordinator
+                || isKeybarEnabled != enabled
+                || (enabled && inputAccessoryView == nil)
             self.coordinator = coordinator
-            rebuildKeybar()
+            isKeybarEnabled = enabled
+            if needsRebuild {
+                rebuildKeybar()
+            }
         }
 
         func refreshKeybar() {
+            guard isKeybarEnabled else { return }
             rebuildKeybar()
         }
 
         private func rebuildKeybar() {
-            guard let coordinator else { return }
+            guard isKeybarEnabled, let coordinator else {
+                inputAccessoryView = nil
+                reloadInputViews()
+                return
+            }
             let keybar = TerminalKeybar(ctrlActive: coordinator.ctrlActive) { [weak coordinator] key in
                 coordinator?.handleKey(key)
             }

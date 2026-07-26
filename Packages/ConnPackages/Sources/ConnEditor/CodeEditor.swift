@@ -5,27 +5,24 @@ import UIKit
 
 /// 语法高亮 + 行号的代码编辑器（UITextView + Highlightr，TextKit 1）。
 ///
-/// 主题 / 语言 / 是否可编辑由外部传入；文本双向绑定。行号 gutter 由
+/// 显示与输入偏好由 `CodeEditorConfiguration` 统一传入；文本双向绑定。行号 gutter 由
 /// `GutterTextView` 自绘，随内容滚动；高亮由 `CodeAttributedString` 实时完成。
 public struct CodeEditor: UIViewRepresentable {
     @Binding private var text: String
     private let language: String?
-    private let theme: String
+    private let configuration: CodeEditorConfiguration
     private let isEditable: Bool
-    private let fontSize: CGFloat
 
     public init(
         text: Binding<String>,
         language: String?,
-        theme: String,
-        isEditable: Bool = true,
-        fontSize: CGFloat = 13
+        configuration: CodeEditorConfiguration = .init(),
+        isEditable: Bool = true
     ) {
         _text = text
         self.language = language
-        self.theme = theme
+        self.configuration = configuration
         self.isEditable = isEditable
-        self.fontSize = fontSize
     }
 
     public func makeUIView(context: Context) -> GutterTextView {
@@ -39,6 +36,8 @@ public struct CodeEditor: UIViewRepresentable {
 
         let textView = GutterTextView(frame: .zero, textContainer: container)
         textView.codeStorage = storage
+        context.coordinator.textView = textView
+        storage.highlightDelegate = context.coordinator
         textView.isEditable = isEditable
         textView.autocorrectionType = .no
         textView.autocapitalizationType = .none
@@ -49,9 +48,16 @@ public struct CodeEditor: UIViewRepresentable {
         textView.alwaysBounceVertical = true
         textView.keyboardDismissMode = .interactive
         textView.delegate = context.coordinator
+        textView.configureDisplay(
+            showsLineNumbers: configuration.showsLineNumbers,
+            wrapsLines: configuration.wrapsLines,
+            tabWidth: configuration.tabWidth,
+            indentStyle: configuration.indentStyle
+        )
         applyTheme(to: textView, storage: storage, force: true)
         textView.text = text
         textView.recomputeLineStarts()
+        textView.applyTabStops()
         return textView
     }
 
@@ -60,31 +66,47 @@ public struct CodeEditor: UIViewRepresentable {
         if storage.language != language {
             storage.language = language
         }
+        textView.configureDisplay(
+            showsLineNumbers: configuration.showsLineNumbers,
+            wrapsLines: configuration.wrapsLines,
+            tabWidth: configuration.tabWidth,
+            indentStyle: configuration.indentStyle
+        )
         applyTheme(to: textView, storage: storage, force: false)
         if textView.text != text {
             let selection = textView.selectedRange
             textView.text = text
             textView.selectedRange = selection
             textView.recomputeLineStarts()
+            textView.applyTabStops()
         }
         textView.isEditable = isEditable
         textView.setNeedsDisplay()
     }
 
-    public func makeCoordinator() -> Coordinator { Coordinator(text: $text) }
+    public func makeCoordinator() -> Coordinator {
+        Coordinator(text: $text)
+    }
 
-    /// 应用主题（仅在主题变化时重着色，避免每次 update 重扫）。
+    /// 应用主题或字号；未变化时跳过重着色，避免每次 update 重扫。
     private func applyTheme(to textView: GutterTextView, storage: CodeAttributedString, force: Bool) {
-        guard force || textView.appliedTheme != theme else { return }
-        textView.appliedTheme = theme
-        storage.highlightr.setTheme(to: theme)
-        storage.highlightr.theme.codeFont = UIFont.monospacedSystemFont(ofSize: fontSize, weight: .regular)
+        let fontSize = CGFloat(configuration.fontSize)
+        guard force
+            || textView.appliedTheme != configuration.theme
+            || textView.appliedFontSize != fontSize else {
+            return
+        }
+        textView.appliedTheme = configuration.theme
+        textView.appliedFontSize = fontSize
+        storage.highlightr.setTheme(to: configuration.theme)
+        let font = UIFont.monospacedSystemFont(ofSize: fontSize, weight: .regular)
+        storage.highlightr.theme.setCodeFont(font)
         if !force { storage.language = language } // 触发已有内容按新主题重着色
 
         let background = storage.highlightr.theme.themeBackgroundColor ?? .systemBackground
         let dark = background.connIsDark
         textView.backgroundColor = background
-        textView.font = UIFont.monospacedSystemFont(ofSize: fontSize, weight: .regular)
+        textView.font = font
         textView.tintColor = dark ? UIColor(white: 0.9, alpha: 1) : UIColor(white: 0.2, alpha: 1)
         textView.gutterBackgroundColor = background.connBlended(withDark: dark, amount: 0.06)
         textView.gutterTextColor = dark ? UIColor(white: 1, alpha: 0.38) : UIColor(white: 0, alpha: 0.32)
@@ -92,9 +114,13 @@ public struct CodeEditor: UIViewRepresentable {
         textView.setNeedsDisplay()
     }
 
-    public final class Coordinator: NSObject, UITextViewDelegate {
+    public final class Coordinator: NSObject, UITextViewDelegate, HighlightDelegate {
         private let text: Binding<String>
-        init(text: Binding<String>) { self.text = text }
+        weak var textView: GutterTextView?
+
+        init(text: Binding<String>) {
+            self.text = text
+        }
 
         public func textViewDidChange(_ textView: UITextView) {
             text.wrappedValue = textView.text
@@ -103,6 +129,11 @@ public struct CodeEditor: UIViewRepresentable {
                 gutter.setNeedsDisplay()
             }
         }
+
+        public func didHighlight(_ range: NSRange, success: Bool) {
+            guard success else { return }
+            textView?.applyTabStops(in: range)
+        }
     }
 }
 
@@ -110,6 +141,12 @@ public struct CodeEditor: UIViewRepresentable {
 public final class GutterTextView: UITextView {
     var codeStorage: CodeAttributedString?
     var appliedTheme: String?
+    var appliedFontSize: CGFloat?
+    private(set) var showsLineNumbers = true
+    private var wrapsLines = true
+    private var tabWidth = 4
+    private var indentStyle = CodeIndentStyle.spaces
+    private var didConfigureDisplay = false
     var gutterWidth: CGFloat = 44
     var gutterBackgroundColor: UIColor = .secondarySystemBackground
     var gutterTextColor: UIColor = .tertiaryLabel
@@ -126,6 +163,71 @@ public final class GutterTextView: UITextView {
     @available(*, unavailable)
     public required init?(coder: NSCoder) { fatalError("init(coder:) 未实现") }
 
+    func configureDisplay(
+        showsLineNumbers: Bool,
+        wrapsLines: Bool,
+        tabWidth: Int,
+        indentStyle: CodeIndentStyle
+    ) {
+        let tabWidth = max(1, tabWidth)
+        guard !didConfigureDisplay
+            || self.showsLineNumbers != showsLineNumbers
+            || self.wrapsLines != wrapsLines
+            || self.tabWidth != tabWidth
+            || self.indentStyle != indentStyle else {
+            return
+        }
+
+        let tabWidthChanged = !didConfigureDisplay || self.tabWidth != tabWidth
+        didConfigureDisplay = true
+        self.showsLineNumbers = showsLineNumbers
+        self.wrapsLines = wrapsLines
+        self.tabWidth = tabWidth
+        self.indentStyle = indentStyle
+        textContainerInset.left = showsLineNumbers ? gutterWidth + 6 : 10
+
+        textContainer.widthTracksTextView = wrapsLines
+        textContainer.lineBreakMode = wrapsLines ? .byWordWrapping : .byClipping
+        alwaysBounceHorizontal = !wrapsLines
+        showsHorizontalScrollIndicator = !wrapsLines
+        if wrapsLines {
+            textContainer.size.width = bounds.width
+        } else {
+            textContainer.size.width = .greatestFiniteMagnitude
+        }
+
+        if tabWidthChanged {
+            applyTabStops()
+        }
+        setNeedsLayout()
+        setNeedsDisplay()
+    }
+
+    /// 在 UIKeyInput 层转换 Tab，随后仍交给 UITextView 完成输入，
+    /// 从而保留系统的撤销栈、typing attributes 和编辑通知。
+    public override func insertText(_ text: String) {
+        let configuration = CodeEditorConfiguration(
+            tabWidth: tabWidth,
+            indentStyle: indentStyle
+        )
+        super.insertText(configuration.replacementText(for: text))
+    }
+
+    func applyTabStops(in requestedRange: NSRange? = nil) {
+        let font = font ?? UIFont.monospacedSystemFont(ofSize: 13, weight: .regular)
+        let spaceWidth = (" " as NSString).size(withAttributes: [.font: font]).width
+        let paragraphStyle = NSMutableParagraphStyle()
+        paragraphStyle.tabStops = []
+        paragraphStyle.defaultTabInterval = max(1, spaceWidth * CGFloat(tabWidth))
+
+        typingAttributes[.paragraphStyle] = paragraphStyle
+
+        let fullRange = NSRange(location: 0, length: textStorage.length)
+        let range = requestedRange.map { NSIntersectionRange($0, fullRange) } ?? fullRange
+        guard range.length > 0 else { return }
+        textStorage.addAttribute(.paragraphStyle, value: paragraphStyle, range: range)
+    }
+
     /// 重建逻辑行起始下标表。内容变化后调用。
     func recomputeLineStarts() {
         let string = text as NSString
@@ -138,6 +240,10 @@ public final class GutterTextView: UITextView {
     }
 
     public override func draw(_ rect: CGRect) {
+        guard showsLineNumbers else {
+            super.draw(rect)
+            return
+        }
         gutterBackgroundColor.setFill()
         UIBezierPath(rect: CGRect(x: 0, y: rect.minY, width: gutterWidth, height: rect.height)).fill()
         gutterLineColor.setFill()

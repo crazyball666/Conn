@@ -37,15 +37,16 @@ public enum CodeEditorCatalog {
         themes.first { $0.id == id } ?? themes[0]
     }
 
-    /// highlight.js 语言标识（由文件名 / 扩展名推断）。未知返回 nil（纯文本）。
-    public static func language(forFileName name: String) -> String? {
+    /// highlight.js 语言标识（由文件名 / 扩展名推断）。未知类型按纯文本处理，
+    /// 使 Highlightr 仍会应用主题的基础前景色与字体。
+    public static func language(forFileName name: String) -> String {
         let lower = ((name as NSString).lastPathComponent).lowercased()
         if lower == "dockerfile" || lower.hasPrefix("dockerfile.") { return "dockerfile" }
         if lower == "makefile" || lower == "gnumakefile" { return "makefile" }
         if lower.hasPrefix("nginx") { return "nginx" }
         if lower == ".env" || lower.hasPrefix(".env.") { return "bash" }
         if lower == ".bashrc" || lower == ".zshrc" || lower == ".profile" { return "bash" }
-        return byExtension[(lower as NSString).pathExtension]
+        return byExtension[(lower as NSString).pathExtension] ?? "plaintext"
     }
 
     private static let byExtension: [String: String] = {

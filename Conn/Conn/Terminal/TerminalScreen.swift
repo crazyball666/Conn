@@ -14,6 +14,7 @@ struct TerminalScreen: View {
     let autoCommand: String?
 
     @State private var phase: Phase = .connecting
+    @Environment(SettingsStore.self) private var settings
 
     init(host: Host, connectionManager: ConnectionManager, autoCommand: String? = nil) {
         self.host = host
@@ -34,14 +35,14 @@ struct TerminalScreen: View {
     }
 
     var body: some View {
+        let configuration = settings.terminalConfiguration
         ZStack {
-            Color.connTermBg.ignoresSafeArea()
+            color(configuration.theme.background).ignoresSafeArea()
             switch phase {
             case .connecting:
                 connecting
             case let .ready(session):
-                TerminalHostingView(session: session, theme: .conn)
-                    .padding(.horizontal, ConnSpacing.sm)
+                TerminalHostingView(session: session, configuration: configuration)
                     .ignoresSafeArea(.container, edges: .bottom)
             case let .failed(message):
                 failure(message)
@@ -54,6 +55,14 @@ struct TerminalScreen: View {
         .toolbarBackground(.hidden, for: .navigationBar)
         .toolbarColorScheme(.dark, for: .navigationBar)
         .task { await connect() }
+    }
+
+    private func color(_ rgb: TerminalTheme.RGB) -> Color {
+        Color(
+            red: Double(rgb.r) / 255,
+            green: Double(rgb.g) / 255,
+            blue: Double(rgb.b) / 255
+        )
     }
 
     private var connecting: some View {
