@@ -43,12 +43,13 @@ extension SnippetRecord {
         deletedAt = snippet.deletedAt
     }
 
-    func toDomain() -> Snippet {
+    func toDomain(folders: [String]? = nil) -> Snippet {
         Snippet(
             id: uuid,
             title: title,
             command: command,
-            folder: folder,
+            folder: folders == nil ? folder : nil,
+            folders: folders ?? [],
             pinned: pinned,
             danger: danger,
             sortOrder: sortOrder,

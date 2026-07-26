@@ -38,15 +38,6 @@ struct AppLockControllerTests {
         #expect(lock.state == .locked)
     }
 
-    @Test("后台盖隐私遮罩，回前台移除")
-    func privacyShadeToggles() {
-        let lock = AppLockController(authenticator: StubAuthenticator(result: .success), isEnabled: false)
-        lock.didEnterBackground()
-        #expect(lock.showPrivacyShade)
-        lock.willEnterForeground()
-        #expect(!lock.showPrivacyShade)
-    }
-
     @Test("后台超过宽限回前台 → 重新上锁")
     func relocksAfterGrace() async {
         var clock = Date(timeIntervalSince1970: 1000)

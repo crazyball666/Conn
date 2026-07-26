@@ -3,11 +3,18 @@ import ConnSSH
 import Foundation
 import Observation
 
+enum SnippetListFilter: Hashable {
+    case favorites
+    case all
+    case group(String)
+}
+
 /// 片段库 ViewModel（Phase 9）。
 @Observable
 @MainActor
 final class SnippetsViewModel {
     private(set) var snippets: [Snippet] = []
+    private(set) var groups: [String] = []
     var searchText = ""
     var errorMessage: String?
 
@@ -20,14 +27,16 @@ final class SnippetsViewModel {
     func load() {
         do {
             snippets = try store.allSnippets()
+            groups = try store.allFolders()
             errorMessage = nil
         } catch {
             errorMessage = String(format: L("读取片段失败：%@"), error.friendlyDiagnosis)
             snippets = []
+            groups = []
         }
     }
 
-    private var filtered: [Snippet] {
+    private var searchResults: [Snippet] {
         guard !searchText.isEmpty else { return snippets }
         return snippets.filter {
             $0.title.localizedCaseInsensitiveContains(searchText)
@@ -35,25 +44,33 @@ final class SnippetsViewModel {
         }
     }
 
-    /// 分区：置顶片段单列「常用」，其余按文件夹分组。
-    var sections: [(title: String, items: [Snippet])] {
-        let items = filtered
-        var result: [(String, [Snippet])] = []
-        let pinned = items.filter(\.pinned)
-        if !pinned.isEmpty {
-            result.append((L("常用"), pinned))
+    func snippets(for filter: SnippetListFilter) -> [Snippet] {
+        switch filter {
+        case .favorites:
+            searchResults.filter(\.pinned)
+        case .all:
+            searchResults
+        case let .group(name):
+            searchResults.filter { $0.folders.contains(name) }
         }
-        let rest = items.filter { !$0.pinned }
-        let grouped = Dictionary(grouping: rest) { $0.folder ?? L("未分组") }
-        for key in grouped.keys.sorted() {
-            result.append((key, (grouped[key] ?? []).sorted { $0.sortOrder < $1.sortOrder }))
-        }
-        return result
+    }
+
+    func commandCount(in group: String) -> Int {
+        snippets.count { $0.folders.contains(group) }
+    }
+
+    var filteredGroups: [String] {
+        guard !searchText.isEmpty else { return groups }
+        return groups.filter { $0.localizedCaseInsensitiveContains(searchText) }
     }
 
     func save(_ snippet: Snippet) {
         do {
-            try store.save(snippet)
+            var value = snippet
+            if !snippets.contains(where: { $0.id == value.id }) {
+                value.sortOrder = (snippets.map(\.sortOrder).max() ?? -1) + 1
+            }
+            try store.save(value)
             load()
         } catch {
             errorMessage = String(format: L("保存失败：%@"), error.friendlyDiagnosis)
@@ -63,5 +80,26 @@ final class SnippetsViewModel {
     func delete(_ snippet: Snippet) {
         try? store.softDelete(id: snippet.id)
         load()
+    }
+
+    func addGroup(_ name: String) {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        do {
+            try store.saveFolder(trimmed)
+            groups = try store.allFolders()
+            errorMessage = nil
+        } catch {
+            errorMessage = String(format: L("保存失败：%@"), error.friendlyDiagnosis)
+        }
+    }
+
+    func deleteGroup(_ name: String) {
+        do {
+            try store.deleteFolder(name)
+            load()
+        } catch {
+            errorMessage = String(format: L("保存失败：%@"), error.friendlyDiagnosis)
+        }
     }
 }

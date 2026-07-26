@@ -549,6 +549,35 @@
         }
       }
     },
+    "%d 条命令" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%d commands"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%d件のコマンド"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "명령 %d개"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%d 條命令"
+          }
+        }
+      }
+    },
     "%d 核" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -2564,6 +2593,35 @@
         }
       }
     },
+    "分组名称" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Group Name"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "グループ名"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "그룹 이름"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "分組名稱"
+          }
+        }
+      }
+    },
     "创建" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -2676,6 +2734,64 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "刪除主機"
+          }
+        }
+      }
+    },
+    "删除分组" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delete Group"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "グループを削除"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "그룹 삭제"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "刪除分組"
+          }
+        }
+      }
+    },
+    "删除分组不会删除其中的命令，命令会保留在其他分组或未分组。" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Deleting this group will not delete its commands. They will remain in other groups or become ungrouped."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "グループを削除してもコマンドは削除されません。他のグループに残るか、未分類になります。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "그룹을 삭제해도 명령은 삭제되지 않습니다. 다른 그룹에 남거나 미분류로 전환됩니다."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "刪除分組不會刪除其中的命令，命令會保留在其他分組或未分組。"
           }
         }
       }
@@ -3115,6 +3231,35 @@
         }
       }
     },
+    "可多选，也可以不选；不选时命令归为未分组。" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Select multiple groups or none. Commands with no selection remain ungrouped."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "複数選択または未選択にできます。未選択のコマンドは未分類になります。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "여러 그룹을 선택하거나 선택하지 않을 수 있습니다. 선택하지 않은 명령은 미분류로 유지됩니다."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "可多選，也可以不選；不選時命令歸為未分組。"
+          }
+        }
+      }
+    },
     "可选" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -3314,6 +3459,35 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "命令"
+          }
+        }
+      }
+    },
+    "命令与分组" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Commands and Groups"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "コマンドとグループ"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "명령 및 그룹"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "命令與分組"
           }
         }
       }
@@ -5261,6 +5435,35 @@
         }
       }
     },
+    "搜索命令或分组" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Search commands or groups"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "コマンドまたはグループを検索"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "명령 또는 그룹 검색"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "搜尋命令或分組"
+          }
+        }
+      }
+    },
     "搜索当前目录" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -5638,6 +5841,35 @@
         }
       }
     },
+    "新增" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "追加"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "추가"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新增"
+          }
+        }
+      }
+    },
     "新增一条，或使用内置模板库" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -5663,6 +5895,93 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "新增一則，或使用內建範本庫"
+          }
+        }
+      }
+    },
+    "新增一条，或切换其他筛选" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add a command or choose another filter"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "コマンドを追加するか、別のフィルターを選択してください"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "명령을 추가하거나 다른 필터를 선택하세요"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新增一條，或切換其他篩選"
+          }
+        }
+      }
+    },
+    "新增分组" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "New Group"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "グループを追加"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "그룹 추가"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新增分組"
+          }
+        }
+      }
+    },
+    "新增命令" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "New Command"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "コマンドを追加"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "명령 추가"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新增命令"
           }
         }
       }
@@ -6711,6 +7030,35 @@
         }
       }
     },
+    "没有匹配的分组" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No matching groups"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "一致するグループはありません"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "일치하는 그룹이 없습니다"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "沒有符合的分組"
+          }
+        }
+      }
+    },
     "没有匹配的片段" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -7113,6 +7461,35 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "示範模式"
+          }
+        }
+      }
+    },
+    "点击右上角 + 新增分组" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tap + in the top-right corner to add a group"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "右上の＋をタップしてグループを追加"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "오른쪽 상단의 +를 눌러 그룹을 추가하세요"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "點擊右上角 + 新增分組"
           }
         }
       }
@@ -8335,6 +8712,35 @@
         }
       }
     },
+    "编辑命令" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Edit Command"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "コマンドを編集"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "명령 편집"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "編輯命令"
+          }
+        }
+      }
+    },
     "编辑器" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -9524,6 +9930,35 @@
         }
       }
     },
+    "还没有分组" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No groups yet"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "グループはまだありません"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "아직 그룹이 없습니다"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "還沒有分組"
+          }
+        }
+      }
+    },
     "还没有密钥" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -10100,6 +10535,35 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "選擇主機"
+          }
+        }
+      }
+    },
+    "通过日志打开" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open as Log"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ログとして開く"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "로그로 열기"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "以日誌開啟"
           }
         }
       }

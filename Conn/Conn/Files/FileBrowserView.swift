@@ -1,4 +1,5 @@
 import ConnKit
+import ConnOps
 import ConnSSH
 import ConnUI
 import SwiftUI
@@ -27,6 +28,7 @@ struct FileBrowserView: View {
     @State private var textPrompt: TextPrompt?
     @State private var promptText = ""
     @State private var editorEntry: FileEntry?
+    @State private var logSource: LogSource?
     @State private var directoryPicker: DirectoryPickerRequest?
     @State private var searchText = ""
     @State private var sortField: SortField = .name
@@ -81,6 +83,9 @@ struct FileBrowserView: View {
         }
         .navigationDestination(item: $editorEntry) { entry in
             FileEditorView(host: host, dependencies: dependencies, entry: entry)
+        }
+        .navigationDestination(item: $logSource) { source in
+            LogStreamView(host: host, dependencies: dependencies, source: source)
         }
         .sheet(item: $directoryPicker) { request in
             DirectoryPickerView(
@@ -315,6 +320,9 @@ struct FileBrowserView: View {
     private func rowActions(_ entry: FileEntry) -> some View {
         if !entry.isDirectory {
             Button { editorEntry = entry } label: { Label(L("编辑"), systemImage: "pencil") }
+            Button { openAsLog(entry) } label: {
+                Label(L("通过日志打开"), systemImage: "doc.text.magnifyingglass")
+            }
             Button { Task { await viewModel.download(entry) } } label: {
                 Label(L("下载"), systemImage: "arrow.down.circle")
             }
@@ -337,6 +345,15 @@ struct FileBrowserView: View {
         Button(role: .destructive) { viewModel.pendingDeletion = entry } label: {
             Label(L("删除"), systemImage: "trash")
         }
+    }
+
+    private func openAsLog(_ entry: FileEntry) {
+        logSource = LogSource(
+            id: "file:\(entry.path)",
+            title: entry.name,
+            subtitle: entry.path,
+            kind: .file(path: entry.path)
+        )
     }
 }
 

@@ -3,8 +3,8 @@ import ConnUI
 import SwiftUI
 
 /// 容器卡（Docker 容器列表用）。头部：名称 / 镜像 / 状态各占一行。
-/// 指标区：CPU、内存、网络、IO 四个等宽单元——CPU/内存 用大百分比 + 细进度条，
-/// 网络/IO 用对齐的 ↓↑ 读数，四列结构一致、视觉协调。整卡点击进详情。
+/// 活动容器显示指标区：CPU、内存、网络、IO 四个等宽单元；已停止容器只显示头部，
+/// 不渲染无意义的占位指标。整卡点击进详情。
 struct ContainerCard: View {
     let container: ContainerInfo
     let onTap: () -> Void
@@ -13,8 +13,10 @@ struct ContainerCard: View {
         Button(action: onTap) {
             VStack(alignment: .leading, spacing: ConnSpacing.sm) {
                 header
-                Rectangle().fill(Color.connLine).frame(height: 0.5)
-                metrics
+                if container.isActive {
+                    Rectangle().fill(Color.connLine).frame(height: 0.5)
+                    metrics
+                }
             }
             .padding(ConnSpacing.cardPadding)
             .frame(maxWidth: .infinity, alignment: .leading)

@@ -151,7 +151,7 @@ struct AppDependencies {
     let runHistory: any RunHistoryRepository
     /// 片段仓库（Phase 9）。首启导入内置模板库。
     let snippetRepository: any SnippetRepository
-    /// 应用锁 + 隐私遮罩。默认关闭，设置页开启（Phase 5）。
+    /// 应用锁。默认关闭，设置页开启（Phase 5）。
     let appLock: AppLockController
 
     /// 生产依赖：GRDB 落盘库 + Citadel 引擎 + 持久化 TOFU 指纹库。
@@ -251,16 +251,8 @@ struct AppDependencies {
         return base.appendingPathComponent("Conn/conn.sqlite")
     }
 
-    /// 首启把内置模板库导入 `snippet` 表（幂等：已有片段则跳过），
-    /// 并把未被用户改动的内置片段标题/分组更新到当前语言（跟随语言切换）。
+    /// 仅首次启动时把内置 JSON 中的分组和命令写入数据库。
     private static func importBuiltinSnippetsIfNeeded(_ store: SnippetStore) throws {
-        // #D：用 totalCount（含墓碑）判空——用户把片段全删后墓碑仍在，
-        // 不会被误判成「从未导入」而把内置片段重新塞回来。演示用内存库每次全新，仍会导入。
-        if try store.totalCount() == 0 {
-            for snippet in BuiltinSnippets.load() {
-                try store.save(snippet)
-            }
-        }
-        BuiltinSnippets.relocalize(in: store)
+        try BuiltinSnippets.importIfNeeded(into: store)
     }
 }

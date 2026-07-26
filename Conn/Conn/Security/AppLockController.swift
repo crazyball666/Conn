@@ -2,10 +2,9 @@ import ConnCrypto
 import Foundation
 import Observation
 
-/// 应用锁 + 隐私遮罩状态机（技术方案 §4.7）。
+/// 应用锁状态机（技术方案 §4.7）。
 ///
 /// - 进 App / 从后台超时回前台 → 要求生物识别。
-/// - 切到后台（App 切换器）→ 盖隐私遮罩，隐藏敏感内容。
 /// 开关默认由设置控制（Phase 5 先默认关，设置项在设置页接入）。
 @Observable
 @MainActor
@@ -17,9 +16,6 @@ final class AppLockController {
     }
 
     private(set) var state: State
-    /// App 切换器隐私遮罩是否显示（后台时盖住内容）。
-    private(set) var showPrivacyShade = false
-
     /// UserDefaults 键：应用锁开关（设置页持久化）。
     static let storageKey = "conn.appLock.enabled"
 
@@ -64,13 +60,11 @@ final class AppLockController {
 
     /// 场景进入后台。
     func didEnterBackground() {
-        showPrivacyShade = true
         backgroundedAt = now()
     }
 
     /// 场景回到前台。超过宽限则重新上锁。
     func willEnterForeground() {
-        showPrivacyShade = false
         guard isEnabled else { return }
         if let backgroundedAt, now().timeIntervalSince(backgroundedAt) > backgroundGrace {
             state = .locked

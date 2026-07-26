@@ -43,16 +43,27 @@ struct LogSourceTests {
         #expect(allJournal.followCommand() == "journalctl -n 300 -f --no-pager -o short-iso 2>&1")
 
         let file = LogSource(id: "f", title: "", subtitle: "", kind: .file(path: "/var/log/syslog"))
-        #expect(file.followCommand() == "tail -n 300 -F /var/log/syslog 2>&1")
+        #expect(file.followCommand() == "tail -n 300 -F '/var/log/syslog' 2>&1")
 
         let container = LogSource(id: "c", title: "", subtitle: "", kind: .container(id: "abc123", name: "web"))
         #expect(container.followCommand() == "docker logs -f --tail 300 abc123 2>&1")
     }
 
+    @Test("任意文件路径会安全转义")
+    func arbitraryFilePathIsQuoted() {
+        let file = LogSource(
+            id: "f",
+            title: "",
+            subtitle: "",
+            kind: .file(path: "/var/log/app logs/o'hare.log")
+        )
+        #expect(file.followCommand() == "tail -n 300 -F '/var/log/app logs/o'\\''hare.log' 2>&1")
+    }
+
     @Test("sudo 前缀")
     func sudoPrefix() {
         let file = LogSource(id: "f", title: "", subtitle: "", kind: .file(path: "/var/log/auth.log"))
-        #expect(file.followCommand(sudo: true) == "sudo -n tail -n 300 -F /var/log/auth.log 2>&1")
+        #expect(file.followCommand(sudo: true) == "sudo -n tail -n 300 -F '/var/log/auth.log' 2>&1")
     }
 
     @Test("探测解析：有 journalctl → 含系统源 + 存在的文件源")

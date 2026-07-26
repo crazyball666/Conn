@@ -10,7 +10,7 @@ private typealias DomainHost = ConnKit.Host
 
 @Suite("GRDB Schema v1")
 struct SchemaV1Tests {
-    @Test("迁移后 9 张表全部建成")
+    @Test("迁移后全部表建成")
     func createsAllTables() throws {
         let db = try AppDatabase.inMemory()
         let tables = try db.writer.read { database in
@@ -22,7 +22,8 @@ struct SchemaV1Tests {
         }
         #expect(tables == [
             "app_setting", "host", "host_group", "known_host",
-            "metric_sample", "probe_target", "run_history", "snippet", "ssh_key"
+            "metric_sample", "probe_target", "run_history", "snippet",
+            "snippet_folder", "snippet_folder_membership", "ssh_key"
         ])
     }
 
@@ -33,6 +34,33 @@ struct SchemaV1Tests {
         let second = try AppDatabase(queue) // 同一 writer 再跑一次迁移
         let count = try second.writer.read { try Int.fetchOne($0, sql: "SELECT COUNT(*) FROM host") }
         #expect(count == 0)
+    }
+
+    @Test("旧版单分组数据迁移为多分组关联，并保留首次出现顺序")
+    func migratesLegacySnippetFolders() throws {
+        let queue = try DatabaseQueue()
+        var legacyMigrator = DatabaseMigrator()
+        SchemaV1.register(in: &legacyMigrator)
+        SchemaV2.register(in: &legacyMigrator)
+        try legacyMigrator.migrate(queue)
+        try queue.write { db in
+            try db.execute(
+                sql: """
+                INSERT INTO snippet
+                (uuid, title, command, folder, sort_order, created_at, updated_at)
+                VALUES
+                ('a', '系统', 'a', '系统', 0, 1, 1),
+                ('b', '日志', 'b', '日志', 1, 2, 2)
+                """
+            )
+        }
+
+        let database = try AppDatabase(queue)
+        let store = SnippetStore(database: database)
+
+        #expect(try store.allFolders() == ["系统", "日志"])
+        #expect(try store.snippet(id: "a")?.folders == ["系统"])
+        #expect(try store.snippet(id: "b")?.folders == ["日志"])
     }
 
     @Test("host 表可写入并读回，字段无损")

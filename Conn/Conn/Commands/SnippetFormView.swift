@@ -5,21 +5,23 @@ import SwiftUI
 /// 片段新增 / 编辑（Phase 9）。
 struct SnippetFormView: View {
     let snippet: Snippet?
+    let groups: [String]
     let onSave: (Snippet) -> Void
     @Environment(\.dismiss) private var dismiss
 
     @State private var title: String
     @State private var command: String
-    @State private var folder: String
+    @State private var selectedGroups: Set<String>
     @State private var pinned: Bool
     @State private var danger: Bool
 
-    init(snippet: Snippet?, onSave: @escaping (Snippet) -> Void) {
+    init(snippet: Snippet?, groups: [String], onSave: @escaping (Snippet) -> Void) {
         self.snippet = snippet
+        self.groups = groups
         self.onSave = onSave
         _title = State(initialValue: snippet?.title ?? "")
         _command = State(initialValue: snippet?.command ?? "")
-        _folder = State(initialValue: snippet?.folder ?? "")
+        _selectedGroups = State(initialValue: Set(snippet?.folders ?? []))
         _pinned = State(initialValue: snippet?.pinned ?? false)
         _danger = State(initialValue: snippet?.danger ?? false)
     }
@@ -41,8 +43,32 @@ struct SnippetFormView: View {
                 } footer: {
                     Text(L("变量用 {{名称}} 或 {{名称:默认值}}，执行前会让你填参。"))
                 }
-                Section(L("分组")) {
-                    TextField(L("如：磁盘 / 网络（可留空）"), text: $folder)
+                Section {
+                    ForEach(availableGroups, id: \.self) { group in
+                        Button {
+                            if selectedGroups.contains(group) {
+                                selectedGroups.remove(group)
+                            } else {
+                                selectedGroups.insert(group)
+                            }
+                        } label: {
+                            HStack {
+                                Text(group)
+                                    .foregroundStyle(.primary)
+                                Spacer()
+                                Image(systemName: selectedGroups.contains(group)
+                                    ? "checkmark.circle.fill"
+                                    : "circle")
+                                    .foregroundStyle(selectedGroups.contains(group) ? Color.connAccent : .secondary)
+                            }
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                    }
+                } header: {
+                    Text(L("分组"))
+                } footer: {
+                    Text(L("可多选，也可以不选；不选时命令归为未分组。"))
                 }
                 Section {
                     Toggle(L("置顶到「常用」"), isOn: $pinned)
@@ -51,7 +77,7 @@ struct SnippetFormView: View {
             }
             .scrollContentBackground(.hidden)
             .background(Color.connBg.ignoresSafeArea())
-            .navigationTitle(snippet == nil ? L("新增片段") : L("编辑片段"))
+            .navigationTitle(snippet == nil ? L("新增命令") : L("编辑命令"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
@@ -67,14 +93,21 @@ struct SnippetFormView: View {
         }
     }
 
+    private var availableGroups: [String] {
+        var result = groups
+        for group in snippet?.folders ?? [] where !result.contains(group) {
+            result.append(group)
+        }
+        return result
+    }
+
     private func save() {
-        let trimmedFolder = folder.trimmingCharacters(in: .whitespaces)
         let result: Snippet
         if let existing = snippet {
             var updated = existing
             updated.title = title
             updated.command = command
-            updated.folder = trimmedFolder.isEmpty ? nil : trimmedFolder
+            updated.folders = availableGroups.filter(selectedGroups.contains)
             updated.pinned = pinned
             updated.danger = danger
             result = updated
@@ -82,7 +115,7 @@ struct SnippetFormView: View {
             result = Snippet(
                 title: title,
                 command: command,
-                folder: trimmedFolder.isEmpty ? nil : trimmedFolder,
+                folders: availableGroups.filter(selectedGroups.contains),
                 pinned: pinned,
                 danger: danger
             )

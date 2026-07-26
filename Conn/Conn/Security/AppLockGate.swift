@@ -1,10 +1,9 @@
 import ConnUI
 import SwiftUI
 
-/// 把内容包在应用锁与隐私遮罩之后。
+/// 把内容包在应用锁之后。
 ///
 /// - 锁定时盖全屏解锁页，要求生物识别。
-/// - 后台时盖隐私遮罩（模糊层），避免 App 切换器泄露敏感内容。
 struct AppLockGate<Content: View>: View {
     @State private var lock: AppLockController
     @Environment(\.scenePhase) private var scenePhase
@@ -20,8 +19,6 @@ struct AppLockGate<Content: View>: View {
             .overlay {
                 if lock.state != .unlocked {
                     lockScreen
-                } else if lock.showPrivacyShade {
-                    privacyShade
                 }
             }
             .onChange(of: scenePhase) { _, phase in
@@ -59,15 +56,6 @@ struct AppLockGate<Content: View>: View {
                 }
                 .frame(maxWidth: 240)
             }
-        }
-    }
-
-    private var privacyShade: some View {
-        ZStack {
-            Rectangle().fill(.ultraThinMaterial).ignoresSafeArea()
-            Image(systemName: "terminal")
-                .font(.system(size: 44))
-                .foregroundStyle(.connMuted)
         }
     }
 }

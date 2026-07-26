@@ -31,10 +31,15 @@ public struct LogSource: Identifiable, Sendable, Equatable, Hashable {
             let scope = unit.isEmpty ? "" : "-u \(unit) "
             return prefix + "journalctl \(scope)-n \(tail) -f --no-pager -o short-iso 2>&1"
         case let .file(path):
-            return prefix + "tail -n \(tail) -F \(path) 2>&1"
+            return prefix + "tail -n \(tail) -F \(Self.shellQuote(path)) 2>&1"
         case let .container(id, _):
             return prefix + "docker logs -f --tail \(tail) \(id) 2>&1"
         }
+    }
+
+    /// POSIX shell 单引号包裹；支持文件管理器传入含空格或单引号的任意路径。
+    private static func shellQuote(_ value: String) -> String {
+        "'" + value.replacingOccurrences(of: "'", with: "'\\''") + "'"
     }
 }
 

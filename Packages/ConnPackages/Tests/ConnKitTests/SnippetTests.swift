@@ -64,4 +64,23 @@ struct SnippetTests {
         #expect(!snippet.render(values: [:]).contains("{{"))
         #expect(!snippet.render(values: ["x": "V"]).contains("{{"))
     }
+
+    @Test("旧版单分组 JSON 自动迁移为多分组")
+    func decodesLegacyFolderAsFolders() throws {
+        let data = Data(#"{"id":"legacy","title":"日志","command":"tail","folder":"系统","pinned":false,"danger":false,"sortOrder":0,"createdAt":1,"updatedAt":1,"syncDirty":false}"#.utf8)
+
+        let snippet = try JSONDecoder().decode(Snippet.self, from: data)
+
+        #expect(snippet.folders == ["系统"])
+    }
+
+    @Test("多分组 JSON 往返无损")
+    func foldersCodableRoundTrip() throws {
+        let original = Snippet(title: "容器日志", command: "docker logs", folders: ["Docker", "日志"])
+
+        let data = try JSONEncoder().encode(original)
+        let decoded = try JSONDecoder().decode(Snippet.self, from: data)
+
+        #expect(decoded == original)
+    }
 }
