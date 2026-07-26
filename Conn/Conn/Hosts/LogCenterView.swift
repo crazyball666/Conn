@@ -116,7 +116,7 @@ struct LogCenterView: View {
             Image(systemName: icon(for: source.kind))
                 .font(.system(size: 18)).foregroundStyle(.connAccent).frame(width: 26)
             VStack(alignment: .leading, spacing: 2) {
-                Text(source.title).font(.connHeadline).foregroundStyle(.connInk)
+                Text(source.title).font(.connSubheadline).foregroundStyle(.connInk)
                 Text(source.subtitle).font(.connData(.caption2)).foregroundStyle(.connMuted)
             }
             Spacer()
