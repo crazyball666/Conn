@@ -41,10 +41,7 @@ final class HostOverviewViewModel {
     init(host: Host, dependencies: AppDependencies) {
         self.host = host
         connectionManager = dependencies.connectionManager
-        monitor = MonitorScheduler(
-            connectionManager: dependencies.connectionManager,
-            store: dependencies.metricStore
-        )
+        monitor = MonitorScheduler(connectionManager: dependencies.connectionManager)
     }
 
     /// 本次采集结果（读 `monitor.metrics` → 在 body 中被 Observation 追踪，实时刷新）。

@@ -22,7 +22,7 @@ struct SchemaV1Tests {
         }
         #expect(tables == [
             "app_setting", "host", "host_group", "known_host",
-            "metric_sample", "probe_target", "run_history", "snippet",
+            "probe_target", "run_history", "snippet",
             "snippet_folder", "snippet_folder_membership", "ssh_key"
         ])
     }
@@ -91,24 +91,6 @@ struct SchemaV1Tests {
         }
         #expect(raw?["jump_chain"] == #"["x","y"]"#)
         #expect(raw?["tags"] == #"["p"]"#)
-    }
-
-    @Test("metric_sample 主键为 (host_uuid, ts)，重复插入冲突")
-    func metricSampleCompositeKey() throws {
-        let db = try AppDatabase.inMemory()
-        let sql = """
-        INSERT INTO metric_sample
-        (host_uuid, ts, cpu, mem, load1, disk_used, disk_total, net_rx, net_tx)
-        VALUES (?,?,?,?,?,?,?,?,?)
-        """
-        try db.writer.write { database in
-            try database.execute(sql: sql, arguments: ["h1", 1000, 10.0, 20.0, 0.5, 100, 200, 0, 0])
-        }
-        #expect(throws: DatabaseError.self) {
-            try db.writer.write { database in
-                try database.execute(sql: sql, arguments: ["h1", 1000, 99.0, 20.0, 0.5, 100, 200, 0, 0])
-            }
-        }
     }
 
     @Test("外键约束开启：group_uuid 指向不存在的分组时拒绝写入")

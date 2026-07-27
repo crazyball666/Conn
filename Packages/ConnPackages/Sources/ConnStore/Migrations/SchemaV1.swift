@@ -100,20 +100,6 @@ enum SchemaV1 {
             }
             try db.create(index: "idx_run_history_host", on: "run_history", columns: ["host_uuid", "ran_at"])
 
-            // 时序表：原始采样保留 48h，启动时清理
-            try db.create(table: "metric_sample") { t in
-                t.column("host_uuid", .text).notNull()
-                t.column("ts", .integer).notNull()
-                t.column("cpu", .double).notNull()
-                t.column("mem", .double).notNull()
-                t.column("load1", .double).notNull()
-                t.column("disk_used", .double).notNull()
-                t.column("disk_total", .double).notNull()
-                t.column("net_rx", .integer).notNull()
-                t.column("net_tx", .integer).notNull()
-                t.primaryKey(["host_uuid", "ts"])
-            }
-
             try db.create(table: "probe_target") { t in
                 t.primaryKey("uuid", .text)
                 t.column("kind", .text).notNull() // http | tcp | ping

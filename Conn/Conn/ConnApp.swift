@@ -143,8 +143,6 @@ struct AppDependencies {
     let connectionManager: ConnectionManager
     /// 连接测试用的传输层（与 connectionManager 同引擎，供诊断树直接调用）。
     let diagnosticsTransport: any SSHTransport
-    /// 指标时序仓库（Phase 7）。离线快照 + 48h 原始样本。
-    let metricStore: any MetricRepository
     /// 监控采集调度（Phase 7）。仪表盘 30s / 详情 3s。
     let monitor: MonitorScheduler
     /// 执行审计仓库（Phase 8/9）。容器启停、片段执行写入。
@@ -172,11 +170,8 @@ struct AppDependencies {
                 return .password(password)
             }
 
-            // 监控栈：指标仓库 + 采集调度。启动时清理超 48h 的原始样本。
-            let metricStore = MetricStore(database: database)
-            let cutoff = Timestamp.now() - 48 * 3600 * 1000
-            try? metricStore.pruneSamples(olderThan: cutoff)
-            let monitor = MonitorScheduler(connectionManager: connectionManager, store: metricStore)
+            // 监控栈：采集调度。指标为纯内存态，不落库。
+            let monitor = MonitorScheduler(connectionManager: connectionManager)
 
             let snippetStore = SnippetStore(database: database)
             try importBuiltinSnippetsIfNeeded(snippetStore)
@@ -188,7 +183,6 @@ struct AppDependencies {
                 credentialStore: credentialStore,
                 connectionManager: connectionManager,
                 diagnosticsTransport: transport,
-                metricStore: metricStore,
                 monitor: monitor,
                 runHistory: RunHistoryStore(database: database),
                 snippetRepository: snippetStore,
@@ -221,8 +215,7 @@ struct AppDependencies {
             let transport = MockSSHTransport(behavior: DemoData.behavior())
             let credentialStore = InMemoryCredentialStore()
             let connectionManager = ConnectionManager(transport: transport) { _ in .password("demo") }
-            let metricStore = MetricStore(database: database)
-            let monitor = MonitorScheduler(connectionManager: connectionManager, store: metricStore)
+            let monitor = MonitorScheduler(connectionManager: connectionManager)
             let snippetStore = SnippetStore(database: database)
             try importBuiltinSnippetsIfNeeded(snippetStore)
 
@@ -233,7 +226,6 @@ struct AppDependencies {
                 credentialStore: credentialStore,
                 connectionManager: connectionManager,
                 diagnosticsTransport: transport,
-                metricStore: metricStore,
                 monitor: monitor,
                 runHistory: RunHistoryStore(database: database),
                 snippetRepository: snippetStore,
