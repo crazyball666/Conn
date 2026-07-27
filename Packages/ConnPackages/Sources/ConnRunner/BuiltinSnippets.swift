@@ -43,12 +43,12 @@ public enum BuiltinSnippets {
         }
     }
 
-    /// 仅当仓库从未写入过命令时导入默认分组与命令。
+    /// 导入内置分组与命令。
     ///
-    /// `totalCount` 包含软删除墓碑，因此用户删除默认命令后不会被再次补回。
+    /// **是否需要导入由调用方判断**（`SettingsStore.builtinSnippetsImported`）——
+    /// 改真删除后墓碑不存在，无法再靠行数区分「从未导入」与「用户删光了」。
     @discardableResult
     public static func importIfNeeded(into store: any SnippetRepository) throws -> Bool {
-        guard try store.totalCount() == 0 else { return false }
         for folder in loadFolders() {
             try store.saveFolder(folder)
         }

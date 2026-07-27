@@ -15,9 +15,8 @@ private final class StubSnippetRepository: SnippetRepository, @unchecked Sendabl
     func allSnippets() throws -> [Snippet] { snippets }
     func snippet(id: String) throws -> Snippet? { snippets.first { $0.id == id } }
     func save(_ snippet: Snippet) throws { snippets.append(snippet) }
-    func softDelete(id: String) throws { snippets.removeAll { $0.id == id } }
+    func delete(id: String) throws { snippets.removeAll { $0.id == id } }
     func count() throws -> Int { snippets.count }
-    func totalCount() throws -> Int { snippets.count }
     func allFolders() throws -> [String] { folders }
     func saveFolder(_ name: String) throws {
         folders.append(name.trimmingCharacters(in: .whitespacesAndNewlines))

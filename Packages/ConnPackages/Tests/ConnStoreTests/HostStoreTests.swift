@@ -46,30 +46,28 @@ struct HostStoreTests {
         #expect(try store.allHosts().map(\.name) == ["zzz", "aaa"])
     }
 
-    @Test("softDelete 后不再出现在列表与单查中")
-    func softDeleteHidesHost() throws {
+    @Test("delete 后不再出现在列表与单查中")
+    func deleteHidesHost() throws {
         let (store, _) = try makeStore()
         let host = DomainHost(name: "web-01", address: "10.0.0.1", username: "root")
         try store.save(host)
-        try store.softDelete(id: host.id)
+        try store.delete(id: host.id)
 
         #expect(try store.allHosts().isEmpty)
         #expect(try store.host(id: host.id) == nil)
     }
 
-    @Test("softDelete 保留行与墓碑时间戳，不做物理删除")
-    func softDeleteKeepsTombstone() throws {
+    @Test("delete 是真 DELETE，表中不留残行")
+    func deleteRemovesRow() throws {
         let (store, database) = try makeStore()
         let host = DomainHost(name: "web-01", address: "10.0.0.1", username: "root")
         try store.save(host)
-        try store.softDelete(id: host.id)
+        try store.delete(id: host.id)
 
-        let row = try database.writer.read { db in
-            try Row.fetchOne(db, sql: "SELECT deleted_at, sync_dirty FROM host WHERE uuid = ?", arguments: [host.id])
+        let remaining = try database.writer.read { db in
+            try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM host") ?? -1
         }
-        let deletedAt: Int64? = row?["deleted_at"]
-        #expect(deletedAt != nil)
-        #expect(row?["sync_dirty"] == 1)
+        #expect(remaining == 0)
     }
 
     @Test("save 同一 id 为覆盖而非新增")

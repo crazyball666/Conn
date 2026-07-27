@@ -33,7 +33,6 @@ public struct Snippet: Identifiable, Codable, Sendable, Equatable {
     public let createdAt: Int64
     public var updatedAt: Int64
     public var syncDirty: Bool
-    public var deletedAt: Int64?
 
     public init(
         id: String = UUID().uuidString,
@@ -46,8 +45,7 @@ public struct Snippet: Identifiable, Codable, Sendable, Equatable {
         sortOrder: Int = 0,
         createdAt: Int64 = Timestamp.now(),
         updatedAt: Int64? = nil,
-        syncDirty: Bool = false,
-        deletedAt: Int64? = nil
+        syncDirty: Bool = false
     ) {
         self.id = id
         self.title = title
@@ -61,12 +59,11 @@ public struct Snippet: Identifiable, Codable, Sendable, Equatable {
         self.createdAt = createdAt
         self.updatedAt = updatedAt ?? createdAt
         self.syncDirty = syncDirty
-        self.deletedAt = deletedAt
     }
 
     private enum CodingKeys: String, CodingKey {
         case id, title, command, folders, folder, pinned, danger, sortOrder
-        case createdAt, updatedAt, syncDirty, deletedAt
+        case createdAt, updatedAt, syncDirty
     }
 
     public init(from decoder: any Decoder) throws {
@@ -88,7 +85,6 @@ public struct Snippet: Identifiable, Codable, Sendable, Equatable {
         createdAt = try container.decodeIfPresent(Int64.self, forKey: .createdAt) ?? now
         updatedAt = try container.decodeIfPresent(Int64.self, forKey: .updatedAt) ?? createdAt
         syncDirty = try container.decodeIfPresent(Bool.self, forKey: .syncDirty) ?? false
-        deletedAt = try container.decodeIfPresent(Int64.self, forKey: .deletedAt)
     }
 
     public func encode(to encoder: any Encoder) throws {
@@ -103,7 +99,6 @@ public struct Snippet: Identifiable, Codable, Sendable, Equatable {
         try container.encode(createdAt, forKey: .createdAt)
         try container.encode(updatedAt, forKey: .updatedAt)
         try container.encode(syncDirty, forKey: .syncDirty)
-        try container.encodeIfPresent(deletedAt, forKey: .deletedAt)
     }
 
     private static func normalizedFolders(_ values: [String]) -> [String] {

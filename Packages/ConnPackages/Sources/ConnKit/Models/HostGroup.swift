@@ -8,7 +8,6 @@ public struct HostGroup: Identifiable, Codable, Sendable, Equatable {
     public let createdAt: Int64
     public var updatedAt: Int64
     public var syncDirty: Bool
-    public var deletedAt: Int64?
 
     public init(
         id: String = UUID().uuidString,
@@ -16,8 +15,7 @@ public struct HostGroup: Identifiable, Codable, Sendable, Equatable {
         sortOrder: Int = 0,
         createdAt: Int64 = Timestamp.now(),
         updatedAt: Int64? = nil,
-        syncDirty: Bool = false,
-        deletedAt: Int64? = nil
+        syncDirty: Bool = false
     ) {
         self.id = id
         self.name = name
@@ -25,6 +23,5 @@ public struct HostGroup: Identifiable, Codable, Sendable, Equatable {
         self.createdAt = createdAt
         self.updatedAt = updatedAt ?? createdAt
         self.syncDirty = syncDirty
-        self.deletedAt = deletedAt
     }
 }

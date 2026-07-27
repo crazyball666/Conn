@@ -28,7 +28,6 @@ struct HostRecord: Codable, FetchableRecord, PersistableRecord, Sendable {
     var createdAt: Int64
     var updatedAt: Int64
     var syncDirty: Bool
-    var deletedAt: Int64?
 
     enum CodingKeys: String, CodingKey {
         case uuid, name, address, port, username, icon, color, note, status, tags
@@ -42,7 +41,6 @@ struct HostRecord: Codable, FetchableRecord, PersistableRecord, Sendable {
         case createdAt = "created_at"
         case updatedAt = "updated_at"
         case syncDirty = "sync_dirty"
-        case deletedAt = "deleted_at"
     }
 }
 
@@ -68,7 +66,6 @@ extension HostRecord {
         createdAt = host.createdAt
         updatedAt = host.updatedAt
         syncDirty = host.syncDirty
-        deletedAt = host.deletedAt
     }
 
     func toDomain() -> DomainHost {
@@ -92,8 +89,7 @@ extension HostRecord {
             status: DomainHost.HealthStatus(rawValue: status) ?? .unknown,
             createdAt: createdAt,
             updatedAt: updatedAt,
-            syncDirty: syncDirty,
-            deletedAt: deletedAt
+            syncDirty: syncDirty
         )
     }
 

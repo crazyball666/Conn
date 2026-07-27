@@ -28,11 +28,11 @@ struct SnippetStoreTests {
     }
 
     @Test("软删除后不再出现")
-    func softDeletes() throws {
+    func deletes() throws {
         let store = try makeStore()
         let snippet = Snippet(title: "临时", command: "echo hi")
         try store.save(snippet)
-        try store.softDelete(id: snippet.id)
+        try store.delete(id: snippet.id)
         #expect(try store.allSnippets().isEmpty)
         #expect(try store.snippet(id: snippet.id) == nil)
         #expect(try store.count() == 0)

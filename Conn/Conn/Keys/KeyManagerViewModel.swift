@@ -47,7 +47,7 @@ final class KeyManagerViewModel {
     }
 
     func delete(_ key: SSHKey) {
-        try? keyStore.softDelete(id: key.id)
+        try? keyStore.delete(id: key.id)
         try? credentialStore.setPrivateKey(nil, forKey: key.id)
         load()
     }

@@ -13,7 +13,6 @@ public struct HostGroupStore: HostGroupRepository {
     public func allGroups() throws -> [HostGroup] {
         try database.writer.read { db in
             try HostGroupRecord
-                .filter(sql: "deleted_at IS NULL")
                 .order(sql: "sort_order ASC, name ASC")
                 .fetchAll(db)
                 .map { $0.toDomain() }
@@ -27,13 +26,10 @@ public struct HostGroupStore: HostGroupRepository {
         try database.writer.write { try HostGroupRecord(updated).save($0) }
     }
 
-    public func softDelete(id: String) throws {
-        let now = Timestamp.now()
+    /// 删除（真 DELETE）。成员行由 `host_group_membership` 的外键级联清理。
+    public func delete(id: String) throws {
         try database.writer.write { db in
-            try db.execute(
-                sql: "UPDATE host_group SET deleted_at = ?, sync_dirty = 1, updated_at = ? WHERE uuid = ?",
-                arguments: [now, now, id]
-            )
+            try db.execute(sql: "DELETE FROM host_group WHERE uuid = ?", arguments: [id])
         }
     }
 }
@@ -48,7 +44,6 @@ struct HostGroupRecord: Codable, FetchableRecord, PersistableRecord, Sendable {
     var createdAt: Int64
     var updatedAt: Int64
     var syncDirty: Bool
-    var deletedAt: Int64?
 
     enum CodingKeys: String, CodingKey {
         case uuid, name
@@ -56,7 +51,6 @@ struct HostGroupRecord: Codable, FetchableRecord, PersistableRecord, Sendable {
         case createdAt = "created_at"
         case updatedAt = "updated_at"
         case syncDirty = "sync_dirty"
-        case deletedAt = "deleted_at"
     }
 
     init(_ group: HostGroup) {
@@ -66,7 +60,6 @@ struct HostGroupRecord: Codable, FetchableRecord, PersistableRecord, Sendable {
         createdAt = group.createdAt
         updatedAt = group.updatedAt
         syncDirty = group.syncDirty
-        deletedAt = group.deletedAt
     }
 
     func toDomain() -> HostGroup {
@@ -76,8 +69,7 @@ struct HostGroupRecord: Codable, FetchableRecord, PersistableRecord, Sendable {
             sortOrder: sortOrder,
             createdAt: createdAt,
             updatedAt: updatedAt,
-            syncDirty: syncDirty,
-            deletedAt: deletedAt
+            syncDirty: syncDirty
         )
     }
 }

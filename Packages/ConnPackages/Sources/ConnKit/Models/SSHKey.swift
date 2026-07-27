@@ -33,7 +33,6 @@ public struct SSHKey: Identifiable, Codable, Sendable, Equatable {
     public let createdAt: Int64
     public var updatedAt: Int64
     public var syncDirty: Bool
-    public var deletedAt: Int64?
 
     public init(
         id: String = UUID().uuidString,
@@ -43,8 +42,7 @@ public struct SSHKey: Identifiable, Codable, Sendable, Equatable {
         privateRef: String? = nil,
         createdAt: Int64 = Timestamp.now(),
         updatedAt: Int64? = nil,
-        syncDirty: Bool = false,
-        deletedAt: Int64? = nil
+        syncDirty: Bool = false
     ) {
         self.id = id
         self.name = name
@@ -54,7 +52,6 @@ public struct SSHKey: Identifiable, Codable, Sendable, Equatable {
         self.createdAt = createdAt
         self.updatedAt = updatedAt ?? createdAt
         self.syncDirty = syncDirty
-        self.deletedAt = deletedAt
     }
 
     /// 是否存于 Secure Enclave。UI 上需展示专属徽章（原型 S9）。

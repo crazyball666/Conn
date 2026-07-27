@@ -13,5 +13,5 @@ public protocol HostRepository: Sendable {
     /// 插入或整体覆盖。
     func save(_ host: Host) throws
     /// 软删除（写墓碑）。
-    func softDelete(id: String) throws
+    func delete(id: String) throws
 }

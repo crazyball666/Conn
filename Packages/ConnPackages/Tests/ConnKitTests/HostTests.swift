@@ -12,7 +12,6 @@ struct HostTests {
         #expect(host.authKind == .key)
         #expect(host.createdAt > 0)
         #expect(host.createdAt == host.updatedAt)
-        #expect(host.deletedAt == nil)
         #expect(host.syncDirty == false)
     }
 

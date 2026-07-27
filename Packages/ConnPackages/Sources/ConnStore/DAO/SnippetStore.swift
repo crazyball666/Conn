@@ -42,11 +42,10 @@ public struct SnippetStore: SnippetRepository {
         }
     }
 
-    /// 全部未删除片段：按稳定排序权重与标题。
+    /// 全部片段：按稳定排序权重与标题。
     public func allSnippets() throws -> [Snippet] {
         try database.writer.read { db in
             let records = try SnippetRecord
-                .filter(sql: "deleted_at IS NULL")
                 .order(sql: "sort_order ASC, title ASC")
                 .fetchAll(db)
             return try records.map { record in
@@ -57,32 +56,21 @@ public struct SnippetStore: SnippetRepository {
 
     public func snippet(id: String) throws -> Snippet? {
         try database.writer.read { db in
-            guard let record = try SnippetRecord.fetchOne(db, key: id),
-                  record.deletedAt == nil
-            else { return nil }
+            guard let record = try SnippetRecord.fetchOne(db, key: id) else { return nil }
             return try record.toDomain(folders: folders(for: record.uuid, in: db))
         }
     }
 
-    public func softDelete(id: String) throws {
-        let now = Timestamp.now()
+    /// 删除（真 DELETE，不可恢复）。
+    public func delete(id: String) throws {
         try database.writer.write { db in
-            try db.execute(
-                sql: "UPDATE snippet SET deleted_at = ?, sync_dirty = 1, updated_at = ? WHERE uuid = ?",
-                arguments: [now, now, id]
-            )
+            try db.execute(sql: "DELETE FROM snippet WHERE uuid = ?", arguments: [id])
         }
     }
 
     public func count() throws -> Int {
         try database.writer.read { db in
-            try SnippetRecord.filter(sql: "deleted_at IS NULL").fetchCount(db)
-        }
-    }
-
-    public func totalCount() throws -> Int {
-        try database.writer.read { db in
-            try SnippetRecord.fetchCount(db) // 含软删除墓碑
+            try SnippetRecord.fetchCount(db)
         }
     }
 

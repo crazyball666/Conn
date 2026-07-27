@@ -78,7 +78,7 @@ final class SnippetsViewModel {
     }
 
     func delete(_ snippet: Snippet) {
-        try? store.softDelete(id: snippet.id)
+        try? store.delete(id: snippet.id)
         load()
     }
 

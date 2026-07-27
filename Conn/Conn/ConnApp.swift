@@ -244,7 +244,14 @@ struct AppDependencies {
     }
 
     /// 仅首次启动时把内置 JSON 中的分组和命令写入数据库。
+    /// 首启导入内置命令库。
+    ///
+    /// 用 UserDefaults 标记而非数据行数——改真删除后墓碑不存在，
+    /// 数行数会把「用户删光默认命令」误判为「从未导入」并重新灌回去。
     private static func importBuiltinSnippetsIfNeeded(_ store: SnippetStore) throws {
+        let defaults = UserDefaults.standard
+        guard !defaults.bool(forKey: SettingsStore.builtinSnippetsImportedKey) else { return }
         try BuiltinSnippets.importIfNeeded(into: store)
+        defaults.set(true, forKey: SettingsStore.builtinSnippetsImportedKey)
     }
 }

@@ -59,9 +59,9 @@ final class ServersViewModel {
         await monitor.scanNow(hosts: hosts)
     }
 
-    /// 软删除（墓碑），可随时重新添加，不影响服务器本身。
+    /// 真删除，不可恢复。只影响本地记录，不影响服务器本身。
     func delete(_ host: Host) {
-        try? hostStore.softDelete(id: host.id)
+        try? hostStore.delete(id: host.id)
         load()
     }
 

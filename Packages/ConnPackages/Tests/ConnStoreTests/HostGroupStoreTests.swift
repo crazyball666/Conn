@@ -17,12 +17,12 @@ struct HostGroupStoreTests {
         #expect(try store.allGroups().map(\.name) == ["测试", "生产"])
     }
 
-    @Test("软删除后不再出现")
-    func softDeleteHides() throws {
+    @Test("删除后不再出现")
+    func deleteRemovesGroup() throws {
         let store = try makeStore()
         let group = HostGroup(name: "临时")
         try store.save(group)
-        try store.softDelete(id: group.id)
+        try store.delete(id: group.id)
         #expect(try store.allGroups().isEmpty)
     }
 
