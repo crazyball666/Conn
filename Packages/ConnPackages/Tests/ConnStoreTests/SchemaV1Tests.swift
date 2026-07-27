@@ -21,8 +21,7 @@ struct SchemaV1Tests {
             """)
         }
         #expect(tables == [
-            "app_setting", "host", "host_group", "known_host",
-            "probe_target", "run_history", "snippet",
+            "host", "host_group", "known_host", "run_history", "snippet",
             "snippet_folder", "snippet_folder_membership", "ssh_key"
         ])
     }

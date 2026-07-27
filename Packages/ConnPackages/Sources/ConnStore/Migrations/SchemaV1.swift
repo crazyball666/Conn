@@ -100,20 +100,6 @@ enum SchemaV1 {
             }
             try db.create(index: "idx_run_history_host", on: "run_history", columns: ["host_uuid", "ran_at"])
 
-            try db.create(table: "probe_target") { t in
-                t.primaryKey("uuid", .text)
-                t.column("kind", .text).notNull() // http | tcp | ping
-                t.column("endpoint", .text).notNull()
-                t.column("host_uuid", .text)
-                t.column("last_status", .text)
-                t.column("last_latency_ms", .integer)
-                t.column("cert_expire_at", .integer)
-            }
-
-            try db.create(table: "app_setting") { t in
-                t.primaryKey("key", .text)
-                t.column("value", .text).notNull()
-            }
         }
     }
 }
