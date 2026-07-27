@@ -32,6 +32,7 @@
 - 服务器支持多分组 / 不分组；有分组时列表上方显示可点击筛选的分组条，没有分组则不显示。
 - 命令分组的数据库设计对齐到与主机分组同构的 uuid 方案。
 - 补上错误提示 UI，让已有的 `errorMessage` 真正可见。
+- 删除三张死表（`probe_target` / `app_setting` / `metric_sample`），指标改为纯内存态。
 
 ## 非目标
 
@@ -119,6 +120,34 @@ index idx_snippet_group_membership_group ON (group_uuid)
 
 **`AppDatabase.baseConfiguration`** —— `foreignKeysEnabled = true` 保留
 （`host.key_uuid → ssh_key` 仍是外键），但注释中对 `host.group_uuid` 的引用要删掉。
+
+### 删表
+
+整理表结构时发现三张表是死代码或纯负担，本次一并删除。改动后全库共 9 张表。
+
+**`probe_target` / `app_setting`** —— 建于 v1，全仓无 DAO、无 SQL 引用、无任何
+读写。直接从 `SchemaV1` 移除，无连带改动。
+
+**`metric_sample`** —— 纯写入表：`MonitorScheduler` 每次采集写一行，
+而 `MetricRepository.latest()` / `recentSamples()` 全仓无调用方；详情页趋势图走的是
+`HostOverviewViewModel` 的内存数组（上限 40 点，离开页面即清空）。指标改为纯内存态，
+连带删除：
+
+- `ConnKit/Models/MetricSample.swift`、`ConnKit/Repositories/MetricRepository.swift`
+- `ConnStore/DAO/MetricStore.swift`、`ConnStore/Records/MetricRecord.swift`
+- `Tests/ConnStoreTests/MetricStoreTests.swift`
+- `HostMetrics.sample` 属性与 init 参数（其注释即写「落库样本」）
+- `MetricCollector` 中构造 `MetricSample` 的那段
+- `MonitorScheduler` 的 `store` 属性、init 参数，以及写入用的 detached Task
+- `AppDependencies.metricStore`、`live()` 中的 `MetricStore` 构造与
+  `pruneSamples(olderThan:)` 调用、`demo()` 中的同类装配
+- `HostOverviewViewModel` 构造 `MonitorScheduler` 时的 `store:` 实参
+
+测试中没有任何 `MetricSample` 构造点，波及面干净。
+
+**代价明示**：PRD §离线「无网时可查看最后一次监控快照」是 v1.0 需求，
+`latest(hostUUID:)` 正是为它准备的（但从未接入）。删表后该需求失去地基，明确放弃。
+历史曲线本就是 PRD 对比矩阵标注的 `v1.5💰` 项，不受影响。
 
 ## 领域模型与仓库
 
@@ -284,9 +313,13 @@ index idx_snippet_group_membership_group ON (group_uuid)
 **ConnUITests（包内）**
 - `ConnToast` 自动消失时序与 reduce-motion 分支。
 
+**删除的测试**
+`MetricStoreTests` 整个删除（被测类型不再存在）。
+
 **跟进修改**
 `AppDatabaseTests`、`HostStoreTests`、`HostTests`、`HostGroupStoreTests`、
 `SnippetStoreTests`、`SnippetTests` 随字段变更同步更新。
+`ConnMonitorTests` 中若有构造 `MonitorScheduler(store:)` 的调用点一并跟进。
 
 ## i18n
 
