@@ -51,7 +51,7 @@
 |---|---|---|
 | 列表排序 | 移除状态排序，用默认 `sort_order ASC, name ASC` | 用户诉求；且状态排序导致采集期间列表持续跳动 |
 | 分组存储键 | uuid | 重命名只改一行 `name`，成员关系不动；同名分组不撞车 |
-| 成员关系 | 独立 join 表，**不声明外键** | `jump_chain` 已是无外键的 id 数组先例 |
+| 成员关系 | 独立 join 表，**外键 + ON DELETE CASCADE** | 改真删除后级联重新有效，成员行清理自动化，不再依赖纪律 |
 | 管理入口 | 工具栏 `+` 菜单新建，筛选条 chip 长按重命名/删除 | 不额外增加分组页；主机表单只做多选 |
 | 筛选条 chip | `全部` + 各分组，单选 | 与命令 Tab 行为一致；不提供「未分组」 |
 | 标签筛选行 | 分组行直接替换 | `tags` 无编辑入口，该行实机不可达；`Host.tags` 字段保留，`isProduction` 高危命令确认逻辑不受影响 |
@@ -118,12 +118,11 @@ Release 构建不开该开关，若有装过旧版本的设备需手动删除 Ap
 
 **`host_group_membership`**（新增）
 ```
-host_uuid  TEXT NOT NULL
-group_uuid TEXT NOT NULL
+host_uuid  TEXT NOT NULL → host(uuid)        ON DELETE CASCADE
+group_uuid TEXT NOT NULL → host_group(uuid)  ON DELETE CASCADE
 PRIMARY KEY (host_uuid, group_uuid)
 index idx_host_group_membership_group ON (group_uuid)
 ```
-不声明外键。
 
 **`ssh_key`** —— 删除 `deleted_at` 列，其余不变。
 
@@ -134,20 +133,36 @@ uuid PK / name / sort_order / created_at / updated_at / sync_dirty。
 
 **`snippet_group_membership`**（新增，替换 `snippet_folder_membership`）
 ```
-snippet_uuid TEXT NOT NULL
-group_uuid   TEXT NOT NULL
+snippet_uuid TEXT NOT NULL → snippet(uuid)       ON DELETE CASCADE
+group_uuid   TEXT NOT NULL → snippet_group(uuid) ON DELETE CASCADE
 PRIMARY KEY (snippet_uuid, group_uuid)
 index idx_snippet_group_membership_group ON (group_uuid)
 ```
-不声明外键。两张成员表结构完全一致，只有外层实体列名不同。
+两张成员表结构完全一致，只有外层实体列名不同。
 
 **`known_host`** / **`run_history`** —— 不变（本就是真删除）。
 
 **删除的表**：`snippet_folder`、`snippet_folder_membership`、
 `metric_sample`、`probe_target`、`app_setting`。
 
-**`AppDatabase.baseConfiguration`** —— `foreignKeysEnabled = true` 保留
-（`host.key_uuid → ssh_key` 仍是外键），注释中对 `host.group_uuid` 的引用删掉。
+**`AppDatabase.baseConfiguration`** —— `foreignKeysEnabled = true` 保留，
+注释重写：现在有 3 组外键真正在起作用（`host.key_uuid` 与两张成员表），
+且**改真删除后它们第一次会真的触发级联**。
+
+### 外键复活带来的行为变化
+
+软删除时代 `ON DELETE` 从不触发；改真删除后它们全部生效，其中一条是本次改动
+的副作用，必须处理：
+
+**`host.key_uuid → ssh_key(uuid) ON DELETE SET NULL`** —— 删除一把 SSH 密钥，
+所有引用它的主机 `key_uuid` 会被自动置空。这在语义上是对的（原设计意图），
+但在 UI 上表现为：用户删掉密钥后，几台用该密钥认证的主机会在下次连接时
+静默失败，且看不出原因。
+
+**在 `KeyManagerView` 的删除确认里加使用量提示**：删除前统计
+`SELECT COUNT(*) FROM host WHERE key_uuid = ?`，确认弹窗文案改为
+「N 台主机正在使用此密钥，删除后这些主机需要重新选择认证方式」。
+这是本次改动引入的回归，所以在范围内修掉，不留给后续。
 
 ### 删表的连带改动
 
@@ -196,13 +211,15 @@ index idx_snippet_group_membership_group ON (group_uuid)
   签名与 `HostGroupRepository` 完全一致。`SnippetRepository` 上的 `allFolders()` /
   `saveFolder(_:)` / `deleteFolder(_:)` / `totalCount()` 四个方法删除。
 
-**成员行清理**：成员表没有外键，所以级联不会自动发生。
-删除分组时必须在同一事务里 `DELETE FROM <x>_group_membership WHERE group_uuid = ?`；
-删除主机/命令时同理清 `host_uuid` / `snippet_uuid` 一侧。这是本设计里唯一需要
-靠纪律维持的不变式，测试必须覆盖两个方向。
+**成员行清理**：由外键 `ON DELETE CASCADE` 自动完成，删除分组或删除主机/命令时
+无需任何手动清理代码。测试仍需覆盖两个方向，验证的是行为而非实现。
 
-> 备注：改为真删除后外键 CASCADE 重新可用，加回外键即可让这两处清理自动化。
-> 本次按既定决策不加外键，留作后续可选优化。
+**写入顺序与悬空 id**：外键生效后，插入成员行要求两端实体都已存在。
+`save()` 必须先写实体记录、再写成员行（现有 `SnippetStore.save` 已是这个顺序）。
+另外，草稿里可能带着「保存期间该分组被删掉了」的悬空 group id——
+以前只是插进一行没人认领的成员，现在会直接触发外键违例、把整个保存事务打掉。
+**因此 store 在写成员行前必须先过滤掉数据库中不存在的 group id**，静默丢弃即可
+（分组被删是良性竞态）。表单层的同类过滤保留，但以 store 层为准。
 
 ### ConnStore
 
@@ -328,13 +345,18 @@ index idx_snippet_group_membership_group ON (group_uuid)
 | 仓库读写抛错 | 写入 `errorMessage`，toast 显示 `error.friendlyDiagnosis` |
 | 删除分组 | 仅解除归属，主机/命令本身不受影响（确认弹窗中明示） |
 | 删除主机/命令 | 真删除，不可恢复。确认弹窗文案需去掉「可随时重新添加」的暗示 |
+| 删除 SSH 密钥 | 引用它的主机 `key_uuid` 被置空；确认弹窗需先报出受影响台数 |
 
 ## 测试
 
 **ConnStoreTests**
 - 成员表读写往返；`save` 重写成员而非追加。
-- **删除分组时成员行被清空**，且组内主机/命令仍存在。
-- **删除主机/命令时其成员行被清空**（另一个方向）。
+- **删除分组时成员行被级联清空**，且组内主机/命令仍存在。
+- **删除主机/命令时其成员行被级联清空**（另一个方向）。
+- **保存时携带不存在的 group id 不报错**，该 id 被静默丢弃、其余分组正常写入
+  （验证 store 层过滤，否则外键违例会打掉整个事务）。
+- **删除 SSH 密钥后，引用它的主机 `key_uuid` 被置空**（`SET NULL` 级联，
+  软删除时代从不触发，改真删除后首次生效）。
 - 删除后 `allHosts()` / `allSnippets()` 立即不含该条，且表中确实无残留行
   （与旧的墓碑行为区分）。
 - `SchemaV1Tests.createsAllTables` 的表清单更新为最终 9 张。
@@ -380,4 +402,3 @@ index idx_snippet_group_membership_group ON (group_uuid)
   届时需要全量对账或重新引入删除记录。技术实现方案 §3 与 §4.11 需同步修订。
 - 其他页面（`FileBrowserViewModel` 等）接入 `ConnToast`。
 - 分组与主机的拖拽排序。
-- 成员表加回外键 CASCADE，把两处手动清理自动化。
