@@ -16,6 +16,8 @@ final class HostFormViewModel {
     let editingHostID: String?
     private let hostStore: any HostRepository
     private let credentialStore: any CredentialStore
+    /// 可选分组。表单只做多选，新建分组走服务器页工具栏的「+」菜单。
+    private(set) var availableGroups: [HostGroup] = []
 
     var isEditing: Bool { editingHostID != nil }
     var title: String { isEditing ? L("编辑主机") : L("添加主机") }
@@ -24,12 +26,14 @@ final class HostFormViewModel {
         draft: HostDraft,
         editingHostID: String?,
         hostStore: any HostRepository,
-        credentialStore: any CredentialStore
+        credentialStore: any CredentialStore,
+        groupStore: any HostGroupRepository
     ) {
         self.draft = draft
         self.editingHostID = editingHostID
         self.hostStore = hostStore
         self.credentialStore = credentialStore
+        availableGroups = (try? groupStore.allGroups()) ?? []
         // 编辑时读回已存密码，便于展示与再保存
         if let id = editingHostID {
             password = (try? credentialStore.password(forHost: id)) ?? ""
@@ -57,6 +61,11 @@ final class HostFormViewModel {
         fieldErrors = draft.validate()
         guard fieldErrors.isEmpty else { return nil }
 
+        // 丢掉解析不到现存分组的悬空 id（分组在编辑期间被删是良性竞态）。
+        // store 层也会过滤，这里是就近防御。
+        draft.groupIDs = draft.groupIDs.filter { id in
+            availableGroups.contains { $0.id == id }
+        }
         let host = draft.toHost(existingID: editingHostID)
         do {
             try hostStore.save(host)

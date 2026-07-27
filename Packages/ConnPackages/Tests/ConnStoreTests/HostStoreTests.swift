@@ -82,4 +82,24 @@ struct HostStoreTests {
         #expect(hosts.count == 1)
         #expect(hosts.first?.name == "new")
     }
+
+    /// 锁住外键行为：`host.key_uuid` 的 SET NULL 级联在软删除时代从不触发，
+    /// 改真删除后首次生效。KeyManagerView 的删除确认依赖这条行为提示用户。
+    @Test("删除 SSH 密钥后，引用它的主机 key_uuid 被置空")
+    func deletingKeyNullsHostReference() throws {
+        let database = try AppDatabase.inMemory()
+        let hosts = HostStore(database: database)
+        let keys = SSHKeyStore(database: database)
+        let key = SSHKey(name: "ed25519", kind: .ed25519, publicKey: "ssh-ed25519 AAAA")
+        try keys.save(key)
+        let host = DomainHost(
+            name: "web", address: "1", username: "root",
+            authKind: .key, keyUUID: key.id
+        )
+        try hosts.save(host)
+
+        try keys.delete(id: key.id)
+
+        #expect(try hosts.host(id: host.id)?.keyUUID == nil)
+    }
 }

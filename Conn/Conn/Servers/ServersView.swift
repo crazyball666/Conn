@@ -14,12 +14,6 @@ private struct TerminalRoute: Hashable {
     let host: Host
 }
 
-/// 分组重命名 / 删除的呈现请求。
-private struct GroupEditRequest: Identifiable {
-    let id: String
-    let name: String
-}
-
 /// 「服务器」页：原「仪表盘 S1」+「主机 S2」合并为一屏。
 ///
 /// PRD「观测先于操作」：健康视图为主——状态 + CPU/内存/磁盘 指标卡；
@@ -102,42 +96,18 @@ struct ServersView: View {
         .navigationDestination(item: $terminalRoute) { route in
             TerminalScreen(host: route.host, dependencies: dependencies)
         }
-        .alert(L("新增分组"), isPresented: $isNewGroupPresented) {
-            TextField(L("分组名称"), text: $groupNameInput)
-            Button(L("取消"), role: .cancel) {}
-            Button(L("保存")) { viewModel.addGroup(groupNameInput) }
-                .disabled(groupNameInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-        }
-        .alert(
-            L("重命名分组"),
-            isPresented: Binding(get: { renameTarget != nil }, set: { if !$0 { renameTarget = nil } })
-        ) {
-            TextField(L("分组名称"), text: $groupNameInput)
-            Button(L("取消"), role: .cancel) { renameTarget = nil }
-            Button(L("保存")) {
-                if let target = renameTarget {
-                    viewModel.renameGroup(id: target.id, to: groupNameInput)
-                }
-                renameTarget = nil
-            }
-            .disabled(groupNameInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-        }
-        .confirmationDialog(
-            L("删除分组"),
-            isPresented: Binding(
-                get: { groupDeleteRequest != nil },
-                set: { if !$0 { groupDeleteRequest = nil } }
-            ),
-            titleVisibility: .visible
-        ) {
-            Button(L("删除"), role: .destructive) {
-                if let request = groupDeleteRequest { viewModel.deleteGroup(id: request.id) }
-                groupDeleteRequest = nil
-            }
-            Button(L("取消"), role: .cancel) { groupDeleteRequest = nil }
-        } message: {
-            Text(L("删除分组不会删除其中的服务器。"))
-        }
+        .groupManagementAlerts(
+            isNewGroupPresented: $isNewGroupPresented,
+            renameTarget: $renameTarget,
+            deleteRequest: $groupDeleteRequest,
+            nameInput: $groupNameInput,
+            actions: GroupAlertActions(
+                deleteMessage: L("删除分组不会删除其中的服务器。"),
+                onAdd: { viewModel.addGroup($0) },
+                onRename: { viewModel.renameGroup(id: $0, to: $1) },
+                onDelete: { viewModel.deleteGroup(id: $0) }
+            )
+        )
         .connToast(message: Binding(
             get: { viewModel.errorMessage },
             set: { if $0 == nil { viewModel.clearError() } }

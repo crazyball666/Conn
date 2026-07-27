@@ -396,6 +396,20 @@ index idx_snippet_group_membership_group ON (group_uuid)
 删除主机的确认文案需重写：现文案「将从列表中移除，可随时重新添加（不影响服务器本身）」
 在真删除语义下具有误导性。
 
+## 实现与本文的两处偏离
+
+1. **`GroupListEditor` 不持有仓库，只做规则。** 本文原写「持有一个 group 仓库并
+   对外提供 add/rename/delete」。`HostGroupRepository` 与 `SnippetGroupRepository`
+   是元素类型不同的两个协议，泛型化后 `AppDependencies` 里的 `any XxxRepository`
+   存在类型无法满足泛型约束，还得再套一层类型擦除——代码量与理解成本都超过它
+   消除的重复。最终形态：`GroupListEditor` 只负责校验与排序权重，持久化留在各自
+   ViewModel（各约 8 行）。
+
+2. **多抽了一个 `GroupManagementAlerts`。** 本文说「重命名与删除的 alert 由各自
+   页面持有」，实测两页的三件套弹窗逐字相同（仅删除说明文案不同），且把
+   `SnippetsView` 的 type_body_length 从 315 推到 344 行。抽成共用修饰器后
+   降到 303 行，比改动前还小。
+
 ## 待办（不在本次范围）
 
 - **v1.1 立项时重新决策删除传播**：本次取消墓碑后，iCloud 同步无法传播删除，

@@ -36,17 +36,32 @@ enum DemoData {
         )
     }
 
-    /// 写入演示主机（含一台故障机、多种标签、覆盖 prod/staging/home）。
-    static func seedHosts(into store: HostStore) throws {
+    /// 写入演示主机与分组（含一台故障机，覆盖生产/测试/家用三组与多分组归属）。
+    ///
+    /// 必须一并种分组：否则服务器页的分组筛选条在 `CONN_DEMO` 截图与冒烟模式下
+    /// 完全不渲染，新功能不可见。
+    static func seedHosts(into store: HostStore, groups groupStore: HostGroupStore) throws {
+        let prod = HostGroup(name: L("生产"), sortOrder: 0)
+        let staging = HostGroup(name: L("测试"), sortOrder: 1)
+        let home = HostGroup(name: L("家用"), sortOrder: 2)
+        for group in [prod, staging, home] {
+            try groupStore.save(group)
+        }
+
         let hosts = [
-            Host(name: "web-01", address: "10.20.0.11", username: "root", tags: ["prod", "web"],
-                 note: "主站 Nginx 入口"),
-            Host(name: "api-02", address: "10.20.0.12", username: "deploy", tags: ["prod", "api"]),
-            Host(name: "db-master", address: faultHostAddress, username: "root", tags: ["prod", "db"],
-                 note: "生产主库，勿直接重启"),
-            Host(name: "cache-01", address: "10.20.0.21", username: "deploy", tags: ["staging"]),
-            Host(name: "worker-1", address: "10.20.0.31", username: "root", tags: ["staging", "batch"]),
-            Host(name: "home-nas", address: "192.168.1.10", username: "admin", tags: ["home"])
+            Host(name: "web-01", address: "10.20.0.11", username: "root",
+                 groupIDs: [prod.id], tags: ["prod", "web"], note: "主站 Nginx 入口"),
+            Host(name: "api-02", address: "10.20.0.12", username: "deploy",
+                 groupIDs: [prod.id], tags: ["prod", "api"]),
+            Host(name: "db-master", address: faultHostAddress, username: "root",
+                 groupIDs: [prod.id], tags: ["prod", "db"], note: "生产主库，勿直接重启"),
+            Host(name: "cache-01", address: "10.20.0.21", username: "deploy",
+                 groupIDs: [staging.id], tags: ["staging"]),
+            // 同时属于两个分组，用来验证多分组归属。
+            Host(name: "worker-1", address: "10.20.0.31", username: "root",
+                 groupIDs: [staging.id, prod.id], tags: ["staging", "batch"]),
+            Host(name: "home-nas", address: "192.168.1.10", username: "admin",
+                 groupIDs: [home.id], tags: ["home"])
         ]
         for host in hosts {
             try store.save(host)

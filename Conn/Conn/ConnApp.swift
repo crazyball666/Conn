@@ -215,7 +215,7 @@ struct AppDependencies {
             let hostStore = HostStore(database: database)
             let groupStore = HostGroupStore(database: database)
             let keyStore = SSHKeyStore(database: database)
-            try DemoData.seedHosts(into: hostStore)
+            try DemoData.seedHosts(into: hostStore, groups: groupStore)
 
             let transport = MockSSHTransport(behavior: DemoData.behavior())
             let credentialStore = InMemoryCredentialStore()
