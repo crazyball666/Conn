@@ -39,8 +39,6 @@ public struct AppDatabase {
             migrator.eraseDatabaseOnSchemaChange = true
         #endif
         SchemaV1.register(in: &migrator)
-        SchemaV2.register(in: &migrator)
-        SchemaV3.register(in: &migrator)
         return migrator
     }
 

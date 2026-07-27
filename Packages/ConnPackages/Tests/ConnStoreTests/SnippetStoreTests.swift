@@ -18,7 +18,7 @@ struct SnippetStoreTests {
         #expect(snippets.map(\.title) == ["普通", "置顶"])
     }
 
-    @Test("count 统计未删除数量")
+    @Test("count 统计命令数量")
     func counts() throws {
         let store = try makeStore()
         #expect(try store.count() == 0)
@@ -27,7 +27,7 @@ struct SnippetStoreTests {
         #expect(try store.count() == 2)
     }
 
-    @Test("软删除后不再出现")
+    @Test("删除后不再出现")
     func deletes() throws {
         let store = try makeStore()
         let snippet = Snippet(title: "临时", command: "echo hi")
@@ -50,55 +50,41 @@ struct SnippetStoreTests {
         #expect(try store.snippet(id: snippet.id)?.title == "新")
     }
 
-    @Test("新增分组持久化，并与已有命令分组合并去重")
-    func foldersPersistAndIncludeExistingSnippetFolders() throws {
-        let store = try makeStore()
-        try store.saveFolder(" 网络 ")
-        try store.saveFolder("网络")
-        try store.save(Snippet(title: "容器", command: "docker ps", folder: "Docker"))
-
-        #expect(try store.allFolders() == ["网络", "Docker"])
-    }
-
-    @Test("空白分组不会保存")
-    func blankFolderIsIgnored() throws {
-        let store = try makeStore()
-        try store.saveFolder("   ")
-
-        #expect(try store.allFolders().isEmpty)
-    }
-
     @Test("命令支持多个分组，编辑后可移除全部分组")
-    func multipleFoldersRoundTripAndCanBeCleared() throws {
-        let store = try makeStore()
-        var snippet = Snippet(
-            title: "容器日志",
-            command: "docker logs",
-            folders: ["Docker", "日志"]
-        )
+    func multipleGroupsRoundTripAndCanBeCleared() throws {
+        let database = try AppDatabase.inMemory()
+        let store = SnippetStore(database: database)
+        let groups = SnippetGroupStore(database: database)
+        let docker = SnippetGroup(name: "Docker", sortOrder: 0)
+        let logs = SnippetGroup(name: "日志", sortOrder: 1)
+        try groups.save(docker)
+        try groups.save(logs)
+        var snippet = Snippet(title: "容器日志", command: "docker logs", groupIDs: [docker.id, logs.id])
         try store.save(snippet)
 
-        #expect(Set(try #require(store.snippet(id: snippet.id)).folders) == ["Docker", "日志"])
+        #expect(try #require(store.snippet(id: snippet.id)).groupIDs == [docker.id, logs.id])
 
-        snippet.folders = []
+        snippet.groupIDs = []
         try store.save(snippet)
 
-        #expect(try #require(store.snippet(id: snippet.id)).folders.isEmpty)
+        #expect(try #require(store.snippet(id: snippet.id)).groupIDs.isEmpty)
     }
 
     @Test("删除分组只解除归属，不删除组内命令")
-    func deletingFolderKeepsCommands() throws {
-        let store = try makeStore()
-        let snippet = Snippet(
-            title: "容器日志",
-            command: "docker logs",
-            folders: ["Docker", "日志"]
-        )
+    func deletingGroupKeepsCommands() throws {
+        let database = try AppDatabase.inMemory()
+        let store = SnippetStore(database: database)
+        let groups = SnippetGroupStore(database: database)
+        let docker = SnippetGroup(name: "Docker", sortOrder: 0)
+        let logs = SnippetGroup(name: "日志", sortOrder: 1)
+        try groups.save(docker)
+        try groups.save(logs)
+        let snippet = Snippet(title: "容器日志", command: "docker logs", groupIDs: [docker.id, logs.id])
         try store.save(snippet)
 
-        try store.deleteFolder("Docker")
+        try groups.delete(id: docker.id)
 
-        #expect(try store.allFolders() == ["日志"])
-        #expect(try store.snippet(id: snippet.id)?.folders == ["日志"])
+        #expect(try groups.allGroups().map(\.name) == ["日志"])
+        #expect(try store.snippet(id: snippet.id)?.groupIDs == [logs.id])
     }
 }

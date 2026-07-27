@@ -4,7 +4,6 @@ import Testing
 
 private final class StubBuiltinSnippetRepository: SnippetRepository, @unchecked Sendable {
     var snippets: [Snippet] = []
-    var folders: [String] = []
 
     func allSnippets() throws -> [Snippet] { snippets }
     func snippet(id: String) throws -> Snippet? { snippets.first { $0.id == id } }
@@ -17,11 +16,20 @@ private final class StubBuiltinSnippetRepository: SnippetRepository, @unchecked 
     }
     func delete(id: String) throws { snippets.removeAll { $0.id == id } }
     func count() throws -> Int { snippets.count }
-    func allFolders() throws -> [String] { folders }
-    func saveFolder(_ name: String) throws {
-        if !folders.contains(name) { folders.append(name) }
+}
+
+private final class StubBuiltinGroupRepository: SnippetGroupRepository, @unchecked Sendable {
+    var groups: [SnippetGroup] = []
+
+    func allGroups() throws -> [SnippetGroup] { groups.sorted { $0.sortOrder < $1.sortOrder } }
+    func save(_ group: SnippetGroup) throws {
+        if let index = groups.firstIndex(where: { $0.id == group.id }) {
+            groups[index] = group
+        } else {
+            groups.append(group)
+        }
     }
-    func deleteFolder(_ name: String) throws { folders.removeAll { $0 == name } }
+    func delete(id: String) throws { groups.removeAll { $0.id == id } }
 }
 
 struct BuiltinSnippetsTests {
@@ -32,8 +40,8 @@ struct BuiltinSnippetsTests {
     }
 
     @Test("内置 JSON 同时声明有序分组")
-    func loadsOrderedFolders() {
-        #expect(BuiltinSnippets.loadFolders() == ["系统", "磁盘", "网络", "日志", "Docker", "服务"])
+    func loadsOrderedGroupNames() {
+        #expect(BuiltinSnippets.loadGroupNames() == ["系统", "磁盘", "网络", "日志", "Docker", "服务"])
     }
 
     /// 「是否需要导入」的判定已上移到调用方（`SettingsStore.builtinSnippetsImported`）——
@@ -41,11 +49,26 @@ struct BuiltinSnippetsTests {
     @Test("导入会写入全部内置分组与命令")
     func importsFullLibrary() throws {
         let store = StubBuiltinSnippetRepository()
+        let groups = StubBuiltinGroupRepository()
 
-        #expect(try BuiltinSnippets.importIfNeeded(into: store))
+        #expect(try BuiltinSnippets.importIfNeeded(into: store, groups: groups))
 
         #expect(store.snippets.count == BuiltinSnippets.load().count)
-        #expect(store.folders == BuiltinSnippets.loadFolders())
+        #expect(try groups.allGroups().map(\.name) == BuiltinSnippets.loadGroupNames())
+    }
+
+    @Test("导入后命令按 id 关联到分组，无悬空 id")
+    func importsLinkCommandsToGroupIDs() throws {
+        let store = StubBuiltinSnippetRepository()
+        let groups = StubBuiltinGroupRepository()
+
+        try BuiltinSnippets.importIfNeeded(into: store, groups: groups)
+
+        let systemGroupID = try #require(groups.allGroups().first { $0.name == "系统" }).id
+        let overview = try #require(store.snippets.first { $0.title == "系统概览" })
+        #expect(overview.groupIDs == [systemGroupID])
+        let known = Set(try groups.allGroups().map(\.id))
+        #expect(store.snippets.allSatisfy { $0.groupIDs.allSatisfy(known.contains) })
     }
 
     @Test("每条都有标题与命令，排序权重递增")

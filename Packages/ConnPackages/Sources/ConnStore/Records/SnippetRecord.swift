@@ -9,7 +9,6 @@ struct SnippetRecord: Codable, FetchableRecord, PersistableRecord, Sendable {
     var uuid: String
     var title: String
     var command: String
-    var folder: String?
     var pinned: Bool
     var danger: Bool
     var sortOrder: Int
@@ -18,7 +17,7 @@ struct SnippetRecord: Codable, FetchableRecord, PersistableRecord, Sendable {
     var syncDirty: Bool
 
     enum CodingKeys: String, CodingKey {
-        case uuid, title, command, folder, pinned, danger
+        case uuid, title, command, pinned, danger
         case sortOrder = "sort_order"
         case createdAt = "created_at"
         case updatedAt = "updated_at"
@@ -31,7 +30,6 @@ extension SnippetRecord {
         uuid = snippet.id
         title = snippet.title
         command = snippet.command
-        folder = snippet.folder
         pinned = snippet.pinned
         danger = snippet.danger
         sortOrder = snippet.sortOrder
@@ -40,13 +38,12 @@ extension SnippetRecord {
         syncDirty = snippet.syncDirty
     }
 
-    func toDomain(folders: [String]? = nil) -> Snippet {
+    func toDomain(groupIDs: [String]) -> Snippet {
         Snippet(
             id: uuid,
             title: title,
             command: command,
-            folder: folders == nil ? folder : nil,
-            folders: folders ?? [],
+            groupIDs: groupIDs,
             pinned: pinned,
             danger: danger,
             sortOrder: sortOrder,

@@ -22,7 +22,7 @@ struct SchemaV1Tests {
         }
         #expect(tables == [
             "host", "host_group", "known_host", "run_history", "snippet",
-            "snippet_folder", "snippet_folder_membership", "ssh_key"
+            "snippet_group", "snippet_group_membership", "ssh_key"
         ])
     }
 
@@ -33,33 +33,6 @@ struct SchemaV1Tests {
         let second = try AppDatabase(queue) // 同一 writer 再跑一次迁移
         let count = try second.writer.read { try Int.fetchOne($0, sql: "SELECT COUNT(*) FROM host") }
         #expect(count == 0)
-    }
-
-    @Test("旧版单分组数据迁移为多分组关联，并保留首次出现顺序")
-    func migratesLegacySnippetFolders() throws {
-        let queue = try DatabaseQueue()
-        var legacyMigrator = DatabaseMigrator()
-        SchemaV1.register(in: &legacyMigrator)
-        SchemaV2.register(in: &legacyMigrator)
-        try legacyMigrator.migrate(queue)
-        try queue.write { db in
-            try db.execute(
-                sql: """
-                INSERT INTO snippet
-                (uuid, title, command, folder, sort_order, created_at, updated_at)
-                VALUES
-                ('a', '系统', 'a', '系统', 0, 1, 1),
-                ('b', '日志', 'b', '日志', 1, 2, 2)
-                """
-            )
-        }
-
-        let database = try AppDatabase(queue)
-        let store = SnippetStore(database: database)
-
-        #expect(try store.allFolders() == ["系统", "日志"])
-        #expect(try store.snippet(id: "a")?.folders == ["系统"])
-        #expect(try store.snippet(id: "b")?.folders == ["日志"])
     }
 
     @Test("host 表可写入并读回，字段无损")

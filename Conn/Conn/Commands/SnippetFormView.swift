@@ -5,7 +5,7 @@ import SwiftUI
 /// 片段新增 / 编辑（Phase 9）。
 struct SnippetFormView: View {
     let snippet: Snippet?
-    let groups: [String]
+    let groups: [SnippetGroup]
     let onSave: (Snippet) -> Void
     @Environment(\.dismiss) private var dismiss
 
@@ -15,13 +15,13 @@ struct SnippetFormView: View {
     @State private var pinned: Bool
     @State private var danger: Bool
 
-    init(snippet: Snippet?, groups: [String], onSave: @escaping (Snippet) -> Void) {
+    init(snippet: Snippet?, groups: [SnippetGroup], onSave: @escaping (Snippet) -> Void) {
         self.snippet = snippet
         self.groups = groups
         self.onSave = onSave
         _title = State(initialValue: snippet?.title ?? "")
         _command = State(initialValue: snippet?.command ?? "")
-        _selectedGroups = State(initialValue: Set(snippet?.folders ?? []))
+        _selectedGroups = State(initialValue: Set(snippet?.groupIDs ?? []))
         _pinned = State(initialValue: snippet?.pinned ?? false)
         _danger = State(initialValue: snippet?.danger ?? false)
     }
@@ -44,22 +44,22 @@ struct SnippetFormView: View {
                     Text(L("变量用 {{名称}} 或 {{名称:默认值}}，执行前会让你填参。"))
                 }
                 Section {
-                    ForEach(availableGroups, id: \.self) { group in
+                    ForEach(availableGroups) { group in
                         Button {
-                            if selectedGroups.contains(group) {
-                                selectedGroups.remove(group)
+                            if selectedGroups.contains(group.id) {
+                                selectedGroups.remove(group.id)
                             } else {
-                                selectedGroups.insert(group)
+                                selectedGroups.insert(group.id)
                             }
                         } label: {
                             HStack {
-                                Text(group)
+                                Text(group.name)
                                     .foregroundStyle(.primary)
                                 Spacer()
-                                Image(systemName: selectedGroups.contains(group)
+                                Image(systemName: selectedGroups.contains(group.id)
                                     ? "checkmark.circle.fill"
                                     : "circle")
-                                    .foregroundStyle(selectedGroups.contains(group) ? Color.connAccent : .secondary)
+                                    .foregroundStyle(selectedGroups.contains(group.id) ? Color.connAccent : .secondary)
                             }
                             .contentShape(Rectangle())
                         }
@@ -93,13 +93,9 @@ struct SnippetFormView: View {
         }
     }
 
-    private var availableGroups: [String] {
-        var result = groups
-        for group in snippet?.folders ?? [] where !result.contains(group) {
-            result.append(group)
-        }
-        return result
-    }
+    /// 可选分组即当前存在的分组。命令上残留的悬空 id（分组已被删）不再补齐，
+    /// store 层也会在保存时把它们丢掉。
+    private var availableGroups: [SnippetGroup] { groups }
 
     private func save() {
         let result: Snippet
@@ -107,7 +103,7 @@ struct SnippetFormView: View {
             var updated = existing
             updated.title = title
             updated.command = command
-            updated.folders = availableGroups.filter(selectedGroups.contains)
+            updated.groupIDs = availableGroups.map(\.id).filter(selectedGroups.contains)
             updated.pinned = pinned
             updated.danger = danger
             result = updated
@@ -115,7 +111,7 @@ struct SnippetFormView: View {
             result = Snippet(
                 title: title,
                 command: command,
-                folders: availableGroups.filter(selectedGroups.contains),
+                groupIDs: availableGroups.map(\.id).filter(selectedGroups.contains),
                 pinned: pinned,
                 danger: danger
             )

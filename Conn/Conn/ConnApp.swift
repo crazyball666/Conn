@@ -149,6 +149,8 @@ struct AppDependencies {
     let runHistory: any RunHistoryRepository
     /// 片段仓库（Phase 9）。首启导入内置模板库。
     let snippetRepository: any SnippetRepository
+    /// 命令分组仓库。与 `groupRepository`（主机分组）同构。
+    let snippetGroupRepository: any SnippetGroupRepository
     /// 应用锁。默认关闭，设置页开启（Phase 5）。
     let appLock: AppLockController
 
@@ -174,7 +176,8 @@ struct AppDependencies {
             let monitor = MonitorScheduler(connectionManager: connectionManager)
 
             let snippetStore = SnippetStore(database: database)
-            try importBuiltinSnippetsIfNeeded(snippetStore)
+            let snippetGroupStore = SnippetGroupStore(database: database)
+            try importBuiltinSnippetsIfNeeded(snippetStore, snippetGroupStore)
 
             return AppDependencies(
                 hostRepository: hostStore,
@@ -186,6 +189,7 @@ struct AppDependencies {
                 monitor: monitor,
                 runHistory: RunHistoryStore(database: database),
                 snippetRepository: snippetStore,
+                snippetGroupRepository: snippetGroupStore,
                 appLock: AppLockController(
                     authenticator: LABiometricAuthenticator(),
                     // 设置页持久化的开关；DEBUG 冒烟可强制开启验证锁屏。
@@ -217,7 +221,8 @@ struct AppDependencies {
             let connectionManager = ConnectionManager(transport: transport) { _ in .password("demo") }
             let monitor = MonitorScheduler(connectionManager: connectionManager)
             let snippetStore = SnippetStore(database: database)
-            try importBuiltinSnippetsIfNeeded(snippetStore)
+            let snippetGroupStore = SnippetGroupStore(database: database)
+            try importBuiltinSnippetsIfNeeded(snippetStore, snippetGroupStore)
 
             return AppDependencies(
                 hostRepository: hostStore,
@@ -229,6 +234,7 @@ struct AppDependencies {
                 monitor: monitor,
                 runHistory: RunHistoryStore(database: database),
                 snippetRepository: snippetStore,
+                snippetGroupRepository: snippetGroupStore,
                 appLock: AppLockController(authenticator: LABiometricAuthenticator(), isEnabled: false)
             )
         } catch {
@@ -248,10 +254,13 @@ struct AppDependencies {
     ///
     /// 用 UserDefaults 标记而非数据行数——改真删除后墓碑不存在，
     /// 数行数会把「用户删光默认命令」误判为「从未导入」并重新灌回去。
-    private static func importBuiltinSnippetsIfNeeded(_ store: SnippetStore) throws {
+    private static func importBuiltinSnippetsIfNeeded(
+        _ store: SnippetStore,
+        _ groups: SnippetGroupStore
+    ) throws {
         let defaults = UserDefaults.standard
         guard !defaults.bool(forKey: SettingsStore.builtinSnippetsImportedKey) else { return }
-        try BuiltinSnippets.importIfNeeded(into: store)
+        try BuiltinSnippets.importIfNeeded(into: store, groups: groups)
         defaults.set(true, forKey: SettingsStore.builtinSnippetsImportedKey)
     }
 }

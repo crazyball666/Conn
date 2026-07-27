@@ -80,7 +80,6 @@ enum SchemaV1 {
                 t.primaryKey("uuid", .text)
                 t.column("title", .text).notNull()
                 t.column("command", .text).notNull()
-                t.column("folder", .text)
                 t.column("pinned", .integer).notNull().defaults(to: 0)
                 t.column("danger", .integer).notNull().defaults(to: 0)
                 t.column("sort_order", .integer).notNull().defaults(to: 0)
@@ -88,6 +87,32 @@ enum SchemaV1 {
                 t.column("updated_at", .integer).notNull()
                 t.column("sync_dirty", .integer).notNull().defaults(to: 0)
             }
+
+            try db.create(table: "snippet_group") { t in
+                t.primaryKey("uuid", .text)
+                t.column("name", .text).notNull()
+                t.column("sort_order", .integer).notNull().defaults(to: 0)
+                t.column("created_at", .integer).notNull()
+                t.column("updated_at", .integer).notNull()
+                t.column("sync_dirty", .integer).notNull().defaults(to: 0)
+            }
+
+            // 成员行是真删除（无墓碑）：它不是独立同步单元，只随父实体的 save
+            // 被整体重写，§4.11 的冲突策略是 record 级 LWW。
+            try db.create(table: "snippet_group_membership") { t in
+                t.column("snippet_uuid", .text)
+                    .notNull()
+                    .references("snippet", column: "uuid", onDelete: .cascade)
+                t.column("group_uuid", .text)
+                    .notNull()
+                    .references("snippet_group", column: "uuid", onDelete: .cascade)
+                t.primaryKey(["snippet_uuid", "group_uuid"])
+            }
+            try db.create(
+                index: "idx_snippet_group_membership_group",
+                on: "snippet_group_membership",
+                columns: ["group_uuid"]
+            )
 
             try db.create(table: "run_history") { t in
                 t.primaryKey("uuid", .text)
