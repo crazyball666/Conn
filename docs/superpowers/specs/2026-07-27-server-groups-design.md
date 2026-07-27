@@ -1,4 +1,4 @@
-# 服务器分组 + 列表排序修正 设计文档
+# 服务器分组 + 列表排序修正 + 删除语义统一 设计文档
 
 日期：2026-07-27
 
@@ -14,63 +14,86 @@
    就建好了，但从未接入 UI。列表上方那行 chip 筛选的是 `tags`，而 `tags` 只有
    Demo 数据会写（主机表单里没有编辑入口），实机上那行永远不渲染。
 
-顺带发现两个既有缺陷，本次一并修正：
+整理表结构时发现的既有缺陷，本次一并处理：
 
-3. **`snippet_folder` 是全库唯一不守约定的实体表。** 技术实现方案 §3 要求
-   「所有表带 `uuid TEXT PRIMARY KEY`、`created_at`、`updated_at`；为同步预留
-   `sync_dirty`、`deleted_at`（墓碑）」。`snippet_folder` 只有 `name` 主键和
-   `sort_order` 两个字段，删除走真 DELETE。后果：重命名等于删旧建新
-   （`sort_order` 丢失），且 §4.11 的 ConnSync 接入时它是唯一没有墓碑的实体——
-   A 设备删除的分组会被 B 设备当作本地新增同步回来。
-4. **`errorMessage` 全局无人渲染。** `ServersViewModel`、`SnippetsViewModel`、
+3. **`snippet_folder` 与 `host_group` 两套分组模型不对称。** 主机是单分组外键
+   （从未接入 UI），命令是多分组成员表；命名一个叫 `group` 一个叫 `folder`；
+   `snippet_folder` 只有 `name` 主键，没有 uuid、时间戳与同步字段。
+4. **三张死表。** `probe_target`、`app_setting` 全仓无任何读写；
+   `metric_sample` 是纯写入表，没有任何读取方。
+5. **`errorMessage` 全局无人渲染。** `ServersViewModel`、`SnippetsViewModel`、
    `FileBrowserViewModel` 都在往一个没有任何 View 读取的字段里写错误字符串
    （全仓 grep 零命中），所有失败对用户静默。
+6. **软删除墓碑是纯负担。** 每个查询都必须记得写 `WHERE deleted_at IS NULL`，
+   漏一次就是数据泄漏 bug；而墓碑的唯一收益（同步时传播删除）对应的引擎
+   尚未存在，且 §4.11 声称的「墓碑 30 天后物理清除」从未实现——墓碑目前
+   只增不减。
 
 ## 目标
 
 - 服务器列表回到默认顺序（`sort_order ASC, name ASC`），健康状态彻底退出排序。
 - 服务器支持多分组 / 不分组；有分组时列表上方显示可点击筛选的分组条，没有分组则不显示。
-- 命令分组的数据库设计对齐到与主机分组同构的 uuid 方案。
-- 补上错误提示 UI，让已有的 `errorMessage` 真正可见。
+- 主机与命令的分组模型完全对称，命名统一为 `group`。
+- 删除语义全库统一为真 DELETE，取消软删除墓碑。
 - 删除三张死表（`probe_target` / `app_setting` / `metric_sample`），指标改为纯内存态。
+- 补上错误提示 UI，让已有的 `errorMessage` 真正可见。
 
 ## 非目标
 
 - 不接入其他页面的错误提示（`FileBrowserViewModel` 等），留给后续统一逆入。
 - 不做分组或主机的拖拽排序。
 - 不引入「未分组」筛选项（无分组主机只在「全部」中出现）。
-- 不改变实体的软删除语义（见「关于删除模型」）。
 - 不保留任何向后兼容代码或数据：项目未发布，旧数据直接清空。
 
 ## 关键决策
 
 | 决策 | 结论 | 理由 |
 |---|---|---|
+| 列表排序 | 移除状态排序，用默认 `sort_order ASC, name ASC` | 用户诉求；且状态排序导致采集期间列表持续跳动 |
 | 分组存储键 | uuid | 重命名只改一行 `name`，成员关系不动；同名分组不撞车 |
-| 成员关系 | 独立 join 表，**不声明外键** | 软删除下 CASCADE 永不触发，外键只剩「防止插入不存在的 id」这点价值；`jump_chain` 已是无外键的 id 数组先例 |
+| 成员关系 | 独立 join 表，**不声明外键** | `jump_chain` 已是无外键的 id 数组先例 |
 | 管理入口 | 工具栏 `+` 菜单新建，筛选条 chip 长按重命名/删除 | 不额外增加分组页；主机表单只做多选 |
 | 筛选条 chip | `全部` + 各分组，单选 | 与命令 Tab 行为一致；不提供「未分组」 |
 | 标签筛选行 | 分组行直接替换 | `tags` 无编辑入口，该行实机不可达；`Host.tags` 字段保留，`isProduction` 高危命令确认逻辑不受影响 |
 | 命令分组 | 本次一并对齐到 uuid | 开发阶段改造成本最低；晚改要面对真实用户数据 |
 | 术语 | DB 表名与代码统一用 `group` | 表要重建，顺手把 DB 的 `folder`、UI 的「分组」、代码的 `folders` 三套叫法收敛成一套 |
 | `HostGroup` / `SnippetGroup` | 保持两个独立类型 | 不同实体、不同表，可能分头长出字段（如主机分组加颜色）；真正该复用的是 UI 与 ViewModel 逻辑 |
+| **删除语义** | **全库真 DELETE，取消所有墓碑** | 见下节 |
 | 迁移链 | 折叠回 `SchemaV1`，删除 V2/V3 | 项目未发布；否则会出现「V2 建表 → V3 加列 → V5 全部 drop」的考古层 |
 | 错误提示形式 | 顶部浮层 toast，自动消失 | 不占布局 |
 
-### 关于删除模型
+### 关于删除模型：有意偏离既有文档
 
-成员行本身是**真删除**（无 `deleted_at`）：它不是独立的同步单元，只会随父实体的
-`save` 被整体重写，§4.11 定的冲突策略是 record 级 LWW，成员集合跟着 record 走即可。
+**决定：`host`、`host_group`、`ssh_key`、`snippet`、`snippet_group` 全部改为真
+DELETE，去掉 `deleted_at` 列。全库不再有任何软删除。**
 
-但**实体（主机 / 命令 / 分组）的软删除墓碑不改**。墓碑是 PRD 与技术实现方案定死的：
-§3 要求所有表预留 `sync_dirty` / `deleted_at`，§4.11「墓碑 30 天后物理清除」，而
-iCloud 端到端同步是 v1.1 路线图与专业版买断的卖点之一。`HostStore.softDelete` 的注释
-写明了后果：直接 DELETE 会让其他设备把该主机当作「本地新增」重新同步回来。
+收益：
 
-**因此两个 group store 的 `softDelete` 必须在同一事务里显式清掉自己的成员行**
-（`DELETE FROM <x>_group_membership WHERE group_uuid = ?`）——软删除不触发任何级联，
-不清就会让条目永远挂在一个已从 `allGroups()` 消失的分组上。这是本设计里唯一需要
-靠纪律维持的不变式，测试必须覆盖。
+- `WHERE deleted_at IS NULL` 从全库消失。这是最容易漏写、漏了就变成数据泄漏
+  bug 的一类代码。
+- 5 个领域模型去掉 `deletedAt` 字段，`idx_host_deleted` 索引不再需要。
+- 不需要墓碑 GC（§4.11 声称的 30 天清理本来也从未实现）。
+
+**代价（已知并接受）：v1.1 iCloud 同步将无法传播删除。** 具体失效场景：
+
+离线时删除主机 X → 本地行消失且不留痕迹 → 恢复网络后同步引擎先推
+（`sync_dirty = 1` 的行里没有 X，无可推）再拉（CloudKit 上 X 仍在），
+引擎看到「远端有、本地无」，只能解读为「其他设备新增」→ **X 在删除它的那台
+设备上被重新插回**。根因是硬删后「已删除」与「尚未下载」在数据上无法区分。
+
+**这与既有文档冲突，代码合入后以下两处文档不再描述现实**，需在 v1.1 立项时
+重新决策（全量对账，或届时再引入删除记录）：
+
+- 技术实现方案 §3：「所有表……为同步预留 `sync_dirty`、`deleted_at`（墓碑）」
+- 技术实现方案 §4.11：「墓碑 30 天后物理清除」
+
+`sync_dirty` **保留**——它标记「此行需要推送」，与删除传播无关，不受本次决定影响。
+
+**连带必须修改的一处**：`BuiltinSnippets.importIfNeeded` 现在靠
+`SnippetRepository.totalCount()`（含墓碑计数）判断「内置命令导入过了」，
+使得用户删光默认命令后不会被重新灌回。硬删后墓碑不存在，该判定失效。
+改为在 `SettingsStore`（UserDefaults）中记 `builtinSnippetsImported` 布尔，
+`SnippetRepository.totalCount()` 随之删除——它唯一的用途就是数墓碑。
 
 ## 数据层
 
@@ -80,19 +103,20 @@ iCloud 端到端同步是 v1.1 路线图与专业版买断的卖点之一。`Hos
 `AppDatabase.migrator` 只注册 `SchemaV1`。不新增迁移版本。
 
 DEBUG 构建已开 `eraseDatabaseOnSchemaChange = true`，会检测到 schema 变化并自动重建库。
-**代价明示：模拟器与真机上现有的主机、密钥、命令、指标数据全部清空。**
+**代价明示：模拟器与真机上现有的主机、密钥、命令数据全部清空。**
 Release 构建不开该开关，若有装过旧版本的设备需手动删除 App 重装。项目未发布，可接受。
 
 `AppDatabase.migrator` 注释「已发布的迁移不得修改」保留——它约束的是发布之后。
 
-### `SchemaV1` 中的变更
+### 最终 9 张表
 
-**`host` 表**
-- 删除 `group_uuid` 列与 `idx_host_group` 索引。
+**`host`** —— 相对现状：删除 `group_uuid` 列、`deleted_at` 列、
+`idx_host_group` 与 `idx_host_deleted` 两个索引。其余字段不变。
 
-**`host_group` 表** —— 不变（uuid 主键 + name + sort_order + 时间戳 + sync_dirty + deleted_at）。
+**`host_group`** —— 删除 `deleted_at` 列，其余不变
+（uuid PK / name / sort_order / created_at / updated_at / sync_dirty）。
 
-**新增 `host_group_membership`**
+**`host_group_membership`**（新增）
 ```
 host_uuid  TEXT NOT NULL
 group_uuid TEXT NOT NULL
@@ -101,34 +125,35 @@ index idx_host_group_membership_group ON (group_uuid)
 ```
 不声明外键。
 
-**`snippet` 表**
-- 删除 `folder` 列（v3 起已无人读写的遗留单分组列）。
+**`ssh_key`** —— 删除 `deleted_at` 列，其余不变。
 
-**`snippet_folder` / `snippet_folder_membership`** —— 不再存在，替换为：
+**`snippet`** —— 删除 `folder` 遗留列与 `deleted_at` 列，其余不变。
 
-**新增 `snippet_group`** —— 字段与 `host_group` 完全同构
-（uuid PK / name / sort_order / created_at / updated_at / sync_dirty / deleted_at）。
+**`snippet_group`**（新增，替换 `snippet_folder`）—— 与 `host_group` 完全同构：
+uuid PK / name / sort_order / created_at / updated_at / sync_dirty。
 
-**新增 `snippet_group_membership`**
+**`snippet_group_membership`**（新增，替换 `snippet_folder_membership`）
 ```
 snippet_uuid TEXT NOT NULL
 group_uuid   TEXT NOT NULL
 PRIMARY KEY (snippet_uuid, group_uuid)
 index idx_snippet_group_membership_group ON (group_uuid)
 ```
-不声明外键。
+不声明外键。两张成员表结构完全一致，只有外层实体列名不同。
+
+**`known_host`** / **`run_history`** —— 不变（本就是真删除）。
+
+**删除的表**：`snippet_folder`、`snippet_folder_membership`、
+`metric_sample`、`probe_target`、`app_setting`。
 
 **`AppDatabase.baseConfiguration`** —— `foreignKeysEnabled = true` 保留
-（`host.key_uuid → ssh_key` 仍是外键），但注释中对 `host.group_uuid` 的引用要删掉。
+（`host.key_uuid → ssh_key` 仍是外键），注释中对 `host.group_uuid` 的引用删掉。
 
-### 删表
+### 删表的连带改动
 
-整理表结构时发现三张表是死代码或纯负担，本次一并删除。改动后全库共 9 张表。
+**`probe_target` / `app_setting`** —— 全仓无 DAO、无 SQL 引用，直接移除，无连带改动。
 
-**`probe_target` / `app_setting`** —— 建于 v1，全仓无 DAO、无 SQL 引用、无任何
-读写。直接从 `SchemaV1` 移除，无连带改动。
-
-**`metric_sample`** —— 纯写入表：`MonitorScheduler` 每次采集写一行，
+**`metric_sample`** —— `MonitorScheduler` 每次采集写一行，
 而 `MetricRepository.latest()` / `recentSamples()` 全仓无调用方；详情页趋势图走的是
 `HostOverviewViewModel` 的内存数组（上限 40 点，离开页面即清空）。指标改为纯内存态，
 连带删除：
@@ -143,7 +168,7 @@ index idx_snippet_group_membership_group ON (group_uuid)
   `pruneSamples(olderThan:)` 调用、`demo()` 中的同类装配
 - `HostOverviewViewModel` 构造 `MonitorScheduler` 时的 `store:` 实参
 
-测试中没有任何 `MetricSample` 构造点，波及面干净。
+测试中没有任何 `MetricSample` 构造点，也没有 `MonitorScheduler(...)` 构造点，波及面干净。
 
 **代价明示**：PRD §离线「无网时可查看最后一次监控快照」是 v1.0 需求，
 `latest(hostUUID:)` 正是为它准备的（但从未接入）。删表后该需求失去地基，明确放弃。
@@ -153,41 +178,53 @@ index idx_snippet_group_membership_group ON (group_uuid)
 
 ### ConnKit
 
-- `Host`：删除 `groupUUID`，新增 `groupIDs: [String]`。
-- `HostDraft`：同上；`toHost()` 透传。
-- `Snippet`：`folders: [String]` → `groupIDs: [String]`。
+- `Host`：删除 `groupUUID` 与 `deletedAt`，新增 `groupIDs: [String]`。
+- `HostDraft`：同步增删；`toHost()` 透传。
+- `HostGroup` / `SSHKey`：删除 `deletedAt`。
+- `Snippet`：`folders: [String]` → `groupIDs: [String]`，删除 `deletedAt`。
   **删除** `folder` 兼容计算属性，以及为兼容它而写的整套自定义 `Codable`
   （`CodingKeys` / `init(from:)` / `encode(to:)`，约 40 行），回到编译器合成的 Codable。
   `Snippet.normalizedFolders` 一并删除：id 不是用户输入，不需要 trim；
   去重下沉到 store 的 `save`（成员表双列主键本身也保证了这一点）。
 - 新增 `SnippetGroup`，字段与 `HostGroup` 完全一致。
+- 各仓库协议的 `softDelete(id:)` 统一改名 `delete(id:)`，实现改为真 DELETE，
+  所有 `deleted_at IS NULL` 过滤条件移除。
 - `HostRepository`：`allHosts()` / `host(id:)` join 出 `groupIDs`；
   `save(_:)` 在同一事务里重写该主机的成员行（先删后插）。
-- `HostGroupRepository`：`allGroups()` / `save(_:)`（新建与重命名共用）/
-  `softDelete(id:)`（附带清成员行）。签名不变，实现补清理逻辑。
+- `HostGroupRepository`：`allGroups()` / `save(_:)` / `delete(id:)`。
 - **分组管理从 `SnippetRepository` 中拆出**，新增 `SnippetGroupRepository`，
   签名与 `HostGroupRepository` 完全一致。`SnippetRepository` 上的 `allFolders()` /
-  `saveFolder(_:)` / `deleteFolder(_:)` 三个方法删除——分组是独立实体，不该挂在
-  片段仓库上，主机侧从一开始就是分开的。
+  `saveFolder(_:)` / `deleteFolder(_:)` / `totalCount()` 四个方法删除。
+
+**成员行清理**：成员表没有外键，所以级联不会自动发生。
+删除分组时必须在同一事务里 `DELETE FROM <x>_group_membership WHERE group_uuid = ?`；
+删除主机/命令时同理清 `host_uuid` / `snippet_uuid` 一侧。这是本设计里唯一需要
+靠纪律维持的不变式，测试必须覆盖两个方向。
+
+> 备注：改为真删除后外键 CASCADE 重新可用，加回外键即可让这两处清理自动化。
+> 本次按既定决策不加外键，留作后续可选优化。
 
 ### ConnStore
 
-- `HostRecord`：删 `groupUUID` 字段与 `group_uuid` CodingKey。
-- `SnippetRecord`：删 `folder` 字段；`toDomain(groupIDs:)`。
+- `HostRecord`：删 `groupUUID`、`deletedAt` 字段与对应 CodingKey。
+- `SnippetRecord`：删 `folder`、`deletedAt` 字段。
 - `HostStore` / `SnippetStore`：新增私有 `groupIDs(for:in:)` 查询，
   照现有 `SnippetStore.folders(for:in:)` 的写法（join 分组表以继承 `sort_order` 顺序）。
 - 新增 `SnippetGroupStore`（`snippet_group` 表 DAO），与 `HostGroupStore` 同构。
+- 所有 store 的查询去掉 `deleted_at IS NULL` 过滤。
 
 ### 依赖容器
 
 `AppDependencies.groupRepository` 改名 `hostGroupRepository`（现在有两个 group 仓库，
-原名有歧义），新增 `snippetGroupRepository`。`live()` 与 `demo()` 两条装配路径同步更新。
+原名有歧义），新增 `snippetGroupRepository`，删除 `metricStore`。
+`live()` 与 `demo()` 两条装配路径同步更新。
 
 ### ConnRunner
 
 `BuiltinSnippets`：JSON 资源的 `folders` 键改 `groups`（顶层与每条命令各一处）。
 `importIfNeeded(into:groups:)` 同时接收片段仓库与分组仓库：先建分组、拿到 id，
-再把命令的 `groupIDs` 指过去。
+再把命令的 `groupIDs` 指过去。**不再自行判空**——「是否已导入」由调用方
+（`ConnApp`）查 `SettingsStore` 的 `builtinSnippetsImported` 标记决定，导入成功后置位。
 
 分组名仍在导入时按当时语言 `L()` 定死一次，事后切语言不会重译——与现状行为一致。
 差别在于成员匹配从「按本地化字符串」变成「按 id」，更稳。
@@ -290,15 +327,17 @@ index idx_snippet_group_membership_group ON (group_uuid)
 | 分组重名 | 拒绝保存，toast「已存在同名分组」 |
 | 仓库读写抛错 | 写入 `errorMessage`，toast 显示 `error.friendlyDiagnosis` |
 | 删除分组 | 仅解除归属，主机/命令本身不受影响（确认弹窗中明示） |
+| 删除主机/命令 | 真删除，不可恢复。确认弹窗文案需去掉「可随时重新添加」的暗示 |
 
 ## 测试
 
 **ConnStoreTests**
 - 成员表读写往返；`save` 重写成员而非追加。
-- **分组软删后成员行被清空**，且组内主机/命令仍存在（本设计唯一靠纪律维持的不变式）。
-- 主机/命令软删后不再出现在 `allHosts()` / `allSnippets()`，其残留成员行不影响读取。
-- `SchemaV1Tests.createsAllTables` 的表清单更新为
-  `host_group_membership` / `snippet_group` / `snippet_group_membership`。
+- **删除分组时成员行被清空**，且组内主机/命令仍存在。
+- **删除主机/命令时其成员行被清空**（另一个方向）。
+- 删除后 `allHosts()` / `allSnippets()` 立即不含该条，且表中确实无残留行
+  （与旧的墓碑行为区分）。
+- `SchemaV1Tests.createsAllTables` 的表清单更新为最终 9 张。
 - `SchemaV1Tests.migratesLegacySnippetFolders` 删除——它专测 V3 的搬迁路径，
   折叠后该路径不存在。
 
@@ -306,9 +345,9 @@ index idx_snippet_group_membership_group ON (group_uuid)
 - 新增 `ServersViewModelTests`（照 `SnippetsViewModelTests` 的 Stub 仓库写法）：
   排序不受健康状态影响、分组筛选、搜索与分组取交集、删除选中分组后回到「全部」、
   `selectedGroupID` 悬空时按「全部」处理、重名被拒。
-- `SnippetsViewModelTests` 跟进 id 化，并补一条：`commandCount(in:)` 按 id 统计，
-  不把已删除的命令算进去。
+- `SnippetsViewModelTests` 跟进 id 化，并补一条：`commandCount(in:)` 按 id 统计。
 - `GroupListEditor` 的规则（空名、重名、排序权重递增）单独测一遍，两个页面共用。
+- 内置命令导入判定改走 `SettingsStore` 标记后，补一条：删光默认命令后重启不会被重新灌回。
 
 **ConnUITests（包内）**
 - `ConnToast` 自动消失时序与 reduce-motion 分支。
@@ -318,8 +357,7 @@ index idx_snippet_group_membership_group ON (group_uuid)
 
 **跟进修改**
 `AppDatabaseTests`、`HostStoreTests`、`HostTests`、`HostGroupStoreTests`、
-`SnippetStoreTests`、`SnippetTests` 随字段变更同步更新。
-`ConnMonitorTests` 中若有构造 `MonitorScheduler(store:)` 的调用点一并跟进。
+`SnippetStoreTests`、`SnippetTests`、`SettingsStoreTests` 随字段与语义变更同步更新。
 
 ## i18n
 
@@ -333,7 +371,13 @@ index idx_snippet_group_membership_group ON (group_uuid)
 `删除分组不会删除其中的服务器。`、`已存在同名分组`、`新增服务器`、
 `可多选，也可以不选；不选时归为未分组。`、`还没有分组，先用右上角「+」新建。`
 
+删除主机的确认文案需重写：现文案「将从列表中移除，可随时重新添加（不影响服务器本身）」
+在真删除语义下具有误导性。
+
 ## 待办（不在本次范围）
 
+- **v1.1 立项时重新决策删除传播**：本次取消墓碑后，iCloud 同步无法传播删除，
+  届时需要全量对账或重新引入删除记录。技术实现方案 §3 与 §4.11 需同步修订。
 - 其他页面（`FileBrowserViewModel` 等）接入 `ConnToast`。
 - 分组与主机的拖拽排序。
+- 成员表加回外键 CASCADE，把两处手动清理自动化。
