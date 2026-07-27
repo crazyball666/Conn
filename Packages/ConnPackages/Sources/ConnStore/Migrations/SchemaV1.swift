@@ -48,7 +48,6 @@ enum SchemaV1 {
                 t.column("credential_ref", .text)
                 t.column("key_uuid", .text).references("ssh_key", column: "uuid", onDelete: .setNull)
                 t.column("jump_chain", .text).notNull().defaults(to: "[]") // JSON 数组
-                t.column("group_uuid", .text).references("host_group", column: "uuid", onDelete: .setNull)
                 t.column("tags", .text).notNull().defaults(to: "[]") // JSON 数组
                 t.column("icon", .text)
                 t.column("color", .text)
@@ -60,7 +59,23 @@ enum SchemaV1 {
                 t.column("updated_at", .integer).notNull()
                 t.column("sync_dirty", .integer).notNull().defaults(to: 0)
             }
-            try db.create(index: "idx_host_group", on: "host", columns: ["group_uuid"])
+
+            // 成员行是真删除（无墓碑）：它不是独立同步单元，只随父实体的 save
+            // 被整体重写，§4.11 的冲突策略是 record 级 LWW。
+            try db.create(table: "host_group_membership") { t in
+                t.column("host_uuid", .text)
+                    .notNull()
+                    .references("host", column: "uuid", onDelete: .cascade)
+                t.column("group_uuid", .text)
+                    .notNull()
+                    .references("host_group", column: "uuid", onDelete: .cascade)
+                t.primaryKey(["host_uuid", "group_uuid"])
+            }
+            try db.create(
+                index: "idx_host_group_membership_group",
+                on: "host_group_membership",
+                columns: ["group_uuid"]
+            )
 
             try db.create(table: "known_host") { t in
                 t.primaryKey("uuid", .text)

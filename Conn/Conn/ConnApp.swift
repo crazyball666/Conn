@@ -136,7 +136,8 @@ struct ConnApp: App {
 @MainActor
 struct AppDependencies {
     let hostRepository: any HostRepository
-    let groupRepository: any HostGroupRepository
+    /// 主机分组仓库。与 `snippetGroupRepository`（命令分组）同构。
+    let hostGroupRepository: any HostGroupRepository
     let keyRepository: any SSHKeyRepository
     let credentialStore: any CredentialStore
     /// 连接池管理器。主机详情、监控采集、Docker/日志、片段执行都经它取会话。
@@ -149,7 +150,7 @@ struct AppDependencies {
     let runHistory: any RunHistoryRepository
     /// 片段仓库（Phase 9）。首启导入内置模板库。
     let snippetRepository: any SnippetRepository
-    /// 命令分组仓库。与 `groupRepository`（主机分组）同构。
+    /// 命令分组仓库。与 `hostGroupRepository`（主机分组）同构。
     let snippetGroupRepository: any SnippetGroupRepository
     /// 应用锁。默认关闭，设置页开启（Phase 5）。
     let appLock: AppLockController
@@ -181,7 +182,7 @@ struct AppDependencies {
 
             return AppDependencies(
                 hostRepository: hostStore,
-                groupRepository: groupStore,
+                hostGroupRepository: groupStore,
                 keyRepository: keyStore,
                 credentialStore: credentialStore,
                 connectionManager: connectionManager,
@@ -226,7 +227,7 @@ struct AppDependencies {
 
             return AppDependencies(
                 hostRepository: hostStore,
-                groupRepository: groupStore,
+                hostGroupRepository: groupStore,
                 keyRepository: keyStore,
                 credentialStore: credentialStore,
                 connectionManager: connectionManager,

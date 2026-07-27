@@ -40,7 +40,8 @@ public struct Host: Identifiable, Codable, Sendable, Equatable, Hashable {
     public var keyUUID: String?
     /// 跳板链，按连接顺序排列的 `Host.id`（A→B→C）。
     public var jumpChain: [String]
-    public var groupUUID: String?
+    /// 所属分组的 `HostGroup.id`。允许为空，也允许同时属于多个分组。
+    public var groupIDs: [String]
     public var tags: [String]
     public var icon: String?
     public var color: String?
@@ -65,7 +66,7 @@ public struct Host: Identifiable, Codable, Sendable, Equatable, Hashable {
         credentialRef: String? = nil,
         keyUUID: String? = nil,
         jumpChain: [String] = [],
-        groupUUID: String? = nil,
+        groupIDs: [String] = [],
         tags: [String] = [],
         icon: String? = nil,
         color: String? = nil,
@@ -86,7 +87,7 @@ public struct Host: Identifiable, Codable, Sendable, Equatable, Hashable {
         self.credentialRef = credentialRef
         self.keyUUID = keyUUID
         self.jumpChain = jumpChain
-        self.groupUUID = groupUUID
+        self.groupIDs = groupIDs
         self.tags = tags
         self.icon = icon
         self.color = color

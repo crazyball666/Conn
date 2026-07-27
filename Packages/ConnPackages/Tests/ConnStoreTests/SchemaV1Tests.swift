@@ -21,8 +21,9 @@ struct SchemaV1Tests {
             """)
         }
         #expect(tables == [
-            "host", "host_group", "known_host", "run_history", "snippet",
-            "snippet_group", "snippet_group_membership", "ssh_key"
+            "host", "host_group", "host_group_membership", "known_host",
+            "run_history", "snippet", "snippet_group",
+            "snippet_group_membership", "ssh_key"
         ])
     }
 
@@ -65,12 +66,19 @@ struct SchemaV1Tests {
         #expect(raw?["tags"] == #"["p"]"#)
     }
 
-    @Test("外键约束开启：group_uuid 指向不存在的分组时拒绝写入")
+    @Test("外键约束开启：成员行指向不存在的分组时拒绝写入")
     func enforcesForeignKeys() throws {
         let db = try AppDatabase.inMemory()
-        let host = DomainHost(name: "a", address: "1", username: "r", groupUUID: "not-exist")
+        let host = DomainHost(name: "a", address: "1", username: "r")
+        try db.writer.write { try HostRecord(host).insert($0) }
+
         #expect(throws: DatabaseError.self) {
-            try db.writer.write { try HostRecord(host).insert($0) }
+            try db.writer.write { database in
+                try database.execute(
+                    sql: "INSERT INTO host_group_membership (host_uuid, group_uuid) VALUES (?, ?)",
+                    arguments: [host.id, "not-exist"]
+                )
+            }
         }
     }
 }

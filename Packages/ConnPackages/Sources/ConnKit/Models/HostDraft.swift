@@ -18,7 +18,7 @@ public struct HostDraft: Sendable, Equatable {
     public var authKind: Host.AuthKind
     public var keyUUID: String?
     public var jumpChain: [String]
-    public var groupUUID: String?
+    public var groupIDs: [String]
     public var tags: [String]
     public var icon: String?
     public var color: String?
@@ -32,7 +32,7 @@ public struct HostDraft: Sendable, Equatable {
         authKind: Host.AuthKind = .password,
         keyUUID: String? = nil,
         jumpChain: [String] = [],
-        groupUUID: String? = nil,
+        groupIDs: [String] = [],
         tags: [String] = [],
         icon: String? = nil,
         color: String? = nil,
@@ -45,7 +45,7 @@ public struct HostDraft: Sendable, Equatable {
         self.authKind = authKind
         self.keyUUID = keyUUID
         self.jumpChain = jumpChain
-        self.groupUUID = groupUUID
+        self.groupIDs = groupIDs
         self.tags = tags
         self.icon = icon
         self.color = color
@@ -61,7 +61,7 @@ public struct HostDraft: Sendable, Equatable {
         authKind = host.authKind
         keyUUID = host.keyUUID
         jumpChain = host.jumpChain
-        groupUUID = host.groupUUID
+        groupIDs = host.groupIDs
         tags = host.tags
         icon = host.icon
         color = host.color
@@ -102,7 +102,7 @@ public struct HostDraft: Sendable, Equatable {
             authKind: authKind,
             keyUUID: keyUUID,
             jumpChain: jumpChain,
-            groupUUID: groupUUID,
+            groupIDs: groupIDs,
             tags: tags,
             icon: icon,
             color: color,

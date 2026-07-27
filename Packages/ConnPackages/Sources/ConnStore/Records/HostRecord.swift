@@ -17,7 +17,6 @@ struct HostRecord: Codable, FetchableRecord, PersistableRecord, Sendable {
     var credentialRef: String?
     var keyUUID: String?
     var jumpChain: String // JSON 数组
-    var groupUUID: String?
     var tags: String // JSON 数组
     var icon: String?
     var color: String?
@@ -35,7 +34,6 @@ struct HostRecord: Codable, FetchableRecord, PersistableRecord, Sendable {
         case credentialRef = "credential_ref"
         case keyUUID = "key_uuid"
         case jumpChain = "jump_chain"
-        case groupUUID = "group_uuid"
         case expireAt = "expire_at"
         case sortOrder = "sort_order"
         case createdAt = "created_at"
@@ -55,7 +53,6 @@ extension HostRecord {
         credentialRef = host.credentialRef
         keyUUID = host.keyUUID
         jumpChain = Self.encodeJSON(host.jumpChain)
-        groupUUID = host.groupUUID
         tags = Self.encodeJSON(host.tags)
         icon = host.icon
         color = host.color
@@ -68,7 +65,7 @@ extension HostRecord {
         syncDirty = host.syncDirty
     }
 
-    func toDomain() -> DomainHost {
+    func toDomain(groupIDs: [String] = []) -> DomainHost {
         DomainHost(
             id: uuid,
             name: name,
@@ -79,7 +76,7 @@ extension HostRecord {
             credentialRef: credentialRef,
             keyUUID: keyUUID,
             jumpChain: Self.decodeJSON(jumpChain),
-            groupUUID: groupUUID,
+            groupIDs: groupIDs,
             tags: Self.decodeJSON(tags),
             icon: icon,
             color: color,

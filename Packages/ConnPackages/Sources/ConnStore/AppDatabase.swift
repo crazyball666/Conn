@@ -44,7 +44,8 @@ public struct AppDatabase {
 
     private static var baseConfiguration: Configuration {
         var config = Configuration()
-        // 外键约束必须开启：host.group_uuid / host.key_uuid 依赖它保证引用完整性
+        // 外键约束必须开启：host.key_uuid 与两张成员表的 ON DELETE CASCADE 依赖它。
+        // 改真删除后这些级联才第一次真正触发（软删除时代从不触发）。
         config.foreignKeysEnabled = true
         return config
     }
