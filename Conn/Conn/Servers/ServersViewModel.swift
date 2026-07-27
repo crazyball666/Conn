@@ -7,8 +7,8 @@ import Observation
 
 /// 「服务器」页 ViewModel（原「仪表盘」+「主机」合并）。
 ///
-/// 一屏搞定观测与管理：健康视图为主（实时指标卡、故障置顶），同页搜索 /
-/// 标签筛选 / 增删改查。合并动机——两页看的本就是同一堆主机，分屏是设计师
+/// 一屏搞定观测与管理：健康视图为主（实时指标卡），同页搜索 /
+/// 分组筛选 / 增删改查。合并动机——两页看的本就是同一堆主机，分屏是设计师
 /// 脑中的「监控 vs 管理」抽象，小规模场景下用户只感到重复（简单优先）。
 ///
 /// `cards` 是计算属性，读取 `monitor.metrics` / `monitor.errors`——在 View body
@@ -17,16 +17,24 @@ import Observation
 @MainActor
 final class ServersViewModel {
     private(set) var hosts: [Host] = []
+    private(set) var groups: [HostGroup] = []
     private(set) var errorMessage: String?
     var searchText = ""
-    var selectedTag: String?
+    /// 当前选中的分组 id；nil 表示「全部」。
+    var selectedGroupID: String?
 
     private let hostStore: any HostRepository
+    private let groupStore: any HostGroupRepository
     /// 采集调度。View 在 appear/disappear 控制生命周期。
     let monitor: MonitorScheduler
 
-    init(hostStore: any HostRepository, monitor: MonitorScheduler) {
+    init(
+        hostStore: any HostRepository,
+        groupStore: any HostGroupRepository,
+        monitor: MonitorScheduler
+    ) {
         self.hostStore = hostStore
+        self.groupStore = groupStore
         self.monitor = monitor
     }
 
@@ -46,10 +54,12 @@ final class ServersViewModel {
     func load() {
         do {
             hosts = try hostStore.allHosts()
+            groups = try groupStore.allGroups()
             errorMessage = nil
         } catch {
             errorMessage = String(format: L("读取主机失败：%@"), error.friendlyDiagnosis)
             hosts = []
+            groups = []
         }
     }
 
@@ -67,16 +77,13 @@ final class ServersViewModel {
 
     // MARK: - 派生
 
-    /// 经搜索 / 标签筛选、按故障优先排序的健康卡。
+    /// 经搜索 / 分组筛选后的健康卡。
+    ///
+    /// **顺序完全照抄 `HostStore.allHosts()`（`sort_order ASC, name ASC`）**——
+    /// 健康状态不参与排序：旧的「故障置顶」会让列表在采集期间持续跳动，
+    /// 且尚未连上（unknown）的主机会排在已连上（ok）的前面。
     var cards: [HealthCard.Model] {
-        let filtered: [Host] = hosts.filter { matches($0) }
-        let mapped: [HealthCard.Model] = filtered.map { card(for: $0) }
-        return mapped.sorted(by: Self.severityFirst)
-    }
-
-    /// 全部出现过的标签，去重排序，供筛选 chip。
-    var allTags: [String] {
-        Array(Set(hosts.flatMap(\.tags))).sorted()
+        hosts.filter { matches($0) }.map { card(for: $0) }
     }
 
     var totalCount: Int { hosts.count }
@@ -106,8 +113,14 @@ final class ServersViewModel {
         let matchesSearch = searchText.isEmpty
             || host.name.localizedCaseInsensitiveContains(searchText)
             || host.address.localizedCaseInsensitiveContains(searchText)
-        let matchesTag = selectedTag.map { host.tags.contains($0) } ?? true
-        return matchesSearch && matchesTag
+        return matchesSearch && matchesGroup(host)
+    }
+
+    /// 选中的分组 id 解析不到现存分组时按「全部」处理，
+    /// 防御分组从其他路径消失后筛选条件把整张列表滤空。
+    private func matchesGroup(_ host: Host) -> Bool {
+        guard let id = selectedGroupID, groups.contains(where: { $0.id == id }) else { return true }
+        return host.groupIDs.contains(id)
     }
 
     private func card(for host: Host) -> HealthCard.Model {
@@ -167,18 +180,51 @@ final class ServersViewModel {
         return hasError ? .offline : .unknown
     }
 
-    /// 异常主机置顶（PRD §5.4：红黄绿，故障优先可见）。
-    private static func severityFirst(_ lhs: HealthCard.Model, _ rhs: HealthCard.Model) -> Bool {
-        func rank(_ status: ConnHealthStatus) -> Int {
-            switch status {
-            case .crit: 0
-            case .offline: 1
-            case .warn: 2
-            case .unknown: 3
-            case .ok: 4
-            }
+    // MARK: - 分组
+
+    func addGroup(_ name: String) {
+        do {
+            let trimmed = try GroupListEditor.validate(name: name, against: groups.map(\.name))
+            try groupStore.save(HostGroup(
+                name: trimmed,
+                sortOrder: GroupListEditor.nextSortOrder(after: groups.map(\.sortOrder))
+            ))
+            groups = try groupStore.allGroups()
+            errorMessage = nil
+        } catch let failure as GroupListEditor.Failure {
+            errorMessage = failure.message
+        } catch {
+            errorMessage = String(format: L("保存失败：%@"), error.friendlyDiagnosis)
         }
-        let (left, right) = (rank(lhs.status), rank(rhs.status))
-        return left == right ? lhs.name < rhs.name : left < right
+    }
+
+    func renameGroup(id: String, to name: String) {
+        guard var group = groups.first(where: { $0.id == id }) else { return }
+        do {
+            let others = groups.filter { $0.id != id }.map(\.name)
+            group.name = try GroupListEditor.validate(name: name, against: others)
+            try groupStore.save(group)
+            groups = try groupStore.allGroups()
+            errorMessage = nil
+        } catch let failure as GroupListEditor.Failure {
+            errorMessage = failure.message
+        } catch {
+            errorMessage = String(format: L("保存失败：%@"), error.friendlyDiagnosis)
+        }
+    }
+
+    /// 删除分组只解除归属，主机本身不受影响（成员行由外键级联清理）。
+    func deleteGroup(id: String) {
+        do {
+            try groupStore.delete(id: id)
+            if selectedGroupID == id { selectedGroupID = nil }
+            load()
+        } catch {
+            errorMessage = String(format: L("保存失败：%@"), error.friendlyDiagnosis)
+        }
+    }
+
+    func clearError() {
+        errorMessage = nil
     }
 }

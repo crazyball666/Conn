@@ -14,16 +14,26 @@ private struct TerminalRoute: Hashable {
     let host: Host
 }
 
+/// 分组重命名 / 删除的呈现请求。
+private struct GroupEditRequest: Identifiable {
+    let id: String
+    let name: String
+}
+
 /// 「服务器」页：原「仪表盘 S1」+「主机 S2」合并为一屏。
 ///
-/// PRD「观测先于操作」：健康视图为主——状态 + CPU/内存/磁盘 指标卡、故障置顶；
-/// 同页直接搜索 / 标签筛选 / 添加 / 编辑 / 删除，无需在两个 Tab 间跳转。
+/// PRD「观测先于操作」：健康视图为主——状态 + CPU/内存/磁盘 指标卡；
+/// 同页直接搜索 / 分组筛选 / 添加 / 编辑 / 删除，无需在两个 Tab 间跳转。
 struct ServersView: View {
     @State private var viewModel: ServersViewModel
     @State private var selectedHost: Host?
     @State private var terminalRoute: TerminalRoute?
     @State private var formRequest: HostFormRequest?
     @State private var pendingDelete: Host?
+    @State private var isNewGroupPresented = false
+    @State private var renameTarget: GroupEditRequest?
+    @State private var groupDeleteRequest: GroupEditRequest?
+    @State private var groupNameInput = ""
     @Environment(SettingsStore.self) private var settings
     private let dependencies: AppDependencies
 
@@ -31,6 +41,7 @@ struct ServersView: View {
         self.dependencies = dependencies
         _viewModel = State(initialValue: ServersViewModel(
             hostStore: dependencies.hostRepository,
+            groupStore: dependencies.hostGroupRepository,
             monitor: dependencies.monitor
         ))
     }
@@ -42,8 +53,22 @@ struct ServersView: View {
         .searchable(text: $viewModel.searchText, prompt: L("搜索主机名或地址"))
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
-                Button { startAdding() } label: { Image(systemName: "plus") }
-                    .accessibilityLabel(L("添加主机"))
+                Menu {
+                    Button {
+                        startAdding()
+                    } label: {
+                        Label(L("新增服务器"), systemImage: "server.rack")
+                    }
+                    Button {
+                        groupNameInput = ""
+                        isNewGroupPresented = true
+                    } label: {
+                        Label(L("新增分组"), systemImage: "folder.badge.plus")
+                    }
+                } label: {
+                    Image(systemName: "plus")
+                }
+                .accessibilityLabel(L("新增"))
             }
         }
         .refreshable { await viewModel.refresh() }
@@ -69,7 +94,7 @@ struct ServersView: View {
             }
             Button(L("取消"), role: .cancel) { pendingDelete = nil }
         } message: { host in
-            Text(String(format: L("「%@」将从列表中移除，可随时重新添加（不影响服务器本身）。"), host.name))
+            Text(String(format: L("「%@」将被永久删除，不影响服务器本身。"), host.name))
         }
         .navigationDestination(item: $selectedHost) { host in
             HostDetailView(host: host, dependencies: dependencies)
@@ -77,6 +102,46 @@ struct ServersView: View {
         .navigationDestination(item: $terminalRoute) { route in
             TerminalScreen(host: route.host, dependencies: dependencies)
         }
+        .alert(L("新增分组"), isPresented: $isNewGroupPresented) {
+            TextField(L("分组名称"), text: $groupNameInput)
+            Button(L("取消"), role: .cancel) {}
+            Button(L("保存")) { viewModel.addGroup(groupNameInput) }
+                .disabled(groupNameInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+        }
+        .alert(
+            L("重命名分组"),
+            isPresented: Binding(get: { renameTarget != nil }, set: { if !$0 { renameTarget = nil } })
+        ) {
+            TextField(L("分组名称"), text: $groupNameInput)
+            Button(L("取消"), role: .cancel) { renameTarget = nil }
+            Button(L("保存")) {
+                if let target = renameTarget {
+                    viewModel.renameGroup(id: target.id, to: groupNameInput)
+                }
+                renameTarget = nil
+            }
+            .disabled(groupNameInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+        }
+        .confirmationDialog(
+            L("删除分组"),
+            isPresented: Binding(
+                get: { groupDeleteRequest != nil },
+                set: { if !$0 { groupDeleteRequest = nil } }
+            ),
+            titleVisibility: .visible
+        ) {
+            Button(L("删除"), role: .destructive) {
+                if let request = groupDeleteRequest { viewModel.deleteGroup(id: request.id) }
+                groupDeleteRequest = nil
+            }
+            Button(L("取消"), role: .cancel) { groupDeleteRequest = nil }
+        } message: {
+            Text(L("删除分组不会删除其中的服务器。"))
+        }
+        .connToast(message: Binding(
+            get: { viewModel.errorMessage },
+            set: { if $0 == nil { viewModel.clearError() } }
+        ))
     }
 
     // MARK: - 区块
@@ -89,8 +154,9 @@ struct ServersView: View {
         } else {
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
-                    if !viewModel.allTags.isEmpty {
-                        tagFilter
+                    // 一个分组都没有时整行不渲染。
+                    if !viewModel.groups.isEmpty {
+                        groupFilter
                     }
                     cards
                 }
@@ -99,43 +165,20 @@ struct ServersView: View {
         }
     }
 
-    private var tagFilter: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: ConnSpacing.xs) {
-                filterChip(title: L("全部"), isSelected: viewModel.selectedTag == nil) {
-                    viewModel.selectedTag = nil
-                }
-                ForEach(viewModel.allTags, id: \.self) { tag in
-                    filterChip(title: tag, isSelected: viewModel.selectedTag == tag) {
-                        viewModel.selectedTag = viewModel.selectedTag == tag ? nil : tag
-                    }
-                }
+    private var groupFilter: some View {
+        GroupFilterBar(
+            allTitle: L("全部"),
+            groups: viewModel.groups.map { GroupFilterBar.Item(id: $0.id, title: $0.name) },
+            selection: $viewModel.selectedGroupID,
+            onRename: { item in
+                renameTarget = GroupEditRequest(id: item.id, name: item.title)
+                groupNameInput = item.title
+            },
+            onDelete: { item in
+                groupDeleteRequest = GroupEditRequest(id: item.id, name: item.title)
             }
-            .padding(.horizontal, ConnSpacing.page)
-        }
+        )
         .padding(.bottom, ConnSpacing.sm)
-    }
-
-    private func filterChip(title: String, isSelected: Bool, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Text(title)
-                .font(.connFootnote)
-                .foregroundStyle(isSelected ? .connAccent : .connMuted)
-                .padding(.horizontal, ConnSpacing.sm)
-                .padding(.vertical, 6)
-                .background(
-                    isSelected ? Color.connAccentFill : Color.connSurface,
-                    in: .capsule
-                )
-                .overlay(
-                    Capsule().strokeBorder(
-                        isSelected ? Color.connAccent.opacity(0.5) : Color.connLine,
-                        lineWidth: 1
-                    )
-                )
-                .connHitTarget()
-        }
-        .buttonStyle(ConnPressStyle())
     }
 
     private var cards: some View {
@@ -166,7 +209,8 @@ struct ServersView: View {
         }
         .padding(.horizontal, ConnSpacing.page)
         .padding(.bottom, ConnSpacing.lg)
-        // 故障置顶导致卡片重排时平滑滑动而非瞬跳；新卡片淡入。
+        // 增删主机 / 切换分组筛选导致列表变化时平滑滑动而非瞬跳；新卡片淡入。
+        // （健康状态已退出排序，不再有「故障置顶」引发的重排。）
         .animation(.spring(response: 0.5, dampingFraction: 0.86), value: viewModel.cards)
     }
 
