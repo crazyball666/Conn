@@ -64,26 +64,8 @@ struct ContainerCard: View {
             Text(value.map { "\(Int($0))%" } ?? "—")
                 .font(.system(size: 17, weight: .semibold, design: .rounded))
                 .connTabularNumbers().foregroundStyle(.connInk)
-            GeometryReader { geometry in
-                ZStack(alignment: .leading) {
-                    Capsule().fill(Color.connTrack)
-                    // 渐变必须按**整条轨道**铺开再裁到当前值——直接 fill 到已填充
-                    // 宽度会把整条渐变压进那一段，20% 也会从绿扫到红。
-                    if value != nil {
-                        Capsule()
-                            .fill(LinearGradient(
-                                gradient: ConnLoadScale.gradient,
-                                startPoint: .leading, endPoint: .trailing
-                            ))
-                            .frame(width: geometry.size.width)
-                            .mask(alignment: .leading) {
-                                Capsule()
-                                    .frame(width: max(3, geometry.size.width * fraction(value)))
-                            }
-                    }
-                }
-            }
-            .frame(height: 4)
+            ConnLoadBar(fraction: value.map { min(max($0 / 100, 0), 1) }, minWidth: 3)
+                .frame(height: 4)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -113,10 +95,6 @@ struct ContainerCard: View {
         guard let text else { return ("—", "—") }
         let parts = text.split(separator: "/").map { $0.trimmingCharacters(in: .whitespaces) }
         return (parts.first ?? "—", parts.count > 1 ? parts[1] : "—")
-    }
-
-    private func fraction(_ value: Double?) -> CGFloat {
-        value.map { min(max($0 / 100, 0), 1) } ?? 0
     }
 
     private var healthStatus: ConnHealthStatus {
