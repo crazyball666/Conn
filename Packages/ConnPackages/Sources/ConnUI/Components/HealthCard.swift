@@ -238,23 +238,31 @@ public struct HealthCard: View {
 
     private var metricBand: some View {
         HStack(alignment: .top, spacing: ConnSpacing.xs) {
-            ring(L("CPU"), value: model.cpu, sub: model.coresText, tint: .connAccent)
-            ring(L("内存"), value: model.memory, sub: model.memTotalText, tint: .connInfo)
-            ring(L("磁盘"), value: model.disk, sub: model.diskTotalText, tint: .connDisk)
+            ring(L("CPU"), value: model.cpu, sub: model.coresText)
+            ring(L("内存"), value: model.memory, sub: model.memTotalText)
+            ring(L("磁盘"), value: model.disk, sub: model.diskTotalText)
             flowColumn(L("网络"), model.net)
             flowColumn("IO", model.io)
         }
     }
 
-    private func ring(_ label: String, value: Double?, sub: String, tint: Color) -> some View {
+    /// 单个指标环。
+    ///
+    /// 颜色不再区分指标，而是**沿弧长扫过负载色标**——环上每个角度位置对应
+    /// 那个位置的负载值，弧尖的颜色即当前值。`Circle().trim` 与 `AngularGradient`
+    /// 都从 3 点钟起算，又被同一个 `rotationEffect(-90°)` 一起旋转，所以角度
+    /// 与负载值天然对齐，不需要额外换算。
+    private func ring(_ label: String, value: Double?, sub: String) -> some View {
         VStack(spacing: 4) {
             Text(label).font(.connData(.caption2)).foregroundStyle(.connMuted)
             ZStack {
                 Circle().stroke(Color.connTrack, lineWidth: ringStroke)
                 Circle().trim(from: 0, to: fraction(value))
-                    .stroke(ringColor(value, tint), style: StrokeStyle(lineWidth: ringStroke, lineCap: .round))
+                    .stroke(
+                        arcStyle(for: value),
+                        style: StrokeStyle(lineWidth: ringStroke, lineCap: .round)
+                    )
                     .rotationEffect(.degrees(-90))
-                    .shadow(color: ringColor(value, tint).opacity(0.3), radius: 2)
                     .animation(.spring(response: 0.5, dampingFraction: 0.9), value: value)
                 Text(value.map { "\(Int($0))%" } ?? "—")
                     .font(.system(size: 11, weight: .semibold, design: .rounded))
@@ -270,6 +278,12 @@ public struct HealthCard: View {
                 .minimumScaleFactor(0.7)
         }
         .frame(maxWidth: .infinity)
+    }
+
+    /// 无数据时是灰轨道色，有数据时是负载渐变。
+    private func arcStyle(for value: Double?) -> AnyShapeStyle {
+        guard value != nil else { return AnyShapeStyle(Color.connTrack) }
+        return AnyShapeStyle(AngularGradient(gradient: ConnLoadScale.gradient, center: .center))
     }
 
     private func flowColumn(_ label: String, _ flow: Flow?) -> some View {
@@ -312,13 +326,6 @@ public struct HealthCard: View {
     private func fraction(_ value: Double?) -> CGFloat {
         guard let value else { return 0 }
         return min(max(value / 100, 0), 1)
-    }
-
-    private func ringColor(_ value: Double?, _ tint: Color) -> Color {
-        guard let value else { return .connTrack }
-        if value > ConnThreshold.crit { return .connCrit }
-        if value > ConnThreshold.warn { return .connWarn }
-        return tint
     }
 
     private var accessibilityDescription: String {
