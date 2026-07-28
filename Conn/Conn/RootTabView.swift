@@ -9,7 +9,9 @@ import SwiftUI
 struct RootTabView: View {
     @State private var selection: ConnDock.Tab = .servers
     @Environment(\.scenePhase) private var scenePhase
-    @State private var backgroundedAt: Date?
+    /// 前后台判定抽在 `BackgroundResumePolicy` 里（可单测）；View 只负责转发事件、
+    /// 拿到闲置时长后发起恢复。
+    @State private var resumePolicy = BackgroundResumePolicy()
     private let dependencies: AppDependencies
 
     init(dependencies: AppDependencies) {
@@ -35,19 +37,8 @@ struct RootTabView: View {
             }
         }
         .onChange(of: scenePhase) { _, phase in
-            switch phase {
-            case .background:
-                // 不 stop()：iOS 本就挂起 App，轮询 Task 自然停止推进，没有额外耗电；
-                // 而 onAppear 回前台不保证重新触发，停了就再也起不来。
-                backgroundedAt = Date()
-            case .active:
-                guard let at = backgroundedAt else { break }
-                let idle = Date().timeIntervalSince(at)
-                backgroundedAt = nil
-                Task { await dependencies.monitor.resumeAfterBackground(idleFor: idle) }
-            default:
-                break
-            }
+            guard let idle = resumePolicy.idleDurationOnResume(for: phase) else { return }
+            Task { await dependencies.monitor.resumeAfterBackground(idleFor: idle) }
         }
     }
 

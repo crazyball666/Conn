@@ -36,7 +36,7 @@ public final class CitadelTransport: SSHTransport {
                 reconnect: .never,
                 algorithms: .all
             )
-            return CitadelSession(client: client)
+            return CitadelSession(client: client, endpoint: endpoint)
         } catch {
             throw AuthMapping.mapConnectError(error, endpoint: endpoint, auth: auth)
         }
@@ -49,6 +49,7 @@ public final class CitadelTransport: SSHTransport {
     ///   - target: 最终目标。
     public func connect(via hops: [JumpHop], to target: JumpHop) async throws -> any SSHSession {
         let client = try await JumpChain.connect(hops: hops, target: target)
-        return CitadelSession(client: client)
+        // 跳板链的会话最终落在 target 上，超时诊断也该指向它而非任何一级跳板。
+        return CitadelSession(client: client, endpoint: target.endpoint)
     }
 }

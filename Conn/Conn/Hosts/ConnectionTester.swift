@@ -88,9 +88,9 @@ final class ConnectionTester {
         case .jumpChainFailed, .channelClosed:
             passUpTo(0)
             fail(at: 1, detail: error.diagnosis)
-        case .sftpError:
-            // SFTP 阶段错误在连接阶段不应出现（连接测试只走 SSH 握手）。
-            // 兜底归到「连接端口」失败。
+        case .sftpError, .commandTimeout:
+            // 这两类在连接测试里都不应出现：本流程只走 SSH 握手，既不开 SFTP 子系统，
+            // 也不跑命令。兜底归到「连接端口」失败，保证 switch 穷尽且用户仍看到诊断。
             passUpTo(0)
             fail(at: 1, detail: error.diagnosis)
         }

@@ -1,32 +1,5 @@
 import SwiftUI
 
-/// 主机健康状态的**展示层**表示。
-///
-/// 刻意与 `ConnKit.Host.HealthStatus` 分离：设计系统不依赖领域模型
-/// （设计规范 §9「组件一律 stateless」），由 Feature 层负责映射。
-public enum ConnHealthStatus: Sendable, CaseIterable {
-    case ok, warn, crit, offline, unknown
-
-    var pillSemantic: StatusPill.Semantic {
-        switch self {
-        case .ok: .good
-        case .warn: .warn
-        case .crit, .offline: .crit
-        case .unknown: .off
-        }
-    }
-
-    var label: String {
-        switch self {
-        case .ok: L("正常")
-        case .warn: L("警告")
-        case .crit: L("故障")
-        case .offline: L("离线")
-        case .unknown: L("未知")
-        }
-    }
-}
-
 /// 主机健康卡（服务器页 S1 的主角）。
 ///
 /// 紧凑单行指标带：CPU/内存/磁盘 三枚小环（环心百分比、环下绝对量），
@@ -75,10 +48,8 @@ public struct HealthCard: View {
         public let loadState: LoadState
         /// 用户备注（便于记忆）。有则作为卡片主标题优先显示。
         public let note: String?
-        /// 采集进行中——右上角胶囊转圈。
-        public let isBusy: Bool
-        /// 正在重连：胶囊改显「重连中」并转蓝，与已认定的「连接失败」区分开。
-        public let isReconnecting: Bool
+        /// 采集阶段：驱动右上角胶囊的转圈与「重连中」文案。
+        public let collectPhase: ConnCollectPhase
 
         public init(
             id: String,
@@ -97,8 +68,7 @@ public struct HealthCard: View {
             loadText: String? = nil,
             loadState: LoadState = .loaded,
             note: String? = nil,
-            isBusy: Bool = false,
-            isReconnecting: Bool = false
+            collectPhase: ConnCollectPhase = .idle
         ) {
             self.id = id
             self.name = name
@@ -116,8 +86,7 @@ public struct HealthCard: View {
             self.loadText = loadText
             self.loadState = loadState
             self.note = note
-            self.isBusy = isBusy
-            self.isReconnecting = isReconnecting
+            self.collectPhase = collectPhase
         }
 
         /// 卡片主标题：备注优先（用户的记忆锚点），否则用名称/地址。
@@ -172,23 +141,16 @@ public struct HealthCard: View {
             }
             Spacer(minLength: ConnSpacing.xs)
             VStack(alignment: .trailing, spacing: 4) {
-                StatusPill(pillText, semantic: pillSemantic, isBusy: model.isBusy)
+                StatusPill(
+                    model.collectPhase.pillText(status: model.status),
+                    semantic: model.collectPhase.pillSemantic(status: model.status),
+                    isBusy: model.collectPhase.isCollecting
+                )
                 if model.uptimeText != nil || model.loadText != nil {
                     headerMeta
                 }
             }
         }
-    }
-
-    /// 重连中时盖掉状态文案——「重连中」比「正常/故障」更贴近此刻发生的事。
-    /// 常规采集**不改文案**，只转圈：每 30s 把「正常」换成「刷新中」会让状态区
-    /// 一直跳，反而更吵。
-    private var pillText: String {
-        model.isReconnecting ? L("重连中") : model.status.label
-    }
-
-    private var pillSemantic: StatusPill.Semantic {
-        model.isReconnecting ? .info : model.status.pillSemantic
     }
 
     private var headerMeta: some View {
@@ -368,8 +330,8 @@ public struct HealthCard: View {
     /// 整体传入而非拆成一堆标量——`Model` 本就是不依赖 SwiftUI 的纯数据结构，
     /// 拆参数只会撞上 `function_parameter_count` 的 lint 上限。
     ///
-    /// `isReconnecting`/`isBusy` 与 `loadState` 本是两套独立维度，原实现各自
-    /// 判断要不要念一遍「采集中…」。但 `isBusy == true && loadState == .loading`
+    /// `collectPhase` 与 `loadState` 本是两套独立维度，原实现各自
+    /// 判断要不要念一遍「采集中…」。但 `collectPhase == .collecting && loadState == .loading`
     /// 是每台主机首次采集必经的状态（`MonitorScheduler.attempt` 对无读数的主机
     /// 恒置 `.collecting`，`.loading` 的条件正是 `metrics == nil`），两个分支
     /// 会同时命中，念成「采集中…，采集中…」。这里把「是否要念一次采集中」合并
@@ -378,21 +340,21 @@ public struct HealthCard: View {
     /// 顺序/措辞：
     /// - 重连中优先于「采集中…」——「重连中」是更具体的状态（连接层面出了问题
     ///   在重试），比泛泛的「采集中」更值得优先播报。**在「同一主机同一时刻只有
-    ///   一轮采集」这个前提下**，`isReconnecting` 与 `.loading` 单轮次内不可能同时
+    ///   一轮采集」这个前提下**，`.reconnecting` 与 `.loading` 单轮次内不可能同时
     ///   成立（前者只在已有读数时才置位，后者恰好要求无读数），不会堆叠成
     ///   「重连中，采集中」。该前提由 `MonitorScheduler` 的代次 + 飞行中集合保证；
     ///   若并发写回的收敛被破坏，这里的 `else if` 仍会择一播报，只是措辞可能
     ///   落后半拍——不会出现重复朗读。
-    /// - 已加载且仍在后台刷新（`isBusy` 为真、`loadState == .loaded`，例行轮询
+    /// - 已加载且仍在后台刷新（`collectPhase == .collecting`、`loadState == .loaded`，例行轮询
     ///   而非首采）：先念「采集中…」再念读数——让用户先建立「这批数字可能马上
     ///   更新」的预期，再听具体数字；与首采时「先概述活动、再给细节」的顺序
     ///   一致，减少 VoiceOver 用户在不同状态间切换时的心智模型跳变。
     static func accessibilityDescription(for model: Model) -> String {
         var parts = ["\(model.title)，\(model.status.label)"]
 
-        if model.isReconnecting {
+        if model.collectPhase == .reconnecting {
             parts.append(L("重连中"))
-        } else if model.isBusy || model.loadState == .loading {
+        } else if model.collectPhase.isCollecting || model.loadState == .loading {
             parts.append(L("采集中…"))
         }
 
@@ -472,7 +434,7 @@ private extension View {
         HealthCard(.init(
             id: "4", name: "reconnecting-host", address: "root@10.0.0.4",
             status: .ok, cpu: 12, memory: 40, disk: 55,
-            isBusy: true, isReconnecting: true
+            collectPhase: .reconnecting
         )) {}
     }
     .padding(ConnSpacing.page)

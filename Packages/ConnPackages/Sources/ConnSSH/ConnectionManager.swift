@@ -48,7 +48,7 @@ public actor ConnectionManager {
             case let .connected(session):
                 return session
             case let .connecting(task):
-                return try await task.value
+                return try await claim(task, key: key)
             }
         }
 
@@ -64,15 +64,57 @@ public actor ConnectionManager {
             )
         }
         entries[key] = .connecting(task)
+        return try await claim(task, key: key)
+    }
 
+    /// 等一条正在进行的握手，并在成功后**确认它仍被池认领**再回插。
+    ///
+    /// 为什么必须确认：`invalidate(host:)` / `invalidateAll()` 对 `.connecting` 只能
+    /// `cancel()`，而 Citadel 的 `SSHClient.connect` 全程建在 `EventLoopFuture.get()` 上，
+    /// **不响应 Swift 并发的取消**——cancel() 拦不住它成功返回。若成功后无条件写
+    /// `entries[key] = .connected(session)`，一次「回前台 → invalidateAll」就会被随后
+    /// 完成的旧握手悄悄撤销：池里留下一条本该丢弃的连接（回前台场景下大概率已死），
+    /// 之后每轮采集都拿到它、失败、再 invalidate，用户看到的是反复转圈。
+    /// 所以判据不是「握手有没有被取消」，而是「回插时条目是不是还是我发起的那条」。
+    ///
+    /// 判定用 `Task` 的身份相等（`Task` 是 `Hashable`，按实例比较），不用「条目非空」
+    /// ——invalidate 后紧接着又发起一次新握手时，条目非空但已经不是自己那条了。
+    private func claim(_ task: Task<any SSHSession, Error>, key: String) async throws -> any SSHSession {
+        let session: any SSHSession
         do {
-            let session = try await task.value
+            session = try await task.value
+        } catch {
+            // 握手失败，清除条目，允许下次重试。只清自己那条：期间若已被 invalidate
+            // 并重新发起握手，条目属于新任务，误删会让新任务的结果无处回插。
+            if case let .connecting(current)? = entries[key], current == task {
+                entries[key] = nil
+            }
+            throw error
+        }
+
+        guard let entry = entries[key] else {
+            // 条目已被 invalidate/disconnect 清掉：这条连接已无人认领。不能回插，
+            // 否则等于撤销那次 invalidate；也不能就这么返回给调用方——池里没有它，
+            // 谁都不会再关它，最后变成一条泄漏的 socket。关掉并让调用方走重试路径。
+            Task { await session.close() }
+            throw SSHError.channelClosed
+        }
+        switch entry {
+        case let .connecting(current) where current == task:
             entries[key] = .connected(session)
             return session
-        } catch {
-            // 握手失败，清除条目，允许下次重试
-            entries[key] = nil
-            throw error
+        case let .connected(pooled):
+            // 通常是同一条握手的另一个等待者已先回插，池里那条就是自己这条。
+            // 但也可能是「中途被 invalidate，另一条握手抢先占了位」——那时自己这条
+            // 已无人认领，必须关掉，否则留下一条谁都不持有的 socket。
+            if pooled !== session {
+                Task { await session.close() }
+            }
+            return pooled
+        case .connecting:
+            // 条目已换成另一条握手：说明中途被 invalidate 过且已重新发起。同上，丢弃。
+            Task { await session.close() }
+            throw SSHError.channelClosed
         }
     }
 
@@ -103,10 +145,14 @@ public actor ConnectionManager {
 
     /// 驱逐全部池化会话（不等待关闭）。
     ///
-    /// 与 `disconnectAll()` 的区别：那个会 `await session.close()` 逐条等待，
-    /// 而本方法用于**回前台**——后台期间 socket 多半已被服务器 idle timeout
-    /// 或系统回收，对死 socket 同步 close 会卡住调用方。语义同 `invalidate(host:)`，
-    /// 只是作用于全部条目。
+    /// 主要用于**回前台**：后台期间 socket 多半已被服务器 idle timeout 或系统回收，
+    /// 对死 socket 同步 `await close()` 会卡住调用方，所以关闭一律 fire-and-forget。
+    /// 语义同 `invalidate(host:)`，只是作用于全部条目——包括正在握手的那些。
+    ///
+    /// 对 `.connecting` 调 `cancel()` 是**必要但不充分**的：Citadel 的握手不响应取消
+    /// （见 `claim(_:key:)`），cancel 之后它照样可能成功返回。真正拦住「握手成功后
+    /// 把自己塞回池里」的是 `claim(_:key:)` 的回插前身份确认——本方法先
+    /// `entries.removeAll()`，随后完成的握手因认领不到条目而被丢弃并关闭。
     public func invalidateAll() {
         let current = entries
         entries.removeAll()
@@ -129,17 +175,6 @@ public actor ConnectionManager {
             await session.close()
         case let .connecting(task):
             task.cancel()
-        }
-    }
-
-    /// 断开全部（App 进入后台或退出时）。
-    public func disconnectAll() async {
-        let current = entries
-        entries.removeAll()
-        for entry in current.values {
-            if case let .connected(session) = entry {
-                await session.close()
-            }
         }
     }
 

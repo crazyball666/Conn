@@ -106,6 +106,67 @@ struct ConnectionManagerTests {
         #expect(await !manager.hasPooledSession(for: first))
         #expect(await !manager.hasPooledSession(for: second))
     }
+
+    @Test("握手期间 invalidateAll → 握手成功也不回插，会话被关掉，调用方拿到错误")
+    func handshakeFinishedAfterInvalidateAllIsNotReinserted() async throws {
+        // 关键：这个 transport 的握手**不响应取消**，模拟 Citadel 的
+        // SSHClient.connect（全程 EventLoopFuture.get()）。所以 invalidateAll 的
+        // cancel() 拦不住它成功返回——回插与否只能靠 session(for:) 的身份确认。
+        let closed = CloseFlag()
+        let manager = ConnectionManager(
+            transport: UncancellableTransport(delay: .milliseconds(300), closed: closed)
+        )
+        let host = host()
+
+        // 用 Task 而非 async let：下面要在 #expect 闭包里 await 它
+        let pending = Task { try await manager.session(for: host) }
+        // 等握手真正开始（条目已是 .connecting）再驱逐
+        try await waitUntil { await manager.hasPooledSession(for: host) }
+        await manager.invalidateAll()
+
+        await #expect(throws: SSHError.self) {
+            _ = try await pending.value
+        }
+        // 池必须是空的：若无条件回插，这里会留下一条本该被丢弃的连接
+        #expect(await !manager.hasPooledSession(for: host))
+        #expect(await manager.activeCount == 0)
+        // 被丢弃的会话必须关掉，否则是一条谁也不再持有的泄漏 socket
+        #expect(await closed.waitUntilClosed())
+    }
+
+    @Test("握手期间 invalidate(host:) → 之后新的 session 重新握手，不复用旧连接")
+    func handshakeFinishedAfterInvalidateHostStartsFreshConnection() async throws {
+        let closed = CloseFlag()
+        let manager = ConnectionManager(
+            transport: UncancellableTransport(delay: .milliseconds(300), closed: closed)
+        )
+        let host = host()
+
+        let pending = Task { try await manager.session(for: host) }
+        try await waitUntil { await manager.hasPooledSession(for: host) }
+        await manager.invalidate(host: host)
+        await #expect(throws: SSHError.self) {
+            _ = try await pending.value
+        }
+
+        // 被驱逐后新的请求应当拿到一条全新的、真正在池里的会话
+        let fresh = try await manager.session(for: host)
+        #expect(await manager.activeCount == 1)
+        #expect(await manager.hasPooledSession(for: host))
+        _ = fresh
+    }
+}
+
+/// 轮询等待某条件成立（最多 2 秒），避免用固定 sleep 赌时序。
+private func waitUntil(
+    _ condition: @Sendable () async -> Bool,
+    timeout: Duration = .seconds(2)
+) async throws {
+    let deadline = ContinuousClock.now.advanced(by: timeout)
+    while ContinuousClock.now < deadline {
+        if await condition() { return }
+        try await Task.sleep(for: .milliseconds(5))
+    }
 }
 
 // MARK: - 测试替身
@@ -121,6 +182,94 @@ private actor ResolvedFlag {
     private(set) var wasResolved = false
     func mark() {
         wasResolved = true
+    }
+}
+
+/// 记录会话是否被关闭。
+private actor CloseFlag {
+    private(set) var isClosed = false
+
+    func markClosed() {
+        isClosed = true
+    }
+
+    /// 等到会话被关闭（关闭是 fire-and-forget 的 Task，不能同步读）。最多等 2 秒。
+    func waitUntilClosed() async -> Bool {
+        let deadline = ContinuousClock.now.advanced(by: .seconds(2))
+        while ContinuousClock.now < deadline {
+            if isClosed { return true }
+            try? await Task.sleep(for: .milliseconds(5))
+        }
+        return isClosed
+    }
+}
+
+/// 握手慢且**不响应取消**的 transport，用于复现「invalidate 之后握手才成功」。
+///
+/// 这正是 Citadel 的行为：`SSHClient.connect` 全程建在 `EventLoopFuture.get()` 上，
+/// `Task.cancel()` 拦不住它。所以这里刻意不能用 `Task.sleep`（它会因取消提前抛错，
+/// 反而测不到「握手成功后回插」那条路径），改用挂在全局队列上的定时器。
+private final class UncancellableTransport: SSHTransport {
+    private let delay: Duration
+    private let closed: CloseFlag
+
+    init(delay: Duration, closed: CloseFlag) {
+        self.delay = delay
+        self.closed = closed
+    }
+
+    func connect(
+        _ endpoint: SSHEndpoint,
+        username: String,
+        auth: SSHAuth,
+        hostKeyPolicy: HostKeyPolicy
+    ) async throws -> any SSHSession {
+        let seconds = Double(delay.components.seconds) + Double(delay.components.attoseconds) / 1e18
+        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+            DispatchQueue.global().asyncAfter(deadline: .now() + seconds) {
+                continuation.resume()
+            }
+        }
+        return CloseRecordingSession(closed: closed)
+    }
+}
+
+/// 只关心 `close()` 有没有被调用的假会话；其余能力用不到，一律抛 channelClosed。
+private final class CloseRecordingSession: SSHSession {
+    private let closed: CloseFlag
+    private let continuation: AsyncStream<SSHSessionState>.Continuation
+    let state: AsyncStream<SSHSessionState>
+
+    init(closed: CloseFlag) {
+        self.closed = closed
+        (state, continuation) = AsyncStream.makeStream()
+        continuation.yield(.connected)
+    }
+
+    func exec(_ command: String, timeout: Duration) async throws -> ExecResult {
+        throw SSHError.channelClosed
+    }
+
+    func execStream(_ command: String) async throws -> AsyncThrowingStream<Data, Error> {
+        throw SSHError.channelClosed
+    }
+
+    func openShell(term: TermSize) async throws -> any ShellChannel {
+        throw SSHError.channelClosed
+    }
+
+    func sftp() async throws -> any RemoteFileSystem {
+        throw SSHError.channelClosed
+    }
+
+    func openTunnel(to target: SSHEndpoint) async throws -> any SSHTunnel {
+        throw SSHError.channelClosed
+    }
+
+    func close() async {
+        await closed.markClosed()
+        continuation.yield(.closed)
+        continuation.finish()
     }
 }
 

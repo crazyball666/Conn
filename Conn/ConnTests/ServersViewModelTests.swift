@@ -191,37 +191,38 @@ struct ServersViewModelTests {
             monitor: monitor
         )
         viewModel.load()
-        #expect(viewModel.cards.first?.isBusy == false)
+        #expect(viewModel.cards.first?.collectPhase == .idle)
 
         let scan = Task { await monitor.scanNow(hosts: [target]) }
 
         // 等采集真正进入飞行中（exec 被闸门卡住）。上限 200 次轮询，避免死等。
         // 每次真睡 5ms 而非只 `Task.yield()`：yield 烧的是 CPU 周期不推进墙钟，
         // 而 exec 跑在协作线程池上，并行执行测试时 200 次 yield 可能不够它落地。
+        // 首采无读数，池空时也应判成 collecting 而非 reconnecting——直接等这个
+        // 精确值，既覆盖原来的「转圈亮起」也覆盖原来的「不是重连态」两条断言。
         var busySeen = false
         for _ in 0 ..< 200 where !busySeen {
             try? await Task.sleep(for: .milliseconds(5))
-            busySeen = viewModel.cards.first?.isBusy == true
+            busySeen = viewModel.cards.first?.collectPhase == .collecting
         }
         #expect(busySeen)
-        // 首采无读数，池空时仍应是 collecting 而非 reconnecting
-        #expect(viewModel.cards.first?.isReconnecting == false)
+        // 闸门仍关着，这一态是稳定的，可以再读一次确认没跳去重连。
+        #expect(viewModel.cards.first?.collectPhase == .collecting)
 
         await log.openGate()
         await scan.value
 
-        #expect(viewModel.cards.first?.isBusy == false)
+        #expect(viewModel.cards.first?.collectPhase == .idle)
     }
 
-    /// 正向覆盖「重连态到达 UI」——`card(for:)` 里的
-    /// `isReconnecting: phase == .reconnecting` 是这条通路上**唯一**的一环，
-    /// 而既有测试只反向断言 `isReconnecting == false`：把映射写死成常量 `false`
-    /// 它们仍会全绿。
+    /// 正向覆盖「重连态到达 UI」——`card(for:)` 里的 `collectPhase(_:)` 映射
+    /// 是这条通路上**唯一**的一环，而其余测试只断言非重连态：把映射里的
+    /// `.reconnecting` 分支错写成 `.collecting`，它们仍会全绿。
     ///
     /// 制造 `.reconnecting` 的办法：先成功采一轮建立读数，再让下一次 exec 抛
     /// `SSHError.channelClosed`（失败会触发 `invalidate(host:)` 清空连接池），
     /// 随后的同轮重试就处于「有读数 + 池空」= `.reconnecting`。
-    @Test("重连中（有读数 + 会话被驱逐）映射到卡片 isReconnecting")
+    @Test("重连中（有读数 + 会话被驱逐）映射到卡片 collectPhase")
     func mapsReconnectingPhaseToCard() async throws {
         let target = Host(name: "web", address: "10.0.0.1", username: "root")
         let log = ExecLog()
@@ -237,7 +238,7 @@ struct ServersViewModelTests {
 
         // 第一轮放行，建立「已知可用」的读数。
         await monitor.scanNow(hosts: [target])
-        #expect(viewModel.cards.first?.isReconnecting == false)
+        #expect(viewModel.cards.first?.collectPhase == .idle)
 
         // 第二轮：首次 exec 抛错触发驱逐（池清空），但读数还在——
         // 重试那次 attempt 应判成 .reconnecting。闸门挡在重试的 exec 上，
@@ -250,15 +251,15 @@ struct ServersViewModelTests {
         // 直接轮询卡片状态可能撞上失败那次 attempt 的瞬时值；用单调递增的 exec
         // 计数定位，才能保证读到的是「重试那次 attempt」写下的、稳定不再变的值。
         await waitUntilExecCount(log, atLeast: 3)
-        #expect(viewModel.cards.first?.isReconnecting == true)
-        #expect(viewModel.cards.first?.isBusy == true)
+        // `.reconnecting` 同时蕴含「转圈亮着」（`isCollecting` 为真），
+        // 不必再单独断言一次忙碌位——枚举已经把两者绑成一个值。
+        #expect(viewModel.cards.first?.collectPhase == .reconnecting)
 
         await log.openGate()
         await scan.value
 
         // 重试成功：回到常态，不报错、读数还在。
-        #expect(viewModel.cards.first?.isReconnecting == false)
-        #expect(viewModel.cards.first?.isBusy == false)
+        #expect(viewModel.cards.first?.collectPhase == .idle)
     }
 
     /// 有上限地轮询，直到 `log.execs` 达到 `target` 或耗尽 `maxAttempts`。
