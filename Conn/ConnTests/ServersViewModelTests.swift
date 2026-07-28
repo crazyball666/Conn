@@ -180,9 +180,10 @@ struct ServersViewModelTests {
     @Test("采集进行中卡片标记为忙碌，结束后复位")
     func mapsCollectPhaseToCard() async throws {
         let target = Host(name: "web", address: "10.0.0.1", username: "root")
-        let gate = Gate()
+        let log = ExecLog()
+        await log.armGate(Gate())
         let monitor = MonitorScheduler(
-            connectionManager: ConnectionManager(transport: GatedTransport(gate: gate))
+            connectionManager: ConnectionManager(transport: GatedTransport(log: log))
         )
         let viewModel = ServersViewModel(
             hostStore: StubHostRepository(hosts: [target]),
@@ -204,10 +205,68 @@ struct ServersViewModelTests {
         // 首采无读数，池空时仍应是 collecting 而非 reconnecting
         #expect(viewModel.cards.first?.isReconnecting == false)
 
-        await gate.open()
+        await log.openGate()
         await scan.value
 
         #expect(viewModel.cards.first?.isBusy == false)
+    }
+
+    /// 正向覆盖「重连态到达 UI」——`card(for:)` 里的
+    /// `isReconnecting: phase == .reconnecting` 是这条通路上**唯一**的一环，
+    /// 而既有测试只反向断言 `isReconnecting == false`：把映射写死成常量 `false`
+    /// 它们仍会全绿。
+    ///
+    /// 制造 `.reconnecting` 的办法：先成功采一轮建立读数，再让下一次 exec 抛
+    /// `SSHError.channelClosed`（失败会触发 `invalidate(host:)` 清空连接池），
+    /// 随后的同轮重试就处于「有读数 + 池空」= `.reconnecting`。
+    @Test("重连中（有读数 + 会话被驱逐）映射到卡片 isReconnecting")
+    func mapsReconnectingPhaseToCard() async throws {
+        let target = Host(name: "web", address: "10.0.0.1", username: "root")
+        let log = ExecLog()
+        let monitor = MonitorScheduler(
+            connectionManager: ConnectionManager(transport: GatedTransport(log: log))
+        )
+        let viewModel = ServersViewModel(
+            hostStore: StubHostRepository(hosts: [target]),
+            groupStore: StubHostGroupRepository(),
+            monitor: monitor
+        )
+        viewModel.load()
+
+        // 第一轮放行，建立「已知可用」的读数。
+        await monitor.scanNow(hosts: [target])
+        #expect(viewModel.cards.first?.isReconnecting == false)
+
+        // 第二轮：首次 exec 抛错触发驱逐（池清空），但读数还在——
+        // 重试那次 attempt 应判成 .reconnecting。闸门挡在重试的 exec 上，
+        // 好在它返回前读到卡片状态。
+        await log.failNext(1)
+        await log.armGate(Gate())
+        let scan = Task { await monitor.scanNow(hosts: [target]) }
+
+        // 等到第 3 次 exec 已开始（首轮 1 次 + 本轮失败 1 次 + 重试 1 次）。
+        // 直接轮询卡片状态可能撞上失败那次 attempt 的瞬时值；用单调递增的 exec
+        // 计数定位，才能保证读到的是「重试那次 attempt」写下的、稳定不再变的值。
+        await waitUntilExecCount(log, atLeast: 3)
+        #expect(viewModel.cards.first?.isReconnecting == true)
+        #expect(viewModel.cards.first?.isBusy == true)
+
+        await log.openGate()
+        await scan.value
+
+        // 重试成功：回到常态，不报错、读数还在。
+        #expect(viewModel.cards.first?.isReconnecting == false)
+        #expect(viewModel.cards.first?.isBusy == false)
+    }
+
+    /// 有上限地轮询，直到 `log.execs` 达到 `target` 或耗尽 `maxAttempts`。
+    private func waitUntilExecCount(
+        _ log: ExecLog, atLeast target: Int, maxAttempts: Int = 200
+    ) async {
+        for _ in 0 ..< maxAttempts {
+            if await log.execs >= target { return }
+            await Task.yield()
+        }
     }
 }
 
@@ -228,30 +287,60 @@ private actor Gate {
     }
 }
 
+/// 记录 exec 次数，并按预设让前 N 次 exec 抛错（模拟后台期间死掉的会话）。
+///
+/// 计数与失败预设必须跨会话存活——重连会新建 `GatedSession`，状态挂在会话上就丢了。
+private actor ExecLog {
+    private(set) var execs = 0
+    private var failuresRemaining = 0
+    private var gate: Gate?
+
+    /// 追加 n 次待失败的 exec。
+    func failNext(_ count: Int) { failuresRemaining += count }
+
+    /// 装闸门：此后「成功」的 exec 会挂起等放行。失败路径不受闸门影响，保持即时确定。
+    func armGate(_ gate: Gate) { self.gate = gate }
+
+    func openGate() async { await gate?.open() }
+
+    /// 返回 true 表示本次 exec 应当抛错。
+    func shouldFailExec() -> Bool {
+        execs += 1
+        guard failuresRemaining > 0 else { return false }
+        failuresRemaining -= 1
+        return true
+    }
+
+    func waitIfGated() async {
+        if let gate { await gate.wait() }
+    }
+}
+
 private final class GatedTransport: SSHTransport {
-    let gate: Gate
-    init(gate: Gate) { self.gate = gate }
+    let log: ExecLog
+    init(log: ExecLog) { self.log = log }
 
     func connect(
         _ endpoint: SSHEndpoint, username: String, auth: SSHAuth, hostKeyPolicy: HostKeyPolicy
     ) async throws -> any SSHSession {
-        GatedSession(gate: gate)
+        GatedSession(log: log)
     }
 }
 
 private final class GatedSession: SSHSession {
-    private let gate: Gate
+    private let log: ExecLog
     let state: AsyncStream<SSHSessionState>
     private let continuation: AsyncStream<SSHSessionState>.Continuation
 
-    init(gate: Gate) {
-        self.gate = gate
+    init(log: ExecLog) {
+        self.log = log
         (state, continuation) = AsyncStream.makeStream()
         continuation.yield(.connected)
     }
 
     func exec(_ command: String, timeout: Duration) async throws -> ExecResult {
-        await gate.wait()
+        if await log.shouldFailExec() { throw SSHError.channelClosed }
+        await log.waitIfGated()
         return ExecResult(exitCode: 0, stdout: Data(), stderr: Data())
     }
 

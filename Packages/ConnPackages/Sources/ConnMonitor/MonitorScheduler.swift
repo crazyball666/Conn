@@ -41,6 +41,31 @@ public final class MonitorScheduler {
     private let collector: MetricCollector
     private let now: () -> Date
     private var task: Task<Void, Never>?
+
+    /// 调度代次。`stop()` 递增一次（`startDashboard`/`startDetail`/`resumeAfterBackground`
+    /// 开头都会经过它），采集只有在「发起时的代次 == 当前代次」时才允许写回。
+    ///
+    /// **为什么不靠 `Task.isCancelled`（评审给的方案 a）**：
+    /// - 协作式取消要求被取消方主动查询，而一轮采集全程挂在 `await` 上
+    ///   （握手、exec）。回前台时轮询 Task 大概率刚从 `Task.sleep(interval)`
+    ///   醒来进入 `scanOnce`，`stop()` 的 `cancel()` 追不上它，旧轮与新轮并行：
+    ///   每台主机双倍握手、旧轮结尾把新轮的转圈提前熄掉、旧轮 `record()` 的
+    ///   红叉盖掉新轮刚写好的成功读数——正是本分支要消灭的「闪一下连接失败」。
+    /// - 更关键的是 `scanNow`（下拉刷新）根本不经过 `task`，它跑在调用方的
+    ///   Task 上，`Task.isCancelled` 对它恒为 false，方案 a 完全够不着。
+    ///
+    /// 代次是**数据侧**的判据：旧轮即便跑完，也一个字节都写不进 `metrics`/
+    /// `errors`/`phases`/`lastScanAt`，与它此刻停在哪个 `await` 无关。
+    private var generation = 0
+
+    /// 采集在飞行中的主机 id。同一主机同一时刻只允许一轮采集。
+    ///
+    /// 代次挡的是「跨代」的旧轮；下拉刷新（`scanNow`）与轮询是**同代**的两轮，
+    /// 代次对它们都成立，仍会双倍握手、互相覆盖写回（一轮 `record()` 清空
+    /// `metrics`，另一轮刚写好成功读数 → 卡片闪一下红）。用飞行中集合去重，
+    /// 让后到的那一轮直接让位——它要的数据先到的那轮马上就会写进来。
+    private var inFlight: Set<String> = []
+
     /// 上次 `startDashboard` 的参数。回前台恢复时按原样重启。
     ///
     /// 用具名 struct 而非三元组：三元组会触发 SwiftLint `large_tuple`（上限 2 个成员）。
@@ -78,26 +103,40 @@ public final class MonitorScheduler {
     ) {
         stop()
         dashboardConfig = DashboardConfig(hosts: hosts, interval: interval, concurrency: concurrency)
-        let isFresh = !force && (lastScanAt.map { now().timeIntervalSince($0) < 5 } ?? false)
-        let needsWarmUp = metrics.isEmpty
+        // 预热与防抖都按「逐主机」判定，而非全局 `metrics.isEmpty`——CPU 使用率要
+        // 两次采样差分，而基线本就是每主机一份（`MetricCollector.previousCPU[host.id]`）。
+        // 全局判据同时错两头：
+        // - 已有 N 台在线时新增第 N+1 台，`metrics` 非空 → 不预热 → 新卡片的 CPU 环
+        //   要挂满一个 interval（默认 30s）才点亮；
+        // - 反过来，所有主机都判定故障后 `record()` 清空了 `metrics` → 判据又为真 →
+        //   全故障场景下每次进页面仍在 2s 内双采，每轮都带连接超时。
+        let needsWarmUp = hosts.contains { metrics[$0.id] == nil }
+        // 有主机缺基线时不防抖：否则「新增主机后 5s 内切走再切回」会把立即那轮
+        // 也跳过，新卡片要挂着骨架一整个 interval。
+        let isFresh = !force && !needsWarmUp
+            && (lastScanAt.map { now().timeIntervalSince($0) < 5 } ?? false)
+        let scanGeneration = generation
 
         task = Task { [weak self] in
             guard let self else { return }
             if !isFresh {
-                await self.scanOnce(hosts: hosts, concurrency: concurrency)
+                await self.scanOnce(hosts: hosts, concurrency: concurrency, generation: scanGeneration)
+                guard self.isCurrent(scanGeneration) else { return }
                 self.lastScanAt = self.now()
                 if needsWarmUp {
                     try? await Task.sleep(for: .seconds(2))
-                    guard !Task.isCancelled else { return }
-                    await self.scanOnce(hosts: hosts, concurrency: concurrency)
+                    guard self.isCurrent(scanGeneration) else { return }
+                    await self.scanOnce(hosts: hosts, concurrency: concurrency, generation: scanGeneration)
+                    guard self.isCurrent(scanGeneration) else { return }
                     self.lastScanAt = self.now()
                 }
             }
             // 先睡后采：否则 isFresh 跳过立即采集后会马上又采一轮，防抖失效。
-            while !Task.isCancelled {
+            while self.isCurrent(scanGeneration) {
                 try? await Task.sleep(for: interval)
-                guard !Task.isCancelled else { return }
-                await self.scanOnce(hosts: hosts, concurrency: concurrency)
+                guard self.isCurrent(scanGeneration) else { return }
+                await self.scanOnce(hosts: hosts, concurrency: concurrency, generation: scanGeneration)
+                guard self.isCurrent(scanGeneration) else { return }
                 self.lastScanAt = self.now()
             }
         }
@@ -106,10 +145,15 @@ public final class MonitorScheduler {
     /// 单机详情模式：只高频轮询这一台。每轮按 `wantsProcesses` 决定是否附带进程列表。
     public func startDetail(host: ConnKit.Host, interval: Duration = .seconds(3)) {
         stop()
+        let scanGeneration = generation
         task = Task { [weak self] in
             guard let self else { return }
-            while !Task.isCancelled {
-                await self.collectOne(host, includeExtended: self.wantsExtended, includeProcesses: self.wantsProcesses)
+            while self.isCurrent(scanGeneration) {
+                await self.collectOne(
+                    host, generation: scanGeneration,
+                    includeExtended: self.wantsExtended, includeProcesses: self.wantsProcesses
+                )
+                guard self.isCurrent(scanGeneration) else { return }
                 self.lastScanAt = self.now()
                 try? await Task.sleep(for: interval)
             }
@@ -118,7 +162,12 @@ public final class MonitorScheduler {
 
     /// 立刻补采一次当前详情主机（切到概览/进程段时用——别等下一个轮询间隔才出详情/进程）。
     public func refreshDetail(host: ConnKit.Host) async {
-        await collectOne(host, includeExtended: wantsExtended, includeProcesses: wantsProcesses)
+        let scanGeneration = generation
+        await collectOne(
+            host, generation: scanGeneration,
+            includeExtended: wantsExtended, includeProcesses: wantsProcesses
+        )
+        guard isCurrent(scanGeneration) else { return }
         lastScanAt = now()
     }
 
@@ -126,8 +175,28 @@ public final class MonitorScheduler {
     public func stop() {
         task?.cancel()
         task = nil
+        // 递增代次：已在飞行中的那一轮从此写不进任何状态。单靠 cancel() 拦不住它，
+        // 它多半正挂在握手或 exec 的 await 上，取消信号到达时早已越过检查点。
+        generation &+= 1
         // 轮询停了就没有任何一台在采集中，否则转圈会一直挂着。
         phases.removeAll()
+        // 清掉恢复配置，把 `resumeAfterBackground` 的作用域精确收敛到
+        // 「仪表盘此刻确实在跑」。
+        //
+        // 不清的话 `dashboardConfig` 从 App 启动（服务器是默认 Tab）起就永不为 nil，
+        // `resumeAfterBackground` 的 guard 恒真，于是**任何**回前台都会
+        // `invalidateAll()`。而 `ConnectionManager` 是全 App 唯一的连接池：终端的
+        // 交互式 shell、日志的 `tail -f`、文件编辑器跨会话持有的 sftp handle 全都
+        // 骑在同一条 SSH 连接上，关连接会把这些长命通道一起打死——用户开着终端
+        // 切走 30s 再回来，界面就冻住且无报错。
+        // `ServersView.onDisappear → stop()` 正是「仪表盘不可见」的既有信号；
+        // 顺带也修掉「用户已切走 Tab 后回前台，却用陈旧配置把轮询重新拉起来」。
+        dashboardConfig = nil
+    }
+
+    /// 发起时的代次是否仍是当前代次。为 false 说明这轮已被 `stop()` / 重启作废。
+    private func isCurrent(_ scanGeneration: Int) -> Bool {
+        generation == scanGeneration
     }
 
     /// 回前台恢复。
@@ -138,6 +207,10 @@ public final class MonitorScheduler {
     /// 主动驱逐并强制重采，比等下一个采集间隔（默认 30s）撞上死会话再自愈快得多。
     /// 不足 30s 则什么都不做：轮询 Task 随 App 恢复自然继续，就算会话真死了，
     /// `collectOne` 的同轮重试也会兜住。
+    ///
+    /// `dashboardConfig` 为 nil（仪表盘已 `stop()`）时同样什么都不做——
+    /// `invalidateAll()` 关的是整条 SSH 连接，会连带打死骑在上面的终端 shell /
+    /// 日志流 / sftp handle，只有「仪表盘此刻确实在跑」才值得付这个代价。
     public func resumeAfterBackground(idleFor: TimeInterval) async {
         guard idleFor > 30, let config = dashboardConfig else { return }
         await connectionManager.invalidateAll()
@@ -149,25 +222,27 @@ public final class MonitorScheduler {
 
     /// 手动触发一轮全量采集（下拉刷新）。
     public func scanNow(hosts: [ConnKit.Host], concurrency: Int = 4) async {
-        await scanOnce(hosts: hosts, concurrency: concurrency)
+        let scanGeneration = generation
+        await scanOnce(hosts: hosts, concurrency: concurrency, generation: scanGeneration)
+        guard isCurrent(scanGeneration) else { return }
         lastScanAt = now()
     }
 
     // MARK: - 采集
 
     /// 一轮采集，滑动窗口维持至多 `concurrency` 个并发（TaskGroup 补位）。
-    private func scanOnce(hosts: [ConnKit.Host], concurrency: Int) async {
+    private func scanOnce(hosts: [ConnKit.Host], concurrency: Int, generation: Int) async {
         guard !hosts.isEmpty else { return }
         var iterator = hosts.makeIterator()
         await withTaskGroup(of: Void.self) { group in
             var running = 0
             while running < max(1, concurrency), let host = iterator.next() {
-                group.addTask { await self.collectOne(host) }
+                group.addTask { await self.collectOne(host, generation: generation) }
                 running += 1
             }
             while await group.next() != nil {
                 if let host = iterator.next() {
-                    group.addTask { await self.collectOne(host) }
+                    group.addTask { await self.collectOne(host, generation: generation) }
                 }
             }
         }
@@ -180,37 +255,53 @@ public final class MonitorScheduler {
     /// idle timeout 或系统回收）第一次使用必然失败，那不是故障，不该打扰用户。
     /// 重试期间 `phases` 为 `.reconnecting`，UI 显示「重连中」；重试仍失败才如实转红。
     private func collectOne(
-        _ host: ConnKit.Host, includeExtended: Bool = false, includeProcesses: Bool = false
+        _ host: ConnKit.Host, generation scanGeneration: Int,
+        includeExtended: Bool = false, includeProcesses: Bool = false
     ) async {
+        // 作废的旧轮直接不跑；同一主机已有一轮在飞行中也让位（详见 `generation`/`inFlight`）。
+        guard isCurrent(scanGeneration), !inFlight.contains(host.id) else { return }
+        inFlight.insert(host.id)
+        defer { inFlight.remove(host.id) }
+
         // 只有「本来有读数」的主机才享受这次宽限。首采失败直接如实报错；
         // 已判定故障的主机（metrics 已被清空）也不再重试，避免每轮双倍连接尝试。
         let allowsRetry = metrics[host.id] != nil
 
         if let error = await attempt(
-            host, includeExtended: includeExtended, includeProcesses: includeProcesses
+            host, generation: scanGeneration,
+            includeExtended: includeExtended, includeProcesses: includeProcesses
         ) {
+            guard isCurrent(scanGeneration) else { return }
             if allowsRetry {
                 if let retryError = await attempt(
-                    host, includeExtended: includeExtended, includeProcesses: includeProcesses
+                    host, generation: scanGeneration,
+                    includeExtended: includeExtended, includeProcesses: includeProcesses
                 ) {
+                    guard isCurrent(scanGeneration) else { return }
                     record(retryError, for: host)
                 }
             } else {
                 record(error, for: host)
             }
         }
+        // 作废的旧轮不许收圈：否则它会把新一轮刚点亮的转圈提前熄掉。
+        guard isCurrent(scanGeneration) else { return }
         phases[host.id] = .idle
     }
 
     /// 一次采集尝试。
     ///
-    /// 成功返回 nil；失败驱逐会话并返回错误，**不写 `errors`**——
-    /// 是否呈现为故障由 `collectOne` 决定。
+    /// 成功返回 nil；失败**先驱逐会话**（可能已死，下次尝试重新握手 → 断网后自愈）
+    /// 再返回错误，但**不写 `errors`**——是否把它呈现为故障由 `collectOne` 决定。
     private func attempt(
-        _ host: ConnKit.Host, includeExtended: Bool, includeProcesses: Bool
+        _ host: ConnKit.Host, generation scanGeneration: Int,
+        includeExtended: Bool, includeProcesses: Bool
     ) async -> Error? {
         // 池里没有会话 = 本次要握手。首采（无读数）仍走骨架态，不算重连。
         let needsHandshake = await !connectionManager.hasPooledSession(for: host)
+        // 越过 await 后代次可能已变（页面切走/回前台重启）。返回 nil 让调用方
+        // 当作「无错可报」，它自己的 guard 会立刻收尾，不写任何状态。
+        guard isCurrent(scanGeneration) else { return nil }
         phases[host.id] = (needsHandshake && metrics[host.id] != nil) ? .reconnecting : .collecting
         do {
             let session = try await connectionManager.session(for: host)
@@ -218,6 +309,7 @@ public final class MonitorScheduler {
                 host: host, session: session,
                 includeExtended: includeExtended, includeProcesses: includeProcesses
             )
+            guard isCurrent(scanGeneration) else { return nil }
             // 本轮没采的段（切走的概览/进程段）沿用上次值，切回来不闪空/不重载。
             metrics[host.id] = result.carryingOver(
                 metrics[host.id], keepExtended: !includeExtended, keepProcesses: !includeProcesses
@@ -225,16 +317,17 @@ public final class MonitorScheduler {
             errors[host.id] = nil
             return nil
         } catch {
-            // #2：驱逐可能已死的会话，下次尝试重新握手 → 断网后自愈。
+            // 驱逐可能已死的会话，下次尝试重新握手 → 断网后自愈。
+            // 这里只驱逐、不写 errors：一次传输失败还不等于主机故障。
             await connectionManager.invalidate(host: host)
             return error
         }
     }
 
-    /// 认定为故障：写错误文案并清掉过期读数。
+    /// 认定为故障：写错误文案，并清掉过期实时指标——主机立即显示离线/未知，
+    /// 而不是一直挂着旧的绿色读数。
     private func record(_ error: Error, for host: ConnKit.Host) {
         errors[host.id] = error.friendlyDiagnosis
-        // #1：清掉过期实时指标，主机立即显示离线/未知，而不是一直挂着旧的绿色读数。
         metrics[host.id] = nil
     }
 }

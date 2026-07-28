@@ -6,7 +6,9 @@ import SwiftUI
 /// 不动画；常规弹层标准动画；首次/低频场景可加仪式感。
 ///
 /// **动效白名单**（除此以外不动）：状态点脉冲、指标环首次绘制、下拉刷新、
-/// 粘滞键点亮、按压反馈、弹层进出场。禁止视差、明显弹跳、装饰性粒子。
+/// 粘滞键点亮、按压反馈、弹层进出场、**采集转圈**（`StatusPill` 的 `isBusy`
+/// 状态：轮询/重连进行中的进度指示，周期见 `spinPeriod`）。
+/// 禁止视差、明显弹跳、装饰性粒子。
 public enum ConnMotion {
     /// 按压反馈时长。100–160ms 区间取中。
     public static let pressDuration: Double = 0.13
@@ -21,6 +23,12 @@ public enum ConnMotion {
     public static let sheet: Animation = .spring(duration: 0.4, bounce: 0.1)
     /// 状态点故障脉冲周期。
     public static let pulsePeriod: Double = 1.2
+    /// 采集转圈转满一圈的周期（秒）。
+    ///
+    /// 与 `pulsePeriod` 同为「持续型」动效的令牌，抽出来是为了让
+    /// 「白名单里的这条动效有多快」有唯一出处，而不是散落在视图里的字面量。
+    /// 1 秒是匀速转圈的常规速度：再快显得焦躁，再慢会被误认为卡住。
+    public static let spinPeriod: Double = 1
 }
 
 /// 全局按压反馈样式：`scale(0.97)`，约 130ms ease-out。

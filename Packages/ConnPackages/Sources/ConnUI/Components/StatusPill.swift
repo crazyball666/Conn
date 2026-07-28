@@ -120,7 +120,10 @@ public struct StatusPill: View {
             .frame(width: 9, height: 9)
             .rotationEffect(.degrees(spinAngle))
             .onAppear {
-                withAnimation(.linear(duration: 1).repeatForever(autoreverses: false)) {
+                // 周期取自令牌：转圈是动效白名单里的一条，速度不该是散落在视图里的字面量。
+                withAnimation(
+                    .linear(duration: ConnMotion.spinPeriod).repeatForever(autoreverses: false)
+                ) {
                     spinAngle = 360
                 }
             }

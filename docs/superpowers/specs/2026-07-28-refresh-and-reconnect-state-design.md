@@ -200,28 +200,38 @@ public func startDashboard(
 ) {
     stop()
     dashboardConfig = (hosts, interval, concurrency)
+    // 2s 预热轮的唯一目的是首采点亮 CPU（使用率需两次采样差分）。基线是**逐主机**的
+    // （MetricCollector.previousCPU[host.id]），所以判据也必须逐主机——用全局
+    // metrics.isEmpty 会让「已有 N 台在线时新增第 N+1 台」不预热（新卡片挂一整个
+    // interval 才点亮 CPU 环），又会让「全部主机判定故障后 metrics 被清空」恒真
+    //（每次进页面都在 2s 内双采，每轮都带连接超时）。
+    let needsWarmUp = hosts.contains { metrics[$0.id] == nil }
     // 距上次采集不足 5s 视为「刚采过」（频繁切 Tab / 返回列表），本次不重采。
+    // 但有主机缺基线时不防抖，否则新增主机后 5s 内切走再切回，连立即那轮都会跳过。
     // force 用于回前台——那是明确要立刻重采的场景。
-    let isFresh = !force && (lastScanAt.map { now().timeIntervalSince($0) < 5 } ?? false)
-    // 2s 预热轮的唯一目的是首采点亮 CPU（使用率需两次采样差分）。
-    // 已有读数说明基线在，跳过。
-    let needsWarmUp = metrics.isEmpty
+    let isFresh = !force && !needsWarmUp
+        && (lastScanAt.map { now().timeIntervalSince($0) < 5 } ?? false)
+    let scanGeneration = generation
 
     task = Task { [weak self] in
         guard let self else { return }
         if !isFresh {
-            await self.scanOnce(hosts: hosts, concurrency: concurrency)
+            await self.scanOnce(hosts: hosts, concurrency: concurrency, generation: scanGeneration)
+            guard self.isCurrent(scanGeneration) else { return }
             self.lastScanAt = self.now()
             if needsWarmUp {
                 try? await Task.sleep(for: .seconds(2))
-                await self.scanOnce(hosts: hosts, concurrency: concurrency)
+                guard self.isCurrent(scanGeneration) else { return }
+                await self.scanOnce(hosts: hosts, concurrency: concurrency, generation: scanGeneration)
+                guard self.isCurrent(scanGeneration) else { return }
                 self.lastScanAt = self.now()
             }
         }
-        while !Task.isCancelled {
+        while self.isCurrent(scanGeneration) {
             try? await Task.sleep(for: interval)
-            guard !Task.isCancelled else { return }
-            await self.scanOnce(hosts: hosts, concurrency: concurrency)
+            guard self.isCurrent(scanGeneration) else { return }
+            await self.scanOnce(hosts: hosts, concurrency: concurrency, generation: scanGeneration)
+            guard self.isCurrent(scanGeneration) else { return }
             self.lastScanAt = self.now()
         }
     }
@@ -231,7 +241,26 @@ public func startDashboard(
 > 循环体从「先采后睡」改为「先睡后采」，否则 `isFresh` 跳过立即采集后会立刻
 > 又采一轮，防抖失效。
 
-`stop()` 额外清空 `phases`——轮询停了就没有任何一台在采集中。
+### 并发收敛：代次 + 飞行中集合
+
+`stop()` 只能 `task.cancel()`，而协作式取消要求被取消方主动查询——一轮采集全程
+挂在握手/exec 的 `await` 上，取消信号到达时早已越过检查点。回前台尤其危险：
+轮询 Task 大概率刚从 `Task.sleep(interval)` 醒来进入 `scanOnce`，
+`resumeAfterBackground` 的 `startDashboard(force: true)` 追不上它，于是旧轮与新轮并行
+（双倍握手、旧轮结尾把新轮的转圈提前熄掉、旧轮 `record()` 盖掉新轮刚写好的成功读数
+→ 卡片闪一下「连接失败」，正是本次要消灭的现象）。`scanNow`（下拉刷新）更是根本
+不经过 `task`，`Task.isCancelled` 对它恒为 false。
+
+因此收敛放在**数据侧**：
+
+- `generation`：`stop()` 递增一次。采集发起时捕获代次，写回 `metrics`/`errors`/
+  `phases`/`lastScanAt` 前一律 `guard isCurrent(scanGeneration)`。旧轮即便跑完，
+  也一个字节都写不进去。
+- `inFlight: Set<String>`：代次挡不住**同代**的两轮（下拉刷新 vs 轮询）。
+  同一主机已有一轮在飞行中时，后到的那轮直接让位。
+
+`stop()` 除清空 `phases`（轮询停了就没有任何一台在采集中）外，还把
+`dashboardConfig` 置 nil。理由见下一节。
 
 ## App 层：前后台生命周期
 
@@ -262,6 +291,17 @@ public func resumeAfterBackground(idleFor: TimeInterval) async {
 
 `startDashboard` 增加 `force: Bool = false`，为真时跳过下一节的 5 秒防抖——
 回前台是明确要立刻重采的场景。
+
+> **`dashboardConfig` 必须由 `stop()` 清空，否则这条 guard 恒真。**
+> 服务器是默认 Tab，App 一启动 `dashboardConfig` 就被写上；若永不清空，**任何**
+> 回前台都会执行 `invalidateAll()`。而 `ConnectionManager` 是全 App 唯一的连接池，
+> `invalidateAll()` 对 `.connected` 条目做的是整条连接的 `close()`——挂在这条连接上的
+> 终端交互式 shell（`TerminalScreen`）、日志 `tail -f`（`LogStreamViewModel`）、
+> 跨编辑会话持有的 sftp handle（`FileEditorView`）会一起死。`TerminalScreen` 不监听
+> 通道结束，`phase` 停在 `.ready`，表现为界面冻住、无报错、输入无响应。
+> `ServersView.onDisappear → stop()` 正是「仪表盘不可见」的既有信号，把
+> `invalidateAll` 的作用域收敛到「仪表盘此刻确实在跑」；顺带也修掉「用户已切走
+> Tab 后回前台，却用陈旧配置把轮询重新拉起来」。
 
 `RootTabView` 接 `scenePhase`（`AppLockGate` 挂在更外层，两者互不干扰）：
 
@@ -336,6 +376,16 @@ StatusPill(
 | `.collecting` | 是 | 原状态（正常/警告/故障） | 原色 | ✓ |
 | `.collecting` | 否（首采） | 原状态 | 原色 | ✓（卡身仍是骨架微光） |
 | `.idle` | — | 原状态 | 原色 | — |
+
+> **本表的前提：同一主机同一时刻只有一轮采集。** 表里「有读数」这一列写的是
+> *发起这次 attempt 时* 的事实——`phase` 与 `metrics`/`errors` 是两次独立的写入，
+> 若同一主机上有两轮采集并发，它们会被不同轮次分别写，组合就可能错配：
+> 例如 A 轮把 `phase` 置为 `.reconnecting`，B 轮同时 `record()` 清掉 `metrics`
+> 并写 `errors`，卡片就会读到 `isReconnecting && loadState == .failed`
+> ——这个组合**单轮次下不可达，并发下可达**，不是结构性不可达。
+> 该前提由 `MonitorScheduler` 的**代次（generation）+ 飞行中集合（inFlight）**
+> 保证：代次挡住被 `stop()`/重启作废的旧轮的一切写回，飞行中集合挡住同代的
+> 下拉刷新与轮询在同一主机上叠跑。任何绕开这两道闸的新调用路径都会让本表失效。
 
 `accessibilityDescription` 补上「重连中」「采集中」，让 VoiceOver 与视觉一致。
 
