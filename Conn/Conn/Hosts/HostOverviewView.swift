@@ -132,14 +132,8 @@ struct HostOverviewView: View {
                 latest?.disk,
                 detail: MetricFormat.pair(used: latest?.diskUsedBytes, total: latest?.diskTotalBytes)
             )
-            GeometryReader { geometry in
-                ZStack(alignment: .leading) {
-                    Capsule().fill(Color.connTrack)
-                    Capsule().fill(diskColor)
-                        .frame(width: max(6, geometry.size.width * fraction(latest?.disk)))
-                }
-            }
-            .frame(height: 8)
+            ConnLoadBar(percent: latest?.disk, minWidth: 6)
+                .frame(height: 8)
             Rectangle().fill(Color.connLine).frame(height: 0.5).padding(.vertical, 2)
             chartHeader(
                 legend: [(L("读"), .connDisk), (L("写"), .connWarn)],
@@ -150,13 +144,6 @@ struct HostOverviewView: View {
                 up: viewModel.ioWriteHistory, upColor: .connWarn
             ))
         }
-    }
-
-    private var diskColor: Color {
-        guard let value = latest?.disk else { return .connTrack }
-        if value > ConnThreshold.crit { return .connCrit }
-        if value > ConnThreshold.warn { return .connWarn }
-        return .connDisk
     }
 
     // MARK: - 网络（双向折线 + 右上角累计量）
@@ -261,11 +248,6 @@ struct HostOverviewView: View {
         return 0 ... max(peak * 1.25, 1024)
     }
 
-    private func fraction(_ value: Double?) -> CGFloat {
-        guard let value else { return 0 }
-        return min(max(value / 100, 0), 1)
-    }
-
     // MARK: - 派生 / 绑定
 
     private var latest: HostMetrics? { viewModel.latest }
@@ -335,26 +317,14 @@ private extension HostOverviewView {
                     Text("CPU\(index)")
                         .font(.connData(.caption2)).foregroundStyle(.connMuted)
                         .frame(width: 42, alignment: .leading)
-                    GeometryReader { geometry in
-                        ZStack(alignment: .leading) {
-                            Capsule().fill(Color.connTrack)
-                            Capsule().fill(coreBarColor(usage))
-                                .frame(width: max(4, geometry.size.width * fraction(usage)))
-                        }
-                    }
-                    .frame(height: 6)
+                    ConnLoadBar(percent: usage, minWidth: 4)
+                        .frame(height: 6)
                     Text("\(Int(usage))%")
                         .font(.connData(.caption2)).connTabularNumbers().foregroundStyle(.connInk)
                         .frame(width: 38, alignment: .trailing)
                 }
             }
         }
-    }
-
-    func coreBarColor(_ usage: Double) -> Color {
-        if usage > ConnThreshold.crit { return .connCrit }
-        if usage > ConnThreshold.warn { return .connWarn }
-        return .connAccent
     }
 }
 

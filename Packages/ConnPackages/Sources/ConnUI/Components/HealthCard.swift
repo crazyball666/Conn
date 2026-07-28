@@ -238,23 +238,31 @@ public struct HealthCard: View {
 
     private var metricBand: some View {
         HStack(alignment: .top, spacing: ConnSpacing.xs) {
-            ring(L("CPU"), value: model.cpu, sub: model.coresText, tint: .connAccent)
-            ring(L("内存"), value: model.memory, sub: model.memTotalText, tint: .connInfo)
-            ring(L("磁盘"), value: model.disk, sub: model.diskTotalText, tint: .connDisk)
+            ring(L("CPU"), value: model.cpu, sub: model.coresText)
+            ring(L("内存"), value: model.memory, sub: model.memTotalText)
+            ring(L("磁盘"), value: model.disk, sub: model.diskTotalText)
             flowColumn(L("网络"), model.net)
             flowColumn("IO", model.io)
         }
     }
 
-    private func ring(_ label: String, value: Double?, sub: String, tint: Color) -> some View {
+    /// 单个指标环。
+    ///
+    /// 颜色不再区分指标，而是**沿弧长扫过负载色标**——环上每个角度位置对应
+    /// 那个位置的负载值，弧尖的颜色即当前值。`Circle().trim` 与 `AngularGradient`
+    /// 都从 3 点钟起算，又被同一个 `rotationEffect(-90°)` 一起旋转，所以角度
+    /// 与负载值天然对齐，不需要额外换算。
+    private func ring(_ label: String, value: Double?, sub: String) -> some View {
         VStack(spacing: 4) {
             Text(label).font(.connData(.caption2)).foregroundStyle(.connMuted)
             ZStack {
                 Circle().stroke(Color.connTrack, lineWidth: ringStroke)
                 Circle().trim(from: 0, to: fraction(value))
-                    .stroke(ringColor(value, tint), style: StrokeStyle(lineWidth: ringStroke, lineCap: .round))
+                    .stroke(
+                        arcStyle(for: value),
+                        style: StrokeStyle(lineWidth: ringStroke, lineCap: .butt)
+                    )
                     .rotationEffect(.degrees(-90))
-                    .shadow(color: ringColor(value, tint).opacity(0.3), radius: 2)
                     .animation(.spring(response: 0.5, dampingFraction: 0.9), value: value)
                 Text(value.map { "\(Int($0))%" } ?? "—")
                     .font(.system(size: 11, weight: .semibold, design: .rounded))
@@ -270,6 +278,30 @@ public struct HealthCard: View {
                 .minimumScaleFactor(0.7)
         }
         .frame(maxWidth: .infinity)
+    }
+
+    /// 无数据时是灰轨道色，有数据时是负载渐变。
+    ///
+    /// 笔帽故意选**平头 `.butt`**，而不是观感更圆润的 `.round`：圆头笔帽会在
+    /// 弧的起点之前，沿路径多外伸半个笔宽——这段外伸区，恰好与「负载接近
+    /// 满载」时弧尖所在的角度扇区，是同一块地方。`AngularGradient` 是循环
+    /// 取色的一整条色标，同一角度只能对应色标上唯一的一个位置：这里既要
+    /// 是弧起点该有的绿（低载起点不能顶红点），又要是弧尖该有的红（高载
+    /// 弧尖不能糊成绿），两者互斥，是几何上的死结，不是渐变参数能调开的
+    /// （曾经试过把渐变整体平移、或把跨度撑到 360° 以上兼顾两头，前者会
+    /// 让 97.5% 以上的高载弧尖被误判为绿色、后者会在跨度重叠的那一小段
+    /// 出现归属二义、动画过渡期间红点间歇性复现）。平头没有任何外伸，
+    /// 弧严格只覆盖 `[0°, 360°·负载]`，与 `AngularGradient` 显式声明铺满的
+    /// `[0°, 360°]` 精确一一对应，起点即色标起点、弧尖即当前负载对应的
+    /// 颜色，不需要再借助偏移去回避这个冲突。`startAngle`/`endAngle` 显式写
+    /// 出而非依赖两者同为默认值 `.zero` 时的隐式整圈行为——上面这段论证
+    /// 完全建立在跨度恰好是 `[0°, 360°]` 之上，这个不变量理应出现在代码里。
+    private func arcStyle(for value: Double?) -> AnyShapeStyle {
+        guard value != nil else { return AnyShapeStyle(Color.connTrack) }
+        return AnyShapeStyle(AngularGradient(
+            gradient: ConnLoadScale.gradient, center: .center,
+            startAngle: .degrees(0), endAngle: .degrees(360)
+        ))
     }
 
     private func flowColumn(_ label: String, _ flow: Flow?) -> some View {
@@ -312,13 +344,6 @@ public struct HealthCard: View {
     private func fraction(_ value: Double?) -> CGFloat {
         guard let value else { return 0 }
         return min(max(value / 100, 0), 1)
-    }
-
-    private func ringColor(_ value: Double?, _ tint: Color) -> Color {
-        guard let value else { return .connTrack }
-        if value > ConnThreshold.crit { return .connCrit }
-        if value > ConnThreshold.warn { return .connWarn }
-        return tint
     }
 
     private var accessibilityDescription: String {
@@ -435,6 +460,23 @@ private extension View {
             id: "4", name: "reconnecting-host", address: "root@10.0.0.4",
             status: .ok, cpu: 12, memory: 40, disk: 55,
             collectPhase: .reconnecting
+        )) {}
+        // 边界样本（负载色标验收面）：nil 只画灰轨道；>92 三环全部封顶红；
+        // 正好 100% 会在 12 点方向出现绿红硬相接——AngularGradient 套闭合
+        // 形状的固有表现，是预期的，不是要修的 bug，样本目的正是让它可见。
+        HealthCard(.init(
+            id: "5", name: "no-metrics-host", address: "root@10.0.0.7",
+            status: .ok, coresText: "—", memTotalText: "—", diskTotalText: "—"
+        )) {}
+        HealthCard(.init(
+            id: "6", name: "over-92-host", address: "root@10.0.0.8",
+            status: .warn, cpu: 95, memory: 97, disk: 99,
+            coresText: "4 核", memTotalText: "7.6 G", diskTotalText: "39.2 G"
+        )) {}
+        HealthCard(.init(
+            id: "7", name: "maxed-out-host", address: "root@10.0.0.9",
+            status: .crit, cpu: 100, memory: 100, disk: 100,
+            coresText: "4 核", memTotalText: "7.6 G", diskTotalText: "39.2 G"
         )) {}
     }
     .padding(ConnSpacing.page)

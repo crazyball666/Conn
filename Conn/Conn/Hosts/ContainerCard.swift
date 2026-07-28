@@ -48,28 +48,24 @@ struct ContainerCard: View {
 
     private var metrics: some View {
         HStack(alignment: .top, spacing: ConnSpacing.md) {
-            percentCell(L("CPU"), value: container.cpuPercent, tint: .connAccent)
-            percentCell(L("内存"), value: container.memPercent, tint: .connInfo)
+            percentCell(L("CPU"), value: container.cpuPercent)
+            percentCell(L("内存"), value: container.memPercent)
             flowCell(L("网络"), container.netIO)
             flowCell("IO", container.blockIO)
         }
     }
 
     /// CPU / 内存：标签 + 大百分比 + 细进度条。
-    private func percentCell(_ label: String, value: Double?, tint: Color) -> some View {
+    ///
+    /// 条的颜色走负载色标（低=绿、高=红），与主机卡的环、详情页的每核条统一。
+    private func percentCell(_ label: String, value: Double?) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             Text(label).font(.connData(.caption2)).foregroundStyle(.connMuted)
             Text(value.map { "\(Int($0))%" } ?? "—")
                 .font(.system(size: 17, weight: .semibold, design: .rounded))
                 .connTabularNumbers().foregroundStyle(.connInk)
-            GeometryReader { geometry in
-                ZStack(alignment: .leading) {
-                    Capsule().fill(Color.connTrack)
-                    Capsule().fill(barColor(value, tint))
-                        .frame(width: max(3, geometry.size.width * fraction(value)))
-                }
-            }
-            .frame(height: 4)
+            ConnLoadBar(percent: value, minWidth: 3)
+                .frame(height: 4)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -99,17 +95,6 @@ struct ContainerCard: View {
         guard let text else { return ("—", "—") }
         let parts = text.split(separator: "/").map { $0.trimmingCharacters(in: .whitespaces) }
         return (parts.first ?? "—", parts.count > 1 ? parts[1] : "—")
-    }
-
-    private func fraction(_ value: Double?) -> CGFloat {
-        value.map { min(max($0 / 100, 0), 1) } ?? 0
-    }
-
-    private func barColor(_ value: Double?, _ tint: Color) -> Color {
-        guard let value else { return .connTrack }
-        if value > ConnThreshold.crit { return .connCrit }
-        if value > ConnThreshold.warn { return .connWarn }
-        return tint
     }
 
     private var healthStatus: ConnHealthStatus {
