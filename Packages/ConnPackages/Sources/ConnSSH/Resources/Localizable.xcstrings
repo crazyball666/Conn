@@ -129,6 +129,14 @@
         "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "連接 %@:%d 逾時。\n下一步：檢查網路連通性與防火牆規則。" } }
       }
     },
+    "命令在 %@:%d 上执行超过 %d 秒未返回，已停止等待。\n注意：命令可能仍在服务器上继续运行——超时只停止本地等待，不会终止远端进程。\n下一步：耗时较长的命令建议改在终端里执行。" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "The command on %@:%d did not finish within %d seconds, so Conn stopped waiting.\nNote: it may still be running on the server — the timeout only stops waiting locally, it does not kill the remote process.\nNext: run long-running commands in the terminal instead." } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "%@:%d 上のコマンドが %d 秒以内に完了しなかったため、待機を中止しました。\n注意：コマンドはサーバー上で実行を続けている可能性があります——タイムアウトはローカルの待機を止めるだけで、リモートのプロセスは終了しません。\n次の手順：時間のかかるコマンドはターミナルで実行してください。" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "%@:%d의 명령이 %d초 안에 끝나지 않아 대기를 중단했습니다.\n참고: 명령은 서버에서 계속 실행 중일 수 있습니다 — 시간 초과는 로컬 대기만 중단할 뿐 원격 프로세스를 종료하지 않습니다.\n다음 단계: 오래 걸리는 명령은 터미널에서 실행하세요." } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "命令在 %@:%d 上執行超過 %d 秒未返回，已停止等待。\n注意：命令可能仍在伺服器上繼續執行——逾時只停止本機等待，不會終止遠端行程。\n下一步：耗時較長的命令建議改在終端機裡執行。" } }
+      }
+    },
     "认证失败：密码或密钥不被接受。\n下一步：核对用户名、密码或所选密钥。" : {
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Authentication failed: password or key rejected.\nNext: verify the username, password, or selected key." } },

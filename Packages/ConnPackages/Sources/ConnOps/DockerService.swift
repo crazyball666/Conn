@@ -26,6 +26,22 @@ public enum DockerAvailability: Sendable, Equatable {
 
 /// 容器管理服务：在一条已建立的会话上跑 docker CLI。
 public enum DockerService {
+    /// 单容器写操作（start/stop/restart/rm）的超时。
+    ///
+    /// 为什么不用 `exec(_:)` 默认的 30 秒：`docker stop` 先发 SIGTERM 再等宽限期，
+    /// 默认就是 10 秒，容器自带更长的 `--stop-timeout`（或 restart = stop + start）
+    /// 时轻易越过 30 秒；镜像层多的 `docker rmi` 也要等磁盘删完。
+    /// 取 2 分钟：够覆盖正常的优雅停机，又不至于让一次误操作把 UI 挂太久。
+    private static let writeTimeout: Duration = .seconds(120)
+
+    /// 清理类操作（prune）的超时。
+    ///
+    /// 比单容器写操作更宽松：`docker image prune -a` 要遍历并删除全部未被引用的镜像层，
+    /// 在镜像多、磁盘慢的主机上跑几分钟很常见——这属于正常执行，不该被判成失败
+    /// （何况超时并不会终止远端的删除，见 `CitadelSession.exec`，半路「失败」只会让
+    /// 用户以为没清理成功）。取 5 分钟。
+    private static let pruneTimeout: Duration = .seconds(300)
+
     /// 探测可用性：先试直连，permission denied 再试 `sudo -n`。
     public static func probe(on session: any SSHSession) async throws -> DockerAvailability {
         let direct = try await session.exec(DockerCommand.availabilityProbe(sudo: false)).stdoutText
@@ -65,7 +81,7 @@ public enum DockerService {
         on session: any SSHSession,
         sudo: Bool
     ) async throws -> ExecResult {
-        try await session.exec(DockerCommand.action(action, id: id, sudo: sudo))
+        try await session.exec(DockerCommand.action(action, id: id, sudo: sudo), timeout: writeTimeout)
     }
 
     /// 容器详情（inspect）。解析失败返回 nil。
@@ -84,12 +100,12 @@ public enum DockerService {
     public static func removeImage(
         reference: String, on session: any SSHSession, sudo: Bool
     ) async throws -> ExecResult {
-        try await session.exec(DockerCommand.removeImage(reference: reference, sudo: sudo))
+        try await session.exec(DockerCommand.removeImage(reference: reference, sudo: sudo), timeout: writeTimeout)
     }
 
     /// 清理悬空镜像。
     public static func pruneImages(on session: any SSHSession, sudo: Bool) async throws -> ExecResult {
-        try await session.exec(DockerCommand.pruneImages(sudo: sudo))
+        try await session.exec(DockerCommand.pruneImages(sudo: sudo), timeout: pruneTimeout)
     }
 
     /// 跟随容器日志流。

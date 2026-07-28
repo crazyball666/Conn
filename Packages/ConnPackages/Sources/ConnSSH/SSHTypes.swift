@@ -133,7 +133,14 @@ public enum SSHError: Error, Sendable, Equatable {
 
     case connectionRefused(endpoint: SSHEndpoint)
     case dnsFailed(host: String)
+    /// **连接**阶段超时（握手迟迟不完成）。诊断指向网络与防火墙。
     case timeout(endpoint: SSHEndpoint)
+    /// **命令**执行超时：连接是通的，是这条命令跑得比 `seconds` 还久。
+    ///
+    /// 与 `.timeout` 分开是因为两者的「下一步」完全不同：连接超时该查网络，
+    /// 命令超时查网络毫无意义（连接本来就通），而且必须告诉用户一件反直觉的事——
+    /// **超时不会终止远端命令**，它只是停止本地等待（见 `CitadelSession.exec` 的说明）。
+    case commandTimeout(endpoint: SSHEndpoint, seconds: Int)
     case authFailed(reason: AuthFailureReason)
     case hostKeyMismatch(expected: String, actual: String)
     case unsupportedByEngine(SSHAuth.Feature)
@@ -162,6 +169,9 @@ public enum SSHError: Error, Sendable, Equatable {
         case let .timeout(endpoint):
             String(format: L("连接 %@:%d 超时。\n下一步：检查网络连通性与防火墙规则。"),
                    endpoint.host, endpoint.port)
+        case let .commandTimeout(endpoint, seconds):
+            String(format: L("命令在 %@:%d 上执行超过 %d 秒未返回，已停止等待。\n注意：命令可能仍在服务器上继续运行——超时只停止本地等待，不会终止远端进程。\n下一步：耗时较长的命令建议改在终端里执行。"),
+                   endpoint.host, endpoint.port, seconds)
         case let .authFailed(reason):
             switch reason {
             case .badCredentials:

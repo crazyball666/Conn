@@ -47,6 +47,13 @@ public protocol SSHSession: AnyObject, Sendable {
 
 public extension SSHSession {
     /// 便利重载：默认 30s 超时。
+    ///
+    /// 只适用于**短命令**（探测、取指标、读状态）。用户发起的任意命令、docker 写操作与
+    /// 清理等「跑几分钟属正常」的调用点，必须显式传更长的值——否则会把正常执行判成失败，
+    /// 而超时并不会终止远端命令（见 `CitadelSession.exec`）。
+    ///
+    /// 下限也有约束：Citadel 建通道阶段不响应取消，只有它自带的 15 秒兜底，
+    /// **传低于 15 秒的值会让那层兜底失效**（详见 ConnSSHCitadel 的 `withTimeout` 说明）。
     func exec(_ command: String) async throws -> ExecResult {
         try await exec(command, timeout: .seconds(30))
     }

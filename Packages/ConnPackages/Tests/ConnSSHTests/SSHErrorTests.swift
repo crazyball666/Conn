@@ -10,6 +10,7 @@ struct SSHErrorTests {
             .connectionRefused(endpoint: SSHEndpoint(host: "10.0.0.1", port: 22)),
             .dnsFailed(host: "bad.host"),
             .timeout(endpoint: SSHEndpoint(host: "10.0.0.1", port: 22)),
+            .commandTimeout(endpoint: SSHEndpoint(host: "10.0.0.1", port: 22), seconds: 30),
             .authFailed(reason: .badCredentials),
             .authFailed(reason: .rsaSha2Unsupported),
             .authFailed(reason: .noAcceptedMethods),
@@ -40,6 +41,23 @@ struct SSHErrorTests {
         let error = SSHError.jumpChainFailed(hopIndex: 1, hopHost: "bastion")
         #expect(error.diagnosis.contains("bastion"))
         #expect(error.diagnosis.contains("第 2 级"))
+    }
+
+    @Test("命令超时的诊断区别于连接超时：说清仍在运行、不再让用户查防火墙")
+    func commandTimeoutDiagnosisDiffersFromConnectionTimeout() {
+        let endpoint = SSHEndpoint(host: "10.0.0.1", port: 22)
+        let commandTimeout = SSHError.commandTimeout(endpoint: endpoint, seconds: 600)
+        let connectTimeout = SSHError.timeout(endpoint: endpoint)
+
+        #expect(commandTimeout.diagnosis != connectTimeout.diagnosis)
+        // 连接超时才该提防火墙；命令超时时连接本来就是通的，提防火墙是误导
+        #expect(connectTimeout.diagnosis.contains("防火墙"))
+        #expect(!commandTimeout.diagnosis.contains("防火墙"))
+        // 必须告诉用户超时不终止远端命令（见 CitadelSession.exec）
+        #expect(commandTimeout.diagnosis.contains("仍在服务器上"))
+        // 带上主机与实际用的秒数，用户才知道是哪台、卡了多久
+        #expect(commandTimeout.diagnosis.contains("10.0.0.1"))
+        #expect(commandTimeout.diagnosis.contains("600"))
     }
 
     @Test("连接被拒诊断含端口与 sshd 提示")
