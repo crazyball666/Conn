@@ -141,10 +141,24 @@ struct MonitorSchedulerTests {
     /// 而 `execs` 计数单调递增，等到第 N 次 exec 已开始，就能保证 `phases`
     /// 已经是「这次 attempt」在函数顶部写下的、稳定不会再变的值
     /// （因为这次 exec 挂在闸门上，不会往下走到下一次 attempt）。
-    private func waitUntilExecCount(_ log: CallLog, atLeast target: Int, maxAttempts: Int = 200) async {
+    ///
+    /// - Parameter pollInterval: 每次重试之间真的睡多久。默认 `.zero`，
+    ///   即只 `Task.yield()`——适合观察「同一轮事件循环内」就会落地的状态变化，
+    ///   几乎不消耗真实时间。但如果要等的事件本身在生产代码里绑了真实的
+    ///   `Task.sleep`（例如预热轮的 2s 延迟），空转的 `Task.yield()` 循环会在
+    ///   耗尽 `maxAttempts` 前就早早放弃——它消耗的是 CPU 周期而非墙钟时间，
+    ///   200 次 yield 通常远不够撑满 2 秒。这种情况下传入非零 `pollInterval`，
+    ///   让轮询真的睡过这段墙钟时间，同时仍然是「事件一发生就立刻返回」的因果等待。
+    private func waitUntilExecCount(
+        _ log: CallLog, atLeast target: Int, maxAttempts: Int = 200, pollInterval: Duration = .zero
+    ) async {
         for _ in 0..<maxAttempts {
             if await log.execs >= target { return }
-            await Task.yield()
+            if pollInterval > .zero {
+                try? await Task.sleep(for: pollInterval)
+            } else {
+                await Task.yield()
+            }
         }
     }
 
@@ -312,7 +326,7 @@ struct MonitorSchedulerTests {
         // 用可控时钟并把「上次采集」推到 5s 防抖窗口之外：
         // 若沿用默认真实时钟，scanNow 与紧随其后的 startDashboard 之间只隔几毫秒，
         // 会意外触发防抖（isFresh），连「立即那一轮」也被跳过，
-        // 这条测试就测不到「预热轮」这一个变量了（实测会失败，见任务报告）。
+        // 这条测试就测不到「预热轮」这一个变量了。
         let clock = MutableClock()
         let (scheduler, log) = makeScheduler(now: { clock.now })
         let target = host()
@@ -321,11 +335,51 @@ struct MonitorSchedulerTests {
 
         clock.advance(by: 10)                          // 越过防抖窗口，只考察预热轮
         scheduler.startDashboard(hosts: [target], interval: .seconds(600))
-        try await Task.sleep(for: .milliseconds(300))
+
+        // 先用因果等待确认「立即那一轮」已经落地，避免把它和后面的定长等待混在一起。
+        await waitUntilExecCount(log, atLeast: before + 1)
+
+        // 预热轮的第二次采集绑的是生产代码里真实的 `Task.sleep(for: .seconds(2))`，
+        // 不受注入的 MutableClock 影响（MutableClock 只影响 `now()`，不影响
+        // Task.sleep 的墙钟）。这里要断言的是「它不应该发生」——不存在的事件
+        // 没有因果信号可等，只能真等过 2s 这个临界点（留到 2.3s 的余量）再看结果。
+        // 这也是原测试的缺陷所在：原来只等 300ms 就 stop()，预热轮的第二次采集
+        // 还睡在那 2s 里没醒来就被取消（命中 `guard !Task.isCancelled else { return }`），
+        // 于是无论 needsWarmUp 取何值，观察窗口内 execs 都只多 1，断言恒真、测不出错误。
+        try await Task.sleep(for: .milliseconds(2300))
         scheduler.stop()
 
         // 只应多出「立即那一轮」，不该有 2s 后的预热轮
         #expect(await log.execs == before + 1)
+    }
+
+    @Test("无基线时预热轮确实触发：立即一轮 + 2s 后再一轮")
+    func warmUpRunsWhenNoBaselineExists() async throws {
+        // 反向覆盖：上一条测试只验证「有基线 → 跳过预热轮」，两次变异
+        // （needsWarmUp 恒 true / 恒 false）对全部既有用例都不可见的原因之一，
+        // 就是没有任何测试断言过「预热轮真的会触发」这条路径。
+        //
+        // 全新 scheduler，metrics 为空、lastScanAt 为 nil：
+        //   isFresh = !force && (lastScanAt.map { ... } ?? false) 恒为 false，
+        // 防抖判定在 `lastScanAt` 为 nil 时短路，不需要 MutableClock 介入。
+        let (scheduler, log) = makeScheduler()
+        let target = host()
+
+        scheduler.startDashboard(hosts: [target], interval: .seconds(600))
+
+        // 立即那一轮：因果等待，默认 pollInterval（Task.yield）即可，几乎瞬间完成。
+        await waitUntilExecCount(log, atLeast: 1)
+        #expect(await log.execs == 1)
+
+        // 预热轮的第二次采集绑的是真实 2s 的 Task.sleep。这里断言的是「它会发生」，
+        // 是可以因果等待的正向事件，所以不用定长 sleep 赌一个时长，而是传入非零
+        // pollInterval 让轮询真的睡过这段墙钟时间，事件一落地（execs 到 2）立刻返回；
+        // 上限给到 3s（60 次 * 50ms）留出余量。若 needsWarmUp 被错误地恒为 false，
+        // 第二轮永远不会发生，等到耗尽上限后 execs 仍停在 1，下面的断言会如实失败。
+        await waitUntilExecCount(log, atLeast: 2, maxAttempts: 60, pollInterval: .milliseconds(50))
+        scheduler.stop()
+
+        #expect(await log.execs == 2)
     }
 
     @Test("距上次采集不足 5 秒时不重采")
