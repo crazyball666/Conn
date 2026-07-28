@@ -49,9 +49,14 @@ public struct GroupFilterBar: View {
         current == id ? nil : id
     }
 
+    /// 轨道形状。背景与裁剪必须用同一个，否则圆角处会露出底色。
+    private var trackShape: RoundedRectangle {
+        RoundedRectangle(cornerRadius: ConnRadius.control, style: .continuous)
+    }
+
     public var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: ConnSpacing.xs) {
+            HStack(spacing: ConnSpacing.xxs) {
                 ForEach(leading) { item in
                     chip(title: item.title, isSelected: selection == item.id) {
                         selection = Self.nextSelection(tapped: item.id, current: selection)
@@ -76,10 +81,25 @@ public struct GroupFilterBar: View {
                     }
                 }
             }
-            .padding(.horizontal, ConnSpacing.page)
+            .padding(.horizontal, ConnSpacing.xxs)
         }
+        // 横向 ScrollView 在纵向是贪心的，会吃掉父容器给的全部高度。没有背景时
+        // 看不出来，一旦画上轨道就会顶到大标题上——必须先按内容高度收缩。
+        .fixedSize(horizontal: false, vertical: true)
+        // 轨道自身不滚动：背景与裁剪都加在 ScrollView 上，chip 在轨道内滚动。
+        // 若加在 HStack 上，轨道会跟着内容一起变宽并滑出屏幕。
+        .background(Color.connSurface, in: trackShape)
+        .clipShape(trackShape)
+        .padding(.horizontal, ConnSpacing.page)
+        // 选择器语义用 .selection：iOS 上是轻促的一下，与系统分段控件一致。
+        // 不用 UIImpactFeedbackGenerator——那是 UIKit-only，本 target 同时编 macOS。
+        .sensoryFeedback(.selection, trigger: selection)
     }
 
+    /// 单个 chip。
+    ///
+    /// 未选中态**不画自己的底与描边**：它已经躺在白色轨道上，再叠一层同色系的面
+    /// 只会互相干扰。选中态是轨道上唯一的一枚药丸，与系统分段控件的滑块同义。
     private func chip(title: String, isSelected: Bool, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Text(title)
@@ -87,13 +107,7 @@ public struct GroupFilterBar: View {
                 .foregroundStyle(isSelected ? .connAccent : .connMuted)
                 .padding(.horizontal, ConnSpacing.sm)
                 .padding(.vertical, 6)
-                .background(isSelected ? Color.connAccentFill : Color.connSurface, in: .capsule)
-                .overlay {
-                    Capsule().strokeBorder(
-                        isSelected ? Color.connAccent.opacity(0.5) : Color.connLine,
-                        lineWidth: 1
-                    )
-                }
+                .background(isSelected ? Color.connAccentFill : Color.clear, in: .capsule)
                 .connHitTarget()
         }
         .buttonStyle(ConnPressStyle())
