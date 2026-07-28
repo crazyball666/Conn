@@ -177,6 +177,92 @@ struct MonitorSchedulerDeadlineTests {
         #expect(await log.execs == 2)
     }
 
+    // MARK: - 5. 超时后驱逐会话：主动把挂死的孤儿了结掉
+
+    /// 只 `cancel()` 杀不掉孤儿——它挂在 Citadel 的 exec 请求上（NIO future，不响应
+    /// Swift 并发取消），只能等 TCP RTO，分钟级。期间这台主机一直占着 `inFlight`，
+    /// 卡片持续转圈且完全不刷新。关掉那条 SSH 连接是本地操作、不需要对端配合，
+    /// 一关，挂着的 promise 立刻失败，孤儿随即返回并释放 `inFlight`。
+    @Test("采集超时后驱逐该主机的池化会话——挂死的孤儿只能靠关连接了结")
+    func timeoutEvictsPooledSession() async {
+        let fixture = makeFixture(collectDeadline: .milliseconds(200))
+        let gate = Gate()
+        await fixture.log.armGate(gate, forAddress: stuck.address)
+
+        let scan = startScan(fixture.scheduler, hosts: [stuck])
+        #expect(await waitUntilDone(scan, maxAttempts: 300, pollInterval: .milliseconds(10)))
+        // 前提：这一轮确实握过手、会话确实进过池。否则「池里已经没有它」会因为
+        // 「它压根没进去过」而恒真，整条用例退化成空断言。
+        #expect(await fixture.log.connects == 1)
+
+        // 驱逐排在兑现续体之后（先交还控制权，再关连接），可能落在那一轮返回之后
+        // 一小段，所以用有上限的等待而不是当场断言。漏了驱逐的实现会耗满 2 秒并变红。
+        let evicted = await waitUntilPooledSessionGone(fixture.manager, host: stuck)
+        #expect(evicted, "超时后必须驱逐该主机的会话：不关连接，挂在 NIO future 上的孤儿要等 TCP RTO")
+
+        // 收尾：放行孤儿，别把它留到测试进程结束。
+        await gate.open()
+        await waitUntilPhase(fixture.scheduler, hostID: stuck.id) { $0 == .idle }
+    }
+
+    /// **本次改动最重要的一条**：驱逐关的是整条 SSH 连接，而 `ConnectionManager` 是
+    /// 全 App 唯一的连接池——用户的终端 shell、日志 `tail -f`、文件编辑器的 sftp handle
+    /// 全骑在同一条连接上。用户进入终端页时 `ServersView.onDisappear →
+    /// viewModel.disappear() → monitor.stop()` 会推进代次，此时若还照常驱逐，
+    /// 掐断的就是用户刚打开的终端。本仓库有前科：`resumeAfterBackground` 曾无条件
+    /// `invalidateAll()`，正是这样打死过终端。
+    @Test("代次已失效（用户进了终端页）时超时不驱逐，不掐断骑在同一条连接上的终端")
+    func expiredGenerationDoesNotEvictPooledSession() async {
+        // 给到 500ms：`stop()` 必须稳稳落在 deadline 到点之前，否则测的就不是这件事了。
+        let fixture = makeFixture(collectDeadline: .milliseconds(500))
+        let gate = Gate()
+        await fixture.log.armGate(gate, forAddress: stuck.address)
+
+        let scan = startScan(fixture.scheduler, hosts: [stuck])
+        // 等到 exec 已经挂在闸门上：此刻会话确定在池里，deadline 还没到。
+        await waitUntilExecCount(fixture.log, atLeast: 1)
+        #expect(await fixture.manager.hasPooledSession(for: stuck))
+
+        // 用户切到终端页：仪表盘不可见 → stop() → 代次递增。
+        fixture.scheduler.stop()
+
+        // 等这一轮按 deadline 返回——也就是等驱逐该发生的那个时刻真的过去。
+        #expect(await waitUntilDone(scan, maxAttempts: 300, pollInterval: .milliseconds(10)))
+
+        // 再给 1 秒观察窗（远大于「兑现续体 → 驱逐」之间的一次 actor 跳转）：
+        // 少了代次守卫的实现会在这个窗口里把会话关掉，`waitUntilPooledSessionGone`
+        // 返回 true，下面这条随即变红。
+        let gone = await waitUntilPooledSessionGone(
+            fixture.manager, host: stuck, maxAttempts: 100, pollInterval: .milliseconds(10)
+        )
+        #expect(gone == false, "代次已失效时不许驱逐：那条连接上可能正跑着用户刚打开的终端")
+
+        await gate.open()
+    }
+
+    @Test("驱逐把孤儿了结之后，这台主机退出 inFlight，下一轮重新握手并重新采集")
+    func evictionFreesTheHostForTheNextRound() async {
+        let fixture = makeFixture(collectDeadline: .milliseconds(200))
+        let gate = Gate()
+        await fixture.log.armGate(gate, forAddress: stuck.address)
+
+        let first = startScan(fixture.scheduler, hosts: [stuck])
+        #expect(await waitUntilDone(first, maxAttempts: 300, pollInterval: .milliseconds(10)))
+        #expect(await waitUntilPooledSessionGone(fixture.manager, host: stuck))
+        #expect(await fixture.log.execs(forAddress: stuck.address) == 1)
+
+        // 真实世界里连接一关，孤儿挂着的那个 promise 立刻失败、它随即返回。
+        // 假引擎的闸门不认识 `close()`，这里手动放行，等价模拟「孤儿被了结」。
+        await gate.open()
+        await waitUntilPhase(fixture.scheduler, hostID: stuck.id) { $0 == .idle }
+
+        // 孤儿的 defer 已把它移出 `inFlight`：下一轮必须真的采到它。
+        await fixture.scheduler.scanNow(hosts: [stuck])
+        #expect(await fixture.log.execs(forAddress: stuck.address) == 2)
+        // 而且是**重新握手**之后采的——池里原来那条已经被超时那一步驱逐掉了。
+        #expect(await fixture.log.connects == 2)
+    }
+
     // MARK: - deadline 取值本身
 
     /// 这个数字是**正确性约束**，不是性能旋钮，所以钉一条测试盯着它。

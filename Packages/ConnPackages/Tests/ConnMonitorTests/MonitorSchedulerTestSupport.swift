@@ -251,6 +251,28 @@ func waitUntilDone(
     return flag.isDone
 }
 
+/// 有上限地等某主机的池化会话**消失**。返回 true 表示确实消失了。
+///
+/// 两个方向都用它，避免两套判据：
+/// - 正向（「超时后必须驱逐」）：正确实现里毫秒级就返回 true，只有实现漏了驱逐才耗满上限。
+/// - 反向（「代次失效时不许驱逐」）：正确实现里会耗满上限并返回 false，调用方断言它为 false。
+///   反向用法必须把 `maxAttempts × pollInterval` 给足——窗口短于「若要驱逐早该驱逐了」
+///   的时刻，断言就成了空头支票。调用方应先等到 deadline 已经到点（例如那一轮已返回）
+///   再开始这个窗口。
+///
+/// `ConnectionManager` 是 actor，读池状态必须 `await`。
+@MainActor
+func waitUntilPooledSessionGone(
+    _ manager: ConnectionManager, host: DomainHost,
+    maxAttempts: Int = 200, pollInterval: Duration = .milliseconds(10)
+) async -> Bool {
+    for _ in 0..<maxAttempts {
+        if await !manager.hasPooledSession(for: host) { return true }
+        try? await Task.sleep(for: pollInterval)
+    }
+    return await !manager.hasPooledSession(for: host)
+}
+
 func waitUntilExecCount(
     _ log: CallLog, atLeast target: Int, maxAttempts: Int = 200,
     pollInterval: Duration = .milliseconds(5),

@@ -329,7 +329,36 @@ public final class MonitorScheduler {
             // 卡死更糟：卡死只赖住一台，这个会让每台可自愈的主机都恢复不了。
             let timer = Task { @MainActor in
                 try? await Task.sleep(for: self.collectDeadline)
-                latch.abandonWork()
+                // 返回 false = 这次没赢下竞速：要么采集在同一瞬间抢先跑完，要么计时器
+                // 被 `timer.cancel()` 掐掉、错误被 `try?` 吞掉后照样走到这里。两种情况下
+                // 那一轮都好端端地结束了，下面的驱逐**一个字也不能做**——否则每次成功
+                // 采集都会顺手关掉连接，下一轮全体重新握手。
+                guard latch.abandonWork() else { return }
+                // 关掉这台主机的 SSH 连接。
+                //
+                // **不是为了「清理资源」，而是主动把挂死的孤儿了结掉**——因果链要写清楚，
+                // 否则后人很容易以为这一步可有可无：孤儿此刻挂在 Citadel 的 exec 请求上
+                // （NIO future，不响应 Swift 并发取消，上面那次 `cancel()` 对它完全无效），
+                // 只能干等 TCP RTO，分钟级。这期间它一直占着 `inFlight`，后续每一轮都对
+                // 这台主机让位，卡片持续转圈且完全不刷新，下拉刷新也绕不过去。
+                // 而关闭 NIO channel 是纯本地操作、不需要对端配合：一关，那个挂着的
+                // promise 立刻失败 → 孤儿迅速返回 → 它的 `defer` 把自己移出 `inFlight`
+                // → **下一轮就能对这台主机重新握手采集**。
+                //
+                // 用 `invalidate(host:)` 而不是 `disconnect(host:)`：前者 fire-and-forget
+                // （内部 `Task { await session.close() }`），后者要 `await` 关闭完成，
+                // 对着一条半死的 socket 很可能把这里也一起卡住——那就用一个新的挂起点
+                // 去修一个挂起点了。
+                //
+                // **只有当前代次仍有效时才驱逐。** 这条 guard 看着像可以省掉的冗余检查，
+                // 实际是防回归的：`ConnectionManager` 是全 App 唯一的连接池，用户的终端
+                // shell、日志 `tail -f`、文件编辑器跨会话持有的 sftp handle 全都骑在同一条
+                // SSH 连接上。用户进入终端页时 `ServersView.onDisappear →
+                // viewModel.disappear() → monitor.stop()` 会推进代次，届时这次驱逐必须
+                // 跳过，否则会掐断用户刚打开的终端。本仓库有前科：上一轮改造里
+                // `resumeAfterBackground` 无条件 `invalidateAll()` 就是这样打死过终端的。
+                guard self.isCurrent(scanGeneration) else { return }
+                await self.connectionManager.invalidate(host: host)
             }
             let work = Task { @MainActor in
                 await self.performCollect(
@@ -428,45 +457,5 @@ public final class MonitorScheduler {
     private func record(_ error: Error, for host: ConnKit.Host) {
         errors[host.id] = error.friendlyDiagnosis
         metrics[host.id] = nil
-    }
-}
-
-/// 「采集跑完」与「deadline 到点」之间的一次性闸：谁先到谁把续体兑现，另一方成为 no-op。
-///
-/// **为什么不用 `withTaskGroup` 竞速**：任务组在闭包返回前必须等所有子任务真正结束，
-/// 而采集那一段恰恰不响应取消——那正是本文件要修的缺陷本身，用它来修等于原地打转。
-/// 用一次性续体，「到点返回」不依赖任何一方是否可取消：计时器一到就 `resume`，
-/// `collectOne` 立刻从 await 里醒来，没跑完的那个 Task 被留在原地当孤儿。
-@MainActor
-private final class CollectDeadlineLatch {
-    /// deadline 赢下竞速时要 `cancel()` 一次的采集任务。**只 cancel，绝不 await**。
-    var work: Task<Void, Never>?
-    private var continuation: CheckedContinuation<Void, Never>?
-
-    init(_ continuation: CheckedContinuation<Void, Never>) {
-        self.continuation = continuation
-    }
-
-    /// 采集自己跑完了：正常交还控制权。
-    func workDidFinish() {
-        resumeOnce()
-    }
-
-    /// deadline 先到：立刻交还控制权，并对采集任务尽力取消一次。
-    func abandonWork() {
-        guard resumeOnce() else { return }
-        work?.cancel()
-        // 断开对孤儿的强引用：孤儿的闭包持有本对象，本对象再持有孤儿就成了环，
-        // 得等它真跑完才解开。这里主动断掉，环立刻消失。
-        work = nil
-    }
-
-    /// 只兑现一次续体（重复兑现会崩）。返回 true 表示本次调用是竞速的赢家。
-    @discardableResult
-    private func resumeOnce() -> Bool {
-        guard let continuation else { return false }
-        self.continuation = nil
-        continuation.resume()
-        return true
     }
 }
