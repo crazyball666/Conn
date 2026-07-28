@@ -388,3 +388,54 @@ isReconnecting: phase == .reconnecting
 
 - 接出 `lastScanText` / `abnormalCount` / `totalCount` 三个已算好但从未渲染的属性。
 - 详情页（`HostOverviewViewModel`）的采集状态表现。
+
+## 实现与本文的偏离
+
+Task 7（i18n 补全与验收）核对实现与本文时发现以下三处出入，均已批准/确认，
+不影响行为，仅记录以便日后读码对得上。
+
+1. **`dashboardConfig` 用具名 struct，不是本文 §「App 层：前后台生命周期」
+   写的三元组。**
+
+   本文写的是：
+   ```swift
+   private var dashboardConfig: (hosts: [ConnKit.Host], interval: Duration, concurrency: Int)?
+   ```
+   实现（`MonitorScheduler.swift:47-52`）改成了私有 `DashboardConfig` struct：
+   ```swift
+   private struct DashboardConfig {
+       let hosts: [ConnKit.Host]
+       let interval: Duration
+       let concurrency: Int
+   }
+   private var dashboardConfig: DashboardConfig?
+   ```
+   原因：三元组有 3 个成员，触发 SwiftLint `large_tuple`（仓库配置上限 2 个
+   成员），会把警告计数从基线 7 顶到 8。字段名与语义与本文一致，只是载体从
+   匿名元组换成具名类型。
+
+2. **`accessibilityDescription` 抽成可单测的 `static func`，并把「采集中…」
+   的两处判断合并成一次。**
+
+   本文只写了「`accessibilityDescription` 补上『重连中』『采集中』」，没有规定
+   具体实现形态。实际实现（`HealthCard.swift:362-394`）：
+   - 抽成 `static func accessibilityDescription(for model: Model) -> String`
+     纯函数（与 `StatusPill.busySymbol(reduceMotion:)` 同一模式），脱离
+     SwiftUI 视图即可单测，由 `HealthCardAccessibilityTests` 覆盖。
+   - 原实现按「`isReconnecting`/`isBusy`」与「`loadState`」两套独立维度各自
+     判断要不要念「采集中…」，但 `isBusy == true && loadState == .loading`
+     是每台主机首次采集必经的状态（`MonitorScheduler.attempt` 对无读数主机
+     恒置 `.collecting`，而 `.loading` 的条件正是 `metrics == nil`），两个
+     分支会同时命中，念成「采集中…，采集中…」。改为合并成单一判断
+     （`if isReconnecting … else if isBusy || loadState == .loading …`），
+     `switch` 的 `.loading` 分支不再重复 append，避免首采时口播重复。
+
+3. **i18n 小节写的落点是「app 层 `Localizable.xcstrings`」，实际落在
+   ConnUI 包自己的 `Localizable.xcstrings`。**
+
+   本文「## i18n」一节写：「新增文案：`重连中`（app 层 `Localizable.xcstrings`）」。
+   但 `L("重连中")` 调用点在 `HealthCard.swift`，属于 `ConnUI` 这个 SPM 包，
+   包内代码取不到 App target 的资源 bundle，只能落在包自己的
+   `Packages/ConnPackages/Sources/ConnUI/Resources/Localizable.xcstrings`
+   （Task 5 已补 en/ja/ko/zh-Hant 四语，Task 7 核对确认无缺）。本文这处
+   表述与实现所在包不一致，按实际落点订正为准。
