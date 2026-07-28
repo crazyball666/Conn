@@ -1,6 +1,7 @@
 import ConnKit
 import ConnMonitor
 import ConnSSH
+import ConnUI
 import Foundation
 import Testing
 @testable import Conn
@@ -175,4 +176,90 @@ struct ServersViewModelTests {
         #expect(groupStore.groups.map(\.name) == ["新名"])
         #expect(viewModel.cards.map(\.name) == ["web"])
     }
+
+    @Test("采集进行中卡片标记为忙碌，结束后复位")
+    func mapsCollectPhaseToCard() async throws {
+        let target = Host(name: "web", address: "10.0.0.1", username: "root")
+        let gate = Gate()
+        let monitor = MonitorScheduler(
+            connectionManager: ConnectionManager(transport: GatedTransport(gate: gate))
+        )
+        let viewModel = ServersViewModel(
+            hostStore: StubHostRepository(hosts: [target]),
+            groupStore: StubHostGroupRepository(),
+            monitor: monitor
+        )
+        viewModel.load()
+        #expect(viewModel.cards.first?.isBusy == false)
+
+        let scan = Task { await monitor.scanNow(hosts: [target]) }
+
+        // 等采集真正进入飞行中（exec 被闸门卡住）。上限 200 次让步，避免死等。
+        var busySeen = false
+        for _ in 0 ..< 200 where !busySeen {
+            await Task.yield()
+            busySeen = viewModel.cards.first?.isBusy == true
+        }
+        #expect(busySeen)
+        // 首采无读数，池空时仍应是 collecting 而非 reconnecting
+        #expect(viewModel.cards.first?.isReconnecting == false)
+
+        await gate.open()
+        await scan.value
+
+        #expect(viewModel.cards.first?.isBusy == false)
+    }
+}
+
+/// 由测试控制开合的闸门：`exec` 在此挂起，直到测试放行。
+private actor Gate {
+    private var continuation: CheckedContinuation<Void, Never>?
+    private var isOpen = false
+
+    func wait() async {
+        if isOpen { return }
+        await withCheckedContinuation { continuation = $0 }
+    }
+
+    func open() {
+        isOpen = true
+        continuation?.resume()
+        continuation = nil
+    }
+}
+
+private final class GatedTransport: SSHTransport {
+    let gate: Gate
+    init(gate: Gate) { self.gate = gate }
+
+    func connect(
+        _ endpoint: SSHEndpoint, username: String, auth: SSHAuth, hostKeyPolicy: HostKeyPolicy
+    ) async throws -> any SSHSession {
+        GatedSession(gate: gate)
+    }
+}
+
+private final class GatedSession: SSHSession {
+    private let gate: Gate
+    let state: AsyncStream<SSHSessionState>
+    private let continuation: AsyncStream<SSHSessionState>.Continuation
+
+    init(gate: Gate) {
+        self.gate = gate
+        (state, continuation) = AsyncStream.makeStream()
+        continuation.yield(.connected)
+    }
+
+    func exec(_ command: String, timeout: Duration) async throws -> ExecResult {
+        await gate.wait()
+        return ExecResult(exitCode: 0, stdout: Data(), stderr: Data())
+    }
+
+    func execStream(_ command: String) async throws -> AsyncThrowingStream<Data, Error> {
+        AsyncThrowingStream { $0.finish() }
+    }
+    func openShell(term: TermSize) async throws -> any ShellChannel { throw SSHError.channelClosed }
+    func sftp() async throws -> any RemoteFileSystem { throw SSHError.channelClosed }
+    func openTunnel(to target: SSHEndpoint) async throws -> any SSHTunnel { throw SSHError.channelClosed }
+    func close() async { continuation.finish() }
 }

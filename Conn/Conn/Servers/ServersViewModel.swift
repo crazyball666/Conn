@@ -126,6 +126,7 @@ final class ServersViewModel {
     private func card(for host: Host) -> HealthCard.Model {
         let metrics = monitor.metrics[host.id]
         let error = monitor.errors[host.id]
+        let phase = monitor.phases[host.id] ?? .idle
         let status = presentationStatus(metrics: metrics, hasError: error != nil)
         let loadState: HealthCard.LoadState
         if metrics != nil {
@@ -153,7 +154,9 @@ final class ServersViewModel {
             uptimeText: metrics?.uptimeSeconds.map { MetricFormat.compactUptime($0) },
             loadText: metrics?.load1.map { String(format: "%.2f", $0) },
             loadState: loadState,
-            note: host.note
+            note: host.note,
+            isBusy: phase != .idle,
+            isReconnecting: phase == .reconnecting
         )
     }
 
