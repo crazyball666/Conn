@@ -360,15 +360,42 @@ public struct HealthCard: View {
     }
 
     private var accessibilityDescription: String {
+        Self.accessibilityDescription(for: model)
+    }
+
+    /// 拼装无障碍口播文案。抽成 `static` 纯函数以便脱离 SwiftUI 单测
+    /// （与 `StatusPill.busySymbol(reduceMotion:)` 同一模式）。入参用 `Model`
+    /// 整体传入而非拆成一堆标量——`Model` 本就是不依赖 SwiftUI 的纯数据结构，
+    /// 拆参数只会撞上 `function_parameter_count` 的 lint 上限。
+    ///
+    /// `isReconnecting`/`isBusy` 与 `loadState` 本是两套独立维度，原实现各自
+    /// 判断要不要念一遍「采集中…」。但 `isBusy == true && loadState == .loading`
+    /// 是每台主机首次采集必经的状态（`MonitorScheduler.attempt` 对无读数的主机
+    /// 恒置 `.collecting`，`.loading` 的条件正是 `metrics == nil`），两个分支
+    /// 会同时命中，念成「采集中…，采集中…」。这里把「是否要念一次采集中」合并
+    /// 成单一判断，下面 `switch` 的 `.loading` 分支不再重复 append。
+    ///
+    /// 顺序/措辞：
+    /// - 重连中优先于「采集中…」——「重连中」是更具体的状态（连接层面出了问题
+    ///   在重试），比泛泛的「采集中」更值得优先播报；二者结构上也不会与
+    ///   `.loading` 同时出现（`isReconnecting` 只在已有读数时才置位，`.loading`
+    ///   恰好要求无读数），不存在「重连中，采集中」堆叠的可能。
+    /// - 已加载且仍在后台刷新（`isBusy` 为真、`loadState == .loaded`，例行轮询
+    ///   而非首采）：先念「采集中…」再念读数——让用户先建立「这批数字可能马上
+    ///   更新」的预期，再听具体数字；与首采时「先概述活动、再给细节」的顺序
+    ///   一致，减少 VoiceOver 用户在不同状态间切换时的心智模型跳变。
+    static func accessibilityDescription(for model: Model) -> String {
         var parts = ["\(model.title)，\(model.status.label)"]
+
         if model.isReconnecting {
             parts.append(L("重连中"))
-        } else if model.isBusy {
+        } else if model.isBusy || model.loadState == .loading {
             parts.append(L("采集中…"))
         }
+
         switch model.loadState {
         case .loading:
-            parts.append(L("采集中…"))
+            break // 已在上面合并处理，避免重复念「采集中…」
         case .failed(let message):
             parts.append(message)
         case .loaded:
@@ -376,6 +403,7 @@ public struct HealthCard: View {
             if let memory = model.memory { parts.append("内存 \(Int(memory))%") }
             if let disk = model.disk { parts.append("磁盘 \(Int(disk))%") }
         }
+
         return parts.joined(separator: "，")
     }
 }
