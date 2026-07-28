@@ -1,6 +1,7 @@
 import ConnKit
 import ConnSSH
 import Foundation
+import Testing
 @testable import ConnMonitor
 
 /// `MonitorScheduler` 两个测试套件（采集阶段与重试 / 采集时机与并发收敛）共用的
@@ -50,19 +51,24 @@ actor CallLog {
 /// 现有 `FlakySession.exec` 立即返回，抓不到「采集进行中」这个中间态；
 /// 用闸门把 exec 的返回钉在测试选定的时刻，才能确定性地读到
 /// `phases` 里的 `.collecting`/`.reconnecting`，而不必靠 `Task.sleep` 赌一个大概率够用的时长。
+/// 用数组而非单个 `CheckedContinuation?` 存等待者：单槽位的版本在第二个等待者到来时
+/// 会**静默覆盖**第一个，`open()` 只唤醒最后那个，被覆盖的那个永远醒不过来 → 测试挂死。
+/// 「一轮采集钉在闸门上时再发一轮」正是需要两个等待者的场景（`inFlight` 的变异验证），
+/// 挂死会把「断言失败」伪装成「测试超时」。
 actor Gate {
-    private var continuation: CheckedContinuation<Void, Never>?
+    private var continuations: [CheckedContinuation<Void, Never>] = []
     private var isOpen = false
 
     func wait() async {
         if isOpen { return }
-        await withCheckedContinuation { continuation = $0 }
+        await withCheckedContinuation { continuations.append($0) }
     }
 
     func open() {
         isOpen = true
-        continuation?.resume()
-        continuation = nil
+        let pending = continuations
+        continuations.removeAll()
+        for continuation in pending { continuation.resume() }
     }
 }
 
@@ -146,17 +152,26 @@ func makeHost(_ id: String = "h1", address: String = "10.0.0.1") -> DomainHost {
 
 /// 有上限地轮询，直到 `phases[hostID]` 满足 `predicate` 或耗尽 `maxAttempts`。
 ///
-/// 不用 `Task.sleep` 定长等待——等太短会偶发失败，等太长会拖慢测试；
-/// `Task.yield()` 只是把 MainActor 让给排队中的采集 Task，一旦状态更新到位就立即返回。
+/// 不用定长 `Task.sleep` 一把等到底——等太短会偶发失败，等太长会拖慢测试；
+/// 这里是「事件一落地就立刻返回」的因果等待，只是给了个上限兜底。
+/// 等不到时**必须报错**而不是静默返回，理由见 `waitUntilExecCount`。
 @MainActor
 func waitUntilPhase(
     _ scheduler: MonitorScheduler, hostID: String,
-    satisfies predicate: (CollectPhase?) -> Bool, maxAttempts: Int = 200
+    satisfies predicate: (CollectPhase?) -> Bool, maxAttempts: Int = 200,
+    pollInterval: Duration = .milliseconds(5),
+    sourceLocation: SourceLocation = #_sourceLocation
 ) async {
     for _ in 0..<maxAttempts {
         if predicate(scheduler.phases[hostID]) { return }
-        await Task.yield()
+        try? await Task.sleep(for: pollInterval)
     }
+    let actual = String(describing: scheduler.phases[hostID])
+    let message: String = """
+        等待 phases[\(hostID)] 满足条件超时（\(maxAttempts) 次 × \(pollInterval)），当前值 \(actual)。
+        紧随其后的断言读到的是等待前的旧值，不要当作被测行为的证据。
+        """
+    Issue.record(Comment(rawValue: message), sourceLocation: sourceLocation)
 }
 
 /// 有上限地轮询，直到 `log.execs` 达到 `target` 或耗尽 `maxAttempts`。
@@ -169,22 +184,29 @@ func waitUntilPhase(
 /// 已经是「这次 attempt」在函数顶部写下的、稳定不会再变的值
 /// （因为这次 exec 挂在闸门上，不会往下走到下一次 attempt）。
 ///
-/// - Parameter pollInterval: 每次重试之间真的睡多久。默认 `.zero`，
-///   即只 `Task.yield()`——适合观察「同一轮事件循环内」就会落地的状态变化，
-///   几乎不消耗真实时间。但如果要等的事件本身在生产代码里绑了真实的
-///   `Task.sleep`（例如预热轮的 2s 延迟），空转的 `Task.yield()` 循环会在
-///   耗尽 `maxAttempts` 前就早早放弃——它消耗的是 CPU 周期而非墙钟时间，
-///   200 次 yield 通常远不够撑满 2 秒。这种情况下传入非零 `pollInterval`，
-///   让轮询真的睡过这段墙钟时间，同时仍然是「事件一发生就立刻返回」的因果等待。
+/// - Parameter pollInterval: 每次重试之间真的睡多久。**必须非零**，默认 5ms。
+///   曾经默认 `.zero`（只 `Task.yield()`），已实测 flaky：`yield` 烧的是 CPU 周期而非
+///   墙钟时间，而被等的事件跑在 MainActor / 协作线程池上（`connect`/`exec` 是
+///   非隔离 async，并行执行测试时还要和别的用例抢线程），200 次 yield 完全可能在
+///   事件落地前就耗尽。之后函数**静默返回**，紧跟的 `#expect` 读到等待前的旧值，
+///   于是报出来的是一条与真实缺陷无关的断言失败。真睡过一小段墙钟，
+///   既让出线程也推进时间，同时仍是「事件一发生就立刻返回」的因果等待。
+///
+/// 耗尽上限时 `Issue.record` 而非静默返回：静默返回是这类等待工具最危险的性质——
+/// 它把「等待超时」伪装成「被测行为不对」，让排查方向从一开始就是错的。
 func waitUntilExecCount(
-    _ log: CallLog, atLeast target: Int, maxAttempts: Int = 200, pollInterval: Duration = .zero
+    _ log: CallLog, atLeast target: Int, maxAttempts: Int = 200,
+    pollInterval: Duration = .milliseconds(5),
+    sourceLocation: SourceLocation = #_sourceLocation
 ) async {
     for _ in 0..<maxAttempts {
         if await log.execs >= target { return }
-        if pollInterval > .zero {
-            try? await Task.sleep(for: pollInterval)
-        } else {
-            await Task.yield()
-        }
+        try? await Task.sleep(for: pollInterval)
     }
+    let actual = await log.execs
+    let message: String = """
+        等待 execs >= \(target) 超时（\(maxAttempts) 次 × \(pollInterval)），实际 \(actual)。
+        紧随其后的断言读到的是等待前的旧值，不要当作被测行为的证据。
+        """
+    Issue.record(Comment(rawValue: message), sourceLocation: sourceLocation)
 }

@@ -142,6 +142,38 @@ struct MonitorSchedulerTimingTests {
         #expect(await log.execs >= before + 2)
     }
 
+    /// 已判定故障的主机不该让防抖失效——这条此前零覆盖，正是回归发生的地方。
+    ///
+    /// `record()` 判定故障时做的是 `metrics[host.id] = nil`，而 **Swift 字典赋 nil
+    /// 等于删键**：故障主机在 `metrics` 里与「从没采过」长得一模一样。于是判据若只
+    /// 看 `metrics`，用户只要有 1 台长期不可达的主机，`needsWarmUp` 就永久为真、
+    /// `isFresh` 永久为假，每次切回服务器页都是「立即一轮 + 2s 后预热轮」，
+    /// 两轮都对着死主机跑满连接超时——防抖被整体废掉。
+    /// 判据必须再看一眼 `errors`：已判定故障 ≠ 缺基线。
+    @Test("已判定故障的主机不触发预热轮，防抖照常生效")
+    func debouncesWhenOnlyHostIsKnownFailed() async throws {
+        let clock = MutableClock()
+        let (scheduler, log) = makeScheduler(now: { clock.now })
+        let target = host()
+
+        // 判定故障：首采失败（无读数 → 不重试）→ errors 有值、metrics 无值。
+        await log.failNext(1)
+        await scheduler.scanNow(hosts: [target])
+        #expect(scheduler.errors[target.id] != nil)
+        #expect(scheduler.metrics[target.id] == nil)
+        let before = await log.execs
+
+        clock.advance(by: 2)                            // 落在 5s 防抖窗口内
+        scheduler.startDashboard(hosts: [target], interval: .seconds(600))
+
+        // 真等过 2s 预热临界点（留到 2.3s 余量）：断言的是「立即那轮和预热轮都不发生」，
+        // 不存在的事件没有因果信号可等。若判据退回只看 `metrics`，这里会多出 2 次 exec。
+        try await Task.sleep(for: .milliseconds(2300))
+        scheduler.stop()
+
+        #expect(await log.execs == before)
+    }
+
     @Test("force 绕过防抖")
     func forceBypassesDebounce() async throws {
         let clock = MutableClock()
@@ -212,14 +244,20 @@ struct MonitorSchedulerTimingTests {
         // 仪表盘不可见（ServersView.onDisappear）。
         scheduler.stop()
         let execsBefore = await fixture.log.execs
-        #expect(await fixture.manager.activeCount == 1)
+        let connectsBefore = await fixture.log.connects
 
         await scheduler.resumeAfterBackground(idleFor: 60)
         try await Task.sleep(for: .milliseconds(300))
 
         #expect(await fixture.log.execs == execsBefore)
-        // 关键断言：会话仍在池里，长命通道没被掐断。
-        #expect(await fixture.manager.activeCount == 1)
+        // 关键断言：池里那条连接**从未被关掉**，也**没有被重开过**。
+        //
+        // 不用 `activeCount == 1`——它不是有效鉴别器：变异版（`stop()` 不清
+        // `dashboardConfig`）会 `invalidateAll()` 后立刻重新握手，池里又有一条会话，
+        // 计数照样是 1，断言恒真。两条合起来才封死：`hasPooledSession` 排除「关了没重开」，
+        // 握手次数没涨排除「关了又重开」——只有原来那条长命通道还活着才同时成立。
+        #expect(await fixture.manager.hasPooledSession(for: target))
+        #expect(await fixture.log.connects == connectsBefore)
     }
 
     // MARK: - 并发收敛（代次）
@@ -248,5 +286,46 @@ struct MonitorSchedulerTimingTests {
         #expect(scheduler.metrics[target.id] == nil)
         #expect(scheduler.phases.isEmpty)
         #expect(scheduler.lastScanAt == nil)
+    }
+
+    /// 代次挡不住**同代**的两轮（下拉刷新撞上轮询、或详情补采撞上详情轮询）：
+    /// 它们发起时代次相同，`isCurrent` 对两者都成立。没有 `inFlight` 的话会双倍握手、
+    /// 互相覆盖写回——一轮 `record()` 清空 `metrics`，另一轮刚写好成功读数，卡片闪一下红。
+    ///
+    /// 这条测试就是 `inFlight` 的证伪器：删掉 `collectOne` 里的
+    /// `!inFlight.contains(host.id)`，第二轮会一路走到它自己的 exec，计数翻倍。
+    @Test("同代第二轮采集让位给飞行中的那轮，不重复 exec")
+    func inFlightDedupesSameGenerationRounds() async throws {
+        let (scheduler, log) = makeScheduler()
+        let target = host()
+        let gate = Gate()
+        await log.armGate(gate)
+
+        // 第一轮钉在飞行中：exec 已开始（execs == 1）并挂在闸门上。
+        // `inFlight.insert` 在 `collectOne` 顶部同步完成，早于这次 exec，所以此刻集合里必有它。
+        let polling = Task { await scheduler.scanNow(hosts: [target]) }
+        await waitUntilExecCount(log, atLeast: 1)
+        #expect(await log.execs == 1)
+
+        // 同代再发一轮（下拉刷新）。代次判据对它成立，只有 `inFlight` 能拦住它。
+        let pullToRefresh = Task { await scheduler.scanNow(hosts: [target]) }
+
+        // 断言的是**不发生**的事件，没有因果信号可等，只能给一段够用的墙钟窗口。
+        // 变异版（删掉 inFlight 判据）不涉及任何真实 I/O，300ms 足够它走到 exec 把计数顶到 2。
+        try await Task.sleep(for: .milliseconds(300))
+        #expect(await log.execs == 1)
+        // 正确实现下第二轮早已让位返回；变异版此刻还挂在闸门上。
+        #expect(pullToRefresh.isCancelled == false)
+
+        await gate.open()
+        await polling.value
+        await pullToRefresh.value
+
+        // 让位的那一轮自始至终没有发起过自己的 exec，也没有重复握手。
+        #expect(await log.execs == 1)
+        #expect(await log.connects == 1)
+        // 让位不等于丢数据：先到的那轮把读数写进来了。
+        #expect(scheduler.metrics[target.id] != nil)
+        #expect(scheduler.phases[target.id] == .idle)
     }
 }

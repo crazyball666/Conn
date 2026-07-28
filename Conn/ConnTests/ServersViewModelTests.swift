@@ -195,10 +195,12 @@ struct ServersViewModelTests {
 
         let scan = Task { await monitor.scanNow(hosts: [target]) }
 
-        // 等采集真正进入飞行中（exec 被闸门卡住）。上限 200 次让步，避免死等。
+        // 等采集真正进入飞行中（exec 被闸门卡住）。上限 200 次轮询，避免死等。
+        // 每次真睡 5ms 而非只 `Task.yield()`：yield 烧的是 CPU 周期不推进墙钟，
+        // 而 exec 跑在协作线程池上，并行执行测试时 200 次 yield 可能不够它落地。
         var busySeen = false
         for _ in 0 ..< 200 where !busySeen {
-            await Task.yield()
+            try? await Task.sleep(for: .milliseconds(5))
             busySeen = viewModel.cards.first?.isBusy == true
         }
         #expect(busySeen)
@@ -260,13 +262,26 @@ struct ServersViewModelTests {
     }
 
     /// 有上限地轮询，直到 `log.execs` 达到 `target` 或耗尽 `maxAttempts`。
+    ///
+    /// 每次重试真睡一小段墙钟（而非只 `Task.yield()`）：`yield` 烧的是 CPU 周期，
+    /// 而被等的 `exec` 跑在协作线程池上，并行执行测试时 200 次 yield 可能在事件
+    /// 落地前就耗尽。耗尽时 `Issue.record` 而非静默返回——静默返回会把「等待超时」
+    /// 伪装成「被测行为不对」，让排查从一开始就走错方向。
     private func waitUntilExecCount(
-        _ log: ExecLog, atLeast target: Int, maxAttempts: Int = 200
+        _ log: ExecLog, atLeast target: Int, maxAttempts: Int = 200,
+        pollInterval: Duration = .milliseconds(5),
+        sourceLocation: SourceLocation = #_sourceLocation
     ) async {
         for _ in 0 ..< maxAttempts {
             if await log.execs >= target { return }
-            await Task.yield()
+            try? await Task.sleep(for: pollInterval)
         }
+        let actual = await log.execs
+        let message: String = """
+            等待 execs >= \(target) 超时（\(maxAttempts) 次 × \(pollInterval)），实际 \(actual)。
+            紧随其后的断言读到的是等待前的旧值。
+            """
+        Issue.record(Comment(rawValue: message), sourceLocation: sourceLocation)
     }
 }
 

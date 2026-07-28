@@ -203,9 +203,13 @@ public func startDashboard(
     // 2s 预热轮的唯一目的是首采点亮 CPU（使用率需两次采样差分）。基线是**逐主机**的
     // （MetricCollector.previousCPU[host.id]），所以判据也必须逐主机——用全局
     // metrics.isEmpty 会让「已有 N 台在线时新增第 N+1 台」不预热（新卡片挂一整个
-    // interval 才点亮 CPU 环），又会让「全部主机判定故障后 metrics 被清空」恒真
-    //（每次进页面都在 2s 内双采，每轮都带连接超时）。
-    let needsWarmUp = hosts.contains { metrics[$0.id] == nil }
+    // interval 才点亮 CPU 环）。
+    // 但只看 metrics 不够：record() 判定故障时做的是 metrics[host.id] = nil，而
+    // Swift 字典赋 nil **等于删键**——故障主机与「从没采过」在 metrics 里无法区分。
+    // 于是只要有 1 台长期不可达的主机，needsWarmUp 就永久为真、isFresh 永久为假，
+    // 每次切回服务器页都是「立即一轮 + 2s 预热轮」，两轮都对着死主机跑满连接超时。
+    // 所以再看一眼 errors：只有「从没采出过读数、也还没被判定故障」的才需要预热。
+    let needsWarmUp = hosts.contains { metrics[$0.id] == nil && errors[$0.id] == nil }
     // 距上次采集不足 5s 视为「刚采过」（频繁切 Tab / 返回列表），本次不重采。
     // 但有主机缺基线时不防抖，否则新增主机后 5s 内切走再切回，连立即那轮都会跳过。
     // force 用于回前台——那是明确要立刻重采的场景。
@@ -227,7 +231,10 @@ public func startDashboard(
                 self.lastScanAt = self.now()
             }
         }
-        while self.isCurrent(scanGeneration) {
+        // 同时查取消：代次是数据侧判据（挡写回），Task.isCancelled 是控制侧的。
+        // 只留代次的话，一旦将来有路径只 cancel 而不推进代次，被取消的 Task 里
+        // try? await Task.sleep 会立刻返回 → 循环退化成打满 CPU 的热循环。
+        while self.isCurrent(scanGeneration) && !Task.isCancelled {
             try? await Task.sleep(for: interval)
             guard self.isCurrent(scanGeneration) else { return }
             await self.scanOnce(hosts: hosts, concurrency: concurrency, generation: scanGeneration)

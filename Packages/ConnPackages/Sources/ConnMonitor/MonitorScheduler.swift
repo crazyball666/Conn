@@ -64,6 +64,11 @@ public final class MonitorScheduler {
     /// 代次对它们都成立，仍会双倍握手、互相覆盖写回（一轮 `record()` 清空
     /// `metrics`，另一轮刚写好成功读数 → 卡片闪一下红）。用飞行中集合去重，
     /// 让后到的那一轮直接让位——它要的数据先到的那轮马上就会写进来。
+    ///
+    /// **前置条件**：依赖 `attempt` 里的 await 终会返回（`defer` 才有机会移除该 id）。
+    /// 目前假引擎与 `session.exec(_:timeout:)` 都带超时；真 SSH 引擎接入后，
+    /// `exec` 的超时必须真正生效——一次永不返回的 exec 会把该主机的 id 永久留在
+    /// 集合里，此后所有轮次都对它让位，这台主机的采集永久停摆（UI 上表现为转圈不落）。
     private var inFlight: Set<String> = []
 
     /// 上次 `startDashboard` 的参数。回前台恢复时按原样重启。
@@ -103,14 +108,19 @@ public final class MonitorScheduler {
     ) {
         stop()
         dashboardConfig = DashboardConfig(hosts: hosts, interval: interval, concurrency: concurrency)
-        // 预热与防抖都按「逐主机」判定，而非全局 `metrics.isEmpty`——CPU 使用率要
-        // 两次采样差分，而基线本就是每主机一份（`MetricCollector.previousCPU[host.id]`）。
-        // 全局判据同时错两头：
-        // - 已有 N 台在线时新增第 N+1 台，`metrics` 非空 → 不预热 → 新卡片的 CPU 环
-        //   要挂满一个 interval（默认 30s）才点亮；
-        // - 反过来，所有主机都判定故障后 `record()` 清空了 `metrics` → 判据又为真 →
-        //   全故障场景下每次进页面仍在 2s 内双采，每轮都带连接超时。
-        let needsWarmUp = hosts.contains { metrics[$0.id] == nil }
+        // 预热判据按「逐主机」而非全局 `metrics.isEmpty`——CPU 使用率要两次采样差分，
+        // 而基线本就是每主机一份（`MetricCollector.previousCPU[host.id]`）。全局判据下
+        // 「已有 N 台在线时新增第 N+1 台」`metrics` 非空 → 不预热 → 新卡片的 CPU 环要
+        // 挂满一个 interval（默认 30s）才点亮。
+        //
+        // 但只看 `metrics` 还不够：`record()` 判定故障时做的是 `metrics[host.id] = nil`，
+        // 而 Swift 字典赋 nil **等于删键**——故障主机与「从没采过」在 `metrics` 里长得
+        // 一模一样。于是只要用户有 1 台长期不可达的主机，`needsWarmUp` 就永久为真，
+        // `isFresh` 永久为假，每次切回服务器页都是「立即一轮 + 2s 后预热轮」，两轮都对着
+        // 死主机跑满连接超时——防抖整体失效，与本次收敛采集时机的目标正好相反。
+        // 所以再看一眼 `errors`：只有「从没采出过读数、也还没被判定故障」的主机才需要
+        // 预热轮点亮 CPU；已判定故障的主机不该让整页反复重采。
+        let needsWarmUp = hosts.contains { metrics[$0.id] == nil && errors[$0.id] == nil }
         // 有主机缺基线时不防抖：否则「新增主机后 5s 内切走再切回」会把立即那轮
         // 也跳过，新卡片要挂着骨架一整个 interval。
         let isFresh = !force && !needsWarmUp
@@ -132,7 +142,12 @@ public final class MonitorScheduler {
                 }
             }
             // 先睡后采：否则 isFresh 跳过立即采集后会马上又采一轮，防抖失效。
-            while self.isCurrent(scanGeneration) {
+            // 同时查取消：代次是数据侧判据，挡的是写回；`Task.isCancelled` 是控制侧的。
+            // 今天两者总是同步推进（`cancel()` 只在 `stop()` 里出现且紧跟代次递增），
+            // 但一旦将来有别的路径只取消 task 而不推进代次，被取消的 Task 里
+            // `Task.sleep` 会立刻抛错返回 → `try?` 吞掉 → 循环空转成热循环，
+            // 打满 CPU 并疯狂重采。加上这半个判据是零成本的保险。
+            while self.isCurrent(scanGeneration) && !Task.isCancelled {
                 try? await Task.sleep(for: interval)
                 guard self.isCurrent(scanGeneration) else { return }
                 await self.scanOnce(hosts: hosts, concurrency: concurrency, generation: scanGeneration)
@@ -148,7 +163,9 @@ public final class MonitorScheduler {
         let scanGeneration = generation
         task = Task { [weak self] in
             guard let self else { return }
-            while self.isCurrent(scanGeneration) {
+            // 同时查取消，理由同 `startDashboard`：被取消的 Task 里 `try? await
+            // Task.sleep` 立刻返回，只靠代次判据会退化成打满 CPU 的热循环。
+            while self.isCurrent(scanGeneration) && !Task.isCancelled {
                 await self.collectOne(
                     host, generation: scanGeneration,
                     includeExtended: self.wantsExtended, includeProcesses: self.wantsProcesses
@@ -172,6 +189,12 @@ public final class MonitorScheduler {
     }
 
     /// 停止轮询（页面不可见 / 切走时调用）。
+    ///
+    /// **本方法即「仪表盘不再运行」这一不变量**：调用后 `dashboardConfig` 为 nil，
+    /// `resumeAfterBackground` 随之完全 no-op（详见下方对连接池的说明）。
+    /// 若将来需要「暂停但保留恢复配置」的语义，请另开入口，不要复用本方法——
+    /// 保留配置会让回前台重新拉起轮询并 `invalidateAll()`，打死骑在同一条 SSH
+    /// 连接上的终端 shell / 日志流 / sftp handle。
     public func stop() {
         task?.cancel()
         task = nil
