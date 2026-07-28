@@ -49,9 +49,9 @@ public struct GroupFilterBar: View {
         current == id ? nil : id
     }
 
-    /// 轨道形状。背景与裁剪必须用同一个，否则圆角处会露出底色。
-    private var trackShape: RoundedRectangle {
-        RoundedRectangle(cornerRadius: ConnRadius.control, style: .continuous)
+    /// 轨道形状：完全圆角的胶囊。背景与裁剪必须用同一个，否则圆角处会露出底色。
+    private var trackShape: Capsule {
+        Capsule()
     }
 
     public var body: some View {
@@ -81,7 +81,9 @@ public struct GroupFilterBar: View {
                     }
                 }
             }
-            .padding(.horizontal, ConnSpacing.xxs)
+            // 胶囊端头的弧在 chip 的上下缘处已内收约 6pt，内缩小于这个值
+            // 首尾两枚 chip 的药丸会被切掉一角。
+            .padding(.horizontal, ConnSpacing.xs)
         }
         // 横向 ScrollView 在纵向是贪心的，会吃掉父容器给的全部高度。没有背景时
         // 看不出来，一旦画上轨道就会顶到大标题上——必须先按内容高度收缩。
@@ -104,6 +106,7 @@ public struct GroupFilterBar: View {
         Button(action: action) {
             Text(title)
                 .font(.connFootnote)
+                .fontWeight(.semibold)
                 .foregroundStyle(isSelected ? .connAccent : .connMuted)
                 .padding(.horizontal, ConnSpacing.sm)
                 .padding(.vertical, 6)
