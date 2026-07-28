@@ -155,9 +155,18 @@ final class ServersViewModel {
             loadText: metrics?.load1.map { String(format: "%.2f", $0) },
             loadState: loadState,
             note: host.note,
-            isBusy: phase != .idle,
-            isReconnecting: phase == .reconnecting
+            collectPhase: collectPhase(phase)
         )
+    }
+
+    /// 领域三态 → 展示层三态。ConnUI 刻意不依赖 ConnMonitor，映射由 Feature 层
+    /// 承担（与 `presentationStatus` 同理）；一一对应，不做任何合并或丢弃。
+    private func collectPhase(_ phase: CollectPhase) -> ConnCollectPhase {
+        switch phase {
+        case .idle: .idle
+        case .collecting: .collecting
+        case .reconnecting: .reconnecting
+        }
     }
 
     /// 组装网络/IO 的 ↑↓（速率·总量）已格式化读数。
