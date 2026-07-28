@@ -260,7 +260,7 @@ public struct HealthCard: View {
                 Circle().trim(from: 0, to: fraction(value))
                     .stroke(
                         arcStyle(for: value),
-                        style: StrokeStyle(lineWidth: ringStroke, lineCap: .round)
+                        style: StrokeStyle(lineWidth: ringStroke, lineCap: .butt)
                     )
                     .rotationEffect(.degrees(-90))
                     .animation(.spring(response: 0.5, dampingFraction: 0.9), value: value)
@@ -282,30 +282,21 @@ public struct HealthCard: View {
 
     /// 无数据时是灰轨道色，有数据时是负载渐变。
     ///
-    /// `AngularGradient` 循环取色，物理角度 0°/360° 处是色标首尾的接缝
-    /// （绿→红硬跳变）；`lineCap: .round` 的圆头笔帽又会在弧起点之前，
-    /// 沿路径多外伸半个笔宽的一小段，恰好糊在这条接缝上——于是每个环
-    /// 起点都顶着一颗红点，即便当前值远在低载的绿区。
-    ///
-    /// 修法是把接缝从「角度 0°」挪开 `capLeadIn`（笔帽外伸半个笔宽除以
-    /// 路径半径得到的角跨度），让笔帽盖住的是接缝挪开后仍是绿色的区域。
-    /// 挪法是把 `startAngle`/`endAngle` **一起往正向平移**、整体仍保持
-    /// 满 360°——只把 `startAngle` 设成负值挪不动接缝：实测发现
-    /// `AngularGradient` 按「非负、已归一化」的角度取色，负的 `startAngle`
-    /// 对着接缝处的采样角度不生效（把引入角再放大几倍也没用，因为负值
-    /// 写法里分子分母同时变大，比例几乎不变），必须让 `startAngle` 本身
-    /// 就是正向平移后的正角度，才能真正把接缝挪出笔帽覆盖范围。
-    /// 代价：颜色-数值对应整体偏移约 `capLeadIn / 360°`（这组尺寸下
-    /// 约 2.5 个百分点）——色标 0–60 恒定绿，偏移量远小于这段缓冲，
-    /// 仍绰绰有余。
+    /// 笔帽故意选**平头 `.butt`**，而不是观感更圆润的 `.round`：圆头笔帽会在
+    /// 弧的起点之前，沿路径多外伸半个笔宽——这段外伸区，恰好与「负载接近
+    /// 满载」时弧尖所在的角度扇区，是同一块地方。`AngularGradient` 是循环
+    /// 取色的一整条色标，同一角度只能对应色标上唯一的一个位置：这里既要
+    /// 是弧起点该有的绿（低载起点不能顶红点），又要是弧尖该有的红（高载
+    /// 弧尖不能糊成绿），两者互斥，是几何上的死结，不是渐变参数能调开的
+    /// （曾经试过把渐变整体平移、或把跨度撑到 360° 以上兼顾两头，前者会
+    /// 让 97.5% 以上的高载弧尖被误判为绿色、后者会在跨度重叠的那一小段
+    /// 出现归属二义、动画过渡期间红点间歇性复现）。平头没有任何外伸，
+    /// 弧严格只覆盖 `[0°, 360°·负载]`，与 `AngularGradient` 默认铺满的
+    /// `[0°, 360°]` 精确一一对应，起点即色标起点、弧尖即当前负载对应的
+    /// 颜色，不需要再借助偏移去回避这个冲突。
     private func arcStyle(for value: Double?) -> AnyShapeStyle {
         guard value != nil else { return AnyShapeStyle(Color.connTrack) }
-        let capLeadIn = Angle(radians: Double(ringStroke / (ringDiameter - ringStroke)))
-        let seamAngle = Angle.degrees(360) - capLeadIn
-        let gradient = AngularGradient(
-            gradient: ConnLoadScale.gradient, center: .center, startAngle: seamAngle, endAngle: seamAngle + .degrees(360)
-        )
-        return AnyShapeStyle(gradient)
+        return AnyShapeStyle(AngularGradient(gradient: ConnLoadScale.gradient, center: .center))
     }
 
     private func flowColumn(_ label: String, _ flow: Flow?) -> some View {
