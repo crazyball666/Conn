@@ -9,15 +9,16 @@ import SwiftUI
 /// 每核 CPU 条与 Docker 容器 CPU/内存条原先各写了一份逐字重复的实现，
 /// 把它收在一处，将来新增条形图直接复用，不会重犯。
 public struct ConnLoadBar: View {
-    private let fraction: Double?
+    private let percent: Double?
     private let minWidth: CGFloat
 
     /// - Parameters:
-    ///   - fraction: 已归一化到 0…1 的负载。`nil` 表示无数据，此时只画灰轨道，
-    ///     不能露出任何彩色头部——调用方（如已停止的容器）依赖这一点隐藏指标。
+    ///   - percent: 原始负载百分比（0…100 语境，越界会被 clamp，不要求调用方
+    ///     先手动归一化）。`nil` 表示无数据，此时只画灰轨道，不能露出任何
+    ///     彩色头部——调用方（如已停止的容器）依赖这一点隐藏指标。
     ///   - minWidth: 有数据时的最小可见宽度，避免极小值看不见。
-    public init(fraction: Double?, minWidth: CGFloat) {
-        self.fraction = fraction
+    public init(percent: Double?, minWidth: CGFloat) {
+        self.percent = percent
         self.minWidth = minWidth
     }
 
@@ -25,7 +26,7 @@ public struct ConnLoadBar: View {
         GeometryReader { geometry in
             ZStack(alignment: .leading) {
                 Capsule().fill(Color.connTrack)
-                if let fraction {
+                if let fraction = Self.fraction(ofPercent: percent) {
                     Capsule()
                         .fill(LinearGradient(
                             gradient: ConnLoadScale.gradient,
@@ -40,14 +41,24 @@ public struct ConnLoadBar: View {
             }
         }
     }
+
+    /// 把原始百分比归一化并 clamp 到 0…1；`nil` 保持 `nil`（代表无数据）。
+    ///
+    /// 抽成静态纯函数是因为 `min(max(x / 100, 0), 1)` 这段归一化此前在
+    /// `HealthCard`/`HostOverviewView`（两处）/`ContainerCard` 各写了一遍——
+    /// 收进组件内部后，这是唯一还写它的地方，脱离 SwiftUI 即可单测。
+    static func fraction(ofPercent percent: Double?) -> Double? {
+        guard let percent else { return nil }
+        return min(max(percent / 100, 0), 1)
+    }
 }
 
 #Preview("ConnLoadBar · 深色") {
     VStack(spacing: 12) {
-        ConnLoadBar(fraction: 0.2, minWidth: 4).frame(height: 6)
-        ConnLoadBar(fraction: 0.6, minWidth: 4).frame(height: 6)
-        ConnLoadBar(fraction: 0.94, minWidth: 4).frame(height: 6)
-        ConnLoadBar(fraction: nil, minWidth: 3).frame(height: 4)
+        ConnLoadBar(percent: 20, minWidth: 4).frame(height: 6)
+        ConnLoadBar(percent: 60, minWidth: 4).frame(height: 6)
+        ConnLoadBar(percent: 94, minWidth: 4).frame(height: 6)
+        ConnLoadBar(percent: nil, minWidth: 3).frame(height: 4)
     }
     .padding(24)
     .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -57,10 +68,10 @@ public struct ConnLoadBar: View {
 
 #Preview("ConnLoadBar · 浅色") {
     VStack(spacing: 12) {
-        ConnLoadBar(fraction: 0.2, minWidth: 4).frame(height: 6)
-        ConnLoadBar(fraction: 0.6, minWidth: 4).frame(height: 6)
-        ConnLoadBar(fraction: 0.94, minWidth: 4).frame(height: 6)
-        ConnLoadBar(fraction: nil, minWidth: 3).frame(height: 4)
+        ConnLoadBar(percent: 20, minWidth: 4).frame(height: 6)
+        ConnLoadBar(percent: 60, minWidth: 4).frame(height: 6)
+        ConnLoadBar(percent: 94, minWidth: 4).frame(height: 6)
+        ConnLoadBar(percent: nil, minWidth: 3).frame(height: 4)
     }
     .padding(24)
     .frame(maxWidth: .infinity, maxHeight: .infinity)

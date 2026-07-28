@@ -46,6 +46,22 @@ struct ConnLoadScaleTests {
         #expect(crit.color == last.color)
     }
 
+    /// 三个可变色槽位的颜色必须分别是绿/黄/红——这是「低=绿、高=红」这条
+    /// 设计结论在本文件里唯一的直接颜色断言。上面几条测试都只看 location、
+    /// 或只断言「两端相等」，把 stops 的颜色全部错改成同一种颜色（例如全绿）
+    /// 也能通过：纯绿的两端自然相等，位置也没变。这里按下标钉死每个槽位
+    /// 该是哪个颜色，并顺带钉死 `stops.count`（缩短数组会在别处变成越界
+    /// 崩溃而不是测试失败）与 warn 槽位对应的具体下标（`contains` 不保证
+    /// 是哪个槽位命中）。
+    @Test("槽位颜色与阈值对应：绿/黄/红三色不同")
+    func stopsColorsMatchSeverity() {
+        #expect(ConnLoadScale.stops.count == 5)
+        #expect(ConnLoadScale.stops[1].color == .connGood)
+        #expect(ConnLoadScale.stops[2].color == .connWarn)
+        #expect(ConnLoadScale.stops[3].color == .connCrit)
+        #expect(ConnLoadScale.stops[2].location == ConnThreshold.warn / 100)
+    }
+
     /// gradient 必须由 stops 派生，否则两者会漂移成两套配色。
     @Test("gradient 的停靠位置与 stops 一致")
     func gradientMatchesStops() {

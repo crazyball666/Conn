@@ -64,7 +64,7 @@ struct ContainerCard: View {
             Text(value.map { "\(Int($0))%" } ?? "—")
                 .font(.system(size: 17, weight: .semibold, design: .rounded))
                 .connTabularNumbers().foregroundStyle(.connInk)
-            ConnLoadBar(fraction: value.map { min(max($0 / 100, 0), 1) }, minWidth: 3)
+            ConnLoadBar(percent: value, minWidth: 3)
                 .frame(height: 4)
         }
         .frame(maxWidth: .infinity, alignment: .leading)

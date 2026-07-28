@@ -132,7 +132,7 @@ struct HostOverviewView: View {
                 latest?.disk,
                 detail: MetricFormat.pair(used: latest?.diskUsedBytes, total: latest?.diskTotalBytes)
             )
-            ConnLoadBar(fraction: latest?.disk.map { min(max($0 / 100, 0), 1) }, minWidth: 6)
+            ConnLoadBar(percent: latest?.disk, minWidth: 6)
                 .frame(height: 8)
             Rectangle().fill(Color.connLine).frame(height: 0.5).padding(.vertical, 2)
             chartHeader(
@@ -317,7 +317,7 @@ private extension HostOverviewView {
                     Text("CPU\(index)")
                         .font(.connData(.caption2)).foregroundStyle(.connMuted)
                         .frame(width: 42, alignment: .leading)
-                    ConnLoadBar(fraction: min(max(usage / 100, 0), 1), minWidth: 4)
+                    ConnLoadBar(percent: usage, minWidth: 4)
                         .frame(height: 6)
                     Text("\(Int(usage))%")
                         .font(.connData(.caption2)).connTabularNumbers().foregroundStyle(.connInk)
