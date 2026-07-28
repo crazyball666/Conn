@@ -48,15 +48,17 @@ struct ContainerCard: View {
 
     private var metrics: some View {
         HStack(alignment: .top, spacing: ConnSpacing.md) {
-            percentCell(L("CPU"), value: container.cpuPercent, tint: .connAccent)
-            percentCell(L("内存"), value: container.memPercent, tint: .connInfo)
+            percentCell(L("CPU"), value: container.cpuPercent)
+            percentCell(L("内存"), value: container.memPercent)
             flowCell(L("网络"), container.netIO)
             flowCell("IO", container.blockIO)
         }
     }
 
     /// CPU / 内存：标签 + 大百分比 + 细进度条。
-    private func percentCell(_ label: String, value: Double?, tint: Color) -> some View {
+    ///
+    /// 条的颜色走负载色标（低=绿、高=红），与主机卡的环、详情页的每核条统一。
+    private func percentCell(_ label: String, value: Double?) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             Text(label).font(.connData(.caption2)).foregroundStyle(.connMuted)
             Text(value.map { "\(Int($0))%" } ?? "—")
@@ -65,8 +67,20 @@ struct ContainerCard: View {
             GeometryReader { geometry in
                 ZStack(alignment: .leading) {
                     Capsule().fill(Color.connTrack)
-                    Capsule().fill(barColor(value, tint))
-                        .frame(width: max(3, geometry.size.width * fraction(value)))
+                    // 渐变必须按**整条轨道**铺开再裁到当前值——直接 fill 到已填充
+                    // 宽度会把整条渐变压进那一段，20% 也会从绿扫到红。
+                    if value != nil {
+                        Capsule()
+                            .fill(LinearGradient(
+                                gradient: ConnLoadScale.gradient,
+                                startPoint: .leading, endPoint: .trailing
+                            ))
+                            .frame(width: geometry.size.width)
+                            .mask(alignment: .leading) {
+                                Capsule()
+                                    .frame(width: max(3, geometry.size.width * fraction(value)))
+                            }
+                    }
                 }
             }
             .frame(height: 4)
@@ -103,13 +117,6 @@ struct ContainerCard: View {
 
     private func fraction(_ value: Double?) -> CGFloat {
         value.map { min(max($0 / 100, 0), 1) } ?? 0
-    }
-
-    private func barColor(_ value: Double?, _ tint: Color) -> Color {
-        guard let value else { return .connTrack }
-        if value > ConnThreshold.crit { return .connCrit }
-        if value > ConnThreshold.warn { return .connWarn }
-        return tint
     }
 
     private var healthStatus: ConnHealthStatus {

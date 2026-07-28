@@ -338,8 +338,21 @@ private extension HostOverviewView {
                     GeometryReader { geometry in
                         ZStack(alignment: .leading) {
                             Capsule().fill(Color.connTrack)
-                            Capsule().fill(coreBarColor(usage))
-                                .frame(width: max(4, geometry.size.width * fraction(usage)))
+                            // 渐变必须按**整条轨道**铺开再裁到当前值：直接
+                            // `.fill(渐变).frame(width: 已填充宽度)` 会把整条渐变
+                            // 压进那一小段，导致 20% 和 94% 都从绿扫到红，
+                            // 「值越高越红」的信息全丢。这个错误在高载时看着
+                            // 完全正常，只有低载才暴露。
+                            Capsule()
+                                .fill(LinearGradient(
+                                    gradient: ConnLoadScale.gradient,
+                                    startPoint: .leading, endPoint: .trailing
+                                ))
+                                .frame(width: geometry.size.width)
+                                .mask(alignment: .leading) {
+                                    Capsule()
+                                        .frame(width: max(4, geometry.size.width * fraction(usage)))
+                                }
                         }
                     }
                     .frame(height: 6)
@@ -349,12 +362,6 @@ private extension HostOverviewView {
                 }
             }
         }
-    }
-
-    func coreBarColor(_ usage: Double) -> Color {
-        if usage > ConnThreshold.crit { return .connCrit }
-        if usage > ConnThreshold.warn { return .connWarn }
-        return .connAccent
     }
 }
 
