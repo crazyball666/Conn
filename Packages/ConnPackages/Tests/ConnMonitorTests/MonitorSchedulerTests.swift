@@ -58,6 +58,29 @@ struct MonitorSchedulerTests {
         #expect(scheduler.phases[target.id] == .idle)
     }
 
+    /// `attempt` 成功路径里的 `errors[host.id] = nil` 双重承重：
+    /// 决定详情页错误横幅撤不撤（`HostOverviewViewModel.errorText`），
+    /// 也决定 `startDashboard` 的 `needsWarmUp` 判据（只看 `metrics` 不够，
+    /// 见该函数注释）。删掉那一行不会让任何既有测试变红——旧测试要么只看
+    /// `metrics`，要么在故障判定当下就结束——这里补上「故障主机恢复」这一步，
+    /// 把它钉死。
+    @Test("故障主机恢复采集成功后，errors 清空且读数写回")
+    func recoveryAfterFailureClearsErrors() async {
+        let (scheduler, log) = makeScheduler()
+        let target = host()
+        await scheduler.scanNow(hosts: [target])   // 建立基线（已知可用）
+
+        await log.failNext(2)
+        await scheduler.scanNow(hosts: [target])   // 首次失败 + 重试仍失败 → 判定故障
+        #expect(scheduler.errors[target.id] != nil)
+        #expect(scheduler.metrics[target.id] == nil)
+
+        await scheduler.scanNow(hosts: [target])   // 主机恢复，本轮采集成功
+
+        #expect(scheduler.errors[target.id] == nil)
+        #expect(scheduler.metrics[target.id] != nil)
+    }
+
     @Test("已判定故障的主机每轮只尝试一次，不再双倍连接")
     func failedHostDoesNotDoubleAttempt() async {
         let (scheduler, log) = makeScheduler()

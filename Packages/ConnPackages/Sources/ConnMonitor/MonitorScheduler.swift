@@ -149,7 +149,10 @@ public final class MonitorScheduler {
             // 打满 CPU 并疯狂重采。加上这半个判据是零成本的保险。
             while self.isCurrent(scanGeneration) && !Task.isCancelled {
                 try? await Task.sleep(for: interval)
-                guard self.isCurrent(scanGeneration) else { return }
+                // 同时查取消：只查代次不够——若真出现「只 cancel 不推进代次」的路径，
+                // `Task.sleep` 会立刻返回、`isCurrent` 仍成立，还会跑完整一轮
+                // `scanOnce` 才在下一次循环判据处退出。
+                guard self.isCurrent(scanGeneration), !Task.isCancelled else { return }
                 await self.scanOnce(hosts: hosts, concurrency: concurrency, generation: scanGeneration)
                 guard self.isCurrent(scanGeneration) else { return }
                 self.lastScanAt = self.now()

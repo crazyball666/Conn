@@ -286,19 +286,23 @@ struct ServersViewModelTests {
 }
 
 /// 由测试控制开合的闸门：`exec` 在此挂起，直到测试放行。
+///
+/// 用数组而非单个 `CheckedContinuation?` 存等待者：单槽位的版本在第二个等待者到来时
+/// 会**静默覆盖**第一个，`open()` 只唤醒最后那个，被覆盖的那个永远醒不过来 → 测试挂死。
 private actor Gate {
-    private var continuation: CheckedContinuation<Void, Never>?
+    private var continuations: [CheckedContinuation<Void, Never>] = []
     private var isOpen = false
 
     func wait() async {
         if isOpen { return }
-        await withCheckedContinuation { continuation = $0 }
+        await withCheckedContinuation { continuations.append($0) }
     }
 
     func open() {
         isOpen = true
-        continuation?.resume()
-        continuation = nil
+        let pending = continuations
+        continuations.removeAll()
+        for continuation in pending { continuation.resume() }
     }
 }
 

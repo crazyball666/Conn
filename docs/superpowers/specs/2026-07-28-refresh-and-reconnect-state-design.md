@@ -74,7 +74,7 @@
 | 回前台 | 后台 > 30s 则驱逐全部会话并强制重采 | 不等一轮失败才发现会话死了 |
 | 失败重试时机 | **同轮内立刻重试**，不等下一个间隔 | 否则失败到重连之间有长达一个 interval 的空窗，比改造前更糟 |
 | 常规采集的胶囊文案 | **只转圈，不改文字** | 每 30s 把「正常」换成「刷新中」会让状态区一直跳，反而更吵 |
-| 预热轮 | 已有 `metrics` 基线时跳过 | 该轮唯一目的是首采点亮 CPU，有基线即纯浪费 |
+| 预热轮 | 从没采出过读数**且**尚未被判定故障的主机才需要预热轮 | 该轮唯一目的是首采点亮 CPU，有基线即纯浪费；但只看 `metrics` 不够——`record()` 判定故障时做的是 `metrics[host.id] = nil`，Swift 字典赋 nil 等于删键，故障主机与「从没采过」在 `metrics` 里长得一模一样，只看 metrics 会让任何一台故障主机永久跳不出预热轮（防抖随之整体失效），必须再看一眼 `errors` |
 | 防抖 | 距上次采集 < 5s 时连立即那轮也跳过（`force` 可绕过） | 频繁切 Tab 不该反复重采 |
 | 进入后台 | **不 `stop()`** | iOS 本就挂起 App，无耗电；而 `onAppear` 回前台不保证重触发，停了起不来 |
 | 转圈的无障碍 | `reduceMotion` 时改用静态 `◌` 符号 | 设计规范 §2：色彩不是唯一指示，形状编码必须保留 |
@@ -412,18 +412,35 @@ isReconnecting: phase == .reconnecting
 
 ## 测试
 
-**ConnMonitorTests**（`MonitorScheduler` 的 `now` 已是可注入闭包，配 `MockSSHTransport`）
-- 有读数的主机首次传输失败后会立刻重试一次（`MockSSHTransport` 断言两次 exec）。
+**ConnMonitorTests**（`MonitorScheduler` 的 `now` 已是可注入闭包，配假 SSH 引擎；
+拆成「采集阶段与重试」`MonitorSchedulerTests` 和「采集时机与并发收敛」
+`MonitorSchedulerTimingTests` 两个套件，共用 `MonitorSchedulerTestSupport` 里的假引擎与 `Gate`）
+
+采集阶段与重试：
+- 有读数的主机首次传输失败后会立刻重试一次（断言两次 exec）。
 - 重试成功：不写 `errors`，读数被新结果覆盖。
 - 重试仍失败：写 `errors` 并清空 `metrics`。
+- **故障主机恢复采集成功后，`errors` 清空且读数写回**——`attempt` 成功路径里
+  `errors[host.id] = nil` 的证伪器，删掉那一行本测试会变红（其余测试均不受影响）。
 - 已判定故障的主机（`metrics` 为 nil）下一轮只尝试一次，不再双倍连接。
 - 首采失败（本就无读数）直接写 `errors`，不重试。
-- 池空且已有读数时 phase 为 `.reconnecting`；池非空时为 `.collecting`。
-- 首采（无读数）且池空时 phase 为 `.collecting` 而非 `.reconnecting`。
-- `metrics` 非空时 `startDashboard` 不跑 2s 预热轮（采集次数断言）。
-- 距上次采集 < 5s 时 `startDashboard` 不立即采集；`force: true` 时照采。
 - `stop()` 清空 `phases`。
-- `resumeAfterBackground(idleFor:)`：≤30s 不动作；>30s 驱逐会话并强制重采。
+- 池空且已有读数时 phase 为 `.reconnecting`；池非空（含首采）时为 `.collecting`，
+  用 `Gate` 把 exec 钉在采集进行中读取中间态。
+
+采集时机与并发收敛：
+- `metrics` 非空时 `startDashboard` 不跑 2s 预热轮；`metrics` 为空时预热轮确实触发
+  （立即一轮 + 2s 后再一轮），两个方向都覆盖，防止判据恒真/恒假两种变异都测不出来。
+- 已有基线时新增一台主机，新主机的预热轮仍照跑（判据必须逐主机而非看全局 `metrics.isEmpty`）。
+- 距上次采集 < 5s 时 `startDashboard` 不立即采集；有主机缺基线时不防抖；
+  **已判定故障的主机不触发预热轮，但防抖照常生效**——只看 `metrics` 会让防抖被
+  永久废掉的那条回归用例；`force: true` 时绕过防抖照采。
+- `resumeAfterBackground(idleFor:)`：≤30s 不动作；>30s 驱逐会话并强制重采；
+  **`stop()` 之后回前台完全 no-op**（不驱逐已有会话、不重新握手、不采集）——
+  `dashboardConfig` 不随 `stop()` 清空会让这条分支的 guard 恒真的回归用例。
+- 代次与 inFlight 的并发收敛：`stop()` 之后旧轮的写回一律作废（代次挡跨代的旧轮）；
+  同代第二轮采集（下拉刷新撞上轮询）让位给飞行中的那轮、不重复 exec、不重复握手
+  （`inFlight` 集合挡同代的并发轮）。
 
 **ConnSSHTests**
 - `hasPooledSession` 在握手前后与 `invalidate` 后的返回值。

@@ -313,9 +313,9 @@ struct MonitorSchedulerTimingTests {
         // 断言的是**不发生**的事件，没有因果信号可等，只能给一段够用的墙钟窗口。
         // 变异版（删掉 inFlight 判据）不涉及任何真实 I/O，300ms 足够它走到 exec 把计数顶到 2。
         try await Task.sleep(for: .milliseconds(300))
+        // 窗口期内 execs 仍是 1：正确实现下第二轮已经在 `collectOne` 顶部让位返回，
+        // 从未发起自己的 exec；变异版会在窗口内一路走到 exec 把计数顶到 2。
         #expect(await log.execs == 1)
-        // 正确实现下第二轮早已让位返回；变异版此刻还挂在闸门上。
-        #expect(pullToRefresh.isCancelled == false)
 
         await gate.open()
         await polling.value
