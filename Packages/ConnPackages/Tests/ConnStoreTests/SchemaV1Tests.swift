@@ -21,9 +21,9 @@ struct SchemaV1Tests {
             """)
         }
         #expect(tables == [
-            "app_setting", "host", "host_group", "known_host",
-            "metric_sample", "probe_target", "run_history", "snippet",
-            "snippet_folder", "snippet_folder_membership", "ssh_key"
+            "host", "host_group", "host_group_membership", "known_host",
+            "run_history", "snippet", "snippet_group",
+            "snippet_group_membership", "ssh_key"
         ])
     }
 
@@ -34,33 +34,6 @@ struct SchemaV1Tests {
         let second = try AppDatabase(queue) // 同一 writer 再跑一次迁移
         let count = try second.writer.read { try Int.fetchOne($0, sql: "SELECT COUNT(*) FROM host") }
         #expect(count == 0)
-    }
-
-    @Test("旧版单分组数据迁移为多分组关联，并保留首次出现顺序")
-    func migratesLegacySnippetFolders() throws {
-        let queue = try DatabaseQueue()
-        var legacyMigrator = DatabaseMigrator()
-        SchemaV1.register(in: &legacyMigrator)
-        SchemaV2.register(in: &legacyMigrator)
-        try legacyMigrator.migrate(queue)
-        try queue.write { db in
-            try db.execute(
-                sql: """
-                INSERT INTO snippet
-                (uuid, title, command, folder, sort_order, created_at, updated_at)
-                VALUES
-                ('a', '系统', 'a', '系统', 0, 1, 1),
-                ('b', '日志', 'b', '日志', 1, 2, 2)
-                """
-            )
-        }
-
-        let database = try AppDatabase(queue)
-        let store = SnippetStore(database: database)
-
-        #expect(try store.allFolders() == ["系统", "日志"])
-        #expect(try store.snippet(id: "a")?.folders == ["系统"])
-        #expect(try store.snippet(id: "b")?.folders == ["日志"])
     }
 
     @Test("host 表可写入并读回，字段无损")
@@ -93,30 +66,19 @@ struct SchemaV1Tests {
         #expect(raw?["tags"] == #"["p"]"#)
     }
 
-    @Test("metric_sample 主键为 (host_uuid, ts)，重复插入冲突")
-    func metricSampleCompositeKey() throws {
-        let db = try AppDatabase.inMemory()
-        let sql = """
-        INSERT INTO metric_sample
-        (host_uuid, ts, cpu, mem, load1, disk_used, disk_total, net_rx, net_tx)
-        VALUES (?,?,?,?,?,?,?,?,?)
-        """
-        try db.writer.write { database in
-            try database.execute(sql: sql, arguments: ["h1", 1000, 10.0, 20.0, 0.5, 100, 200, 0, 0])
-        }
-        #expect(throws: DatabaseError.self) {
-            try db.writer.write { database in
-                try database.execute(sql: sql, arguments: ["h1", 1000, 99.0, 20.0, 0.5, 100, 200, 0, 0])
-            }
-        }
-    }
-
-    @Test("外键约束开启：group_uuid 指向不存在的分组时拒绝写入")
+    @Test("外键约束开启：成员行指向不存在的分组时拒绝写入")
     func enforcesForeignKeys() throws {
         let db = try AppDatabase.inMemory()
-        let host = DomainHost(name: "a", address: "1", username: "r", groupUUID: "not-exist")
+        let host = DomainHost(name: "a", address: "1", username: "r")
+        try db.writer.write { try HostRecord(host).insert($0) }
+
         #expect(throws: DatabaseError.self) {
-            try db.writer.write { try HostRecord(host).insert($0) }
+            try db.writer.write { database in
+                try database.execute(
+                    sql: "INSERT INTO host_group_membership (host_uuid, group_uuid) VALUES (?, ?)",
+                    arguments: [host.id, "not-exist"]
+                )
+            }
         }
     }
 }

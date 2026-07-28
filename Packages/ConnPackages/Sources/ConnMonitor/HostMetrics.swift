@@ -4,8 +4,10 @@ import Foundation
 /// 一台主机一次采集的完整结果。
 ///
 /// CPU/内存/磁盘用可选：某项缺失（如首次采集 CPU 尚无差分、或 `/proc` 缺段）
-/// 时为 nil，UI 显示「—」而不是拿 0 冒充。`sample` 是落库用的定型样本
-/// （缺失项以 0 记入 `metric_sample`，仅供离线快照）。
+/// 时为 nil，UI 显示「—」而不是拿 0 冒充。
+///
+/// **指标不落库**：详情页趋势图用 `HostOverviewViewModel` 的内存数组，
+/// 离开页面即清空。
 ///
 /// 速率字段（net/io Rate）需相邻两次采样差分，用**服务器自身 uptime** 作时钟
 /// （免受客户端时钟漂移与网络延迟影响）；首采无基线时为 nil。
@@ -54,8 +56,6 @@ public struct HostMetrics: Sendable, Equatable {
     public let processes: [RemoteProcess]
     public let uptimeSeconds: Double?
     public let severity: MetricSeverity
-    /// 落库样本。
-    public let sample: MetricSample
 
     public init(
         hostID: String,
@@ -88,8 +88,7 @@ public struct HostMetrics: Sendable, Equatable {
         ioWriteRate: Double? = nil,
         processes: [RemoteProcess],
         uptimeSeconds: Double?,
-        severity: MetricSeverity,
-        sample: MetricSample
+        severity: MetricSeverity
     ) {
         self.hostID = hostID
         self.cpu = cpu
@@ -122,7 +121,6 @@ public struct HostMetrics: Sendable, Equatable {
         self.processes = processes
         self.uptimeSeconds = uptimeSeconds
         self.severity = severity
-        self.sample = sample
     }
 
     /// 本轮未采的段用上一份快照补齐——切走概览/进程段后仍以核心段轮询（顶部状态胶囊），
@@ -144,7 +142,7 @@ public struct HostMetrics: Sendable, Equatable {
             tcp: keepExtended ? previous.tcp : tcp,
             ioReadBytes: ioReadBytes, ioWriteBytes: ioWriteBytes, ioReadRate: ioReadRate, ioWriteRate: ioWriteRate,
             processes: keepProcesses ? previous.processes : processes,
-            uptimeSeconds: uptimeSeconds, severity: severity, sample: sample
+            uptimeSeconds: uptimeSeconds, severity: severity
         )
     }
 }

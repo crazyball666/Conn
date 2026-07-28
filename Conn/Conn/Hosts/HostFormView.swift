@@ -29,7 +29,8 @@ struct HostFormView: View {
             draft: initialDraft,
             editingHostID: editingHostID,
             hostStore: dependencies.hostRepository,
-            credentialStore: dependencies.credentialStore
+            credentialStore: dependencies.credentialStore,
+            groupStore: dependencies.hostGroupRepository
         ))
     }
 
@@ -40,6 +41,7 @@ struct HostFormView: View {
                 identitySection
                 connectionSection
                 authSection
+                groupSection
                 noteSection
                 testSection
             }
@@ -131,6 +133,53 @@ struct HostFormView: View {
             }
         }
         .listRowBackground(Color.connSurface)
+    }
+
+    @ViewBuilder
+    private var groupSection: some View {
+        Section {
+            if viewModel.availableGroups.isEmpty {
+                Text(L("还没有分组，先用右上角「+」新建。"))
+                    .font(.connFootnote)
+                    .foregroundStyle(.connMuted)
+                    .listRowBackground(Color.connSurface)
+            } else {
+                ForEach(viewModel.availableGroups) { group in
+                    Button {
+                        toggleGroup(group.id)
+                    } label: {
+                        HStack {
+                            Text(group.name)
+                                .foregroundStyle(.connInk)
+                            Spacer()
+                            Image(systemName: viewModel.draft.groupIDs.contains(group.id)
+                                ? "checkmark.circle.fill"
+                                : "circle")
+                                .foregroundStyle(viewModel.draft.groupIDs.contains(group.id)
+                                    ? Color.connAccent
+                                    : .secondary)
+                        }
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .listRowBackground(Color.connSurface)
+                }
+            }
+        } header: {
+            Text(L("分组"))
+        } footer: {
+            if !viewModel.availableGroups.isEmpty {
+                Text(L("可多选，也可以不选；不选时归为未分组。"))
+            }
+        }
+    }
+
+    private func toggleGroup(_ groupID: String) {
+        if let index = viewModel.draft.groupIDs.firstIndex(of: groupID) {
+            viewModel.draft.groupIDs.remove(at: index)
+        } else {
+            viewModel.draft.groupIDs.append(groupID)
+        }
     }
 
     private var noteSection: some View {

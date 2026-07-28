@@ -11,10 +11,25 @@ final class KeyManagerViewModel {
 
     private let keyStore: any SSHKeyRepository
     private let credentialStore: any CredentialStore
+    private let hostStore: any HostRepository
 
-    init(keyStore: any SSHKeyRepository, credentialStore: any CredentialStore) {
+    init(
+        keyStore: any SSHKeyRepository,
+        credentialStore: any CredentialStore,
+        hostStore: any HostRepository
+    ) {
         self.keyStore = keyStore
         self.credentialStore = credentialStore
+        self.hostStore = hostStore
+    }
+
+    /// 正在使用该密钥的主机台数。
+    ///
+    /// 删除前提示用——`host.key_uuid` 的外键是 `ON DELETE SET NULL`，
+    /// 改真删除后它第一次会真正触发：删掉密钥会把这些主机的认证方式静默清空，
+    /// 用户下次连接才会发现连不上且看不出原因。
+    func hostCount(using key: SSHKey) -> Int {
+        ((try? hostStore.allHosts()) ?? []).count { $0.keyUUID == key.id }
     }
 
     func load() {
@@ -47,7 +62,7 @@ final class KeyManagerViewModel {
     }
 
     func delete(_ key: SSHKey) {
-        try? keyStore.softDelete(id: key.id)
+        try? keyStore.delete(id: key.id)
         try? credentialStore.setPrivateKey(nil, forKey: key.id)
         load()
     }

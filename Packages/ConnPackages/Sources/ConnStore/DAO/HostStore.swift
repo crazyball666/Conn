@@ -13,42 +13,73 @@ public struct HostStore: HostRepository {
     /// 插入或整体覆盖一台主机。
     ///
     /// 会自动刷新 `updatedAt` 并置 `syncDirty`，供 v1.1 的同步引擎消费。
+    ///
+    /// **先写实体记录再写成员行**——外键要求两端实体已存在。
+    /// 库中不存在的 group id 会被静默丢弃（分组被删是良性竞态），
+    /// 否则外键违例会打掉整个保存事务。
     public func save(_ host: ConnKit.Host) throws {
         var updated = host
         updated.updatedAt = Timestamp.now()
         updated.syncDirty = true
-        try database.writer.write { try HostRecord(updated).save($0) }
+        try database.writer.write { db in
+            try HostRecord(updated).save(db)
+            try db.execute(
+                sql: "DELETE FROM host_group_membership WHERE host_uuid = ?",
+                arguments: [updated.id]
+            )
+            var seen = Set<String>()
+            for groupID in updated.groupIDs where seen.insert(groupID).inserted {
+                let exists = try Bool.fetchOne(
+                    db,
+                    sql: "SELECT EXISTS(SELECT 1 FROM host_group WHERE uuid = ?)",
+                    arguments: [groupID]
+                ) ?? false
+                guard exists else { continue }
+                try db.execute(
+                    sql: "INSERT INTO host_group_membership (host_uuid, group_uuid) VALUES (?, ?)",
+                    arguments: [updated.id, groupID]
+                )
+            }
+        }
     }
 
-    /// 全部未删除的主机，按 `sortOrder` 再按名称排序。
+    /// 全部主机，按 `sortOrder` 再按名称排序。
     public func allHosts() throws -> [ConnKit.Host] {
         try database.writer.read { db in
             try HostRecord
-                .filter(sql: "deleted_at IS NULL")
                 .order(sql: "sort_order ASC, name ASC")
                 .fetchAll(db)
-                .map { $0.toDomain() }
+                .map { try $0.toDomain(groupIDs: groupIDs(for: $0.uuid, in: db)) }
         }
     }
 
-    /// 按 id 取一台主机。已软删除的返回 nil。
+    /// 按 id 取一台主机。
     public func host(id: String) throws -> ConnKit.Host? {
         try database.writer.read { db in
-            try HostRecord.fetchOne(db, key: id).flatMap { $0.deletedAt == nil ? $0.toDomain() : nil }
+            guard let record = try HostRecord.fetchOne(db, key: id) else { return nil }
+            return try record.toDomain(groupIDs: groupIDs(for: record.uuid, in: db))
         }
     }
 
-    /// 软删除（写墓碑），30 天后由清理任务物理删除。
-    ///
-    /// 不做物理删除是为了让 v1.1 的 iCloud 同步能把删除操作传播到其他设备；
-    /// 直接 DELETE 会导致其他设备把该主机当作「本地新增」重新同步回来。
-    public func softDelete(id: String) throws {
-        let now = Timestamp.now()
+    /// 某主机所属分组的 id，按分组自身的排序权重返回。
+    private func groupIDs(for hostID: String, in db: Database) throws -> [String] {
+        try String.fetchAll(
+            db,
+            sql: """
+            SELECT membership.group_uuid
+            FROM host_group_membership AS membership
+            JOIN host_group AS grp ON grp.uuid = membership.group_uuid
+            WHERE membership.host_uuid = ?
+            ORDER BY grp.sort_order ASC, grp.name COLLATE NOCASE
+            """,
+            arguments: [hostID]
+        )
+    }
+
+    /// 删除（真 DELETE，不可恢复）。
+    public func delete(id: String) throws {
         try database.writer.write { db in
-            try db.execute(
-                sql: "UPDATE host SET deleted_at = ?, sync_dirty = 1, updated_at = ? WHERE uuid = ?",
-                arguments: [now, now, id]
-            )
+            try db.execute(sql: "DELETE FROM host WHERE uuid = ?", arguments: [id])
         }
     }
 }

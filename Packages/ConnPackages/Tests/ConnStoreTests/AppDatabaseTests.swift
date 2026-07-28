@@ -21,7 +21,10 @@ struct AppDatabaseTests {
 
         let database = try AppDatabase.onDisk(at: dbURL)
         try database.writer.write { db in
-            try db.execute(sql: "INSERT INTO app_setting (key, value) VALUES ('theme', 'dark')")
+            try db.execute(sql: """
+            INSERT INTO host_group (uuid, name, sort_order, created_at, updated_at)
+            VALUES ('g1', '生产', 0, 1, 1)
+            """)
         }
 
         #expect(FileManager.default.fileExists(atPath: dbURL.path))
@@ -29,9 +32,9 @@ struct AppDatabaseTests {
         // 重开同一文件，确认数据真的落盘且迁移幂等
         let reopened = try AppDatabase.onDisk(at: dbURL)
         let value = try reopened.writer.read { db in
-            try String.fetchOne(db, sql: "SELECT value FROM app_setting WHERE key = 'theme'")
+            try String.fetchOne(db, sql: "SELECT name FROM host_group WHERE uuid = 'g1'")
         }
-        #expect(value == "dark")
+        #expect(value == "生产")
     }
 
     @Test("外键约束在配置中已开启")

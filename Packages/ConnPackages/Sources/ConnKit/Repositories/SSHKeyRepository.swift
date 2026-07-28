@@ -5,5 +5,5 @@ public protocol SSHKeyRepository: Sendable {
     func allKeys() throws -> [SSHKey]
     func key(id: String) throws -> SSHKey?
     func save(_ key: SSHKey) throws
-    func softDelete(id: String) throws
+    func delete(id: String) throws
 }

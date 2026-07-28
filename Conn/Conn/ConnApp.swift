@@ -136,21 +136,22 @@ struct ConnApp: App {
 @MainActor
 struct AppDependencies {
     let hostRepository: any HostRepository
-    let groupRepository: any HostGroupRepository
+    /// 主机分组仓库。与 `snippetGroupRepository`（命令分组）同构。
+    let hostGroupRepository: any HostGroupRepository
     let keyRepository: any SSHKeyRepository
     let credentialStore: any CredentialStore
     /// 连接池管理器。主机详情、监控采集、Docker/日志、片段执行都经它取会话。
     let connectionManager: ConnectionManager
     /// 连接测试用的传输层（与 connectionManager 同引擎，供诊断树直接调用）。
     let diagnosticsTransport: any SSHTransport
-    /// 指标时序仓库（Phase 7）。离线快照 + 48h 原始样本。
-    let metricStore: any MetricRepository
     /// 监控采集调度（Phase 7）。仪表盘 30s / 详情 3s。
     let monitor: MonitorScheduler
     /// 执行审计仓库（Phase 8/9）。容器启停、片段执行写入。
     let runHistory: any RunHistoryRepository
     /// 片段仓库（Phase 9）。首启导入内置模板库。
     let snippetRepository: any SnippetRepository
+    /// 命令分组仓库。与 `hostGroupRepository`（主机分组）同构。
+    let snippetGroupRepository: any SnippetGroupRepository
     /// 应用锁。默认关闭，设置页开启（Phase 5）。
     let appLock: AppLockController
 
@@ -172,26 +173,24 @@ struct AppDependencies {
                 return .password(password)
             }
 
-            // 监控栈：指标仓库 + 采集调度。启动时清理超 48h 的原始样本。
-            let metricStore = MetricStore(database: database)
-            let cutoff = Timestamp.now() - 48 * 3600 * 1000
-            try? metricStore.pruneSamples(olderThan: cutoff)
-            let monitor = MonitorScheduler(connectionManager: connectionManager, store: metricStore)
+            // 监控栈：采集调度。指标为纯内存态，不落库。
+            let monitor = MonitorScheduler(connectionManager: connectionManager)
 
             let snippetStore = SnippetStore(database: database)
-            try importBuiltinSnippetsIfNeeded(snippetStore)
+            let snippetGroupStore = SnippetGroupStore(database: database)
+            try importBuiltinSnippetsIfNeeded(snippetStore, snippetGroupStore)
 
             return AppDependencies(
                 hostRepository: hostStore,
-                groupRepository: groupStore,
+                hostGroupRepository: groupStore,
                 keyRepository: keyStore,
                 credentialStore: credentialStore,
                 connectionManager: connectionManager,
                 diagnosticsTransport: transport,
-                metricStore: metricStore,
                 monitor: monitor,
                 runHistory: RunHistoryStore(database: database),
                 snippetRepository: snippetStore,
+                snippetGroupRepository: snippetGroupStore,
                 appLock: AppLockController(
                     authenticator: LABiometricAuthenticator(),
                     // 设置页持久化的开关；DEBUG 冒烟可强制开启验证锁屏。
@@ -216,27 +215,27 @@ struct AppDependencies {
             let hostStore = HostStore(database: database)
             let groupStore = HostGroupStore(database: database)
             let keyStore = SSHKeyStore(database: database)
-            try DemoData.seedHosts(into: hostStore)
+            try DemoData.seedHosts(into: hostStore, groups: groupStore)
 
             let transport = MockSSHTransport(behavior: DemoData.behavior())
             let credentialStore = InMemoryCredentialStore()
             let connectionManager = ConnectionManager(transport: transport) { _ in .password("demo") }
-            let metricStore = MetricStore(database: database)
-            let monitor = MonitorScheduler(connectionManager: connectionManager, store: metricStore)
+            let monitor = MonitorScheduler(connectionManager: connectionManager)
             let snippetStore = SnippetStore(database: database)
-            try importBuiltinSnippetsIfNeeded(snippetStore)
+            let snippetGroupStore = SnippetGroupStore(database: database)
+            try importBuiltinSnippetsIfNeeded(snippetStore, snippetGroupStore)
 
             return AppDependencies(
                 hostRepository: hostStore,
-                groupRepository: groupStore,
+                hostGroupRepository: groupStore,
                 keyRepository: keyStore,
                 credentialStore: credentialStore,
                 connectionManager: connectionManager,
                 diagnosticsTransport: transport,
-                metricStore: metricStore,
                 monitor: monitor,
                 runHistory: RunHistoryStore(database: database),
                 snippetRepository: snippetStore,
+                snippetGroupRepository: snippetGroupStore,
                 appLock: AppLockController(authenticator: LABiometricAuthenticator(), isEnabled: false)
             )
         } catch {
@@ -252,7 +251,17 @@ struct AppDependencies {
     }
 
     /// 仅首次启动时把内置 JSON 中的分组和命令写入数据库。
-    private static func importBuiltinSnippetsIfNeeded(_ store: SnippetStore) throws {
-        try BuiltinSnippets.importIfNeeded(into: store)
+    /// 首启导入内置命令库。
+    ///
+    /// 用 UserDefaults 标记而非数据行数——改真删除后墓碑不存在，
+    /// 数行数会把「用户删光默认命令」误判为「从未导入」并重新灌回去。
+    private static func importBuiltinSnippetsIfNeeded(
+        _ store: SnippetStore,
+        _ groups: SnippetGroupStore
+    ) throws {
+        let defaults = UserDefaults.standard
+        guard !defaults.bool(forKey: SettingsStore.builtinSnippetsImportedKey) else { return }
+        try BuiltinSnippets.importIfNeeded(into: store, groups: groups)
+        defaults.set(true, forKey: SettingsStore.builtinSnippetsImportedKey)
     }
 }

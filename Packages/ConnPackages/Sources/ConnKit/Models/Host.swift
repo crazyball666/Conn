@@ -40,7 +40,8 @@ public struct Host: Identifiable, Codable, Sendable, Equatable, Hashable {
     public var keyUUID: String?
     /// 跳板链，按连接顺序排列的 `Host.id`（A→B→C）。
     public var jumpChain: [String]
-    public var groupUUID: String?
+    /// 所属分组的 `HostGroup.id`。允许为空，也允许同时属于多个分组。
+    public var groupIDs: [String]
     public var tags: [String]
     public var icon: String?
     public var color: String?
@@ -54,8 +55,6 @@ public struct Host: Identifiable, Codable, Sendable, Equatable, Hashable {
     public var updatedAt: Int64
     /// 同步引擎用的脏标记。v1.0 只写不读，v1.1 ConnSync 消费。
     public var syncDirty: Bool
-    /// 墓碑时间戳。非 nil 表示已删除，30 天后物理清除。
-    public var deletedAt: Int64?
 
     public init(
         id: String = UUID().uuidString,
@@ -67,7 +66,7 @@ public struct Host: Identifiable, Codable, Sendable, Equatable, Hashable {
         credentialRef: String? = nil,
         keyUUID: String? = nil,
         jumpChain: [String] = [],
-        groupUUID: String? = nil,
+        groupIDs: [String] = [],
         tags: [String] = [],
         icon: String? = nil,
         color: String? = nil,
@@ -77,8 +76,7 @@ public struct Host: Identifiable, Codable, Sendable, Equatable, Hashable {
         status: HealthStatus = .unknown,
         createdAt: Int64 = Timestamp.now(),
         updatedAt: Int64? = nil,
-        syncDirty: Bool = false,
-        deletedAt: Int64? = nil
+        syncDirty: Bool = false
     ) {
         self.id = id
         self.name = name
@@ -89,7 +87,7 @@ public struct Host: Identifiable, Codable, Sendable, Equatable, Hashable {
         self.credentialRef = credentialRef
         self.keyUUID = keyUUID
         self.jumpChain = jumpChain
-        self.groupUUID = groupUUID
+        self.groupIDs = groupIDs
         self.tags = tags
         self.icon = icon
         self.color = color
@@ -100,7 +98,6 @@ public struct Host: Identifiable, Codable, Sendable, Equatable, Hashable {
         self.createdAt = createdAt
         self.updatedAt = updatedAt ?? createdAt
         self.syncDirty = syncDirty
-        self.deletedAt = deletedAt
     }
 
     /// `user@address` 或 `user@address:port`（标准 22 端口省略）。

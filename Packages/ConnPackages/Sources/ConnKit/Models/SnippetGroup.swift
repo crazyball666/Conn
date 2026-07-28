@@ -1,7 +1,10 @@
 import Foundation
 
-/// 主机分组（按项目/环境组织，如「生产」「测试」）。
-public struct HostGroup: Identifiable, Codable, Sendable, Equatable {
+/// 命令分组。
+///
+/// 与 `HostGroup` 同构：uuid 主键，因此重命名只改一行 `name`，
+/// 成员关系纹丝不动；同名分组也不会互相撞车。
+public struct SnippetGroup: Identifiable, Codable, Sendable, Equatable {
     public let id: String
     public var name: String
     public var sortOrder: Int

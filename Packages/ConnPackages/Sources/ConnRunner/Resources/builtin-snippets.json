@@ -1,32 +1,171 @@
 {
-  "folders": ["系统", "磁盘", "网络", "日志", "Docker", "服务"],
+  "groups": [
+    "系统",
+    "磁盘",
+    "网络",
+    "日志",
+    "Docker",
+    "服务"
+  ],
   "commands": [
-    { "title": "系统概览", "command": "uname -a; echo; uptime; echo; free -h", "folders": ["系统"], "pinned": true },
-    { "title": "内存占用 Top 10", "command": "ps -eo pid,comm,pmem --sort=-pmem | head -11", "folders": ["系统"] },
-    { "title": "CPU 占用 Top 10", "command": "ps -eo pid,comm,pcpu --sort=-pcpu | head -11", "folders": ["系统"] },
-    { "title": "登录用户与负载", "command": "who; echo; cat /proc/loadavg", "folders": ["系统"] },
-
-    { "title": "磁盘使用", "command": "df -h", "folders": ["磁盘"], "pinned": true },
-    { "title": "inode 使用", "command": "df -i", "folders": ["磁盘"] },
-    { "title": "大目录 Top 20", "command": "du -h --max-depth=1 {{path:/}} 2>/dev/null | sort -rh | head -20", "folders": ["磁盘"] },
-    { "title": "大文件定位", "command": "find {{path:/var}} -type f -size +{{size:100M}} -exec ls -lh {} \\; 2>/dev/null", "folders": ["磁盘"] },
-    { "title": "清理 30 天前日志文件", "command": "find {{path:/var/log}} -type f -name '*.log' -mtime +{{days:30}} -delete", "folders": ["磁盘"], "danger": true },
-
-    { "title": "监听端口", "command": "ss -tulnp", "folders": ["网络"], "pinned": true },
-    { "title": "占用某端口的进程", "command": "ss -tulnp | grep :{{port:80}} || lsof -i :{{port:80}} 2>/dev/null", "folders": ["网络"] },
-    { "title": "连通性测试", "command": "ping -c 4 {{host:8.8.8.8}}", "folders": ["网络"] },
-    { "title": "出口公网 IP", "command": "curl -s ifconfig.me; echo", "folders": ["网络"] },
-    { "title": "连接统计", "command": "ss -s", "folders": ["网络"] },
-
-    { "title": "系统日志尾部", "command": "journalctl -n 100 --no-pager", "folders": ["日志"] },
-    { "title": "某服务日志", "command": "journalctl -u {{unit:nginx}} -n 100 --no-pager", "folders": ["日志"] },
-    { "title": "内核消息", "command": "dmesg | tail -50", "folders": ["日志"] },
-
-    { "title": "容器列表", "command": "docker ps -a", "folders": ["Docker"] },
-    { "title": "容器资源占用", "command": "docker stats --no-stream", "folders": ["Docker"] },
-    { "title": "清理无用镜像", "command": "docker image prune -f", "folders": ["Docker"], "danger": true },
-
-    { "title": "服务状态", "command": "systemctl status {{unit:nginx}} --no-pager", "folders": ["服务"] },
-    { "title": "重启服务", "command": "systemctl restart {{unit:nginx}}", "folders": ["服务"] }
+    {
+      "title": "系统概览",
+      "command": "uname -a; echo; uptime; echo; free -h",
+      "pinned": true,
+      "groups": [
+        "系统"
+      ]
+    },
+    {
+      "title": "内存占用 Top 10",
+      "command": "ps -eo pid,comm,pmem --sort=-pmem | head -11",
+      "groups": [
+        "系统"
+      ]
+    },
+    {
+      "title": "CPU 占用 Top 10",
+      "command": "ps -eo pid,comm,pcpu --sort=-pcpu | head -11",
+      "groups": [
+        "系统"
+      ]
+    },
+    {
+      "title": "登录用户与负载",
+      "command": "who; echo; cat /proc/loadavg",
+      "groups": [
+        "系统"
+      ]
+    },
+    {
+      "title": "磁盘使用",
+      "command": "df -h",
+      "pinned": true,
+      "groups": [
+        "磁盘"
+      ]
+    },
+    {
+      "title": "inode 使用",
+      "command": "df -i",
+      "groups": [
+        "磁盘"
+      ]
+    },
+    {
+      "title": "大目录 Top 20",
+      "command": "du -h --max-depth=1 {{path:/}} 2>/dev/null | sort -rh | head -20",
+      "groups": [
+        "磁盘"
+      ]
+    },
+    {
+      "title": "大文件定位",
+      "command": "find {{path:/var}} -type f -size +{{size:100M}} -exec ls -lh {} \\; 2>/dev/null",
+      "groups": [
+        "磁盘"
+      ]
+    },
+    {
+      "title": "清理 30 天前日志文件",
+      "command": "find {{path:/var/log}} -type f -name '*.log' -mtime +{{days:30}} -delete",
+      "danger": true,
+      "groups": [
+        "磁盘"
+      ]
+    },
+    {
+      "title": "监听端口",
+      "command": "ss -tulnp",
+      "pinned": true,
+      "groups": [
+        "网络"
+      ]
+    },
+    {
+      "title": "占用某端口的进程",
+      "command": "ss -tulnp | grep :{{port:80}} || lsof -i :{{port:80}} 2>/dev/null",
+      "groups": [
+        "网络"
+      ]
+    },
+    {
+      "title": "连通性测试",
+      "command": "ping -c 4 {{host:8.8.8.8}}",
+      "groups": [
+        "网络"
+      ]
+    },
+    {
+      "title": "出口公网 IP",
+      "command": "curl -s ifconfig.me; echo",
+      "groups": [
+        "网络"
+      ]
+    },
+    {
+      "title": "连接统计",
+      "command": "ss -s",
+      "groups": [
+        "网络"
+      ]
+    },
+    {
+      "title": "系统日志尾部",
+      "command": "journalctl -n 100 --no-pager",
+      "groups": [
+        "日志"
+      ]
+    },
+    {
+      "title": "某服务日志",
+      "command": "journalctl -u {{unit:nginx}} -n 100 --no-pager",
+      "groups": [
+        "日志"
+      ]
+    },
+    {
+      "title": "内核消息",
+      "command": "dmesg | tail -50",
+      "groups": [
+        "日志"
+      ]
+    },
+    {
+      "title": "容器列表",
+      "command": "docker ps -a",
+      "groups": [
+        "Docker"
+      ]
+    },
+    {
+      "title": "容器资源占用",
+      "command": "docker stats --no-stream",
+      "groups": [
+        "Docker"
+      ]
+    },
+    {
+      "title": "清理无用镜像",
+      "command": "docker image prune -f",
+      "danger": true,
+      "groups": [
+        "Docker"
+      ]
+    },
+    {
+      "title": "服务状态",
+      "command": "systemctl status {{unit:nginx}} --no-pager",
+      "groups": [
+        "服务"
+      ]
+    },
+    {
+      "title": "重启服务",
+      "command": "systemctl restart {{unit:nginx}}",
+      "groups": [
+        "服务"
+      ]
+    }
   ]
 }

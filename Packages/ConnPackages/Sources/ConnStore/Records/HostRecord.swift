@@ -17,7 +17,6 @@ struct HostRecord: Codable, FetchableRecord, PersistableRecord, Sendable {
     var credentialRef: String?
     var keyUUID: String?
     var jumpChain: String // JSON 数组
-    var groupUUID: String?
     var tags: String // JSON 数组
     var icon: String?
     var color: String?
@@ -28,7 +27,6 @@ struct HostRecord: Codable, FetchableRecord, PersistableRecord, Sendable {
     var createdAt: Int64
     var updatedAt: Int64
     var syncDirty: Bool
-    var deletedAt: Int64?
 
     enum CodingKeys: String, CodingKey {
         case uuid, name, address, port, username, icon, color, note, status, tags
@@ -36,13 +34,11 @@ struct HostRecord: Codable, FetchableRecord, PersistableRecord, Sendable {
         case credentialRef = "credential_ref"
         case keyUUID = "key_uuid"
         case jumpChain = "jump_chain"
-        case groupUUID = "group_uuid"
         case expireAt = "expire_at"
         case sortOrder = "sort_order"
         case createdAt = "created_at"
         case updatedAt = "updated_at"
         case syncDirty = "sync_dirty"
-        case deletedAt = "deleted_at"
     }
 }
 
@@ -57,7 +53,6 @@ extension HostRecord {
         credentialRef = host.credentialRef
         keyUUID = host.keyUUID
         jumpChain = Self.encodeJSON(host.jumpChain)
-        groupUUID = host.groupUUID
         tags = Self.encodeJSON(host.tags)
         icon = host.icon
         color = host.color
@@ -68,10 +63,9 @@ extension HostRecord {
         createdAt = host.createdAt
         updatedAt = host.updatedAt
         syncDirty = host.syncDirty
-        deletedAt = host.deletedAt
     }
 
-    func toDomain() -> DomainHost {
+    func toDomain(groupIDs: [String] = []) -> DomainHost {
         DomainHost(
             id: uuid,
             name: name,
@@ -82,7 +76,7 @@ extension HostRecord {
             credentialRef: credentialRef,
             keyUUID: keyUUID,
             jumpChain: Self.decodeJSON(jumpChain),
-            groupUUID: groupUUID,
+            groupIDs: groupIDs,
             tags: Self.decodeJSON(tags),
             icon: icon,
             color: color,
@@ -92,8 +86,7 @@ extension HostRecord {
             status: DomainHost.HealthStatus(rawValue: status) ?? .unknown,
             createdAt: createdAt,
             updatedAt: updatedAt,
-            syncDirty: syncDirty,
-            deletedAt: deletedAt
+            syncDirty: syncDirty
         )
     }
 

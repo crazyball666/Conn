@@ -24,19 +24,16 @@ public final class MonitorScheduler {
 
     private let connectionManager: ConnectionManager
     private let collector: MetricCollector
-    private let store: (any MetricRepository)?
     private let now: () -> Date
     private var task: Task<Void, Never>?
 
     public init(
         connectionManager: ConnectionManager,
         collector: MetricCollector = MetricCollector(),
-        store: (any MetricRepository)? = nil,
         now: @escaping () -> Date = Date.init
     ) {
         self.connectionManager = connectionManager
         self.collector = collector
-        self.store = store
         self.now = now
     }
 
@@ -127,11 +124,6 @@ public final class MonitorScheduler {
                 metrics[host.id], keepExtended: !includeExtended, keepProcesses: !includeProcesses
             )
             errors[host.id] = nil
-            // #18：首采 CPU 尚无差分(nil)，此时 sample.cpu 是占位 0，不落库以免污染历史。
-            if let store, result.cpu != nil {
-                let sample = result.sample
-                Task.detached(priority: .utility) { try? store.record(sample) }
-            }
         } catch {
             errors[host.id] = error.friendlyDiagnosis
             // #1：清掉过期实时指标，主机立即显示离线/未知，而不是一直挂着旧的绿色读数。

@@ -7,11 +7,13 @@ struct KeyManagerView: View {
     @State private var viewModel: KeyManagerViewModel
     @State private var showGenerate = false
     @State private var newKeyName = ""
+    @State private var pendingDelete: SSHKey?
 
     init(dependencies: AppDependencies) {
         _viewModel = State(initialValue: KeyManagerViewModel(
             keyStore: dependencies.keyRepository,
-            credentialStore: dependencies.credentialStore
+            credentialStore: dependencies.credentialStore,
+            hostStore: dependencies.hostRepository
         ))
     }
 
@@ -40,6 +42,28 @@ struct KeyManagerView: View {
             Button(L("取消"), role: .cancel) { newKeyName = "" }
         } message: {
             Text(L("Ed25519 在所有现代与旧版服务器上都可用，是推荐的默认密钥类型。"))
+        }
+        .alert(
+            L("删除密钥"),
+            isPresented: Binding(get: { pendingDelete != nil }, set: { if !$0 { pendingDelete = nil } }),
+            presenting: pendingDelete
+        ) { key in
+            Button(L("删除"), role: .destructive) {
+                viewModel.delete(key)
+                pendingDelete = nil
+            }
+            Button(L("取消"), role: .cancel) { pendingDelete = nil }
+        } message: { key in
+            // 删除会经外键把这些主机的 key_uuid 置空，必须先告知台数。
+            let count = viewModel.hostCount(using: key)
+            if count > 0 {
+                Text(String(
+                    format: L("%d 台主机正在使用此密钥，删除后这些主机需要重新选择认证方式。"),
+                    count
+                ))
+            } else {
+                Text(L("密钥将被永久删除，无法恢复。"))
+            }
         }
     }
 
@@ -71,7 +95,7 @@ struct KeyManagerView: View {
                     Button(L("复制公钥")) {
                         UIPasteboard.general.string = viewModel.publicKey(for: key)
                     }
-                    Button(L("删除"), role: .destructive) { viewModel.delete(key) }
+                    Button(L("删除"), role: .destructive) { pendingDelete = key }
                 }
                 .padding(.horizontal, ConnSpacing.page)
             }

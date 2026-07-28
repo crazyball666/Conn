@@ -6,6 +6,7 @@ import Observation
 enum SnippetListFilter: Hashable {
     case favorites
     case all
+    /// 载荷是 `SnippetGroup.id`——按 id 而非名称关联，重命名分组不影响筛选。
     case group(String)
 }
 
@@ -14,20 +15,22 @@ enum SnippetListFilter: Hashable {
 @MainActor
 final class SnippetsViewModel {
     private(set) var snippets: [Snippet] = []
-    private(set) var groups: [String] = []
+    private(set) var groups: [SnippetGroup] = []
     var searchText = ""
-    var errorMessage: String?
+    private(set) var errorMessage: String?
 
     private let store: any SnippetRepository
+    private let groupStore: any SnippetGroupRepository
 
-    init(store: any SnippetRepository) {
+    init(store: any SnippetRepository, groupStore: any SnippetGroupRepository) {
         self.store = store
+        self.groupStore = groupStore
     }
 
     func load() {
         do {
             snippets = try store.allSnippets()
-            groups = try store.allFolders()
+            groups = try groupStore.allGroups()
             errorMessage = nil
         } catch {
             errorMessage = String(format: L("读取片段失败：%@"), error.friendlyDiagnosis)
@@ -50,18 +53,18 @@ final class SnippetsViewModel {
             searchResults.filter(\.pinned)
         case .all:
             searchResults
-        case let .group(name):
-            searchResults.filter { $0.folders.contains(name) }
+        case let .group(id):
+            searchResults.filter { $0.groupIDs.contains(id) }
         }
     }
 
-    func commandCount(in group: String) -> Int {
-        snippets.count { $0.folders.contains(group) }
+    func commandCount(in groupID: String) -> Int {
+        snippets.count { $0.groupIDs.contains(groupID) }
     }
 
-    var filteredGroups: [String] {
+    var filteredGroups: [SnippetGroup] {
         guard !searchText.isEmpty else { return groups }
-        return groups.filter { $0.localizedCaseInsensitiveContains(searchText) }
+        return groups.filter { $0.name.localizedCaseInsensitiveContains(searchText) }
     }
 
     func save(_ snippet: Snippet) {
@@ -78,28 +81,54 @@ final class SnippetsViewModel {
     }
 
     func delete(_ snippet: Snippet) {
-        try? store.softDelete(id: snippet.id)
+        try? store.delete(id: snippet.id)
         load()
     }
 
+    // MARK: - 分组
+
     func addGroup(_ name: String) {
-        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return }
         do {
-            try store.saveFolder(trimmed)
-            groups = try store.allFolders()
+            let trimmed = try GroupListEditor.validate(name: name, against: groups.map(\.name))
+            try groupStore.save(SnippetGroup(
+                name: trimmed,
+                sortOrder: GroupListEditor.nextSortOrder(after: groups.map(\.sortOrder))
+            ))
+            groups = try groupStore.allGroups()
             errorMessage = nil
+        } catch let failure as GroupListEditor.Failure {
+            errorMessage = failure.message
         } catch {
             errorMessage = String(format: L("保存失败：%@"), error.friendlyDiagnosis)
         }
     }
 
-    func deleteGroup(_ name: String) {
+    func renameGroup(id: String, to name: String) {
+        guard var group = groups.first(where: { $0.id == id }) else { return }
         do {
-            try store.deleteFolder(name)
+            let others = groups.filter { $0.id != id }.map(\.name)
+            group.name = try GroupListEditor.validate(name: name, against: others)
+            try groupStore.save(group)
+            groups = try groupStore.allGroups()
+            errorMessage = nil
+        } catch let failure as GroupListEditor.Failure {
+            errorMessage = failure.message
+        } catch {
+            errorMessage = String(format: L("保存失败：%@"), error.friendlyDiagnosis)
+        }
+    }
+
+    /// 删除分组只解除归属，命令本身不受影响（成员行由外键级联清理）。
+    func deleteGroup(id: String) {
+        do {
+            try groupStore.delete(id: id)
             load()
         } catch {
             errorMessage = String(format: L("保存失败：%@"), error.friendlyDiagnosis)
         }
+    }
+
+    func clearError() {
+        errorMessage = nil
     }
 }

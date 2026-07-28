@@ -72,16 +72,6 @@ public actor MetricCollector {
         let interfaces = buildInterfaces(host: host, parsed: parsed)
 
         let diskPercent = parsed.diskPercent
-        let sample = MetricSample(
-            hostUUID: host.id,
-            cpu: cpuUsage ?? 0,
-            mem: parsed.memPercent ?? 0,
-            load1: parsed.load1 ?? 0,
-            diskUsed: parsed.diskUsedBytes ?? 0,
-            diskTotal: parsed.diskTotalBytes ?? 0,
-            netRx: parsed.netRxBytes ?? 0,
-            netTx: parsed.netTxBytes ?? 0
-        )
         return HostMetrics(
             hostID: host.id,
             cpu: cpuUsage,
@@ -113,8 +103,7 @@ public actor MetricCollector {
             ioWriteRate: rates.ioWrite,
             processes: parsed.processes,
             uptimeSeconds: parsed.uptimeSeconds,
-            severity: HealthEvaluator.severity(cpu: cpuUsage, mem: parsed.memPercent, disk: diskPercent),
-            sample: sample
+            severity: HealthEvaluator.severity(cpu: cpuUsage, mem: parsed.memPercent, disk: diskPercent)
         )
     }
 

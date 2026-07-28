@@ -8,11 +8,6 @@ private struct SnippetFormRequest: Identifiable {
     let snippet: Snippet?
 }
 
-private struct GroupDeleteRequest: Identifiable {
-    let name: String
-    var id: String { name }
-}
-
 private enum SnippetsPage: String, CaseIterable, Identifiable {
     case commands = "命令"
     case groups = "分组"
@@ -30,12 +25,16 @@ struct SnippetsView: View {
     @State private var isHistoryPresented = false
     @State private var isGroupPromptPresented = false
     @State private var newGroupName = ""
-    @State private var groupDeleteRequest: GroupDeleteRequest?
+    @State private var groupDeleteRequest: GroupEditRequest?
+    @State private var renameTarget: GroupEditRequest?
     private let dependencies: AppDependencies
 
     init(dependencies: AppDependencies) {
         self.dependencies = dependencies
-        _viewModel = State(initialValue: SnippetsViewModel(store: dependencies.snippetRepository))
+        _viewModel = State(initialValue: SnippetsViewModel(
+            store: dependencies.snippetRepository,
+            groupStore: dependencies.snippetGroupRepository
+        ))
     }
 
     var body: some View {
@@ -92,33 +91,25 @@ struct SnippetsView: View {
                 }
                 .presentationDragIndicator(.visible)
             }
-            .alert(L("新增分组"), isPresented: $isGroupPromptPresented) {
-                TextField(L("分组名称"), text: $newGroupName)
-                Button(L("取消"), role: .cancel) {}
-                Button(L("保存")) {
-                    viewModel.addGroup(newGroupName)
-                }
-                .disabled(newGroupName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-            }
-            .confirmationDialog(
-                L("删除分组"),
-                isPresented: isGroupDeleteConfirmationPresented,
-                titleVisibility: .visible
-            ) {
-                Button(L("删除"), role: .destructive) {
-                    guard let request = groupDeleteRequest else { return }
-                    if selectedFilter == .group(request.name) {
-                        selectedFilter = .all
+            .groupManagementAlerts(
+                isNewGroupPresented: $isGroupPromptPresented,
+                renameTarget: $renameTarget,
+                deleteRequest: $groupDeleteRequest,
+                nameInput: $newGroupName,
+                actions: GroupAlertActions(
+                    deleteMessage: L("删除分组不会删除其中的命令，命令会保留在其他分组或未分组。"),
+                    onAdd: { viewModel.addGroup($0) },
+                    onRename: { viewModel.renameGroup(id: $0, to: $1) },
+                    onDelete: { id in
+                        if selectedFilter == .group(id) { selectedFilter = .all }
+                        viewModel.deleteGroup(id: id)
                     }
-                    viewModel.deleteGroup(request.name)
-                    groupDeleteRequest = nil
-                }
-                Button(L("取消"), role: .cancel) {
-                    groupDeleteRequest = nil
-                }
-            } message: {
-                Text(L("删除分组不会删除其中的命令，命令会保留在其他分组或未分组。"))
-            }
+                )
+            )
+            .connToast(message: Binding(
+                get: { viewModel.errorMessage },
+                set: { if $0 == nil { viewModel.clearError() } }
+            ))
     }
 
     @ViewBuilder
@@ -156,39 +147,38 @@ struct SnippetsView: View {
     }
 
     private var commandFilters: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: ConnSpacing.xs) {
-                filterChip(title: L("常用"), filter: .favorites)
-                filterChip(title: L("全部"), filter: .all)
-                ForEach(viewModel.groups, id: \.self) { group in
-                    filterChip(title: group, filter: .group(group))
+        GroupFilterBar(
+            allTitle: L("全部"),
+            leading: [GroupFilterBar.Item(id: Self.favoritesChipID, title: L("常用"))],
+            groups: viewModel.groups.map { GroupFilterBar.Item(id: $0.id, title: $0.name) },
+            selection: Binding(
+                get: {
+                    switch selectedFilter {
+                    case .favorites: Self.favoritesChipID
+                    case .all: nil
+                    case let .group(id): id
+                    }
+                },
+                set: { newValue in
+                    switch newValue {
+                    case nil: selectedFilter = .all
+                    case Self.favoritesChipID: selectedFilter = .favorites
+                    case let .some(id): selectedFilter = .group(id)
+                    }
                 }
+            ),
+            onRename: { item in
+                renameTarget = GroupEditRequest(id: item.id, name: item.title)
+                newGroupName = item.title
+            },
+            onDelete: { item in
+                groupDeleteRequest = GroupEditRequest(id: item.id, name: item.title)
             }
-        }
-        .padding(.horizontal, ConnSpacing.page)
+        )
     }
 
-    private func filterChip(title: String, filter: SnippetListFilter) -> some View {
-        let isSelected = selectedFilter == filter
-        return Button {
-            selectedFilter = filter
-        } label: {
-            Text(title)
-                .font(.connFootnote)
-                .foregroundStyle(isSelected ? .connAccent : .connMuted)
-                .padding(.horizontal, ConnSpacing.sm)
-                .padding(.vertical, 6)
-                .background(isSelected ? Color.connAccentFill : Color.connSurface, in: .capsule)
-                .overlay {
-                    Capsule().strokeBorder(
-                        isSelected ? Color.connAccent.opacity(0.5) : Color.connLine,
-                        lineWidth: 1
-                    )
-                }
-                .connHitTarget()
-        }
-        .buttonStyle(ConnPressStyle())
-    }
+    /// 「常用」不是分组，用一个不可能与 uuid 冲突的哨兵 id 走 GroupFilterBar 的前置 chip。
+    private static let favoritesChipID = "__favorites__"
 
     @ViewBuilder
     private var commandList: some View {
@@ -277,7 +267,7 @@ struct SnippetsView: View {
             .padding(.top, ConnSpacing.xxl)
         } else {
             LazyVStack(spacing: ConnSpacing.stackGap) {
-                ForEach(viewModel.filteredGroups, id: \.self) { group in
+                ForEach(viewModel.filteredGroups) { group in
                     groupRow(group)
                         .padding(.horizontal, ConnSpacing.page)
                 }
@@ -285,10 +275,10 @@ struct SnippetsView: View {
         }
     }
 
-    private func groupRow(_ group: String) -> some View {
+    private func groupRow(_ group: SnippetGroup) -> some View {
         HStack(spacing: ConnSpacing.sm) {
             Button {
-                selectedFilter = .group(group)
+                selectedFilter = .group(group.id)
                 page = .commands
             } label: {
                 HStack(spacing: ConnSpacing.sm) {
@@ -297,11 +287,11 @@ struct SnippetsView: View {
                         .foregroundStyle(.connAccent)
                         .frame(width: 28)
                     VStack(alignment: .leading, spacing: 3) {
-                        Text(group)
+                        Text(group.name)
                             .font(.connSubheadline)
                             .fontWeight(.regular)
                             .foregroundStyle(.connInk)
-                        Text(String(format: L("%d 条命令"), viewModel.commandCount(in: group)))
+                        Text(String(format: L("%d 条命令"), viewModel.commandCount(in: group.id)))
                             .font(.connFootnote)
                             .foregroundStyle(.connMuted)
                     }
@@ -311,8 +301,14 @@ struct SnippetsView: View {
             }
             .buttonStyle(ConnPressStyle())
             Menu {
+                Button {
+                    renameTarget = GroupEditRequest(id: group.id, name: group.name)
+                    newGroupName = group.name
+                } label: {
+                    Label(L("重命名分组"), systemImage: "pencil")
+                }
                 Button(role: .destructive) {
-                    groupDeleteRequest = GroupDeleteRequest(name: group)
+                    groupDeleteRequest = GroupEditRequest(id: group.id, name: group.name)
                 } label: {
                     Label(L("删除分组"), systemImage: "trash")
                 }
@@ -339,14 +335,4 @@ struct SnippetsView: View {
         .padding(.top, ConnSpacing.xxl)
     }
 
-    private var isGroupDeleteConfirmationPresented: Binding<Bool> {
-        Binding(
-            get: { groupDeleteRequest != nil },
-            set: { isPresented in
-                if !isPresented {
-                    groupDeleteRequest = nil
-                }
-            }
-        )
-    }
 }

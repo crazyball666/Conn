@@ -142,6 +142,17 @@ final class SettingsStore {
         didSet { defaults.set(terminalKeybarEnabled, forKey: Key.terminalKeybarEnabled) }
     }
 
+    /// 内置命令库是否已导入过。
+    ///
+    /// 取代旧的「数墓碑」判定——改真删除后墓碑不存在，
+    /// 用户删光默认命令后不能再被重新灌回。
+    var builtinSnippetsImported: Bool {
+        didSet { defaults.set(builtinSnippetsImported, forKey: Key.builtinSnippetsImported) }
+    }
+
+    /// 供 `ConnApp` 在构造 `SettingsStore` 之前直接查 UserDefaults 用。
+    static let builtinSnippetsImportedKey = Key.builtinSnippetsImported
+
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
         appearance = AppAppearance(rawValue: defaults.string(forKey: Key.appearance) ?? "") ?? .system
@@ -188,6 +199,7 @@ final class SettingsStore {
         terminalKeybarEnabled = defaults.object(forKey: Key.terminalKeybarEnabled) == nil
             ? true
             : defaults.bool(forKey: Key.terminalKeybarEnabled)
+        builtinSnippetsImported = defaults.bool(forKey: Key.builtinSnippetsImported)
         applyAccent()
     }
 
@@ -239,5 +251,6 @@ final class SettingsStore {
         static let terminalCursorShape = "conn.settings.terminalCursorShape"
         static let terminalCursorBlinking = "conn.settings.terminalCursorBlinking"
         static let terminalKeybarEnabled = "conn.settings.terminalKeybarEnabled"
+        static let builtinSnippetsImported = "conn.settings.builtinSnippetsImported"
     }
 }

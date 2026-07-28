@@ -18,13 +18,8 @@ public struct Snippet: Identifiable, Codable, Sendable, Equatable {
     public let id: String
     public var title: String
     public var command: String
-    /// 命令所属分组。允许为空，也允许同时属于多个分组。
-    public var folders: [String]
-    /// 兼容旧调用方与旧版单分组数据；新代码应使用 `folders`。
-    public var folder: String? {
-        get { folders.first }
-        set { folders = newValue.map { Self.normalizedFolders([$0]) } ?? [] }
-    }
+    /// 命令所属分组的 `SnippetGroup.id`。允许为空，也允许同时属于多个分组。
+    public var groupIDs: [String]
     public var pinned: Bool
     /// 标记为危险片段。执行前强制二次确认；批量执行时需输入 `RUN`；
     /// App Intents 场景直接拒绝（技术实现方案 §4.6）。
@@ -33,86 +28,29 @@ public struct Snippet: Identifiable, Codable, Sendable, Equatable {
     public let createdAt: Int64
     public var updatedAt: Int64
     public var syncDirty: Bool
-    public var deletedAt: Int64?
 
     public init(
         id: String = UUID().uuidString,
         title: String,
         command: String,
-        folder: String? = nil,
-        folders: [String] = [],
+        groupIDs: [String] = [],
         pinned: Bool = false,
         danger: Bool = false,
         sortOrder: Int = 0,
         createdAt: Int64 = Timestamp.now(),
         updatedAt: Int64? = nil,
-        syncDirty: Bool = false,
-        deletedAt: Int64? = nil
+        syncDirty: Bool = false
     ) {
         self.id = id
         self.title = title
         self.command = command
-        self.folders = Self.normalizedFolders(
-            folders.isEmpty ? folder.map { [$0] } ?? [] : folders
-        )
+        self.groupIDs = groupIDs
         self.pinned = pinned
         self.danger = danger
         self.sortOrder = sortOrder
         self.createdAt = createdAt
         self.updatedAt = updatedAt ?? createdAt
         self.syncDirty = syncDirty
-        self.deletedAt = deletedAt
-    }
-
-    private enum CodingKeys: String, CodingKey {
-        case id, title, command, folders, folder, pinned, danger, sortOrder
-        case createdAt, updatedAt, syncDirty, deletedAt
-    }
-
-    public init(from decoder: any Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        id = try container.decodeIfPresent(String.self, forKey: .id) ?? UUID().uuidString
-        title = try container.decode(String.self, forKey: .title)
-        command = try container.decode(String.self, forKey: .command)
-        if let decodedFolders = try container.decodeIfPresent([String].self, forKey: .folders) {
-            folders = Self.normalizedFolders(decodedFolders)
-        } else if let legacyFolder = try container.decodeIfPresent(String.self, forKey: .folder) {
-            folders = Self.normalizedFolders([legacyFolder])
-        } else {
-            folders = []
-        }
-        pinned = try container.decodeIfPresent(Bool.self, forKey: .pinned) ?? false
-        danger = try container.decodeIfPresent(Bool.self, forKey: .danger) ?? false
-        sortOrder = try container.decodeIfPresent(Int.self, forKey: .sortOrder) ?? 0
-        let now = Timestamp.now()
-        createdAt = try container.decodeIfPresent(Int64.self, forKey: .createdAt) ?? now
-        updatedAt = try container.decodeIfPresent(Int64.self, forKey: .updatedAt) ?? createdAt
-        syncDirty = try container.decodeIfPresent(Bool.self, forKey: .syncDirty) ?? false
-        deletedAt = try container.decodeIfPresent(Int64.self, forKey: .deletedAt)
-    }
-
-    public func encode(to encoder: any Encoder) throws {
-        var container = encoder.container(keyedBy: CodingKeys.self)
-        try container.encode(id, forKey: .id)
-        try container.encode(title, forKey: .title)
-        try container.encode(command, forKey: .command)
-        try container.encode(folders, forKey: .folders)
-        try container.encode(pinned, forKey: .pinned)
-        try container.encode(danger, forKey: .danger)
-        try container.encode(sortOrder, forKey: .sortOrder)
-        try container.encode(createdAt, forKey: .createdAt)
-        try container.encode(updatedAt, forKey: .updatedAt)
-        try container.encode(syncDirty, forKey: .syncDirty)
-        try container.encodeIfPresent(deletedAt, forKey: .deletedAt)
-    }
-
-    private static func normalizedFolders(_ values: [String]) -> [String] {
-        var seen = Set<String>()
-        return values.compactMap { value in
-            let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !trimmed.isEmpty, seen.insert(trimmed).inserted else { return nil }
-            return trimmed
-        }
     }
 
     /// 本片段命令中声明的变量，按首次出现顺序去重。

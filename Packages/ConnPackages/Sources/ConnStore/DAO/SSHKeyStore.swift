@@ -13,7 +13,6 @@ public struct SSHKeyStore: SSHKeyRepository {
     public func allKeys() throws -> [SSHKey] {
         try database.writer.read { db in
             try SSHKeyRecord
-                .filter(sql: "deleted_at IS NULL")
                 .order(sql: "created_at DESC")
                 .fetchAll(db)
                 .map { $0.toDomain() }
@@ -22,7 +21,7 @@ public struct SSHKeyStore: SSHKeyRepository {
 
     public func key(id: String) throws -> SSHKey? {
         try database.writer.read { db in
-            try SSHKeyRecord.fetchOne(db, key: id).flatMap { $0.deletedAt == nil ? $0.toDomain() : nil }
+            try SSHKeyRecord.fetchOne(db, key: id).map { $0.toDomain() }
         }
     }
 
@@ -33,13 +32,10 @@ public struct SSHKeyStore: SSHKeyRepository {
         try database.writer.write { try SSHKeyRecord(updated).save($0) }
     }
 
-    public func softDelete(id: String) throws {
-        let now = Timestamp.now()
+    /// 删除（真 DELETE）。引用该密钥的主机 `key_uuid` 由外键置空。
+    public func delete(id: String) throws {
         try database.writer.write { db in
-            try db.execute(
-                sql: "UPDATE ssh_key SET deleted_at = ?, sync_dirty = 1, updated_at = ? WHERE uuid = ?",
-                arguments: [now, now, id]
-            )
+            try db.execute(sql: "DELETE FROM ssh_key WHERE uuid = ?", arguments: [id])
         }
     }
 }
@@ -56,7 +52,6 @@ struct SSHKeyRecord: Codable, FetchableRecord, PersistableRecord, Sendable {
     var createdAt: Int64
     var updatedAt: Int64
     var syncDirty: Bool
-    var deletedAt: Int64?
 
     enum CodingKeys: String, CodingKey {
         case uuid, name, kind
@@ -65,7 +60,6 @@ struct SSHKeyRecord: Codable, FetchableRecord, PersistableRecord, Sendable {
         case createdAt = "created_at"
         case updatedAt = "updated_at"
         case syncDirty = "sync_dirty"
-        case deletedAt = "deleted_at"
     }
 
     init(_ key: SSHKey) {
@@ -77,7 +71,6 @@ struct SSHKeyRecord: Codable, FetchableRecord, PersistableRecord, Sendable {
         createdAt = key.createdAt
         updatedAt = key.updatedAt
         syncDirty = key.syncDirty
-        deletedAt = key.deletedAt
     }
 
     func toDomain() -> SSHKey {
@@ -89,8 +82,7 @@ struct SSHKeyRecord: Codable, FetchableRecord, PersistableRecord, Sendable {
             privateRef: privateRef,
             createdAt: createdAt,
             updatedAt: updatedAt,
-            syncDirty: syncDirty,
-            deletedAt: deletedAt
+            syncDirty: syncDirty
         )
     }
 }
