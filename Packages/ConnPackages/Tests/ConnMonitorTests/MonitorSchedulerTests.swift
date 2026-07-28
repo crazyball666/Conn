@@ -295,4 +295,107 @@ struct MonitorSchedulerTests {
         // 首轮 1 次 + 第二轮（失败 1 次 + 重试 1 次）
         #expect(await log.execs == 3)
     }
+
+    // MARK: - 采集时机收敛（预热跳过 / 防抖 / 回前台恢复）
+
+    /// 用可控时钟构造，便于测防抖。
+    private func makeScheduler(
+        execFailures: Int = 0, now: @escaping () -> Date
+    ) -> (MonitorScheduler, CallLog) {
+        let log = CallLog(execFailures: execFailures)
+        let manager = ConnectionManager(transport: FlakyTransport(log: log))
+        return (MonitorScheduler(connectionManager: manager, now: now), log)
+    }
+
+    @Test("已有读数时跳过 2s 预热轮")
+    func skipsWarmUpWhenBaselineExists() async throws {
+        // 用可控时钟并把「上次采集」推到 5s 防抖窗口之外：
+        // 若沿用默认真实时钟，scanNow 与紧随其后的 startDashboard 之间只隔几毫秒，
+        // 会意外触发防抖（isFresh），连「立即那一轮」也被跳过，
+        // 这条测试就测不到「预热轮」这一个变量了（实测会失败，见任务报告）。
+        let clock = MutableClock()
+        let (scheduler, log) = makeScheduler(now: { clock.now })
+        let target = host()
+        await scheduler.scanNow(hosts: [target])       // exec 1，建立基线
+        let before = await log.execs
+
+        clock.advance(by: 10)                          // 越过防抖窗口，只考察预热轮
+        scheduler.startDashboard(hosts: [target], interval: .seconds(600))
+        try await Task.sleep(for: .milliseconds(300))
+        scheduler.stop()
+
+        // 只应多出「立即那一轮」，不该有 2s 后的预热轮
+        #expect(await log.execs == before + 1)
+    }
+
+    @Test("距上次采集不足 5 秒时不重采")
+    func debouncesRapidRestarts() async throws {
+        let clock = MutableClock()
+        let (scheduler, log) = makeScheduler(now: { clock.now })
+        let target = host()
+        await scheduler.scanNow(hosts: [target])
+        let before = await log.execs
+
+        clock.advance(by: 2)                            // 只过了 2 秒
+        scheduler.startDashboard(hosts: [target], interval: .seconds(600))
+        try await Task.sleep(for: .milliseconds(300))
+        scheduler.stop()
+
+        #expect(await log.execs == before)
+    }
+
+    @Test("force 绕过防抖")
+    func forceBypassesDebounce() async throws {
+        let clock = MutableClock()
+        let (scheduler, log) = makeScheduler(now: { clock.now })
+        let target = host()
+        await scheduler.scanNow(hosts: [target])
+        let before = await log.execs
+
+        clock.advance(by: 2)
+        scheduler.startDashboard(hosts: [target], interval: .seconds(600), force: true)
+        try await Task.sleep(for: .milliseconds(300))
+        scheduler.stop()
+
+        #expect(await log.execs == before + 1)
+    }
+
+    @Test("后台不足 30 秒时回前台不动作")
+    func shortBackgroundDoesNothing() async throws {
+        let (scheduler, log) = makeScheduler()
+        let target = host()
+        scheduler.startDashboard(hosts: [target], interval: .seconds(600))
+        try await Task.sleep(for: .milliseconds(300))
+        let before = await log.execs
+
+        await scheduler.resumeAfterBackground(idleFor: 10)
+        try await Task.sleep(for: .milliseconds(300))
+        scheduler.stop()
+
+        #expect(await log.execs == before)
+    }
+
+    @Test("后台超过 30 秒时回前台驱逐会话并强制重采")
+    func longBackgroundReconnects() async throws {
+        let (scheduler, log) = makeScheduler()
+        let target = host()
+        scheduler.startDashboard(hosts: [target], interval: .seconds(600))
+        try await Task.sleep(for: .milliseconds(300))
+        let execsBefore = await log.execs
+        let connectsBefore = await log.connects
+
+        await scheduler.resumeAfterBackground(idleFor: 60)
+        try await Task.sleep(for: .milliseconds(300))
+        scheduler.stop()
+
+        #expect(await log.execs > execsBefore)
+        // 会话被驱逐过，必须重新握手
+        #expect(await log.connects == connectsBefore + 1)
+    }
+}
+
+/// 可手动推进的时钟，用于测防抖。
+private final class MutableClock: @unchecked Sendable {
+    private(set) var now = Date(timeIntervalSince1970: 1_000_000)
+    func advance(by seconds: TimeInterval) { now = now.addingTimeInterval(seconds) }
 }

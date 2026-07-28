@@ -41,6 +41,15 @@ public final class MonitorScheduler {
     private let collector: MetricCollector
     private let now: () -> Date
     private var task: Task<Void, Never>?
+    /// 上次 `startDashboard` 的参数。回前台恢复时按原样重启。
+    ///
+    /// 用具名 struct 而非三元组：三元组会触发 SwiftLint `large_tuple`（上限 2 个成员）。
+    private struct DashboardConfig {
+        let hosts: [ConnKit.Host]
+        let interval: Duration
+        let concurrency: Int
+    }
+    private var dashboardConfig: DashboardConfig?
 
     public init(
         connectionManager: ConnectionManager,
@@ -56,19 +65,40 @@ public final class MonitorScheduler {
 
     /// 仪表盘模式：轮询全部主机，每轮并发上限 `concurrency`，轮间隔 `interval`。
     ///
-    /// 首采只拿到内存/磁盘（CPU 需两次差分）。为不让 CPU 环空等一整个间隔，
-    /// 开头做一次 2s 预热采集把 CPU 尽快点亮，之后才进入常规间隔。
-    public func startDashboard(hosts: [ConnKit.Host], interval: Duration = .seconds(30), concurrency: Int = 4) {
+    /// 两处收敛，避免切 Tab / 返回列表时无条件重采：
+    /// - **预热轮**（开头睡 2s 再采一次）只为首采点亮 CPU（使用率需两次采样差分）。
+    ///   已有读数说明基线在，跳过。
+    /// - **防抖**：距上次采集不足 5s 视为刚采过，本次连立即那轮也跳过。
+    ///   `force` 用于回前台——那是明确要立刻重采的场景。
+    public func startDashboard(
+        hosts: [ConnKit.Host],
+        interval: Duration = .seconds(30),
+        concurrency: Int = 4,
+        force: Bool = false
+    ) {
         stop()
+        dashboardConfig = DashboardConfig(hosts: hosts, interval: interval, concurrency: concurrency)
+        let isFresh = !force && (lastScanAt.map { now().timeIntervalSince($0) < 5 } ?? false)
+        let needsWarmUp = metrics.isEmpty
+
         task = Task { [weak self] in
             guard let self else { return }
-            await self.scanOnce(hosts: hosts, concurrency: concurrency)
-            self.lastScanAt = self.now()
-            try? await Task.sleep(for: .seconds(2))
-            while !Task.isCancelled {
+            if !isFresh {
                 await self.scanOnce(hosts: hosts, concurrency: concurrency)
                 self.lastScanAt = self.now()
+                if needsWarmUp {
+                    try? await Task.sleep(for: .seconds(2))
+                    guard !Task.isCancelled else { return }
+                    await self.scanOnce(hosts: hosts, concurrency: concurrency)
+                    self.lastScanAt = self.now()
+                }
+            }
+            // 先睡后采：否则 isFresh 跳过立即采集后会马上又采一轮，防抖失效。
+            while !Task.isCancelled {
                 try? await Task.sleep(for: interval)
+                guard !Task.isCancelled else { return }
+                await self.scanOnce(hosts: hosts, concurrency: concurrency)
+                self.lastScanAt = self.now()
             }
         }
     }
@@ -98,6 +128,23 @@ public final class MonitorScheduler {
         task = nil
         // 轮询停了就没有任何一台在采集中，否则转圈会一直挂着。
         phases.removeAll()
+    }
+
+    /// 回前台恢复。
+    ///
+    /// - Parameter idleFor: 处于后台的时长（秒）。
+    ///
+    /// 后台超过 30s 时，池里的 socket 多半已被服务器 idle timeout 或系统回收——
+    /// 主动驱逐并强制重采，比等下一个采集间隔（默认 30s）撞上死会话再自愈快得多。
+    /// 不足 30s 则什么都不做：轮询 Task 随 App 恢复自然继续，就算会话真死了，
+    /// `collectOne` 的同轮重试也会兜住。
+    public func resumeAfterBackground(idleFor: TimeInterval) async {
+        guard idleFor > 30, let config = dashboardConfig else { return }
+        await connectionManager.invalidateAll()
+        startDashboard(
+            hosts: config.hosts, interval: config.interval,
+            concurrency: config.concurrency, force: true
+        )
     }
 
     /// 手动触发一轮全量采集（下拉刷新）。
