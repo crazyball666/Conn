@@ -132,14 +132,8 @@ struct HostOverviewView: View {
                 latest?.disk,
                 detail: MetricFormat.pair(used: latest?.diskUsedBytes, total: latest?.diskTotalBytes)
             )
-            GeometryReader { geometry in
-                ZStack(alignment: .leading) {
-                    Capsule().fill(Color.connTrack)
-                    Capsule().fill(diskColor)
-                        .frame(width: max(6, geometry.size.width * fraction(latest?.disk)))
-                }
-            }
-            .frame(height: 8)
+            ConnLoadBar(fraction: latest?.disk.map { min(max($0 / 100, 0), 1) }, minWidth: 6)
+                .frame(height: 8)
             Rectangle().fill(Color.connLine).frame(height: 0.5).padding(.vertical, 2)
             chartHeader(
                 legend: [(L("读"), .connDisk), (L("写"), .connWarn)],
@@ -150,13 +144,6 @@ struct HostOverviewView: View {
                 up: viewModel.ioWriteHistory, upColor: .connWarn
             ))
         }
-    }
-
-    private var diskColor: Color {
-        guard let value = latest?.disk else { return .connTrack }
-        if value > ConnThreshold.crit { return .connCrit }
-        if value > ConnThreshold.warn { return .connWarn }
-        return .connDisk
     }
 
     // MARK: - 网络（双向折线 + 右上角累计量）
@@ -259,11 +246,6 @@ struct HostOverviewView: View {
     private func autoDomain(_ series: [TrendSeries]) -> ClosedRange<Double> {
         let peak = series.flatMap { $0.values }.max() ?? 0
         return 0 ... max(peak * 1.25, 1024)
-    }
-
-    private func fraction(_ value: Double?) -> CGFloat {
-        guard let value else { return 0 }
-        return min(max(value / 100, 0), 1)
     }
 
     // MARK: - 派生 / 绑定
