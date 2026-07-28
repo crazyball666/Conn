@@ -103,10 +103,10 @@ public actor ConnectionManager {
 
     /// 驱逐全部池化会话（不等待关闭）。
     ///
-    /// 与 `disconnectAll()` 的区别：那个会 `await session.close()` 逐条等待，
-    /// 而本方法用于**回前台**——后台期间 socket 多半已被服务器 idle timeout
-    /// 或系统回收，对死 socket 同步 close 会卡住调用方。语义同 `invalidate(host:)`，
-    /// 只是作用于全部条目。
+    /// 主要用于**回前台**：后台期间 socket 多半已被服务器 idle timeout 或系统回收，
+    /// 对死 socket 同步 `await close()` 会卡住调用方，所以关闭一律 fire-and-forget。
+    /// 语义同 `invalidate(host:)`，只是作用于全部条目——包括正在握手的那些，
+    /// 它们必须 `cancel()`，否则握手成功后会把自己重新塞回池里。
     public func invalidateAll() {
         let current = entries
         entries.removeAll()
@@ -129,17 +129,6 @@ public actor ConnectionManager {
             await session.close()
         case let .connecting(task):
             task.cancel()
-        }
-    }
-
-    /// 断开全部（App 进入后台或退出时）。
-    public func disconnectAll() async {
-        let current = entries
-        entries.removeAll()
-        for entry in current.values {
-            if case let .connected(session) = entry {
-                await session.close()
-            }
         }
     }
 
