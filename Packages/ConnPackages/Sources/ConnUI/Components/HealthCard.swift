@@ -75,6 +75,10 @@ public struct HealthCard: View {
         public let loadState: LoadState
         /// 用户备注（便于记忆）。有则作为卡片主标题优先显示。
         public let note: String?
+        /// 采集进行中——右上角胶囊转圈。
+        public let isBusy: Bool
+        /// 正在重连：胶囊改显「重连中」并转蓝，与已认定的「连接失败」区分开。
+        public let isReconnecting: Bool
 
         public init(
             id: String,
@@ -92,7 +96,9 @@ public struct HealthCard: View {
             uptimeText: String? = nil,
             loadText: String? = nil,
             loadState: LoadState = .loaded,
-            note: String? = nil
+            note: String? = nil,
+            isBusy: Bool = false,
+            isReconnecting: Bool = false
         ) {
             self.id = id
             self.name = name
@@ -110,6 +116,8 @@ public struct HealthCard: View {
             self.loadText = loadText
             self.loadState = loadState
             self.note = note
+            self.isBusy = isBusy
+            self.isReconnecting = isReconnecting
         }
 
         /// 卡片主标题：备注优先（用户的记忆锚点），否则用名称/地址。
@@ -164,12 +172,23 @@ public struct HealthCard: View {
             }
             Spacer(minLength: ConnSpacing.xs)
             VStack(alignment: .trailing, spacing: 4) {
-                StatusPill(model.status.label, semantic: model.status.pillSemantic)
+                StatusPill(pillText, semantic: pillSemantic, isBusy: model.isBusy)
                 if model.uptimeText != nil || model.loadText != nil {
                     headerMeta
                 }
             }
         }
+    }
+
+    /// 重连中时盖掉状态文案——「重连中」比「正常/故障」更贴近此刻发生的事。
+    /// 常规采集**不改文案**，只转圈：每 30s 把「正常」换成「刷新中」会让状态区
+    /// 一直跳，反而更吵。
+    private var pillText: String {
+        model.isReconnecting ? L("重连中") : model.status.label
+    }
+
+    private var pillSemantic: StatusPill.Semantic {
+        model.isReconnecting ? .info : model.status.pillSemantic
     }
 
     private var headerMeta: some View {
@@ -342,6 +361,11 @@ public struct HealthCard: View {
 
     private var accessibilityDescription: String {
         var parts = ["\(model.title)，\(model.status.label)"]
+        if model.isReconnecting {
+            parts.append(L("重连中"))
+        } else if model.isBusy {
+            parts.append(L("采集中…"))
+        }
         switch model.loadState {
         case .loading:
             parts.append(L("采集中…"))
@@ -413,6 +437,11 @@ private extension View {
         HealthCard(.init(
             id: "3", name: "db-master", address: "root@10.0.0.2",
             status: .offline, loadState: .failed("连接超时：22 端口无响应")
+        )) {}
+        HealthCard(.init(
+            id: "4", name: "reconnecting-host", address: "root@10.0.0.4",
+            status: .ok, cpu: 12, memory: 40, disk: 55,
+            isBusy: true, isReconnecting: true
         )) {}
     }
     .padding(ConnSpacing.page)
