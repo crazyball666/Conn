@@ -75,28 +75,34 @@ return tint
 | 80 → 92 | `connWarn` → `connCrit` 线性过渡 |
 | 92 – 100 | `connCrit` 恒定 |
 
-对外暴露两样东西：
+对外只暴露一样东西：
 
 ```swift
 public enum ConnLoadScale {
-    /// 渐变停靠点。`gradient` 与 `color(at:)` 都由它派生，杜绝两者漂移。
+    /// 渐变停靠点。`gradient` 由它派生。位置取自 `ConnThreshold`，不写字面量。
     static let stops: [(location: Double, color: Color)] = [
-        (0.00, .connGood), (0.60, .connGood),
-        (0.80, .connWarn), (0.92, .connCrit), (1.00, .connCrit)
+        (0, .connGood),
+        (ConnThreshold.calm / 100, .connGood),
+        (ConnThreshold.warn / 100, .connWarn),
+        (ConnThreshold.crit / 100, .connCrit),
+        (1, .connCrit)
     ]
 
-    /// 铺满 0–100 整条轨道的渐变。由 `stops` 直接构造 `Gradient.Stop`。
+    /// 铺满 0–100 整条轨道的渐变。给弧与条填充用。
     ///
     /// **必须铺满整条轨道再裁剪**，不能把它压进已填充的那一段——
     /// 详见「实现陷阱」一节。
     public static var gradient: Gradient
-
-    /// 某个负载值对应的单色：把 value/100 夹取到 0…1，
-    /// 找到它落在哪两个 `stops` 之间，按区间内的相对位置线性插值。
-    /// 落在恒定段（0–0.6、0.92–1.0）时两端同色，插值结果即该色。
-    public static func color(at value: Double) -> Color
 }
 ```
+
+**不提供「取某个负载值的单色」**（本文初稿曾计划提供 `color(at:)`，评审时否掉）：
+那需要在静态上下文里做 `Color` 混合，而 `Color.mix(with:by:)` 是 iOS 18 API、
+本项目基线 iOS 17；退路 `Color.resolve(in:)` 虽然 iOS 17 可用，却需要
+`EnvironmentValues`——传默认值会把当前外观固化，而 `connGood` / `connWarn` /
+`connCrit` 三个锚点令牌都是自适应深浅色的。而它**本来就零调用方**。
+渐变的插值发生在 SwiftUI 渲染管线里，适配是正确的；真需要单色时按当时的
+实际需求另行设计，不预留。
 
 `60` 这个低载区上界是本设计新引入的常量（`ConnThreshold` 只有 `warn` / `crit`）。
 把它一并放进 `ConnThreshold`，命名 `calm`，并注明它只影响观感、不参与任何健康判定。
@@ -162,18 +168,21 @@ Capsule()
 
 ## 测试
 
-**ConnUITests**（纯函数，可直接单测）
-- `color(at:)` 的边界与拐点：0 / 60 → `connGood`；92 / 100 → `connCrit`；
-  80 → `connWarn`。
-- 插值正确：70 是 60–80 的中点，`color(at: 70)` 应等于 `connGood` 与 `connWarn`
-  的 50/50 混合；86 是 80–92 的中点，应等于 `connWarn` 与 `connCrit` 的 50/50 混合。
-  取色方式照 `ConnColorTokenTests` 既有的写法。
-- 夹取：`color(at: -10)` 与 `color(at: 0)` 同色，`color(at: 150)` 与 `color(at: 100)` 同色。
-- `gradient` 的停靠点与 `stops` 一致（防止两条路径漂移）。
+**ConnUITests**（断言 `stops` 表本身，不碰颜色解析）
+- 停靠点在 0…1 上单调不减，首尾正好是 0 与 1（顺序错会让渐变回折）。
+- 停靠点位置取自 `ConnThreshold.calm / .warn / .crit`，不是字面量。
+- 低载段两端同色（0 与 calm）、高载段两端同色（crit 与 1.0）——这两条保证
+  恒定段真的恒定。
+- `gradient` 的停靠位置与 `stops` 一致（防止两条路径漂移）。
+
+> 不去断言「70 应等于 50/50 混合」这类插值结果：在 host 上把资源目录里的
+> `Color` 解析成 RGB 并不可靠，而插值本身由 SwiftUI 的 `Gradient` 负责，
+> 不是我们的代码。`stops` 表就是我们全部的行为。
 
 **变异验证**（必做，本仓库已抓到过四次假测试）
-- 把 `stops` 里 60 那个点改成 0，确认「0–60 恒定绿」与「70 是 50/50 混合」两组用例变红。
-- 把 `color(at:)` 的夹取去掉，确认边界用例变红。
+- 把 calm 那个停靠点的颜色改成 `connWarn`，确认「低载段两端同色」变红。
+- 把 1.0 那个停靠点的颜色改成 `connWarn`，确认「高载段两端同色」变红。
+- 把 warn 与 crit 两行对调制造回折，确认「停靠点单调」变红。
 
 > 「渐变有没有铺满轨道」这一条**单测覆盖不到**——它是 SwiftUI 的布局行为，
 > 只能靠截图验收，见下。这是本次改动最容易出错、又最没有自动化护栏的地方。
