@@ -40,6 +40,12 @@ public final class MonitorScheduler {
     private let connectionManager: ConnectionManager
     private let collector: MetricCollector
     private let now: () -> Date
+    /// 单台主机一轮采集的**放弃式**截止时间：到点就交还控制权，把那一轮丢成孤儿。
+    /// 语义与取值理由见 `collectOne`。可注入只为让测试免于真等 45 秒。
+    ///
+    /// 刻意用 internal 而非 private：默认值 45 秒是条正确性约束（不得低于一次完整
+    /// 自愈的合法耗时），有一条测试直接盯着它，`private` 连 `@testable` 也读不到。
+    let collectDeadline: Duration
     private var task: Task<Void, Never>?
 
     /// 调度代次。`stop()` 递增一次（`startDashboard`/`startDetail`/`resumeAfterBackground`
@@ -65,10 +71,12 @@ public final class MonitorScheduler {
     /// `metrics`，另一轮刚写好成功读数 → 卡片闪一下红）。用飞行中集合去重，
     /// 让后到的那一轮直接让位——它要的数据先到的那轮马上就会写进来。
     ///
-    /// **前置条件**：依赖 `attempt` 里的 await 终会返回（`defer` 才有机会移除该 id）。
-    /// 目前假引擎与 `session.exec(_:timeout:)` 都带超时；真 SSH 引擎接入后，
-    /// `exec` 的超时必须真正生效——一次永不返回的 exec 会把该主机的 id 永久留在
-    /// 集合里，此后所有轮次都对它让位，这台主机的采集永久停摆（UI 上表现为转圈不落）。
+    /// **移除该 id 的责任在 `performCollect` 的 `defer` 里，而不是 `collectOne`**：
+    /// 采集超过 `collectDeadline` 时 `collectOne` 会先返回、把那一轮丢成孤儿，
+    /// 若那时就把 id 移出集合，下一轮会对同一台再起一轮采集，而孤儿还在跑——
+    /// 孤儿会随轮次累积，每一个都占着一条 SSH 通道。把 id 留在集合里，
+    /// 后续轮次自然让位（本函数顶部的 guard），每台主机因此至多只有一个孤儿；
+    /// 孤儿自己跑完时再移除，那台主机随即恢复正常采集。
     private var inFlight: Set<String> = []
 
     /// 上次 `startDashboard` 的参数。回前台恢复时按原样重启。
@@ -84,11 +92,13 @@ public final class MonitorScheduler {
     public init(
         connectionManager: ConnectionManager,
         collector: MetricCollector = MetricCollector(),
-        now: @escaping () -> Date = Date.init
+        now: @escaping () -> Date = Date.init,
+        collectDeadline: Duration = .seconds(45)
     ) {
         self.connectionManager = connectionManager
         self.collector = collector
         self.now = now
+        self.collectDeadline = collectDeadline
     }
 
     // MARK: - 生命周期
@@ -274,19 +284,81 @@ public final class MonitorScheduler {
         }
     }
 
-    /// 采一台。失败只记 `errors[host.id]`，不抛、不影响其他主机（方案 §4.3 验收）。
-    /// 仪表盘轮询默认只取核心段；详情轮询按 `wantsExtended`/`wantsProcesses` 传入。
+    /// 采一台，**最多占用调用方 `collectDeadline` 那么久**。
     ///
-    /// **首次传输失败会立刻重握手重试一次**：死会话（App 在后台期间被服务器
-    /// idle timeout 或系统回收）第一次使用必然失败，那不是故障，不该打扰用户。
-    /// 重试期间 `phases` 为 `.reconnecting`，UI 显示「重连中」；重试仍失败才如实转红。
+    /// 真正的采集在 `performCollect` 里，跑在一个**非结构化 `Task`** 上；本函数
+    /// 竞速等待「它跑完」与「睡到 deadline」，deadline 先到就直接返回，对那个 Task
+    /// 只 `cancel()` 一次（尽力而为，底层多半不响应）且**绝不 await 它**——
+    /// 它就此成为孤儿，继续在后台跑完自己。
+    ///
+    /// **为什么非得用非结构化任务**：`scanOnce` 用 `withTaskGroup` 收敛一轮，而
+    /// 任务组的闭包**必须等所有子任务真正结束才返回**。采集链路最终会走到 Citadel 的
+    /// `triggerUserOutboundEvent(SSHChannelRequestEvent.ExecRequest(wantReply: true))`，
+    /// 那一层是 NIO 的 `EventLoopFuture.get()`，**不响应 Swift 并发取消**，而且不像
+    /// 前一步 `createChannel` 那样有 Citadel 挂的 15 秒兜底（见 `ExecTimeout.swift`
+    /// 里逐段的分析）。半开 TCP（iOS 换 Wi-Fi/蜂窝、NAT 丢表）若恰好断在「通道已开、
+    /// exec 未应答」这个窗口，这一句会挂到 TCP RTO——分钟级。那一轮 `scanOnce`
+    /// 于是不返回，`startDashboard` 的 while 循环走不到 `sleep`，**后续轮次永远不开始**：
+    /// 别的主机本轮采完就再也不自动刷新（读数悄悄变旧，卡片却不转圈）。
+    ///
+    /// **再套一层竞速超时解决不了**：那层还是任务组，性质完全一样（`ExecTimeout.swift`
+    /// 已实测：200ms 的 deadline 实际耗时 4.26 秒，错误类型对了但控制权没在超时点交还），
+    /// 只是把同一个挂起点往上挪一层。结构化并发在设计上就不允许「丢弃」子任务。
+    ///
+    /// 超时返回时**故意不把 `phases[host.id]` 收成 `.idle`**：我们确实不知道那台
+    /// 此刻是什么状态，卡片继续转圈是诚实的。收圈交给孤儿完成时做。
     private func collectOne(
         _ host: ConnKit.Host, generation scanGeneration: Int,
         includeExtended: Bool = false, includeProcesses: Bool = false
     ) async {
         // 作废的旧轮直接不跑；同一主机已有一轮在飞行中也让位（详见 `generation`/`inFlight`）。
+        // 注意这里**不再** `defer { inFlight.remove(host.id) }`——移除是孤儿自己的责任，
+        // 理由见 `inFlight` 的文档注释。
         guard isCurrent(scanGeneration), !inFlight.contains(host.id) else { return }
         inFlight.insert(host.id)
+
+        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+            let latch = CollectDeadlineLatch(continuation)
+            // 计时器：睡满 deadline 就把控制权交还给调用方。
+            //
+            // **45 秒这个默认值不许往小调**（调小不是优化，是制造新缺陷）：常见的死会话
+            // 靠「第一次 attempt 撞上 Citadel 的 15 秒兜底 → 抛错 → 驱逐会话 →
+            // 重新握手重试 → 成功」自愈，而一个完整的 `collectOne` 有两次 attempt，
+            // 合法耗时可能超过 30 秒。deadline 必须**显著大于 30 秒**，否则会在自愈
+            // 完成前就把那一轮丢成孤儿，制造出「本来能恢复却一直转圈」——比它要修的
+            // 卡死更糟：卡死只赖住一台，这个会让每台可自愈的主机都恢复不了。
+            let timer = Task { @MainActor in
+                try? await Task.sleep(for: self.collectDeadline)
+                latch.abandonWork()
+            }
+            let work = Task { @MainActor in
+                await self.performCollect(
+                    host, generation: scanGeneration,
+                    includeExtended: includeExtended, includeProcesses: includeProcesses
+                )
+                timer.cancel()          // 采完了就别让计时器白占着一个 Task
+                latch.workDidFinish()
+            }
+            latch.work = work
+        }
+    }
+
+    /// 一轮采集的正体：两次 attempt + 判定 + 收圈。**必须跑在 `collectOne` 给它开的
+    /// 非结构化 Task 上**，因为它可能挂很久（见 `collectOne` 的说明），超时后它会被
+    /// 丢成孤儿继续执行。
+    ///
+    /// **首次传输失败会立刻重握手重试一次**：死会话（App 在后台期间被服务器
+    /// idle timeout 或系统回收）第一次使用必然失败，那不是故障，不该打扰用户。
+    /// 重试期间 `phases` 为 `.reconnecting`，UI 显示「重连中」；重试仍失败才如实转红。
+    ///
+    /// 仪表盘轮询默认只取核心段；详情轮询按 `wantsExtended`/`wantsProcesses` 传入。
+    private func performCollect(
+        _ host: ConnKit.Host, generation scanGeneration: Int,
+        includeExtended: Bool, includeProcesses: Bool
+    ) async {
+        // **无条件移除，不能挡在 `guard isCurrent` 后面**：代次一变（切走再回来、
+        // 回前台重启）这台主机就会永久留在 `inFlight` 里，此后每一轮都对它让位，
+        // 采集永久停摆。这个 defer 是「至多一个孤儿」这条不变量的另一半。
         defer { inFlight.remove(host.id) }
 
         // 只有「本来有读数」的主机才享受这次宽限。首采失败直接如实报错；
@@ -311,6 +383,7 @@ public final class MonitorScheduler {
             }
         }
         // 作废的旧轮不许收圈：否则它会把新一轮刚点亮的转圈提前熄掉。
+        // 代次已变时不收圈也不会漏——`stop()` 本来就 `phases.removeAll()`。
         guard isCurrent(scanGeneration) else { return }
         phases[host.id] = .idle
     }
@@ -355,5 +428,45 @@ public final class MonitorScheduler {
     private func record(_ error: Error, for host: ConnKit.Host) {
         errors[host.id] = error.friendlyDiagnosis
         metrics[host.id] = nil
+    }
+}
+
+/// 「采集跑完」与「deadline 到点」之间的一次性闸：谁先到谁把续体兑现，另一方成为 no-op。
+///
+/// **为什么不用 `withTaskGroup` 竞速**：任务组在闭包返回前必须等所有子任务真正结束，
+/// 而采集那一段恰恰不响应取消——那正是本文件要修的缺陷本身，用它来修等于原地打转。
+/// 用一次性续体，「到点返回」不依赖任何一方是否可取消：计时器一到就 `resume`，
+/// `collectOne` 立刻从 await 里醒来，没跑完的那个 Task 被留在原地当孤儿。
+@MainActor
+private final class CollectDeadlineLatch {
+    /// deadline 赢下竞速时要 `cancel()` 一次的采集任务。**只 cancel，绝不 await**。
+    var work: Task<Void, Never>?
+    private var continuation: CheckedContinuation<Void, Never>?
+
+    init(_ continuation: CheckedContinuation<Void, Never>) {
+        self.continuation = continuation
+    }
+
+    /// 采集自己跑完了：正常交还控制权。
+    func workDidFinish() {
+        resumeOnce()
+    }
+
+    /// deadline 先到：立刻交还控制权，并对采集任务尽力取消一次。
+    func abandonWork() {
+        guard resumeOnce() else { return }
+        work?.cancel()
+        // 断开对孤儿的强引用：孤儿的闭包持有本对象，本对象再持有孤儿就成了环，
+        // 得等它真跑完才解开。这里主动断掉，环立刻消失。
+        work = nil
+    }
+
+    /// 只兑现一次续体（重复兑现会崩）。返回 true 表示本次调用是竞速的赢家。
+    @discardableResult
+    private func resumeOnce() -> Bool {
+        guard let continuation else { return false }
+        self.continuation = nil
+        continuation.resume()
+        return true
     }
 }
