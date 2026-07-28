@@ -77,6 +77,35 @@ struct ConnectionManagerTests {
         _ = try await manager.session(for: host())
         #expect(await flag.wasResolved)
     }
+
+    @Test("握手后池中有会话，invalidate 后没有")
+    func tracksPooledSession() async throws {
+        let manager = ConnectionManager(transport: MockSSHTransport())
+        let host = host()
+
+        #expect(await !manager.hasPooledSession(for: host))
+        _ = try await manager.session(for: host)
+        #expect(await manager.hasPooledSession(for: host))
+
+        await manager.invalidate(host: host)
+        #expect(await !manager.hasPooledSession(for: host))
+    }
+
+    @Test("invalidateAll 清空全部池化会话")
+    func invalidateAllClearsPool() async throws {
+        let manager = ConnectionManager(transport: MockSSHTransport())
+        let first = host(address: "10.0.0.1")
+        let second = host(address: "10.0.0.2")
+        _ = try await manager.session(for: first)
+        _ = try await manager.session(for: second)
+        #expect(await manager.activeCount == 2)
+
+        await manager.invalidateAll()
+
+        #expect(await manager.activeCount == 0)
+        #expect(await !manager.hasPooledSession(for: first))
+        #expect(await !manager.hasPooledSession(for: second))
+    }
 }
 
 // MARK: - 测试替身

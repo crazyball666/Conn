@@ -1,4 +1,5 @@
 import ConnKit
+import ConnMonitor
 import ConnUI
 import SwiftUI
 
@@ -7,6 +8,8 @@ import SwiftUI
 /// 终端不再单独占一个 Tab——从主机详情右上角的终端图标进入（会话随详情栈存活）。
 struct RootTabView: View {
     @State private var selection: ConnDock.Tab = .servers
+    @Environment(\.scenePhase) private var scenePhase
+    @State private var backgroundedAt: Date?
     private let dependencies: AppDependencies
 
     init(dependencies: AppDependencies) {
@@ -29,6 +32,21 @@ struct RootTabView: View {
             }
             tab(.me) {
                 NavigationStack { MeView(dependencies: dependencies) }
+            }
+        }
+        .onChange(of: scenePhase) { _, phase in
+            switch phase {
+            case .background:
+                // 不 stop()：iOS 本就挂起 App，轮询 Task 自然停止推进，没有额外耗电；
+                // 而 onAppear 回前台不保证重新触发，停了就再也起不来。
+                backgroundedAt = Date()
+            case .active:
+                guard let at = backgroundedAt else { break }
+                let idle = Date().timeIntervalSince(at)
+                backgroundedAt = nil
+                Task { await dependencies.monitor.resumeAfterBackground(idleFor: idle) }
+            default:
+                break
             }
         }
     }

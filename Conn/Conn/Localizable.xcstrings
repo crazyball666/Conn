@@ -9400,6 +9400,34 @@
         }
       }
     },
+    "绝对路径，如 /var/log": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Absolute path, e.g. /var/log"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "絶対パス（例: /var/log）"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "절대 경로, 예: /var/log"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "絕對路徑，如 /var/log"
+          }
+        }
+      }
+    },
     "绿": {
       "extractionState": "stale",
       "localizations": {

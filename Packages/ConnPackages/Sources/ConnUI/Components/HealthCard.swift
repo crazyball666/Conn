@@ -75,6 +75,10 @@ public struct HealthCard: View {
         public let loadState: LoadState
         /// 用户备注（便于记忆）。有则作为卡片主标题优先显示。
         public let note: String?
+        /// 采集进行中——右上角胶囊转圈。
+        public let isBusy: Bool
+        /// 正在重连：胶囊改显「重连中」并转蓝，与已认定的「连接失败」区分开。
+        public let isReconnecting: Bool
 
         public init(
             id: String,
@@ -92,7 +96,9 @@ public struct HealthCard: View {
             uptimeText: String? = nil,
             loadText: String? = nil,
             loadState: LoadState = .loaded,
-            note: String? = nil
+            note: String? = nil,
+            isBusy: Bool = false,
+            isReconnecting: Bool = false
         ) {
             self.id = id
             self.name = name
@@ -110,6 +116,8 @@ public struct HealthCard: View {
             self.loadText = loadText
             self.loadState = loadState
             self.note = note
+            self.isBusy = isBusy
+            self.isReconnecting = isReconnecting
         }
 
         /// 卡片主标题：备注优先（用户的记忆锚点），否则用名称/地址。
@@ -164,12 +172,23 @@ public struct HealthCard: View {
             }
             Spacer(minLength: ConnSpacing.xs)
             VStack(alignment: .trailing, spacing: 4) {
-                StatusPill(model.status.label, semantic: model.status.pillSemantic)
+                StatusPill(pillText, semantic: pillSemantic, isBusy: model.isBusy)
                 if model.uptimeText != nil || model.loadText != nil {
                     headerMeta
                 }
             }
         }
+    }
+
+    /// 重连中时盖掉状态文案——「重连中」比「正常/故障」更贴近此刻发生的事。
+    /// 常规采集**不改文案**，只转圈：每 30s 把「正常」换成「刷新中」会让状态区
+    /// 一直跳，反而更吵。
+    private var pillText: String {
+        model.isReconnecting ? L("重连中") : model.status.label
+    }
+
+    private var pillSemantic: StatusPill.Semantic {
+        model.isReconnecting ? .info : model.status.pillSemantic
     }
 
     private var headerMeta: some View {
@@ -341,10 +360,45 @@ public struct HealthCard: View {
     }
 
     private var accessibilityDescription: String {
+        Self.accessibilityDescription(for: model)
+    }
+
+    /// 拼装无障碍口播文案。抽成 `static` 纯函数以便脱离 SwiftUI 单测
+    /// （与 `StatusPill.busySymbol(reduceMotion:)` 同一模式）。入参用 `Model`
+    /// 整体传入而非拆成一堆标量——`Model` 本就是不依赖 SwiftUI 的纯数据结构，
+    /// 拆参数只会撞上 `function_parameter_count` 的 lint 上限。
+    ///
+    /// `isReconnecting`/`isBusy` 与 `loadState` 本是两套独立维度，原实现各自
+    /// 判断要不要念一遍「采集中…」。但 `isBusy == true && loadState == .loading`
+    /// 是每台主机首次采集必经的状态（`MonitorScheduler.attempt` 对无读数的主机
+    /// 恒置 `.collecting`，`.loading` 的条件正是 `metrics == nil`），两个分支
+    /// 会同时命中，念成「采集中…，采集中…」。这里把「是否要念一次采集中」合并
+    /// 成单一判断，下面 `switch` 的 `.loading` 分支不再重复 append。
+    ///
+    /// 顺序/措辞：
+    /// - 重连中优先于「采集中…」——「重连中」是更具体的状态（连接层面出了问题
+    ///   在重试），比泛泛的「采集中」更值得优先播报。**在「同一主机同一时刻只有
+    ///   一轮采集」这个前提下**，`isReconnecting` 与 `.loading` 单轮次内不可能同时
+    ///   成立（前者只在已有读数时才置位，后者恰好要求无读数），不会堆叠成
+    ///   「重连中，采集中」。该前提由 `MonitorScheduler` 的代次 + 飞行中集合保证；
+    ///   若并发写回的收敛被破坏，这里的 `else if` 仍会择一播报，只是措辞可能
+    ///   落后半拍——不会出现重复朗读。
+    /// - 已加载且仍在后台刷新（`isBusy` 为真、`loadState == .loaded`，例行轮询
+    ///   而非首采）：先念「采集中…」再念读数——让用户先建立「这批数字可能马上
+    ///   更新」的预期，再听具体数字；与首采时「先概述活动、再给细节」的顺序
+    ///   一致，减少 VoiceOver 用户在不同状态间切换时的心智模型跳变。
+    static func accessibilityDescription(for model: Model) -> String {
         var parts = ["\(model.title)，\(model.status.label)"]
+
+        if model.isReconnecting {
+            parts.append(L("重连中"))
+        } else if model.isBusy || model.loadState == .loading {
+            parts.append(L("采集中…"))
+        }
+
         switch model.loadState {
         case .loading:
-            parts.append(L("采集中…"))
+            break // 已在上面合并处理，避免重复念「采集中…」
         case .failed(let message):
             parts.append(message)
         case .loaded:
@@ -352,6 +406,7 @@ public struct HealthCard: View {
             if let memory = model.memory { parts.append("内存 \(Int(memory))%") }
             if let disk = model.disk { parts.append("磁盘 \(Int(disk))%") }
         }
+
         return parts.joined(separator: "，")
     }
 }
@@ -413,6 +468,11 @@ private extension View {
         HealthCard(.init(
             id: "3", name: "db-master", address: "root@10.0.0.2",
             status: .offline, loadState: .failed("连接超时：22 端口无响应")
+        )) {}
+        HealthCard(.init(
+            id: "4", name: "reconnecting-host", address: "root@10.0.0.4",
+            status: .ok, cpu: 12, memory: 40, disk: 55,
+            isBusy: true, isReconnecting: true
         )) {}
     }
     .padding(ConnSpacing.page)

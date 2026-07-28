@@ -47,22 +47,41 @@ public struct StatusPill: View {
     private let text: String
     private let semantic: Semantic
     private let showsSymbol: Bool
+    private let isBusy: Bool
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var spinAngle: Double = 0
 
     /// - Parameters:
     ///   - text: 胶囊文字，如「正常」「running」「exit 5」。
     ///   - semantic: 状态语义，决定符号与配色。
     ///   - showsSymbol: 是否显示前导形状符号。纯计数类徽标（如「12 台主机」）
     ///     不表达状态，可关闭。
-    public init(_ text: String, semantic: Semantic, showsSymbol: Bool = true) {
+    ///   - isBusy: 是否正在进行中。为真时把符号位换成转圈；`reduceMotion`
+    ///     开启时退化为静态 `◌`——设计规范 §2 要求形状编码不能只靠颜色代替。
+    public init(
+        _ text: String,
+        semantic: Semantic,
+        showsSymbol: Bool = true,
+        isBusy: Bool = false
+    ) {
         self.text = text
         self.semantic = semantic
         self.showsSymbol = showsSymbol
+        self.isBusy = isBusy
+    }
+
+    /// 忙碌时符号位该画什么。返回 nil 表示画转圈，否则用返回的静态符号。
+    ///
+    /// 抽成纯函数以便脱离 SwiftUI 单测。
+    public static func busySymbol(reduceMotion: Bool) -> String? {
+        reduceMotion ? "◌" : nil
     }
 
     public var body: some View {
         HStack(spacing: 5) {
             if showsSymbol {
-                Text(semantic.symbol)
+                symbolView
             }
             Text(text)
         }
@@ -75,6 +94,40 @@ public struct StatusPill: View {
         .background(semantic.background, in: .capsule)
         .accessibilityElement(children: .combine)
         .accessibilityLabel(text)
+    }
+
+    @ViewBuilder
+    private var symbolView: some View {
+        if isBusy {
+            if let fallback = Self.busySymbol(reduceMotion: reduceMotion) {
+                Text(fallback)
+            } else {
+                spinner
+            }
+        } else {
+            Text(semantic.symbol)
+        }
+    }
+
+    /// 自绘转圈：一段 270° 圆弧匀速旋转。
+    ///
+    /// 不用系统 `ProgressView`——它的尺寸与配色不受令牌控制，在 18pt 高的胶囊里
+    /// 偏大且颜色跟随 tint，与既有的符号编码不协调。
+    private var spinner: some View {
+        Circle()
+            .trim(from: 0, to: 0.75)
+            .stroke(semantic.foreground, style: StrokeStyle(lineWidth: 1.5, lineCap: .round))
+            .frame(width: 9, height: 9)
+            .rotationEffect(.degrees(spinAngle))
+            .onAppear {
+                // 周期取自令牌：转圈是动效白名单里的一条，速度不该是散落在视图里的字面量。
+                withAnimation(
+                    .linear(duration: ConnMotion.spinPeriod).repeatForever(autoreverses: false)
+                ) {
+                    spinAngle = 360
+                }
+            }
+            .onDisappear { spinAngle = 0 }
     }
 }
 
@@ -119,6 +172,7 @@ public struct PillButton: View {
         StatusPill("stopped", semantic: .off)
         StatusPill("跟随中", semantic: .info)
         StatusPill("Pro", semantic: .accent, showsSymbol: false)
+        StatusPill("重连中", semantic: .info, isBusy: true)
     }
     .padding(24)
     .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -134,6 +188,7 @@ public struct PillButton: View {
         StatusPill("stopped", semantic: .off)
         StatusPill("跟随中", semantic: .info)
         StatusPill("Pro", semantic: .accent, showsSymbol: false)
+        StatusPill("重连中", semantic: .info, isBusy: true)
     }
     .padding(24)
     .frame(maxWidth: .infinity, maxHeight: .infinity)

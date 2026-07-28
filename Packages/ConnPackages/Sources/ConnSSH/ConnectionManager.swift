@@ -93,6 +93,33 @@ public actor ConnectionManager {
         }
     }
 
+    /// 池中是否已有该主机的条目（已连接或正在握手）。
+    ///
+    /// 采集调度用它区分两件事：**复用现成会话跑一条命令**，还是**要先握手**。
+    /// 后者在主机本来有读数时意味着「重连中」，UI 据此显示转圈而非静默。
+    public func hasPooledSession(for host: ConnKit.Host) -> Bool {
+        entries[poolKey(for: host)] != nil
+    }
+
+    /// 驱逐全部池化会话（不等待关闭）。
+    ///
+    /// 与 `disconnectAll()` 的区别：那个会 `await session.close()` 逐条等待，
+    /// 而本方法用于**回前台**——后台期间 socket 多半已被服务器 idle timeout
+    /// 或系统回收，对死 socket 同步 close 会卡住调用方。语义同 `invalidate(host:)`，
+    /// 只是作用于全部条目。
+    public func invalidateAll() {
+        let current = entries
+        entries.removeAll()
+        for entry in current.values {
+            switch entry {
+            case let .connected(session):
+                Task { await session.close() }
+            case let .connecting(task):
+                task.cancel()
+            }
+        }
+    }
+
     /// 断开并移除某主机的会话。
     public func disconnect(host: ConnKit.Host) async {
         let key = poolKey(for: host)

@@ -74,7 +74,7 @@
 | 回前台 | 后台 > 30s 则驱逐全部会话并强制重采 | 不等一轮失败才发现会话死了 |
 | 失败重试时机 | **同轮内立刻重试**，不等下一个间隔 | 否则失败到重连之间有长达一个 interval 的空窗，比改造前更糟 |
 | 常规采集的胶囊文案 | **只转圈，不改文字** | 每 30s 把「正常」换成「刷新中」会让状态区一直跳，反而更吵 |
-| 预热轮 | 已有 `metrics` 基线时跳过 | 该轮唯一目的是首采点亮 CPU，有基线即纯浪费 |
+| 预热轮 | 从没采出过读数**且**尚未被判定故障的主机才需要预热轮 | 该轮唯一目的是首采点亮 CPU，有基线即纯浪费；但只看 `metrics` 不够——`record()` 判定故障时做的是 `metrics[host.id] = nil`，Swift 字典赋 nil 等于删键，故障主机与「从没采过」在 `metrics` 里长得一模一样，只看 metrics 会让任何一台故障主机永久跳不出预热轮（防抖随之整体失效），必须再看一眼 `errors` |
 | 防抖 | 距上次采集 < 5s 时连立即那轮也跳过（`force` 可绕过） | 频繁切 Tab 不该反复重采 |
 | 进入后台 | **不 `stop()`** | iOS 本就挂起 App，无耗电；而 `onAppear` 回前台不保证重触发，停了起不来 |
 | 转圈的无障碍 | `reduceMotion` 时改用静态 `◌` 符号 | 设计规范 §2：色彩不是唯一指示，形状编码必须保留 |
@@ -200,28 +200,45 @@ public func startDashboard(
 ) {
     stop()
     dashboardConfig = (hosts, interval, concurrency)
+    // 2s 预热轮的唯一目的是首采点亮 CPU（使用率需两次采样差分）。基线是**逐主机**的
+    // （MetricCollector.previousCPU[host.id]），所以判据也必须逐主机——用全局
+    // metrics.isEmpty 会让「已有 N 台在线时新增第 N+1 台」不预热（新卡片挂一整个
+    // interval 才点亮 CPU 环）。
+    // 但只看 metrics 不够：record() 判定故障时做的是 metrics[host.id] = nil，而
+    // Swift 字典赋 nil **等于删键**——故障主机与「从没采过」在 metrics 里无法区分。
+    // 于是只要有 1 台长期不可达的主机，needsWarmUp 就永久为真、isFresh 永久为假，
+    // 每次切回服务器页都是「立即一轮 + 2s 预热轮」，两轮都对着死主机跑满连接超时。
+    // 所以再看一眼 errors：只有「从没采出过读数、也还没被判定故障」的才需要预热。
+    let needsWarmUp = hosts.contains { metrics[$0.id] == nil && errors[$0.id] == nil }
     // 距上次采集不足 5s 视为「刚采过」（频繁切 Tab / 返回列表），本次不重采。
+    // 但有主机缺基线时不防抖，否则新增主机后 5s 内切走再切回，连立即那轮都会跳过。
     // force 用于回前台——那是明确要立刻重采的场景。
-    let isFresh = !force && (lastScanAt.map { now().timeIntervalSince($0) < 5 } ?? false)
-    // 2s 预热轮的唯一目的是首采点亮 CPU（使用率需两次采样差分）。
-    // 已有读数说明基线在，跳过。
-    let needsWarmUp = metrics.isEmpty
+    let isFresh = !force && !needsWarmUp
+        && (lastScanAt.map { now().timeIntervalSince($0) < 5 } ?? false)
+    let scanGeneration = generation
 
     task = Task { [weak self] in
         guard let self else { return }
         if !isFresh {
-            await self.scanOnce(hosts: hosts, concurrency: concurrency)
+            await self.scanOnce(hosts: hosts, concurrency: concurrency, generation: scanGeneration)
+            guard self.isCurrent(scanGeneration) else { return }
             self.lastScanAt = self.now()
             if needsWarmUp {
                 try? await Task.sleep(for: .seconds(2))
-                await self.scanOnce(hosts: hosts, concurrency: concurrency)
+                guard self.isCurrent(scanGeneration) else { return }
+                await self.scanOnce(hosts: hosts, concurrency: concurrency, generation: scanGeneration)
+                guard self.isCurrent(scanGeneration) else { return }
                 self.lastScanAt = self.now()
             }
         }
-        while !Task.isCancelled {
+        // 同时查取消：代次是数据侧判据（挡写回），Task.isCancelled 是控制侧的。
+        // 只留代次的话，一旦将来有路径只 cancel 而不推进代次，被取消的 Task 里
+        // try? await Task.sleep 会立刻返回 → 循环退化成打满 CPU 的热循环。
+        while self.isCurrent(scanGeneration) && !Task.isCancelled {
             try? await Task.sleep(for: interval)
-            guard !Task.isCancelled else { return }
-            await self.scanOnce(hosts: hosts, concurrency: concurrency)
+            guard self.isCurrent(scanGeneration) else { return }
+            await self.scanOnce(hosts: hosts, concurrency: concurrency, generation: scanGeneration)
+            guard self.isCurrent(scanGeneration) else { return }
             self.lastScanAt = self.now()
         }
     }
@@ -231,7 +248,26 @@ public func startDashboard(
 > 循环体从「先采后睡」改为「先睡后采」，否则 `isFresh` 跳过立即采集后会立刻
 > 又采一轮，防抖失效。
 
-`stop()` 额外清空 `phases`——轮询停了就没有任何一台在采集中。
+### 并发收敛：代次 + 飞行中集合
+
+`stop()` 只能 `task.cancel()`，而协作式取消要求被取消方主动查询——一轮采集全程
+挂在握手/exec 的 `await` 上，取消信号到达时早已越过检查点。回前台尤其危险：
+轮询 Task 大概率刚从 `Task.sleep(interval)` 醒来进入 `scanOnce`，
+`resumeAfterBackground` 的 `startDashboard(force: true)` 追不上它，于是旧轮与新轮并行
+（双倍握手、旧轮结尾把新轮的转圈提前熄掉、旧轮 `record()` 盖掉新轮刚写好的成功读数
+→ 卡片闪一下「连接失败」，正是本次要消灭的现象）。`scanNow`（下拉刷新）更是根本
+不经过 `task`，`Task.isCancelled` 对它恒为 false。
+
+因此收敛放在**数据侧**：
+
+- `generation`：`stop()` 递增一次。采集发起时捕获代次，写回 `metrics`/`errors`/
+  `phases`/`lastScanAt` 前一律 `guard isCurrent(scanGeneration)`。旧轮即便跑完，
+  也一个字节都写不进去。
+- `inFlight: Set<String>`：代次挡不住**同代**的两轮（下拉刷新 vs 轮询）。
+  同一主机已有一轮在飞行中时，后到的那轮直接让位。
+
+`stop()` 除清空 `phases`（轮询停了就没有任何一台在采集中）外，还把
+`dashboardConfig` 置 nil。理由见下一节。
 
 ## App 层：前后台生命周期
 
@@ -262,6 +298,17 @@ public func resumeAfterBackground(idleFor: TimeInterval) async {
 
 `startDashboard` 增加 `force: Bool = false`，为真时跳过下一节的 5 秒防抖——
 回前台是明确要立刻重采的场景。
+
+> **`dashboardConfig` 必须由 `stop()` 清空，否则这条 guard 恒真。**
+> 服务器是默认 Tab，App 一启动 `dashboardConfig` 就被写上；若永不清空，**任何**
+> 回前台都会执行 `invalidateAll()`。而 `ConnectionManager` 是全 App 唯一的连接池，
+> `invalidateAll()` 对 `.connected` 条目做的是整条连接的 `close()`——挂在这条连接上的
+> 终端交互式 shell（`TerminalScreen`）、日志 `tail -f`（`LogStreamViewModel`）、
+> 跨编辑会话持有的 sftp handle（`FileEditorView`）会一起死。`TerminalScreen` 不监听
+> 通道结束，`phase` 停在 `.ready`，表现为界面冻住、无报错、输入无响应。
+> `ServersView.onDisappear → stop()` 正是「仪表盘不可见」的既有信号，把
+> `invalidateAll` 的作用域收敛到「仪表盘此刻确实在跑」；顺带也修掉「用户已切走
+> Tab 后回前台，却用陈旧配置把轮询重新拉起来」。
 
 `RootTabView` 接 `scenePhase`（`AppLockGate` 挂在更外层，两者互不干扰）：
 
@@ -337,6 +384,16 @@ StatusPill(
 | `.collecting` | 否（首采） | 原状态 | 原色 | ✓（卡身仍是骨架微光） |
 | `.idle` | — | 原状态 | 原色 | — |
 
+> **本表的前提：同一主机同一时刻只有一轮采集。** 表里「有读数」这一列写的是
+> *发起这次 attempt 时* 的事实——`phase` 与 `metrics`/`errors` 是两次独立的写入，
+> 若同一主机上有两轮采集并发，它们会被不同轮次分别写，组合就可能错配：
+> 例如 A 轮把 `phase` 置为 `.reconnecting`，B 轮同时 `record()` 清掉 `metrics`
+> 并写 `errors`，卡片就会读到 `isReconnecting && loadState == .failed`
+> ——这个组合**单轮次下不可达，并发下可达**，不是结构性不可达。
+> 该前提由 `MonitorScheduler` 的**代次（generation）+ 飞行中集合（inFlight）**
+> 保证：代次挡住被 `stop()`/重启作废的旧轮的一切写回，飞行中集合挡住同代的
+> 下拉刷新与轮询在同一主机上叠跑。任何绕开这两道闸的新调用路径都会让本表失效。
+
 `accessibilityDescription` 补上「重连中」「采集中」，让 VoiceOver 与视觉一致。
 
 ## ServersViewModel 映射
@@ -355,18 +412,35 @@ isReconnecting: phase == .reconnecting
 
 ## 测试
 
-**ConnMonitorTests**（`MonitorScheduler` 的 `now` 已是可注入闭包，配 `MockSSHTransport`）
-- 有读数的主机首次传输失败后会立刻重试一次（`MockSSHTransport` 断言两次 exec）。
+**ConnMonitorTests**（`MonitorScheduler` 的 `now` 已是可注入闭包，配假 SSH 引擎；
+拆成「采集阶段与重试」`MonitorSchedulerTests` 和「采集时机与并发收敛」
+`MonitorSchedulerTimingTests` 两个套件，共用 `MonitorSchedulerTestSupport` 里的假引擎与 `Gate`）
+
+采集阶段与重试：
+- 有读数的主机首次传输失败后会立刻重试一次（断言两次 exec）。
 - 重试成功：不写 `errors`，读数被新结果覆盖。
 - 重试仍失败：写 `errors` 并清空 `metrics`。
+- **故障主机恢复采集成功后，`errors` 清空且读数写回**——`attempt` 成功路径里
+  `errors[host.id] = nil` 的证伪器，删掉那一行本测试会变红（其余测试均不受影响）。
 - 已判定故障的主机（`metrics` 为 nil）下一轮只尝试一次，不再双倍连接。
 - 首采失败（本就无读数）直接写 `errors`，不重试。
-- 池空且已有读数时 phase 为 `.reconnecting`；池非空时为 `.collecting`。
-- 首采（无读数）且池空时 phase 为 `.collecting` 而非 `.reconnecting`。
-- `metrics` 非空时 `startDashboard` 不跑 2s 预热轮（采集次数断言）。
-- 距上次采集 < 5s 时 `startDashboard` 不立即采集；`force: true` 时照采。
 - `stop()` 清空 `phases`。
-- `resumeAfterBackground(idleFor:)`：≤30s 不动作；>30s 驱逐会话并强制重采。
+- 池空且已有读数时 phase 为 `.reconnecting`；池非空（含首采）时为 `.collecting`，
+  用 `Gate` 把 exec 钉在采集进行中读取中间态。
+
+采集时机与并发收敛：
+- `metrics` 非空时 `startDashboard` 不跑 2s 预热轮；`metrics` 为空时预热轮确实触发
+  （立即一轮 + 2s 后再一轮），两个方向都覆盖，防止判据恒真/恒假两种变异都测不出来。
+- 已有基线时新增一台主机，新主机的预热轮仍照跑（判据必须逐主机而非看全局 `metrics.isEmpty`）。
+- 距上次采集 < 5s 时 `startDashboard` 不立即采集；有主机缺基线时不防抖；
+  **已判定故障的主机不触发预热轮，但防抖照常生效**——只看 `metrics` 会让防抖被
+  永久废掉的那条回归用例；`force: true` 时绕过防抖照采。
+- `resumeAfterBackground(idleFor:)`：≤30s 不动作；>30s 驱逐会话并强制重采；
+  **`stop()` 之后回前台完全 no-op**（不驱逐已有会话、不重新握手、不采集）——
+  `dashboardConfig` 不随 `stop()` 清空会让这条分支的 guard 恒真的回归用例。
+- 代次与 inFlight 的并发收敛：`stop()` 之后旧轮的写回一律作废（代次挡跨代的旧轮）；
+  同代第二轮采集（下拉刷新撞上轮询）让位给飞行中的那轮、不重复 exec、不重复握手
+  （`inFlight` 集合挡同代的并发轮）。
 
 **ConnSSHTests**
 - `hasPooledSession` 在握手前后与 `invalidate` 后的返回值。
@@ -388,3 +462,54 @@ isReconnecting: phase == .reconnecting
 
 - 接出 `lastScanText` / `abnormalCount` / `totalCount` 三个已算好但从未渲染的属性。
 - 详情页（`HostOverviewViewModel`）的采集状态表现。
+
+## 实现与本文的偏离
+
+Task 7（i18n 补全与验收）核对实现与本文时发现以下三处出入，均已批准/确认，
+不影响行为，仅记录以便日后读码对得上。
+
+1. **`dashboardConfig` 用具名 struct，不是本文 §「App 层：前后台生命周期」
+   写的三元组。**
+
+   本文写的是：
+   ```swift
+   private var dashboardConfig: (hosts: [ConnKit.Host], interval: Duration, concurrency: Int)?
+   ```
+   实现（`MonitorScheduler.swift:47-52`）改成了私有 `DashboardConfig` struct：
+   ```swift
+   private struct DashboardConfig {
+       let hosts: [ConnKit.Host]
+       let interval: Duration
+       let concurrency: Int
+   }
+   private var dashboardConfig: DashboardConfig?
+   ```
+   原因：三元组有 3 个成员，触发 SwiftLint `large_tuple`（仓库配置上限 2 个
+   成员），会把警告计数从基线 7 顶到 8。字段名与语义与本文一致，只是载体从
+   匿名元组换成具名类型。
+
+2. **`accessibilityDescription` 抽成可单测的 `static func`，并把「采集中…」
+   的两处判断合并成一次。**
+
+   本文只写了「`accessibilityDescription` 补上『重连中』『采集中』」，没有规定
+   具体实现形态。实际实现（`HealthCard.swift:362-394`）：
+   - 抽成 `static func accessibilityDescription(for model: Model) -> String`
+     纯函数（与 `StatusPill.busySymbol(reduceMotion:)` 同一模式），脱离
+     SwiftUI 视图即可单测，由 `HealthCardAccessibilityTests` 覆盖。
+   - 原实现按「`isReconnecting`/`isBusy`」与「`loadState`」两套独立维度各自
+     判断要不要念「采集中…」，但 `isBusy == true && loadState == .loading`
+     是每台主机首次采集必经的状态（`MonitorScheduler.attempt` 对无读数主机
+     恒置 `.collecting`，而 `.loading` 的条件正是 `metrics == nil`），两个
+     分支会同时命中，念成「采集中…，采集中…」。改为合并成单一判断
+     （`if isReconnecting … else if isBusy || loadState == .loading …`），
+     `switch` 的 `.loading` 分支不再重复 append，避免首采时口播重复。
+
+3. **i18n 小节写的落点是「app 层 `Localizable.xcstrings`」，实际落在
+   ConnUI 包自己的 `Localizable.xcstrings`。**
+
+   本文「## i18n」一节写：「新增文案：`重连中`（app 层 `Localizable.xcstrings`）」。
+   但 `L("重连中")` 调用点在 `HealthCard.swift`，属于 `ConnUI` 这个 SPM 包，
+   包内代码取不到 App target 的资源 bundle，只能落在包自己的
+   `Packages/ConnPackages/Sources/ConnUI/Resources/Localizable.xcstrings`
+   （Task 5 已补 en/ja/ko/zh-Hant 四语，Task 7 核对确认无缺）。本文这处
+   表述与实现所在包不一致，按实际落点订正为准。
