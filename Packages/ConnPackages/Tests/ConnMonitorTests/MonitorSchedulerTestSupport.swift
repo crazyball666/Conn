@@ -13,10 +13,16 @@ typealias DomainHost = ConnKit.Host
 actor CallLog {
     private(set) var connects = 0
     private(set) var execs = 0
+    /// 按主机地址分组的 exec 次数。全局 `execs` 分不清「哪台主机被采了」——
+    /// 「卡住的那台不再被重复发起 exec，健康的那台照采」这类断言必须逐台看，
+    /// 只看总数的话「A 没采、B 采了两次」与「A、B 各一次」是同一个数字。
+    private var execsByAddress: [String: Int] = [:]
     private var failuresRemaining: Int
     /// 装上后，「成功」的 exec 调用会在返回前挂起，直到测试放行——
     /// 用来把采集钉在飞行中，好读到 phases 的中间态（.collecting/.reconnecting）。
     private var gate: Gate?
+    /// 闸门只作用于这个地址；nil 表示作用于全部主机（老用例的行为）。
+    private var gatedAddress: String?
 
     init(execFailures: Int = 0) { failuresRemaining = execFailures }
 
@@ -25,24 +31,33 @@ actor CallLog {
     /// 追加 n 次待失败的 exec（测试中途注入死会话）。
     func failNext(_ count: Int) { failuresRemaining += count }
 
+    /// 某台主机（按地址）迄今被 exec 了几次。
+    func execs(forAddress address: String) -> Int { execsByAddress[address] ?? 0 }
+
     /// 返回 true 表示本次 exec 应当抛错。
-    func shouldFailExec() -> Bool {
+    func shouldFailExec(address: String) -> Bool {
         execs += 1
+        execsByAddress[address, default: 0] += 1
         guard failuresRemaining > 0 else { return false }
         failuresRemaining -= 1
         return true
     }
 
     /// 装闸门：此后（在 shouldFailExec 判定为不失败之后）的 exec 调用会挂起等放行。
-    func armGate(_ gate: Gate) {
+    ///
+    /// - Parameter address: 只钉住这台主机；nil 表示钉住所有主机。
+    ///   「一台卡住不拖垮整轮」这类用例必须只钉一台，否则健康主机也被钉住，
+    ///   测出来的就不是「整轮没被拖垮」而是「整轮都卡住了」。
+    func armGate(_ gate: Gate, forAddress address: String? = nil) {
         self.gate = gate
+        gatedAddress = address
     }
 
-    /// exec 成功路径调用：若装了闸门则在此挂起，直到测试 `open()`。
-    func waitIfGated() async {
-        if let gate {
-            await gate.wait()
-        }
+    /// exec 成功路径调用：若本地址装了闸门则在此挂起，直到测试 `open()`。
+    func waitIfGated(address: String) async {
+        guard let gate else { return }
+        if let gatedAddress, gatedAddress != address { return }
+        await gate.wait()
     }
 }
 
@@ -80,25 +95,28 @@ final class FlakyTransport: SSHTransport {
         _ endpoint: SSHEndpoint, username: String, auth: SSHAuth, hostKeyPolicy: HostKeyPolicy
     ) async throws -> any SSHSession {
         await log.recordConnect()
-        return FlakySession(log: log)
+        // 把地址带进会话：`CallLog` 才能逐台计数、逐台上闸门。
+        return FlakySession(log: log, address: endpoint.host)
     }
 }
 
 final class FlakySession: SSHSession {
     private let log: CallLog
+    private let address: String
     let state: AsyncStream<SSHSessionState>
     private let continuation: AsyncStream<SSHSessionState>.Continuation
 
-    init(log: CallLog) {
+    init(log: CallLog, address: String) {
         self.log = log
+        self.address = address
         (state, continuation) = AsyncStream.makeStream()
         continuation.yield(.connected)
     }
 
     func exec(_ command: String, timeout: Duration) async throws -> ExecResult {
-        if await log.shouldFailExec() { throw SSHError.channelClosed }
+        if await log.shouldFailExec(address: address) { throw SSHError.channelClosed }
         // 闸门只挡「成功」路径：失败路径要保持即时、确定，不受闸门影响。
-        await log.waitIfGated()
+        await log.waitIfGated(address: address)
         // 空输出即可：MetricParser 解析出全 nil 的 HostMetrics，但字典里是非 nil 值，
         // 足以让「这台主机已知可用」成立。
         return ExecResult(exitCode: 0, stdout: Data(), stderr: Data())
@@ -130,19 +148,37 @@ struct SchedulerFixture {
 }
 
 /// 需要直接断言连接池状态（例如「会话有没有被 `invalidateAll` 掐掉」）时用这个。
+///
+/// - Parameter collectDeadline: 单台主机一轮采集的放弃式截止时间。不传就走生产默认值
+///   （理由见 `MonitorScheduler.collectOne`）；要测「到点放弃」的用例传一个几百毫秒的
+///   值——**测试里绝不能真的睡满生产 deadline**。
 @MainActor
-func makeFixture(execFailures: Int = 0, now: (() -> Date)? = nil) -> SchedulerFixture {
+func makeFixture(
+    execFailures: Int = 0, now: (() -> Date)? = nil, collectDeadline: Duration? = nil
+) -> SchedulerFixture {
     let log = CallLog(execFailures: execFailures)
     let manager = ConnectionManager(transport: FlakyTransport(log: log))
-    let scheduler = now.map { MonitorScheduler(connectionManager: manager, now: $0) }
-        ?? MonitorScheduler(connectionManager: manager)
+    // `collectDeadline` 为 nil 时**必须一个字也不提**，而不是在这里写一份 `.seconds(90)`。
+    // 抄一份生产默认值会让 `makeScheduler()`（注释说「不传 → 用生产默认值」）拿到的其实是
+    // 测试助手自己塞的那个数，与 `MonitorScheduler.init` 的默认值再无关系——
+    // 盯着那个默认值的护栏测试就此永久变绿。评审实测过：把生产默认值改成 1 秒，
+    // 30 条测试仍然全绿，包括那条专门盯它的 `defaultDeadlineLeavesRoomForSelfHealing`。
+    let scheduler = if let collectDeadline {
+        MonitorScheduler(
+            connectionManager: manager, now: now ?? Date.init, collectDeadline: collectDeadline
+        )
+    } else {
+        MonitorScheduler(connectionManager: manager, now: now ?? Date.init)
+    }
     return SchedulerFixture(scheduler: scheduler, manager: manager, log: log)
 }
 
 /// 大多数用例只关心调度器与调用记录。`now` 传入可控时钟即可测防抖。
 @MainActor
-func makeScheduler(execFailures: Int = 0, now: (() -> Date)? = nil) -> (MonitorScheduler, CallLog) {
-    let fixture = makeFixture(execFailures: execFailures, now: now)
+func makeScheduler(
+    execFailures: Int = 0, now: (() -> Date)? = nil, collectDeadline: Duration? = nil
+) -> (MonitorScheduler, CallLog) {
+    let fixture = makeFixture(execFailures: execFailures, now: now, collectDeadline: collectDeadline)
     return (fixture.scheduler, fixture.log)
 }
 
@@ -172,6 +208,54 @@ func waitUntilPhase(
         紧随其后的断言读到的是等待前的旧值，不要当作被测行为的证据。
         """
     Issue.record(Comment(rawValue: message), sourceLocation: sourceLocation)
+}
+
+/// 一个「那个操作跑完了没有」的标志位，配合 `waitUntilDone` 使用。
+@MainActor
+final class CompletionFlag {
+    var isDone = false
+}
+
+/// 有上限地等一个**可能永远不返回**的操作完成。返回 false 表示等到上限还没完成。
+///
+/// **为什么不用 `withTaskGroup` 竞速**：任务组在闭包返回前必须等所有子任务真正结束——
+/// 被等的操作若挂死，这个「有上限的等待」本身也会挂死，于是变异验证时看到的不是
+/// 「断言失败」而是「测试永久卡住」，正是最该避免的形态（也正是被测缺陷本身的形状）。
+/// 这里只轮询一个 MainActor 上的标志位，从不 await 那个操作，任何情况下都会在上限内返回。
+///
+/// 用法：调用方自己起 `Task { await 被测操作(); flag.isDone = true }`，然后等这个函数。
+/// 不把操作做成参数，是为了避开 `@Sendable` 闭包捕获 `@MainActor` 被测对象的噪音。
+@MainActor
+func waitUntilDone(
+    _ flag: CompletionFlag, maxAttempts: Int = 300, pollInterval: Duration = .milliseconds(10)
+) async -> Bool {
+    for _ in 0..<maxAttempts {
+        if flag.isDone { return true }
+        try? await Task.sleep(for: pollInterval)
+    }
+    return flag.isDone
+}
+
+/// 有上限地等某主机的池化会话**消失**。返回 true 表示确实消失了。
+///
+/// 两个方向都用它，避免两套判据：
+/// - 正向（「超时后必须驱逐」）：正确实现里毫秒级就返回 true，只有实现漏了驱逐才耗满上限。
+/// - 反向（「代次失效时不许驱逐」）：正确实现里会耗满上限并返回 false，调用方断言它为 false。
+///   反向用法必须把 `maxAttempts × pollInterval` 给足——窗口短于「若要驱逐早该驱逐了」
+///   的时刻，断言就成了空头支票。调用方应先等到 deadline 已经到点（例如那一轮已返回）
+///   再开始这个窗口。
+///
+/// `ConnectionManager` 是 actor，读池状态必须 `await`。
+@MainActor
+func waitUntilPooledSessionGone(
+    _ manager: ConnectionManager, host: DomainHost,
+    maxAttempts: Int = 200, pollInterval: Duration = .milliseconds(10)
+) async -> Bool {
+    for _ in 0..<maxAttempts {
+        if await !manager.hasPooledSession(for: host) { return true }
+        try? await Task.sleep(for: pollInterval)
+    }
+    return await !manager.hasPooledSession(for: host)
 }
 
 /// 有上限地轮询，直到 `log.execs` 达到 `target` 或耗尽 `maxAttempts`。
