@@ -6,17 +6,28 @@ import NIOCore
 /// Citadel `SSHClient` 的会话包装，实现 `ConnSSH.SSHSession`。
 final class CitadelSession: SSHSession, @unchecked Sendable {
     private let client: SSHClient
+    /// 只为 `SSHError.timeout(endpoint:)` 的诊断文案而持有——超时报错要说清是哪台主机。
+    private let endpoint: SSHEndpoint
     private let stateContinuation: AsyncStream<SSHSessionState>.Continuation
     let state: AsyncStream<SSHSessionState>
 
-    init(client: SSHClient) {
+    init(client: SSHClient, endpoint: SSHEndpoint) {
         self.client = client
+        self.endpoint = endpoint
         (state, stateContinuation) = AsyncStream.makeStream()
         stateContinuation.yield(.connected)
     }
 
     func exec(_ command: String, timeout: Duration) async throws -> ExecResult {
-        _ = timeout
+        // 捕获 self（本类是 @unchecked Sendable）而不是裸捕获 Citadel 的
+        // SSHClient——后者未声明 Sendable，直接进 @Sendable 闭包会告警。
+        try await withTimeout(timeout, timeoutError: .timeout(endpoint: endpoint)) { [self] in
+            try await runExec(command)
+        }
+    }
+
+    /// exec 的实际执行体（不含超时）。
+    private func runExec(_ command: String) async throws -> ExecResult {
         // 关键：Citadel 在命令退出码非零时**抛** `SSHClient.CommandFailed`，
         // 而运维场景里非零退出极常见（grep 无匹配、test 判假、服务未运行…）。
         // 必须捕获它转成正常的 ExecResult，否则这些命令会被误当作错误。
