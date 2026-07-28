@@ -1,0 +1,195 @@
+# 负载色标：指标配色统一为绿→红连续渐变 设计文档
+
+日期：2026-07-28
+
+## 背景与问题
+
+服务器卡片上 CPU / 内存 / 磁盘三个环的颜色，在阈值以下由**各指标专属色**决定，
+彼此不同：CPU 紫（`connAccent`）、内存蓝（`connInfo`）、磁盘橙（`connDisk`）。
+
+后果是**同一个百分比在不同指标上颜色不同**，横向扫一眼看不出谁负载高。
+Demo 数据里 api-02 的 CPU 14%（紫）、内存 27%（蓝）、磁盘 61%（橙）——
+橙色的 61% 看起来比紫色的 14% 更「热」，但那只是因为磁盘的底色本来就是橙。
+
+另一半问题是**阈值处硬跳变**：80 和 92 两道坎上颜色瞬间切换，中间没有过渡，
+79% 和 81% 看起来是两个世界，而 12% 和 78% 看起来完全一样。
+
+### 现状：四份重复的三段判定
+
+同一段逻辑在四处各写了一遍，只有 base tint 不同：
+
+| 位置 | 形态 | base tint |
+|---|---|---|
+| `ConnUI/Components/HealthCard.swift` `ringColor(_:_:)` | 环 ×3 | 调用方传入（accent / info / disk） |
+| `ConnUI/Components/MetricGauge.swift` `arcColor` | 环 | 调用方传入 |
+| `Conn/Hosts/HostOverviewView.swift` `coreBarColor(_:)` | 每核 CPU 条 | `connAccent` |
+| `Conn/Hosts/ContainerCard.swift` `barColor(_:_:)` | Docker CPU / 内存条 | accent / info |
+
+四份的判定完全一致：
+
+```swift
+if value > ConnThreshold.crit { return .connCrit }   // > 92
+if value > ConnThreshold.warn { return .connWarn }   // > 80
+return tint
+```
+
+**`MetricGauge` 全仓零调用方**（只有自己的 `#Preview` 在用）——`HealthCard` 没用它，
+而是内联画了一套自己的环。它是死代码，且是第二份会漂移的配色逻辑。
+
+## 目标
+
+- 负载高低由颜色**统一**表达：低=绿、高=红，与是哪个指标无关。
+- 阈值处不再硬跳变，全程连续过渡。
+- 四份重复的配色判定收敛成一份可单测的纯函数。
+
+## 非目标
+
+- **详情页的内存分解堆叠图不动。** 它画的是已用 / 缓存 / 空闲的**构成**，
+  不是负载高低，套负载色标反而没法读。
+- **网络 / IO 趋势线不动。** 同理，那些颜色区分的是「不同的序列」（上行 vs 下行、
+  读 vs 写），不是负载。
+- 不改 80 / 92 这两个阈值本身，也不改 `HealthEvaluator` 的判定。
+- 不动 `connDisk` / `connAccent` / `connInfo` 这些令牌本身——它们在别处仍在用
+  （`connDisk` 用于 IO 趋势图图例与 CPU 硬中断统计），只是不再充当负载指示的底色。
+
+## 关键决策
+
+| 决策 | 结论 | 理由 |
+|---|---|---|
+| 渐变形态 | **弧 / 条沿长度扫过绿→红**（转速表语义） | 环上每个角度位置对应那个位置的负载值；弧尖颜色即当前值 |
+| 渐变锚点 | 锚到现有 80 / 92 阈值 | 环刚变金与胶囊刚变警告同时发生，两者讲同一个故事 |
+| 锚点色值 | 直接复用 `connGood` / `connWarn` / `connCrit` | 与状态胶囊连色值都一致，且这三个令牌已适配深浅色 |
+| 低载区 | 0–60 恒定绿 | 50% 的 CPU 完全正常，不该发黄制造警觉 |
+| 高载区 | 92–100 恒定红 | 封顶，超过危险线没有「更红」的必要 |
+| `MetricGauge` | **删除** | 零调用方的死代码，且是第二份会漂移的配色逻辑 |
+| 色标位置 | `ConnUI/Tokens` | 与 `ConnThreshold` 同处；纯函数，可脱离 SwiftUI 单测 |
+
+## 色标定义
+
+新增 `Packages/ConnPackages/Sources/ConnUI/Tokens/ConnLoadScale.swift`：
+
+| 区间 | 颜色 |
+|---|---|
+| 0 – 60 | `connGood` 恒定 |
+| 60 → 80 | `connGood` → `connWarn` 线性过渡 |
+| 80 → 92 | `connWarn` → `connCrit` 线性过渡 |
+| 92 – 100 | `connCrit` 恒定 |
+
+对外暴露两样东西：
+
+```swift
+public enum ConnLoadScale {
+    /// 渐变停靠点。`gradient` 与 `color(at:)` 都由它派生，杜绝两者漂移。
+    static let stops: [(location: Double, color: Color)] = [
+        (0.00, .connGood), (0.60, .connGood),
+        (0.80, .connWarn), (0.92, .connCrit), (1.00, .connCrit)
+    ]
+
+    /// 铺满 0–100 整条轨道的渐变。由 `stops` 直接构造 `Gradient.Stop`。
+    ///
+    /// **必须铺满整条轨道再裁剪**，不能把它压进已填充的那一段——
+    /// 详见「实现陷阱」一节。
+    public static var gradient: Gradient
+
+    /// 某个负载值对应的单色：把 value/100 夹取到 0…1，
+    /// 找到它落在哪两个 `stops` 之间，按区间内的相对位置线性插值。
+    /// 落在恒定段（0–0.6、0.92–1.0）时两端同色，插值结果即该色。
+    public static func color(at value: Double) -> Color
+}
+```
+
+`60` 这个低载区上界是本设计新引入的常量（`ConnThreshold` 只有 `warn` / `crit`）。
+把它一并放进 `ConnThreshold`，命名 `calm`，并注明它只影响观感、不参与任何健康判定。
+
+## 四处调用点的改造
+
+### 1. `HealthCard` 的三个环
+
+`ring(_:value:sub:tint:)` 删掉 `tint` 参数，三个调用点跟着删。
+`ringColor(_:_:)` 私有方法删掉。填充从纯色换成 `AngularGradient(ConnLoadScale.gradient, center: .center)`。
+
+**这里天然是对的**：`Circle().trim(from: 0, to: fraction)` 与 `AngularGradient`
+都从 3 点钟起算，又被同一个 `.rotationEffect(.degrees(-90))` 一起旋转，
+所以环上的角度位置与负载值一一对应。20% 的弧只吃到渐变前 20%（整体绿），
+94% 的弧从绿一路扫到红。
+
+无数据（`value == nil`）时仍是 `connTrack`，与现状一致。
+
+### 2. `MetricGauge`
+
+整个文件删除。零调用方，删掉即可，无连带改动。
+
+### 3. `HostOverviewView` 的每核 CPU 条
+
+`coreBarColor(_:)` 删掉，`Capsule().fill(...)` 换成负载渐变。
+**必须按下节的陷阱处理**——条形图不像环那样天然正确。
+
+### 4. `ContainerCard` 的 Docker 条
+
+`barColor(_:_:)` 删掉，`percentCell(_:value:tint:)` 删掉 `tint` 参数，
+CPU 与内存两个调用点跟着删。填充同样按下节处理。
+
+> Docker 的网络 / IO 走 `flowCell`，是纯文本流量读数、没有颜色，不受影响。
+
+## 实现陷阱：条形图的渐变必须铺满轨道
+
+条现在是这样画的（`HostOverviewView` 与 `ContainerCard` 同构）：
+
+```swift
+ZStack(alignment: .leading) {
+    Capsule().fill(Color.connTrack)
+    Capsule().fill(coreBarColor(usage))
+        .frame(width: max(4, geometry.size.width * fraction(usage)))
+}
+```
+
+直接把 `fill` 换成渐变，SwiftUI 会**把整条渐变压缩进已填充的宽度**——
+结果是无论 20% 还是 94%，条子都从绿扫到红，「值越高越红」的信息完全丢失。
+
+正确做法：让渐变铺满**整条轨道**，再裁到当前宽度。例如
+
+```swift
+Capsule()
+    .fill(LinearGradient(gradient: ConnLoadScale.gradient,
+                         startPoint: .leading, endPoint: .trailing))
+    .frame(width: geometry.size.width)          // 渐变按全宽铺
+    .mask(alignment: .leading) {                 // 再裁到当前值
+        Capsule().frame(width: max(4, geometry.size.width * fraction(usage)))
+    }
+```
+
+**这个错误在 90% 时看着完全正常，只有低载才暴露**——所以验收必须拿低载样本。
+
+## 测试
+
+**ConnUITests**（纯函数，可直接单测）
+- `color(at:)` 的边界与拐点：0 / 60 → `connGood`；92 / 100 → `connCrit`；
+  80 → `connWarn`。
+- 插值正确：70 是 60–80 的中点，`color(at: 70)` 应等于 `connGood` 与 `connWarn`
+  的 50/50 混合；86 是 80–92 的中点，应等于 `connWarn` 与 `connCrit` 的 50/50 混合。
+  取色方式照 `ConnColorTokenTests` 既有的写法。
+- 夹取：`color(at: -10)` 与 `color(at: 0)` 同色，`color(at: 150)` 与 `color(at: 100)` 同色。
+- `gradient` 的停靠点与 `stops` 一致（防止两条路径漂移）。
+
+**变异验证**（必做，本仓库已抓到过四次假测试）
+- 把 `stops` 里 60 那个点改成 0，确认「0–60 恒定绿」与「70 是 50/50 混合」两组用例变红。
+- 把 `color(at:)` 的夹取去掉，确认边界用例变红。
+
+> 「渐变有没有铺满轨道」这一条**单测覆盖不到**——它是 SwiftUI 的布局行为，
+> 只能靠截图验收，见下。这是本次改动最容易出错、又最没有自动化护栏的地方。
+
+**截图验收**（渐变与轨道的对齐关系单测覆盖不到）
+- 主机卡：Demo 里有 14% / 27% / 61% 的正常机与 84% / 92% / 90% 的故障机，
+  两种都要拍。重点确认**同一百分比在不同指标上颜色一致**——这正是本次要改的。
+- 每核 CPU 条：详情页概览段（`CONN_SMOKE_DETAIL=1`）。
+- Docker 条：`CONN_SMOKE_DETAIL=1` + `CONN_SMOKE_SEGMENT=docker`。
+- **低载样本是必须的**：上述实现陷阱在高载时看不出来。
+
+## i18n
+
+本次不新增任何面向用户的文案。
+
+## 待办（不在本次范围）
+
+- 详情页内存分解堆叠图与网络 / IO 趋势线的配色（它们表达的是构成与序列，
+  不是负载，若要改需另行设计）。
