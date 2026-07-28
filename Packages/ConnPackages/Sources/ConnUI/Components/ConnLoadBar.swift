@@ -14,8 +14,11 @@ public struct ConnLoadBar: View {
 
     /// - Parameters:
     ///   - percent: 原始负载百分比（0…100 语境，越界会被 clamp，不要求调用方
-    ///     先手动归一化）。`nil` 表示无数据，此时只画灰轨道，不能露出任何
-    ///     彩色头部——调用方（如已停止的容器）依赖这一点隐藏指标。
+    ///     先手动归一化）。`nil` 表示尚无采样数据——真实场景是「运行中但还
+    ///     没收到第一批指标」（如刚发现的主机、刚启动的容器），此时只画
+    ///     灰轨道，不露出任何彩色头部。**不是**给「已停止」这类状态用的：
+    ///     已停止的容器（见 `ContainerCard`）根本不渲染这块视图，不依赖
+    ///     `nil` 分支来隐藏指标。
     ///   - minWidth: 有数据时的最小可见宽度，避免极小值看不见。
     public init(percent: Double?, minWidth: CGFloat) {
         self.percent = percent
@@ -55,9 +58,11 @@ public struct ConnLoadBar: View {
 
 #Preview("ConnLoadBar · 深色") {
     VStack(spacing: 12) {
+        ConnLoadBar(percent: 0, minWidth: 4).frame(height: 6)
         ConnLoadBar(percent: 20, minWidth: 4).frame(height: 6)
         ConnLoadBar(percent: 60, minWidth: 4).frame(height: 6)
         ConnLoadBar(percent: 94, minWidth: 4).frame(height: 6)
+        ConnLoadBar(percent: 100, minWidth: 4).frame(height: 6)
         ConnLoadBar(percent: nil, minWidth: 3).frame(height: 4)
     }
     .padding(24)
@@ -68,9 +73,11 @@ public struct ConnLoadBar: View {
 
 #Preview("ConnLoadBar · 浅色") {
     VStack(spacing: 12) {
+        ConnLoadBar(percent: 0, minWidth: 4).frame(height: 6)
         ConnLoadBar(percent: 20, minWidth: 4).frame(height: 6)
         ConnLoadBar(percent: 60, minWidth: 4).frame(height: 6)
         ConnLoadBar(percent: 94, minWidth: 4).frame(height: 6)
+        ConnLoadBar(percent: 100, minWidth: 4).frame(height: 6)
         ConnLoadBar(percent: nil, minWidth: 3).frame(height: 4)
     }
     .padding(24)

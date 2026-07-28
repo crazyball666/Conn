@@ -31,7 +31,5 @@ public enum ConnLoadScale {
     /// **必须铺满整条轨道再裁剪**，不能把它压进已填充的那一段——压缩后无论
     /// 20% 还是 94% 都会从绿扫到红，「值越高越红」的信息完全丢失。环因为
     /// `trim` 与 `AngularGradient` 同起点、同旋转而天然正确；条形图必须显式处理。
-    public static var gradient: Gradient {
-        Gradient(stops: stops.map { .init(color: $0.color, location: CGFloat($0.location)) })
-    }
+    public static let gradient = Gradient(stops: stops.map { .init(color: $0.color, location: CGFloat($0.location)) })
 }

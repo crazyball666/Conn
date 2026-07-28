@@ -291,12 +291,17 @@ public struct HealthCard: View {
     /// （曾经试过把渐变整体平移、或把跨度撑到 360° 以上兼顾两头，前者会
     /// 让 97.5% 以上的高载弧尖被误判为绿色、后者会在跨度重叠的那一小段
     /// 出现归属二义、动画过渡期间红点间歇性复现）。平头没有任何外伸，
-    /// 弧严格只覆盖 `[0°, 360°·负载]`，与 `AngularGradient` 默认铺满的
+    /// 弧严格只覆盖 `[0°, 360°·负载]`，与 `AngularGradient` 显式声明铺满的
     /// `[0°, 360°]` 精确一一对应，起点即色标起点、弧尖即当前负载对应的
-    /// 颜色，不需要再借助偏移去回避这个冲突。
+    /// 颜色，不需要再借助偏移去回避这个冲突。`startAngle`/`endAngle` 显式写
+    /// 出而非依赖两者同为默认值 `.zero` 时的隐式整圈行为——上面这段论证
+    /// 完全建立在跨度恰好是 `[0°, 360°]` 之上，这个不变量理应出现在代码里。
     private func arcStyle(for value: Double?) -> AnyShapeStyle {
         guard value != nil else { return AnyShapeStyle(Color.connTrack) }
-        return AnyShapeStyle(AngularGradient(gradient: ConnLoadScale.gradient, center: .center))
+        return AnyShapeStyle(AngularGradient(
+            gradient: ConnLoadScale.gradient, center: .center,
+            startAngle: .degrees(0), endAngle: .degrees(360)
+        ))
     }
 
     private func flowColumn(_ label: String, _ flow: Flow?) -> some View {
@@ -455,6 +460,23 @@ private extension View {
             id: "4", name: "reconnecting-host", address: "root@10.0.0.4",
             status: .ok, cpu: 12, memory: 40, disk: 55,
             collectPhase: .reconnecting
+        )) {}
+        // 边界样本（负载色标验收面）：nil 只画灰轨道；>92 三环全部封顶红；
+        // 正好 100% 会在 12 点方向出现绿红硬相接——AngularGradient 套闭合
+        // 形状的固有表现，是预期的，不是要修的 bug，样本目的正是让它可见。
+        HealthCard(.init(
+            id: "5", name: "no-metrics-host", address: "root@10.0.0.7",
+            status: .ok, coresText: "—", memTotalText: "—", diskTotalText: "—"
+        )) {}
+        HealthCard(.init(
+            id: "6", name: "over-92-host", address: "root@10.0.0.8",
+            status: .warn, cpu: 95, memory: 97, disk: 99,
+            coresText: "4 核", memTotalText: "7.6 G", diskTotalText: "39.2 G"
+        )) {}
+        HealthCard(.init(
+            id: "7", name: "maxed-out-host", address: "root@10.0.0.9",
+            status: .crit, cpu: 100, memory: 100, disk: 100,
+            coresText: "4 核", memTotalText: "7.6 G", diskTotalText: "39.2 G"
         )) {}
     }
     .padding(ConnSpacing.page)
