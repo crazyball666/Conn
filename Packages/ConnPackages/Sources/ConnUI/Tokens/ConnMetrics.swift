@@ -96,6 +96,12 @@ public enum ConnSize {
 
 /// 指标阈值。超阈值时指标色统一切 warn / crit（设计规范 §5）。
 public enum ConnThreshold {
+    /// 低于此值视为「平静」，负载色标在这一段保持恒定绿。
+    ///
+    /// **只影响观感，不参与任何健康判定**——`HealthEvaluator` 只认 `warn` / `crit`。
+    /// 之所以要留出这段平台期：50% 的 CPU 完全正常，若从 0 就开始往黄端爬，
+    /// 用户每天都在看一片发黄的卡片，真正该警觉时反而失去对比。
+    public static let calm: Double = 60
     /// 超过此值转为警告色。
     public static let warn: Double = 80
     /// 超过此值转为危险色。
