@@ -41,9 +41,9 @@ public final class MonitorScheduler {
     private let collector: MetricCollector
     private let now: () -> Date
     /// 单台主机一轮采集的**放弃式**截止时间：到点就交还控制权，把那一轮丢成孤儿。
-    /// 语义与取值理由见 `collectOne`。可注入只为让测试免于真等 45 秒。
+    /// 语义与取值理由见 `collectOne`。可注入只为让测试免于真等 90 秒。
     ///
-    /// 刻意用 internal 而非 private：默认值 45 秒是条正确性约束（不得低于一次完整
+    /// 刻意用 internal 而非 private：默认值 90 秒是条正确性约束（不得低于一次完整
     /// 自愈的合法耗时），有一条测试直接盯着它，`private` 连 `@testable` 也读不到。
     let collectDeadline: Duration
     private var task: Task<Void, Never>?
@@ -93,7 +93,7 @@ public final class MonitorScheduler {
         connectionManager: ConnectionManager,
         collector: MetricCollector = MetricCollector(),
         now: @escaping () -> Date = Date.init,
-        collectDeadline: Duration = .seconds(45)
+        collectDeadline: Duration = .seconds(90)
     ) {
         self.connectionManager = connectionManager
         self.collector = collector
@@ -287,9 +287,9 @@ public final class MonitorScheduler {
     /// 采一台，**最多占用调用方 `collectDeadline` 那么久**。
     ///
     /// 真正的采集在 `performCollect` 里，跑在一个**非结构化 `Task`** 上；本函数
-    /// 竞速等待「它跑完」与「睡到 deadline」，deadline 先到就直接返回，对那个 Task
-    /// 只 `cancel()` 一次（尽力而为，底层多半不响应）且**绝不 await 它**——
-    /// 它就此成为孤儿，继续在后台跑完自己。
+    /// 竞速等待「它跑完」与「睡到 deadline」，deadline 先到就直接返回，且**既不
+    /// `cancel()` 它也绝不 await 它**——它就此成为孤儿，继续在后台跑完自己，
+    /// 由紧随其后的 `evictHungSession` 关连接把它了结掉。
     ///
     /// **为什么非得用非结构化任务**：`scanOnce` 用 `withTaskGroup` 收敛一轮，而
     /// 任务组的闭包**必须等所有子任务真正结束才返回**。采集链路最终会走到 Citadel 的
@@ -321,12 +321,20 @@ public final class MonitorScheduler {
             let latch = CollectDeadlineLatch(continuation)
             // 计时器：睡满 deadline 就把控制权交还给调用方。
             //
-            // **45 秒这个默认值不许往小调**（调小不是优化，是制造新缺陷）：常见的死会话
-            // 靠「第一次 attempt 撞上 Citadel 的 15 秒兜底 → 抛错 → 驱逐会话 →
-            // 重新握手重试 → 成功」自愈，而一个完整的 `collectOne` 有两次 attempt，
-            // 合法耗时可能超过 30 秒。deadline 必须**显著大于 30 秒**，否则会在自愈
-            // 完成前就把那一轮丢成孤儿，制造出「本来能恢复却一直转圈」——比它要修的
-            // 卡死更糟：卡死只赖住一台，这个会让每台可自愈的主机都恢复不了。
+            // **90 秒这个默认值不许往小调**（调小不是优化，是制造新缺陷）。这笔账：
+            // 一个完整的 `collectOne` 有两次 attempt，每次 attempt 里 `MetricCollector`
+            // 走的是 `session.exec(command)` 的便利重载，软超时 **30 秒**；而
+            // `ExecTimeout.withTimeout` 自己的注释已明文承认那是**软**超时——工作体不
+            // 响应取消时，任务组必须等它自己跑完才返回（评审实测：200ms 的 deadline
+            // 实际耗时 4.26 秒），也就是会**超调**。再加上 attempt2 失败后要重新握手
+            // （NIO 默认约 10 秒）。合法最坏路径 ≈ 30s（+超调）+ 10s + 30s（+超调），
+            // 也就是说**上一版的 45 秒稳稳落在这条合法路径的中间**——它会把一次正在
+            // 自愈的慢采集当成卡死处理。
+            //
+            // 设小的代价还不止「白等」：deadline 到点不只是放弃那一轮，还会
+            // `evictHungSession` **关掉连接**——等于把一次本来能自愈的慢采集强行变成
+            // 断连，制造出「本来能恢复却一直转圈」。比它要修的卡死更糟：卡死只赖住
+            // 一台，这个会让每台可自愈的主机都恢复不了。
             let timer = Task { @MainActor in
                 try? await Task.sleep(for: self.collectDeadline)
                 // 返回 false = 这次没赢下竞速：要么采集在同一瞬间抢先跑完，要么计时器
@@ -334,33 +342,9 @@ public final class MonitorScheduler {
                 // 那一轮都好端端地结束了，下面的驱逐**一个字也不能做**——否则每次成功
                 // 采集都会顺手关掉连接，下一轮全体重新握手。
                 guard latch.abandonWork() else { return }
-                // 关掉这台主机的 SSH 连接。
-                //
-                // **不是为了「清理资源」，而是主动把挂死的孤儿了结掉**——因果链要写清楚，
-                // 否则后人很容易以为这一步可有可无：孤儿此刻挂在 Citadel 的 exec 请求上
-                // （NIO future，不响应 Swift 并发取消，上面那次 `cancel()` 对它完全无效），
-                // 只能干等 TCP RTO，分钟级。这期间它一直占着 `inFlight`，后续每一轮都对
-                // 这台主机让位，卡片持续转圈且完全不刷新，下拉刷新也绕不过去。
-                // 而关闭 NIO channel 是纯本地操作、不需要对端配合：一关，那个挂着的
-                // promise 立刻失败 → 孤儿迅速返回 → 它的 `defer` 把自己移出 `inFlight`
-                // → **下一轮就能对这台主机重新握手采集**。
-                //
-                // 用 `invalidate(host:)` 而不是 `disconnect(host:)`：前者 fire-and-forget
-                // （内部 `Task { await session.close() }`），后者要 `await` 关闭完成，
-                // 对着一条半死的 socket 很可能把这里也一起卡住——那就用一个新的挂起点
-                // 去修一个挂起点了。
-                //
-                // **只有当前代次仍有效时才驱逐。** 这条 guard 看着像可以省掉的冗余检查，
-                // 实际是防回归的：`ConnectionManager` 是全 App 唯一的连接池，用户的终端
-                // shell、日志 `tail -f`、文件编辑器跨会话持有的 sftp handle 全都骑在同一条
-                // SSH 连接上。用户进入终端页时 `ServersView.onDisappear →
-                // viewModel.disappear() → monitor.stop()` 会推进代次，届时这次驱逐必须
-                // 跳过，否则会掐断用户刚打开的终端。本仓库有前科：上一轮改造里
-                // `resumeAfterBackground` 无条件 `invalidateAll()` 就是这样打死过终端的。
-                guard self.isCurrent(scanGeneration) else { return }
-                await self.connectionManager.invalidate(host: host)
+                await self.evictHungSession(host: host, generation: scanGeneration)
             }
-            let work = Task { @MainActor in
+            Task { @MainActor in
                 await self.performCollect(
                     host, generation: scanGeneration,
                     includeExtended: includeExtended, includeProcesses: includeProcesses
@@ -368,8 +352,36 @@ public final class MonitorScheduler {
                 timer.cancel()          // 采完了就别让计时器白占着一个 Task
                 latch.workDidFinish()
             }
-            latch.work = work
         }
+    }
+
+    /// 采集超时后，关掉这台主机的 SSH 连接，**主动把挂死的孤儿了结掉**。
+    ///
+    /// **不是为了「清理资源」**——因果链要写清楚，否则后人很容易以为这一步可有可无：
+    /// 孤儿此刻挂在 Citadel 的 exec 请求上（NIO future，不响应 Swift 并发取消），
+    /// 只能干等 TCP RTO，分钟级。这期间它一直占着 `inFlight`，后续每一轮都对这台主机
+    /// 让位，卡片持续转圈且完全不刷新，下拉刷新也绕不过去。而关闭 NIO channel 是纯
+    /// 本地操作、不需要对端配合：一关，那个挂着的 promise 立刻失败 → 孤儿迅速返回
+    /// → 它的 `defer` 把自己移出 `inFlight` → **下一轮就能对这台主机重新握手采集**。
+    ///
+    /// **这也是为什么 `collectOne` 不对孤儿 `cancel()`**：整套方案的前提就是「这个任务
+    /// 杀不掉」，`cancel()` 对挂死的 NIO future 毫无作用；真正了结它的是这里的关连接。
+    /// 而 `cancel()` 唯一确定的效果是污染孤儿后续的结构化并发——详见
+    /// `CollectDeadlineLatch.abandonWork`。
+    ///
+    /// 用 `invalidate(host:)` 而不是 `disconnect(host:)`：前者 fire-and-forget
+    /// （内部 `Task { await session.close() }`），后者要 `await` 关闭完成，对着一条半死的
+    /// socket 很可能把这里也一起卡住——那就用一个新的挂起点去修一个挂起点了。
+    ///
+    /// **只有当前代次仍有效时才驱逐。** 这条 guard 看着像可以省掉的冗余检查，实际是
+    /// 防回归的：`ConnectionManager` 是全 App 唯一的连接池，用户的终端 shell、日志
+    /// `tail -f`、文件编辑器跨会话持有的 sftp handle 全都骑在同一条 SSH 连接上。用户
+    /// 进入终端页时 `ServersView.onDisappear → viewModel.disappear() → monitor.stop()`
+    /// 会推进代次，届时这次驱逐必须跳过，否则会掐断用户刚打开的终端。本仓库有前科：
+    /// 上一轮改造里 `resumeAfterBackground` 无条件 `invalidateAll()` 就是这样打死过终端的。
+    private func evictHungSession(host: ConnKit.Host, generation scanGeneration: Int) async {
+        guard isCurrent(scanGeneration) else { return }
+        await connectionManager.invalidate(host: host)
     }
 
     /// 一轮采集的正体：两次 attempt + 判定 + 收圈。**必须跑在 `collectOne` 给它开的

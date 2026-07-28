@@ -149,22 +149,27 @@ struct SchedulerFixture {
 
 /// 需要直接断言连接池状态（例如「会话有没有被 `invalidateAll` 掐掉」）时用这个。
 ///
-/// - Parameter collectDeadline: 单台主机一轮采集的放弃式截止时间。默认走生产值
-///   （45 秒，理由见 `MonitorScheduler.collectOne`）；要测「到点放弃」的用例传一个
-///   几百毫秒的值——**测试里绝不能真的睡 45 秒**。
+/// - Parameter collectDeadline: 单台主机一轮采集的放弃式截止时间。不传就走生产默认值
+///   （理由见 `MonitorScheduler.collectOne`）；要测「到点放弃」的用例传一个几百毫秒的
+///   值——**测试里绝不能真的睡满生产 deadline**。
 @MainActor
 func makeFixture(
     execFailures: Int = 0, now: (() -> Date)? = nil, collectDeadline: Duration? = nil
 ) -> SchedulerFixture {
     let log = CallLog(execFailures: execFailures)
     let manager = ConnectionManager(transport: FlakyTransport(log: log))
-    // 逐参数写默认值会退化成 4 个分支的组合爆炸，这里靠 MonitorScheduler 自己的
-    // 默认参数收敛：只有传了的那个才覆盖。
-    let scheduler = MonitorScheduler(
-        connectionManager: manager,
-        now: now ?? Date.init,
-        collectDeadline: collectDeadline ?? .seconds(45)
-    )
+    // `collectDeadline` 为 nil 时**必须一个字也不提**，而不是在这里写一份 `.seconds(90)`。
+    // 抄一份生产默认值会让 `makeScheduler()`（注释说「不传 → 用生产默认值」）拿到的其实是
+    // 测试助手自己塞的那个数，与 `MonitorScheduler.init` 的默认值再无关系——
+    // 盯着那个默认值的护栏测试就此永久变绿。评审实测过：把生产默认值改成 1 秒，
+    // 30 条测试仍然全绿，包括那条专门盯它的 `defaultDeadlineLeavesRoomForSelfHealing`。
+    let scheduler = if let collectDeadline {
+        MonitorScheduler(
+            connectionManager: manager, now: now ?? Date.init, collectDeadline: collectDeadline
+        )
+    } else {
+        MonitorScheduler(connectionManager: manager, now: now ?? Date.init)
+    }
     return SchedulerFixture(scheduler: scheduler, manager: manager, log: log)
 }
 
@@ -205,26 +210,6 @@ func waitUntilPhase(
     Issue.record(Comment(rawValue: message), sourceLocation: sourceLocation)
 }
 
-/// 有上限地轮询，直到 `log.execs` 达到 `target` 或耗尽 `maxAttempts`。
-///
-/// 用于精确定位到「第 N 次 exec 调用已经开始」这个时间点——比直接轮询
-/// `phases` 更稳：`phases` 在一轮里可能被多次 attempt 先后写入（例如失败重试前的
-/// 那次 attempt 也会短暂写一个值），直接等某个 phase 值出现，可能撞上前一次
-/// attempt 的瞬时值而非我们真正要观察的那次，从而在某些错误实现下误判通过。
-/// 而 `execs` 计数单调递增，等到第 N 次 exec 已开始，就能保证 `phases`
-/// 已经是「这次 attempt」在函数顶部写下的、稳定不会再变的值
-/// （因为这次 exec 挂在闸门上，不会往下走到下一次 attempt）。
-///
-/// - Parameter pollInterval: 每次重试之间真的睡多久。**必须非零**，默认 5ms。
-///   曾经默认 `.zero`（只 `Task.yield()`），已实测 flaky：`yield` 烧的是 CPU 周期而非
-///   墙钟时间，而被等的事件跑在 MainActor / 协作线程池上（`connect`/`exec` 是
-///   非隔离 async，并行执行测试时还要和别的用例抢线程），200 次 yield 完全可能在
-///   事件落地前就耗尽。之后函数**静默返回**，紧跟的 `#expect` 读到等待前的旧值，
-///   于是报出来的是一条与真实缺陷无关的断言失败。真睡过一小段墙钟，
-///   既让出线程也推进时间，同时仍是「事件一发生就立刻返回」的因果等待。
-///
-/// 耗尽上限时 `Issue.record` 而非静默返回：静默返回是这类等待工具最危险的性质——
-/// 它把「等待超时」伪装成「被测行为不对」，让排查方向从一开始就是错的。
 /// 一个「那个操作跑完了没有」的标志位，配合 `waitUntilDone` 使用。
 @MainActor
 final class CompletionFlag {
@@ -273,6 +258,26 @@ func waitUntilPooledSessionGone(
     return await !manager.hasPooledSession(for: host)
 }
 
+/// 有上限地轮询，直到 `log.execs` 达到 `target` 或耗尽 `maxAttempts`。
+///
+/// 用于精确定位到「第 N 次 exec 调用已经开始」这个时间点——比直接轮询
+/// `phases` 更稳：`phases` 在一轮里可能被多次 attempt 先后写入（例如失败重试前的
+/// 那次 attempt 也会短暂写一个值），直接等某个 phase 值出现，可能撞上前一次
+/// attempt 的瞬时值而非我们真正要观察的那次，从而在某些错误实现下误判通过。
+/// 而 `execs` 计数单调递增，等到第 N 次 exec 已开始，就能保证 `phases`
+/// 已经是「这次 attempt」在函数顶部写下的、稳定不会再变的值
+/// （因为这次 exec 挂在闸门上，不会往下走到下一次 attempt）。
+///
+/// - Parameter pollInterval: 每次重试之间真的睡多久。**必须非零**，默认 5ms。
+///   曾经默认 `.zero`（只 `Task.yield()`），已实测 flaky：`yield` 烧的是 CPU 周期而非
+///   墙钟时间，而被等的事件跑在 MainActor / 协作线程池上（`connect`/`exec` 是
+///   非隔离 async，并行执行测试时还要和别的用例抢线程），200 次 yield 完全可能在
+///   事件落地前就耗尽。之后函数**静默返回**，紧跟的 `#expect` 读到等待前的旧值，
+///   于是报出来的是一条与真实缺陷无关的断言失败。真睡过一小段墙钟，
+///   既让出线程也推进时间，同时仍是「事件一发生就立刻返回」的因果等待。
+///
+/// 耗尽上限时 `Issue.record` 而非静默返回：静默返回是这类等待工具最危险的性质——
+/// 它把「等待超时」伪装成「被测行为不对」，让排查方向从一开始就是错的。
 func waitUntilExecCount(
     _ log: CallLog, atLeast target: Int, maxAttempts: Int = 200,
     pollInterval: Duration = .milliseconds(5),

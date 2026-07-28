@@ -267,14 +267,25 @@ struct MonitorSchedulerDeadlineTests {
 
     /// 这个数字是**正确性约束**，不是性能旋钮，所以钉一条测试盯着它。
     ///
-    /// 常见的死会话靠「第一次 attempt 撞上 Citadel 的 15 秒兜底 → 抛错 → 驱逐会话 →
-    /// 重新握手重试 → 成功」自愈，而一轮 `collectOne` 有两次 attempt，合法耗时可能
-    /// 超过 30 秒。deadline 一旦被「优化」到 30 秒以下，就会在自愈完成前把那一轮丢成
-    /// 孤儿，制造出「本来能恢复却一直转圈」——比它要修的卡死更糟：卡死只赖住一台，
-    /// 这个会让每台可自愈的主机都恢复不了。
-    @Test("默认 deadline 显著大于一次完整自愈（两次 attempt）的合法耗时")
+    /// 合法最坏路径这样算：一轮 `collectOne` 有两次 attempt，每次 attempt 里
+    /// `MetricCollector` 走 `session.exec(command)` 的便利重载，软超时 30 秒；
+    /// 而 `ExecTimeout.withTimeout` 自己的注释已明文承认那是**软**超时，工作体不响应
+    /// 取消时会超调（评审实测 200ms 的 deadline 实际耗时 4.26 秒）。attempt1 失败后
+    /// 还要重新握手（NIO 默认约 10 秒）才轮到 attempt2。合计 ≈ 30s + 10s + 30s，
+    /// 外加两段超调——上一版的 45 秒稳稳落在这条**合法**路径的中间，所以抬到 90 秒。
+    ///
+    /// deadline 一旦被「优化」下去，就会在自愈完成前把那一轮丢成孤儿，**并且顺手关掉
+    /// 连接**（`evictHungSession`），把一次本来能自愈的慢采集变成强制断连，制造出
+    /// 「本来能恢复却一直转圈」——比它要修的卡死更糟：卡死只赖住一台，这个会让每台
+    /// 可自愈的主机都恢复不了。
+    ///
+    /// **刻意绕开 `makeScheduler()` 直接构造**：中间隔一层测试助手，只要助手里写了一份
+    /// 默认值（哪怕数字一样），这条护栏就与生产默认值脱钩、永远变绿——本仓库刚踩过。
+    /// 这里读的必须是 `MonitorScheduler.init` 自己的默认参数。
+    @Test("默认 deadline 显著大于一次完整自愈（两次 attempt + 一次握手）的合法耗时")
     func defaultDeadlineLeavesRoomForSelfHealing() {
-        let (scheduler, _) = makeScheduler()   // 不传 → 用生产默认值
-        #expect(scheduler.collectDeadline >= .seconds(45))
+        let manager = ConnectionManager(transport: FlakyTransport(log: CallLog()))
+        let scheduler = MonitorScheduler(connectionManager: manager)
+        #expect(scheduler.collectDeadline >= .seconds(90))
     }
 }
