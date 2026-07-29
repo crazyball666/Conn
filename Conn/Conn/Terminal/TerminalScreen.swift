@@ -43,17 +43,27 @@ struct TerminalScreen: View {
                 connecting
             case let .ready(session):
                 TerminalHostingView(session: session, configuration: configuration)
-                    .ignoresSafeArea(.container, edges: .bottom)
+                    // 连键盘安全区一起忽略：默认的键盘避让会把终端高度压掉近一半，
+                    // SwiftTerm 随即重算行数并触发 `sizeChanged` → `session.resize`，
+                    // 也就是真的给远端发一次 SIGWINCH，收键盘时再发一次。对 vim /
+                    // tmux 这类全屏程序，这两次尺寸变化会直接打乱它们的布局。
+                    // 改为终端保持全高、键盘盖住下半部分——远端全程无感。
+                    .ignoresSafeArea([.container, .keyboard], edges: .bottom)
             case let .failed(message):
                 failure(message)
             }
         }
         .navigationTitle(host.name)
         .navigationBarTitleDisplayMode(.inline)
-        // 终端背景是 connTermBg（深色），nav bar 透明露出底色，强制 dark scheme 让
-        // 标题/返回箭头按深色模式渲染（浅色字），否则会出现「黑字黑底看不见」。
+        // 终端背景是深色，nav bar 透明露出底色，强制 dark scheme 让标题/返回箭头
+        // 按深色模式渲染（浅色字），否则会出现「黑字黑底看不见」。
         .toolbarBackground(.hidden, for: .navigationBar)
         .toolbarColorScheme(.dark, for: .navigationBar)
+        // 上面那行**只管导航栏**。状态栏不是 toolbar——时间 / 信号 / 电量跟的是
+        // `preferredColorScheme`，App 在浅色模式时它们被画成黑字，压在深色终端上
+        // 几乎看不见。全部 8 个终端主题背景都是深色（#07090F～#2E3440），
+        // 所以这里无条件强制深色是安全的。
+        .preferredColorScheme(.dark)
         .task { await connect() }
     }
 
