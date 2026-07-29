@@ -108,4 +108,43 @@ enum DockerDetail {
             }
         }
     }
+
+    /// `listBody` 的加载状态：错误 / 加载中 / 空态文案。打包成具名类型而非元组——
+    /// 四个字段的元组会撞 SwiftLint 的 `large_tuple` 上限（>3 个成员即报错）。
+    struct ListState {
+        let error: String?
+        let loaded: Bool
+        let loadingText: String
+        let emptyText: String
+
+        init(error: String?, loaded: Bool, loadingText: String, emptyText: String) {
+            self.error = error
+            self.loaded = loaded
+            self.loadingText = loadingText
+            self.emptyText = emptyText
+        }
+    }
+
+    /// 列表分段的加载状态机：错误 / 加载中 / 空 / 有内容四态。
+    /// 镜像、卷、网络三个分段结构完全一致，只有文案与行视图不同——抽出以免
+    /// 三份各自漂移（也是 `DockerView` 顶着 SwiftLint `type_body_length` 阈值时
+    /// 挤出的空间，属于真去重而非单纯挪代码）。
+    @ViewBuilder
+    static func listBody<Item: Identifiable>(
+        items: [Item],
+        state: ListState,
+        @ViewBuilder row: @escaping (Item) -> some View
+    ) -> some View {
+        if let error = state.error {
+            ConnBanner(error, systemImage: "exclamationmark.triangle")
+        } else if !state.loaded {
+            ProgressView(state.loadingText).font(.connFootnote).foregroundStyle(.connMuted)
+                .frame(maxWidth: .infinity).padding(.vertical, ConnSpacing.xl)
+        } else if items.isEmpty {
+            Text(state.emptyText).font(.connSubheadline).foregroundStyle(.connMuted)
+                .padding(.vertical, ConnSpacing.xl)
+        } else {
+            ForEach(items) { row($0) }
+        }
+    }
 }

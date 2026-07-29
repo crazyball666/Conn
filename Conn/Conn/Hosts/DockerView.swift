@@ -11,6 +11,9 @@ struct DockerView: View {
     @Environment(SettingsStore.self) private var settings
     @State private var tab: Tab = .containers
     @State private var route: Route?
+    /// 四个分段共用一个搜索词——切分段时清空（见下方 `.onChange`），
+    /// 否则上一分段的过滤条件会悄悄套在新分段上。
+    @State private var search = ""
     private let host: Host
     private let dependencies: AppDependencies
 
@@ -66,9 +69,11 @@ struct DockerView: View {
                 autoCommand: viewModel.containers.consoleCommand(for: container)
             )
         case let .volumeDetail(volume):
-            // 磁盘占用（system df -v）要到 Task 7 才接入 DockerViewModel，本任务先传
-            // nil，页面按设计显示「—」——它本就是「查不到就退化」的锦上添花字段。
-            VolumeDetailView(volume: volume, model: viewModel.volumes, size: nil) { container in
+            // 磁盘占用来自 `viewModel.diskUsage`（Task 7 接入）；查不到时为 nil，
+            // 页面按设计显示「—」——它本就是「查不到就退化」的锦上添花字段。
+            VolumeDetailView(
+                volume: volume, model: viewModel.volumes, size: viewModel.diskUsage?.volumeSize(volume.name)
+            ) { container in
                 route = .detail(container)
             }
         case let .networkDetail(network):
@@ -78,6 +83,15 @@ struct DockerView: View {
                 if let container = viewModel.containers.items.first(where: { $0.id == containerID }) {
                     route = .detail(container)
                 }
+            }
+        case let .imageDetail(image):
+            ImageDetailView(
+                image: image,
+                model: viewModel.images,
+                users: ImageUsage.containersUsing(image, in: viewModel.containers.items),
+                diskSize: viewModel.diskUsage?.imageSize(image.imageID)
+            ) { container in
+                route = .detail(container)
             }
         }
     }
@@ -102,6 +116,8 @@ struct DockerView: View {
                     ForEach(Tab.allCases) { Text(L($0.rawValue)).tag($0) }
                 }
                 .pickerStyle(.segmented)
+                // 切分段时清空搜索词，避免上一分段的过滤条件悄悄套在新分段上
+                .onChange(of: tab) { _, _ in search = "" }
                 ScrollView {
                     switch tab {
                     case .containers: containerList
@@ -124,11 +140,19 @@ struct DockerView: View {
             guard !Task.isCancelled, viewModel.hasLoaded else { continue }
             switch tab {
             case .containers: await viewModel.containers.refresh()
-            case .images: await viewModel.images.load()
+            case .images: await refreshImages()
             case .volumes: await viewModel.volumes.load()
             case .networks: await viewModel.networks.load()
             }
         }
+    }
+
+    /// 镜像列表重拉后，「未使用」判定要跟着用最新的容器列表重算一遍，
+    /// 否则展示的还是上一次判定——容器段这时大概率已经就绪（首次进入镜像分段时
+    /// `loadImagesWithUsage()` 已经保证过一次），这里不再重复兜底加载。
+    private func refreshImages() async {
+        await viewModel.images.load()
+        viewModel.images.refreshUsage(containers: viewModel.containers.items)
     }
 
     /// 下拉刷新当前分段（静默重拉，不切 loading；给刷新动画一个最短时长避免闪跳）。
@@ -137,7 +161,7 @@ struct DockerView: View {
         let start = clock.now
         switch tab {
         case .containers: await viewModel.containers.refresh()
-        case .images: await viewModel.images.load()
+        case .images: await refreshImages()
         case .volumes: await viewModel.volumes.load()
         case .networks: await viewModel.networks.load()
         }
@@ -150,7 +174,8 @@ struct DockerView: View {
 
     private var containerList: some View {
         VStack(spacing: ConnSpacing.sm) {
-            if viewModel.containers.items.isEmpty {
+            ConnSearchField(L("搜索容器"), text: $search)
+            if sortedContainers.isEmpty {
                 Text(L("该主机上没有容器")).font(.connSubheadline).foregroundStyle(.connMuted)
                     .padding(.vertical, ConnSpacing.xl)
             } else {
@@ -163,10 +188,12 @@ struct DockerView: View {
     }
 
     /// 运行中优先：运行 → 其它活动（重启中/暂停）→ 已停止；组内保持 docker 原序。
+    /// 排序作用于**过滤后**的列表——搜索词非空时只在匹配到的容器里排。
     private var sortedContainers: [ContainerInfo] {
-        let running = viewModel.containers.items.filter(\.isRunning)
-        let otherActive = viewModel.containers.items.filter { $0.isActive && !$0.isRunning }
-        let inactive = viewModel.containers.items.filter { !$0.isActive }
+        let source = filteredContainers
+        let running = source.filter(\.isRunning)
+        let otherActive = source.filter { $0.isActive && !$0.isRunning }
+        let inactive = source.filter { !$0.isActive }
         return running + otherActive + inactive
     }
 
@@ -175,52 +202,54 @@ struct DockerView: View {
     private var imageSection: some View {
         VStack(spacing: ConnSpacing.sm) {
             HStack {
-                Text(String(format: L("共 %d 个镜像"), viewModel.images.items.count))
+                Text(String(format: L("共 %d 个镜像"), filteredImages.count))
                     .font(.connData(.caption2)).foregroundStyle(.connDim)
                 Spacer()
                 Menu {
                     Button { Task { await viewModel.images.prune() } } label: {
                         Label(L("清理悬空镜像"), systemImage: "trash")
                     }
-                    Button { Task { await viewModel.images.load() } } label: {
+                    Button { Task { await refreshImages() } } label: {
                         Label(L("刷新"), systemImage: "arrow.clockwise")
                     }
                 } label: {
                     Image(systemName: "ellipsis.circle").font(.system(size: 18)).foregroundStyle(.connAccent)
                 }
             }
-            if let error = viewModel.images.error {
-                ConnBanner(error, systemImage: "exclamationmark.triangle")
-            } else if !viewModel.images.loaded {
-                ProgressView(L("读取镜像…")).font(.connFootnote).foregroundStyle(.connMuted)
-                    .frame(maxWidth: .infinity).padding(.vertical, ConnSpacing.xl)
-            } else if viewModel.images.items.isEmpty {
-                Text(L("没有镜像")).font(.connSubheadline).foregroundStyle(.connMuted)
-                    .padding(.vertical, ConnSpacing.xl)
-            } else {
-                ForEach(viewModel.images.items) { image in imageRow(image) }
-            }
+            ConnSearchField(L("搜索镜像"), text: $search)
+            DockerDetail.listBody(items: filteredImages, state: imagesListState) { image in imageRow(image) }
         }
         .padding(.bottom, ConnSpacing.lg)
-        .task { await viewModel.images.loadIfNeeded() }
+        .task { await viewModel.loadImagesWithUsage() }
+        // 与列表加载并行、不互相等待——失败时保持 nil，摘要区显示「—」，不弹错误。
+        .task { await viewModel.loadDiskUsage() }
     }
 
     private func imageRow(_ image: ImageInfo) -> some View {
-        HStack(spacing: ConnSpacing.sm) {
-            Image(systemName: "shippingbox.fill").font(.system(size: 18))
-                .foregroundStyle(image.isDangling ? .connMuted : .connAccent).frame(width: 26)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(image.displayName).font(.connData(.footnote)).foregroundStyle(.connInk).lineLimit(1)
-                Text("\(image.size) · \(image.created) · \(image.imageID)")
-                    .font(.connData(.caption2)).foregroundStyle(.connMuted).lineLimit(1)
+        let unused = viewModel.images.unusedIDs.contains(image.id)
+        return Button { route = .imageDetail(image) } label: {
+            HStack(spacing: ConnSpacing.sm) {
+                Image(systemName: "shippingbox.fill").font(.system(size: 18))
+                    .foregroundStyle(image.isDangling ? .connMuted : .connAccent).frame(width: 26)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(image.displayName).font(.connData(.footnote)).foregroundStyle(.connInk).lineLimit(1)
+                    Text("\(image.size) · \(image.created) · \(image.imageID)")
+                        .font(.connData(.caption2)).foregroundStyle(.connMuted).lineLimit(1)
+                }
+                Spacer(minLength: ConnSpacing.xs)
+                if unused {
+                    StatusPill(L("未使用"), semantic: .warn)
+                }
+                if viewModel.images.busyImageID == image.id {
+                    ProgressView()
+                } else {
+                    Image(systemName: "chevron.right").font(.system(size: 12)).foregroundStyle(.connMuted)
+                }
             }
-            Spacer(minLength: ConnSpacing.xs)
-            if viewModel.images.busyImageID == image.id {
-                ProgressView()
-            }
+            .padding(ConnSpacing.cardPadding)
+            .connSurface(cornerRadius: ConnRadius.card)
         }
-        .padding(ConnSpacing.cardPadding)
-        .connSurface(cornerRadius: ConnRadius.card)
+        .buttonStyle(.plain)
         .contextMenu {
             Button(role: .destructive) { viewModel.images.requestRemoval(image) } label: {
                 Label(L("删除"), systemImage: "trash")
@@ -232,23 +261,16 @@ struct DockerView: View {
 
     private var volumeSection: some View {
         VStack(spacing: ConnSpacing.sm) {
-            DockerDetail.listHeader(count: String(format: L("共 %d 个卷"), viewModel.volumes.items.count)) {
+            DockerDetail.listHeader(count: String(format: L("共 %d 个卷"), filteredVolumes.count)) {
                 Task { await viewModel.volumes.load() }
             }
-            if let error = viewModel.volumes.error {
-                ConnBanner(error, systemImage: "exclamationmark.triangle")
-            } else if !viewModel.volumes.loaded {
-                ProgressView(L("读取卷…")).font(.connFootnote).foregroundStyle(.connMuted)
-                    .frame(maxWidth: .infinity).padding(.vertical, ConnSpacing.xl)
-            } else if viewModel.volumes.items.isEmpty {
-                Text(L("没有卷")).font(.connSubheadline).foregroundStyle(.connMuted)
-                    .padding(.vertical, ConnSpacing.xl)
-            } else {
-                ForEach(viewModel.volumes.items) { volume in volumeRow(volume) }
-            }
+            ConnSearchField(L("搜索卷"), text: $search)
+            DockerDetail.listBody(items: filteredVolumes, state: volumesListState) { volume in volumeRow(volume) }
         }
         .padding(.bottom, ConnSpacing.lg)
         .task { await viewModel.volumes.loadIfNeeded() }
+        // 与列表加载并行、不互相等待——失败时保持 nil，详情页大小栏显示「—」，不弹错误。
+        .task { await viewModel.loadDiskUsage() }
     }
 
     private func volumeRow(_ volume: VolumeInfo) -> some View {
@@ -264,20 +286,11 @@ struct DockerView: View {
 
     private var networkSection: some View {
         VStack(spacing: ConnSpacing.sm) {
-            DockerDetail.listHeader(count: String(format: L("共 %d 个网络"), viewModel.networks.items.count)) {
+            DockerDetail.listHeader(count: String(format: L("共 %d 个网络"), filteredNetworks.count)) {
                 Task { await viewModel.networks.load() }
             }
-            if let error = viewModel.networks.error {
-                ConnBanner(error, systemImage: "exclamationmark.triangle")
-            } else if !viewModel.networks.loaded {
-                ProgressView(L("读取网络…")).font(.connFootnote).foregroundStyle(.connMuted)
-                    .frame(maxWidth: .infinity).padding(.vertical, ConnSpacing.xl)
-            } else if viewModel.networks.items.isEmpty {
-                Text(L("没有网络")).font(.connSubheadline).foregroundStyle(.connMuted)
-                    .padding(.vertical, ConnSpacing.xl)
-            } else {
-                ForEach(viewModel.networks.items) { network in networkRow(network) }
-            }
+            ConnSearchField(L("搜索网络"), text: $search)
+            DockerDetail.listBody(items: filteredNetworks, state: networksListState) { network in networkRow(network) }
         }
         .padding(.bottom, ConnSpacing.lg)
         .task { await viewModel.networks.loadIfNeeded() }
@@ -350,7 +363,7 @@ extension DockerView {
 
     enum Route: Hashable, Identifiable {
         case detail(ContainerInfo), logs(ContainerInfo), console(ContainerInfo)
-        case volumeDetail(VolumeInfo), networkDetail(NetworkInfo)
+        case volumeDetail(VolumeInfo), networkDetail(NetworkInfo), imageDetail(ImageInfo)
 
         var id: String {
             switch self {
@@ -359,6 +372,7 @@ extension DockerView {
             case let .console(container): "console-\(container.id)"
             case let .volumeDetail(volume): "volume-\(volume.name)"
             case let .networkDetail(network): "network-\(network.id)"
+            case let .imageDetail(image): "image-\(image.id)"
             }
         }
 
@@ -366,5 +380,54 @@ extension DockerView {
         // 编译器无法合成——按上面已算好的 id 手写哈希与相等，不必为此改动域层。
         static func == (lhs: Route, rhs: Route) -> Bool { lhs.id == rhs.id }
         func hash(into hasher: inout Hasher) { hasher.combine(id) }
+    }
+}
+
+// MARK: - 搜索过滤
+
+// 同样拆到同文件 extension：四条过滤规则本身不长，但塞进主体会跟 Tab/Route 一样
+// 把 DockerView 顶过 type_body_length 阈值。过滤是纯本地字符串匹配，不触发任何命令。
+extension DockerView {
+    private var filteredContainers: [ContainerInfo] {
+        guard !search.isEmpty else { return viewModel.containers.items }
+        return viewModel.containers.items.filter {
+            $0.name.localizedCaseInsensitiveContains(search)
+                || $0.image.localizedCaseInsensitiveContains(search)
+        }
+    }
+
+    private var filteredImages: [ImageInfo] {
+        guard !search.isEmpty else { return viewModel.images.items }
+        return viewModel.images.items.filter { $0.displayName.localizedCaseInsensitiveContains(search) }
+    }
+
+    private var filteredVolumes: [VolumeInfo] {
+        guard !search.isEmpty else { return viewModel.volumes.items }
+        return viewModel.volumes.items.filter { $0.name.localizedCaseInsensitiveContains(search) }
+    }
+
+    private var filteredNetworks: [NetworkInfo] {
+        guard !search.isEmpty else { return viewModel.networks.items }
+        return viewModel.networks.items.filter {
+            $0.name.localizedCaseInsensitiveContains(search)
+                || $0.driver.localizedCaseInsensitiveContains(search)
+        }
+    }
+
+    // `DockerDetail.listBody` 的状态入参也挪到这里——同样是为了不把主体顶过
+    // type_body_length，顺带让三个分段的调用点从多行拆装收成一行。
+    private var imagesListState: DockerDetail.ListState {
+        .init(error: viewModel.images.error, loaded: viewModel.images.loaded, loadingText: L("读取镜像…"), emptyText: L("没有镜像"))
+    }
+
+    private var volumesListState: DockerDetail.ListState {
+        .init(error: viewModel.volumes.error, loaded: viewModel.volumes.loaded, loadingText: L("读取卷…"), emptyText: L("没有卷"))
+    }
+
+    private var networksListState: DockerDetail.ListState {
+        .init(
+            error: viewModel.networks.error, loaded: viewModel.networks.loaded,
+            loadingText: L("读取网络…"), emptyText: L("没有网络")
+        )
     }
 }

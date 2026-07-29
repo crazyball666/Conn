@@ -12,6 +12,9 @@ final class DockerImagesModel {
     private(set) var error: String?
     private(set) var busyImageID: String?
     var pendingRemoval: ImageInfo?
+    /// 没有任何容器引用的镜像 id。由容器列表反查——不能用 docker 的 dangling，
+    /// 那是「无 tag」，与「没被引用」是两码事。
+    private(set) var unusedIDs: Set<String> = []
 
     private let context: DockerContext
 
@@ -36,6 +39,23 @@ final class DockerImagesModel {
             self.error = error.friendlyDiagnosis
         }
         loaded = true
+    }
+
+    /// 用容器列表刷新「未使用」判定。容器段本来就要拉 ps -a，不额外跑命令。
+    func refreshUsage(containers: [ContainerInfo]) {
+        unusedIDs = ImageUsage.unusedImageIDs(images: items, containers: containers)
+    }
+
+    func detail(for image: ImageInfo) async -> ImageDetail? {
+        try? await DockerService.imageDetail(
+            reference: image.reference, on: context.session(), sudo: context.sudo
+        )
+    }
+
+    func history(for image: ImageInfo) async -> [ImageLayer] {
+        (try? await DockerService.imageHistory(
+            reference: image.reference, on: context.session(), sudo: context.sudo
+        )) ?? []
     }
 
     func requestRemoval(_ image: ImageInfo) {

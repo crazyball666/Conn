@@ -22,6 +22,10 @@ final class DockerViewModel {
     /// 首次加载后置真——切换分段时不再自动重拉（改下拉刷新）。
     private(set) var hasLoaded = false
     var actionMessage: String?
+    /// 磁盘占用。**独立于列表加载**——这条命令在大主机上要数秒且格式跨版本不稳，
+    /// 失败时保持 nil，UI 显示「—」，**不弹错误**：它只是锦上添花的信息，
+    /// 不该让整个页面看起来坏了。
+    private(set) var diskUsage: DockerDiskUsage?
 
     // 下面四个隐式解包可选值并非疏忽：`context` 的 report/audit 闭包要弱引用
     // 捕获 self，而 `containers`/`images`/`volumes`/`networks` 又是拿 `context`
@@ -93,6 +97,26 @@ final class DockerViewModel {
         } catch {
             loadState = .failed(error.friendlyDiagnosis)
         }
+    }
+
+    /// 加载镜像并刷新「未使用」判定。
+    ///
+    /// 判定要拿容器列表比对，而容器可能还没加载过（用户直接点进镜像分段）。
+    /// 所以这里保证两边都就绪——多跑一次 `docker ps -a` 也值，
+    /// 否则「未使用」会全量误报成「都没在用」，用户据此删镜像就是事故。
+    func loadImagesWithUsage() async {
+        await images.loadIfNeeded()
+        if containers.items.isEmpty {
+            try? await containers.load()
+        }
+        images.refreshUsage(containers: containers.items)
+    }
+
+    func loadDiskUsage() async {
+        guard case .ready = loadState else { return }
+        diskUsage = try? await DockerService.diskUsage(
+            on: connectionManager.session(for: host), sudo: availability.sudo
+        )
     }
 
     /// 回填 sudo / isUsable 标志——同时会重建全部子模型（`DockerContext` 是
