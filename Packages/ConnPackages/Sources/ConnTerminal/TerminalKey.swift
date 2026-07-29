@@ -6,9 +6,12 @@ import Foundation
 /// 下一次输入的编码，由 `TerminalKeyEncoder` 处理。
 public enum TerminalKey: String, CaseIterable, Identifiable, Sendable {
     case esc, tab, ctrl
+    /// 四个方向不再各占一个键帽，改由摇杆（`TerminalDirectionPad`）发出，
+    /// 但字节定义仍在这里——摇杆只是换了触发方式，序列没变。
     case up, down, left, right
-    case pipe, dash, tilde
-    case sudo, bangBang
+    case ctrlC
+    case slash, pipe, tilde
+    case home, end
 
     public var id: String { rawValue }
 
@@ -22,11 +25,12 @@ public enum TerminalKey: String, CaseIterable, Identifiable, Sendable {
         case .down: "↓"
         case .left: "←"
         case .right: "→"
+        case .ctrlC: "^C"
+        case .slash: "/"
         case .pipe: "|"
-        case .dash: "-"
         case .tilde: "~"
-        case .sudo: "sudo"
-        case .bangBang: "!!"
+        case .home: "Home"
+        case .end: "End"
         }
     }
 
@@ -44,11 +48,15 @@ public enum TerminalKey: String, CaseIterable, Identifiable, Sendable {
         case .down: [0x1B, 0x5B, 0x42]
         case .right: [0x1B, 0x5B, 0x43]
         case .left: [0x1B, 0x5B, 0x44]
+        // 中断。直接发控制码而不是走 Ctrl 粘滞——中断是终端里最高频的操作，
+        // 不该要求「先点 Ctrl 再点 C」两次点击。
+        case .ctrlC: [0x03]
+        case .slash: Array("/".utf8)
         case .pipe: Array("|".utf8)
-        case .dash: Array("-".utf8)
         case .tilde: Array("~".utf8)
-        case .sudo: Array("sudo ".utf8)
-        case .bangBang: Array("!!".utf8)
+        // 行首 / 行尾：ESC [ H 与 ESC [ F。TERM 是 xterm-256color，认这两条。
+        case .home: [0x1B, 0x5B, 0x48]
+        case .end: [0x1B, 0x5B, 0x46]
         }
     }
 }

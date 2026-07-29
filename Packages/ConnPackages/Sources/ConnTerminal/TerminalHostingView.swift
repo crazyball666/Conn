@@ -167,6 +167,8 @@
     public final class KeybarTerminalView: TerminalView {
         private weak var coordinator: TerminalHostingView.Coordinator?
         private var isKeybarEnabled = false
+        /// 键条的宿主控制器。**必须强持有**——`inputAccessoryView` 只留住它的 `view`。
+        private var keybarHost: UIHostingController<TerminalKeybar>?
         private var horizontalContentPadding: CGFloat = 0
         fileprivate var configuredCursorShape: TerminalCursorShape?
         fileprivate var configuredCursorBlinking: Bool?
@@ -262,6 +264,7 @@
 
         private func rebuildKeybar() {
             guard isKeybarEnabled, let coordinator else {
+                keybarHost = nil
                 inputAccessoryView = nil
                 reloadInputViews()
                 return
@@ -269,11 +272,23 @@
             let keybar = TerminalKeybar(ctrlActive: coordinator.ctrlActive) { [weak coordinator] key in
                 coordinator?.handleKey(key)
             }
+            // **复用同一个 host，只换 rootView**，不要每次新建。
+            //
+            // 两个理由。其一，摇杆的长按连发与拖动手势活在这棵 SwiftUI 树的 @State 上：
+            // Ctrl 亮着时拖方向键会消耗掉 Ctrl → ctrlActive 变化 → 走到这里，若整棵树
+            // 被换掉，正在进行的连发会当场断掉。其二，原来的写法只把 `host.view` 挂给
+            // `inputAccessoryView`，`UIHostingController` 本身没有任何强引用，创建完即
+            // 失去持有者——SwiftUI 的生命周期就此悬空。
+            if let host = keybarHost {
+                host.rootView = keybar
+                return
+            }
             let host = UIHostingController(rootView: keybar)
             host.view.backgroundColor = .clear
             // 两行键 + 内边距，约 92pt 高
             host.view.frame = CGRect(x: 0, y: 0, width: bounds.width, height: 92)
             host.view.autoresizingMask = [.flexibleWidth]
+            keybarHost = host
             inputAccessoryView = host.view
             reloadInputViews()
         }
