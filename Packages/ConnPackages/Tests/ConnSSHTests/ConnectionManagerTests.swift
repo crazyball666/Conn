@@ -54,6 +54,58 @@ struct ConnectionManagerTests {
         #expect(first !== second)
     }
 
+    /// App 退到后台期间系统会回收 socket，但池里的条目对此一无所知。
+    ///
+    /// 回归的是这个真实故障：在命令页退后台再回前台，执行命令报「连接通道已关闭」，
+    /// 反复重试也不会好——因为 `session(for:)` 每次都把同一条死会话交出去，而全仓
+    /// 18 个调用方里只有 `MonitorScheduler` 会在失败后 `invalidate`。用户必须切到
+    /// 服务器页让采集失败一次、把死条目踢掉，命令才能执行。
+    @Test("池化会话已死时不复用，改为重新握手")
+    func deadPooledSessionIsNotReused() async throws {
+        let manager = ConnectionManager(transport: MockSSHTransport())
+        let host = host()
+
+        let first = try await manager.session(for: host)
+        #expect(first.isConnected)
+
+        // 模拟后台期间底层通道被回收：会话对象还在池里，但已经不能用了。
+        (first as? MockSSHSession)?.simulateDisconnect()
+
+        let second = try await manager.session(for: host)
+        #expect(first !== second, "死会话不该再被交出去")
+        #expect(second.isConnected)
+        // 换新之后池里应当只有那条新的，不能两条都留着
+        #expect(await manager.activeCount == 1)
+    }
+
+    /// 驱逐死会话时必须关掉它，否则留下一条谁都不再持有的 socket。
+    @Test("被替换掉的死会话会被关闭")
+    func deadPooledSessionIsClosed() async throws {
+        let manager = ConnectionManager(transport: MockSSHTransport())
+        let host = host()
+
+        let first = try await manager.session(for: host)
+        let dead = try #require(first as? MockSSHSession)
+        dead.simulateDisconnect()
+        _ = try await manager.session(for: host)
+
+        #expect(await dead.waitUntilClosed(), "死会话未被关闭，socket 泄漏")
+    }
+
+    /// 反向用例：活着的会话仍然必须复用，别把存活门控写成「每次都重连」。
+    @Test("会话活着时仍然复用同一条")
+    func livePooledSessionIsStillReused() async throws {
+        let counter = ConnectCounter()
+        let manager = ConnectionManager(transport: CountingTransport(counter: counter))
+        let host = host()
+
+        let first = try await manager.session(for: host)
+        let second = try await manager.session(for: host)
+
+        #expect(first === second)
+        #expect(await counter.count == 1, "会话还活着却重新握手了")
+    }
+
     @Test("握手失败不污染池，下次可重试")
     func failedHandshakeAllowsRetry() async throws {
         let transport = MockSSHTransport(behavior: .init(failConnect: .connectionRefused(
@@ -239,6 +291,7 @@ private final class CloseRecordingSession: SSHSession {
     private let closed: CloseFlag
     private let continuation: AsyncStream<SSHSessionState>.Continuation
     let state: AsyncStream<SSHSessionState>
+    let isConnected = true
 
     init(closed: CloseFlag) {
         self.closed = closed

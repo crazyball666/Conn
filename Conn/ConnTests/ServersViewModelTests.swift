@@ -350,6 +350,7 @@ private final class GatedTransport: SSHTransport {
 private final class GatedSession: SSHSession {
     private let log: ExecLog
     let state: AsyncStream<SSHSessionState>
+    let isConnected = true
     private let continuation: AsyncStream<SSHSessionState>.Continuation
 
     init(log: ExecLog) {

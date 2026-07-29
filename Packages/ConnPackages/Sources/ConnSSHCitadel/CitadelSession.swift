@@ -11,6 +11,9 @@ final class CitadelSession: SSHSession, @unchecked Sendable {
     private let stateContinuation: AsyncStream<SSHSessionState>.Continuation
     let state: AsyncStream<SSHSessionState>
 
+    /// 底层 NIO 通道是否仍 active。Citadel 直接暴露了这个标志位，同步且无网络往返。
+    var isConnected: Bool { client.isConnected }
+
     init(client: SSHClient, endpoint: SSHEndpoint) {
         self.client = client
         self.endpoint = endpoint

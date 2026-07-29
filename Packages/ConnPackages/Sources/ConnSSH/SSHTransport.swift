@@ -41,6 +41,17 @@ public protocol SSHSession: AnyObject, Sendable {
     /// 会话状态流。
     var state: AsyncStream<SSHSessionState> { get }
 
+    /// 底层通道是否仍然活着。**同步、廉价**，实现应只读一个标志位，不发网络请求。
+    ///
+    /// 连接池靠它决定能不能把池化会话交出去。App 退到后台期间系统会回收 socket，
+    /// 而池里的条目对此一无所知；没有这道门控，回前台后每个调用方都会拿到一条
+    /// 死连接并失败，且只有采集路径会在失败后 `invalidate`，其余调用方永远等不到
+    /// 自愈——用户得先切到服务器页转一圈才能继续用。
+    ///
+    /// **不是充分判据**：它反映的是本地通道状态，对端悄悄消失（没有 FIN/RST）时
+    /// 仍会是 true，那种半开连接要等一次写失败才暴露。
+    var isConnected: Bool { get }
+
     /// 主动关闭会话。
     func close() async
 }

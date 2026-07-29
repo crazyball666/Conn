@@ -46,7 +46,23 @@ public actor ConnectionManager {
         if let entry = entries[key] {
             switch entry {
             case let .connected(session):
-                return session
+                if session.isConnected {
+                    return session
+                }
+                // 池化会话的底层通道已死——最常见于 App 退到后台、系统回收了 socket。
+                //
+                // 必须在这里就地驱逐，不能把它交出去：全仓 18 个 `session(for:)` 调用方
+                // 中只有 `MonitorScheduler` 会在操作失败后 `invalidate(host:)`，其余
+                // （命令、Docker、文件、日志、终端）拿到死会话就只是报错，没有人清池子。
+                // 于是「在命令页回前台执行命令」会反复失败，直到用户切去服务器页让采集
+                // 失败一次，把条目踢掉为止。
+                //
+                // 回前台本来还有一道 `resumeAfterBackground` → `invalidateAll()`，但它
+                // 被 `dashboardConfig != nil` 收窄到「仪表盘此刻确实在跑」——那道收窄是
+                // 为了不掐断骑在同一条连接上的终端，是对的，只是覆盖不到别的页面。
+                entries[key] = nil
+                // fire-and-forget：对着一条半死的 socket `await close()` 可能把调用方一起卡住。
+                Task { await session.close() }
             case let .connecting(task):
                 return try await claim(task, key: key)
             }

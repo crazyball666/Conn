@@ -67,11 +67,22 @@ public final class MockSSHTransport: SSHTransport {
 }
 
 /// Mock 会话：把命令映射到确定性输出。
-final class MockSSHSession: SSHSession {
+///
+/// `@unchecked Sendable`：存活标志是可变的，由 `livenessLock` 保护（同 `CitadelSession`）。
+final class MockSSHSession: SSHSession, @unchecked Sendable {
     private let endpoint: SSHEndpoint
     private let behavior: MockSSHTransport.Behavior
     private let stateContinuation: AsyncStream<SSHSessionState>.Continuation
     let state: AsyncStream<SSHSessionState>
+
+    /// 存活标志。测试要从外部翻它来模拟「后台期间 socket 被回收」，
+    /// 而 `SSHSession` 是 `Sendable`，故加锁保护（同 `HostKeyStore` 的做法）。
+    private let livenessLock = NSLock()
+    private var alive = true
+
+    var isConnected: Bool {
+        livenessLock.withLock { alive }
+    }
 
     init(endpoint: SSHEndpoint, behavior: MockSSHTransport.Behavior) {
         self.endpoint = endpoint
@@ -79,6 +90,23 @@ final class MockSSHSession: SSHSession {
         (state, stateContinuation) = AsyncStream.makeStream()
         stateContinuation.yield(.connected)
     }
+
+    /// 模拟底层通道死亡（App 退后台被系统回收 socket）：会话对象还在，但已不可用。
+    func simulateDisconnect() {
+        livenessLock.withLock { alive = false }
+    }
+
+    /// 等到会话被关闭。连接池的关闭是 fire-and-forget 的 `Task`，不能同步读。
+    func waitUntilClosed(timeout: Duration = .seconds(2)) async -> Bool {
+        let deadline = ContinuousClock.now.advanced(by: timeout)
+        while ContinuousClock.now < deadline {
+            if livenessLock.withLock({ closed }) { return true }
+            try? await Task.sleep(for: .milliseconds(5))
+        }
+        return false
+    }
+
+    private var closed = false
 
     func exec(_ command: String, timeout: Duration) async throws -> ExecResult {
         _ = timeout
@@ -125,6 +153,10 @@ final class MockSSHSession: SSHSession {
     }
 
     func close() async {
+        livenessLock.withLock {
+            alive = false
+            closed = true
+        }
         stateContinuation.yield(.closed)
         stateContinuation.finish()
     }
