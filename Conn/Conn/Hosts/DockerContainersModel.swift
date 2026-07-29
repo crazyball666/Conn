@@ -23,13 +23,30 @@ final class DockerContainersModel {
         self.context = context
     }
 
-    func load() async throws {
-        items = try await DockerService.list(on: context.session(), sudo: context.sudo)
+    /// - Parameter session: 外壳做完可用性探测后已经取到的会话，传进来复用，
+    ///   避免一次 `load()` 里取两次会话（重构前的原行为）。子模型自身的其它调用点
+    ///   （如 `refresh()`）不持有现成会话，省略此参数、内部自取。
+    func load(using session: (any SSHSession)? = nil) async throws {
+        // `??` 的右侧是 autoclosure，不支持 async 调用，只能手写 if-let。
+        let resolvedSession: any SSHSession
+        if let session {
+            resolvedSession = session
+        } else {
+            resolvedSession = try await context.session()
+        }
+        items = try await DockerService.list(on: resolvedSession, sudo: context.sudo)
     }
 
     /// 下拉刷新：静默重拉，不切加载态——保留列表、避免闪烁。
     /// 失败时保留上次结果，仅弹提示。
+    ///
+    /// Docker 已探测为不可用时不再直接拉列表，而是回到外壳重新探测、翻到
+    /// 「不可用」引导页——重构前 `refreshContainers()` 的既有行为。
     func refresh() async {
+        guard context.isUsable else {
+            await context.reprobe()
+            return
+        }
         do {
             try await load()
         } catch {

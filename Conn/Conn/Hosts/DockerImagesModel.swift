@@ -25,7 +25,10 @@ final class DockerImagesModel {
         await load()
     }
 
+    /// Docker 已探测为不可用时静默 no-op——不设置 `loaded`，也不清空既有列表/错误态，
+    /// 与重构前 `loadImages()` 的这道守卫逐字一致。
     func load() async {
+        guard context.isUsable else { return }
         do {
             items = try await DockerService.listImages(on: context.session(), sudo: context.sudo)
             error = nil

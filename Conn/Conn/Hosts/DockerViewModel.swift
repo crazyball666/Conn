@@ -49,8 +49,10 @@ final class DockerViewModel {
         context = DockerContext(
             session: { try await manager.session(for: currentHost) },
             sudo: false,
+            isUsable: false,
             report: { [weak self] message in self?.actionMessage = message },
-            audit: { [weak self] command, result in self?.audit(command: command, result: result) }
+            audit: { [weak self] command, result in self?.audit(command: command, result: result) },
+            reprobe: { [weak self] in await self?.load() }
         )
         containers = DockerContainersModel(context: context)
         images = DockerImagesModel(context: context)
@@ -76,24 +78,28 @@ final class DockerViewModel {
                 loadState = .unavailable(probe)
                 return
             }
-            // 探测晚于上下文构造，sudo 标志要回填给全部子模型
-            propagateSudo(probe.sudo)
-            try await containers.load()
+            // 探测晚于上下文构造，sudo / isUsable 标志要回填给全部子模型
+            propagateAvailability(probe)
+            // 本次探测已经取过 session，直接传给容器加载，避免同一次 load() 里
+            // 取两次会话（重构前的原行为：探测与列表共用一次 session）。
+            try await containers.load(using: session)
             loadState = .ready
         } catch {
             loadState = .failed(error.friendlyDiagnosis)
         }
     }
 
-    /// 回填 sudo 标志——同时会重建全部子模型（`DockerContext` 里 `session` /
-    /// `report` / `audit` 均为值闭包，`struct` 无法就地改后传播，只能重建持有者）。
+    /// 回填 sudo / isUsable 标志——同时会重建全部子模型（`DockerContext` 是
+    /// `struct`，`session` / `report` / `audit` / `reprobe` 均为值闭包，无法就地
+    /// 改后传播，只能重建持有者）。
     ///
     /// **只能在任何列表加载之前调用**：此刻子模型都还是空列表，重建无损；
     /// 若未来在列表已加载后调用此方法，会悄悄清空用户正在看的数据。
     /// 目前唯一调用点在 `load()` 里、紧邻探测之后、`containers.load()` 之前，
     /// 正好满足这个前提。
-    private func propagateSudo(_ sudo: Bool) {
-        context.sudo = sudo
+    private func propagateAvailability(_ probe: DockerAvailability) {
+        context.sudo = probe.sudo
+        context.isUsable = probe.isUsable
         containers = DockerContainersModel(context: context)
         images = DockerImagesModel(context: context)
     }
