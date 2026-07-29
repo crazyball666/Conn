@@ -59,6 +59,14 @@ public enum ConnSize {
     /// IconChip 紧凑变体（首启价值卡、日志暂停按钮）。
     public static let iconChipCompact: CGFloat = 30
 
+    /// 搜索框高度。
+    ///
+    /// **必须显式钉住，不能让它由 `TextField` 的固有高度决定**：`TextField` 在
+    /// 「首次成为第一响应者」前后走两套测量路径（之前 SwiftUI 自己量，之后交给
+    /// UIKit 的 `UITextField`），真机实测首次聚焦会从 38pt 掉到 32pt，且收起键盘
+    /// 也不回弹——用户看到的是点一下输入框、框子突然矮一截。
+    public static let searchFieldHeight: CGFloat = 38
+
     /// 主按钮高度。
     public static let buttonHeight: CGFloat = 44
     /// 大号 CTA（Paywall、首启主按钮）。

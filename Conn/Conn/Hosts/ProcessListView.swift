@@ -60,25 +60,7 @@ struct ProcessListView: View {
     // MARK: - 头部
 
     private var searchField: some View {
-        HStack(spacing: ConnSpacing.xs) {
-            Image(systemName: "magnifyingglass").font(.connFootnote).foregroundStyle(.connMuted)
-            TextField(L("搜索进程 / PID / 用户"), text: $searchText)
-                .font(.connSubheadline).foregroundStyle(.connInk)
-                .autocorrectionDisabled().textInputAutocapitalization(.never)
-            if !searchText.isEmpty {
-                Button { searchText = "" } label: {
-                    Image(systemName: "xmark.circle.fill").font(.connFootnote).foregroundStyle(.connMuted)
-                }
-                .buttonStyle(.plain).accessibilityLabel(L("清除"))
-            }
-        }
-        .padding(.horizontal, ConnSpacing.sm)
-        .padding(.vertical, 9)
-        .background(Color.connSurface, in: .rect(cornerRadius: ConnRadius.control, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: ConnRadius.control, style: .continuous)
-                .strokeBorder(Color.connLine, lineWidth: 1)
-        )
+        ConnSearchField(L("搜索进程 / PID / 用户"), text: $searchText)
     }
 
     private var eyebrow: some View {
