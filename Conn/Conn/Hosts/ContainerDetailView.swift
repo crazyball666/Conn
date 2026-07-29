@@ -48,7 +48,7 @@ struct ContainerDetailView: View {
         .navigationDestination(item: $route, destination: routeDestination)
         .alert(L("删除容器"), isPresented: $showRemoveConfirm) {
             Button(L("删除容器"), role: .destructive) {
-                Task { await viewModel.perform(.remove, on: container); dismiss() }
+                Task { await viewModel.containers.perform(.remove, on: container); dismiss() }
             }
             Button(L("取消"), role: .cancel) {}
         } message: {
@@ -105,7 +105,7 @@ struct ContainerDetailView: View {
             .connSurface(cornerRadius: ConnRadius.card)
         }
         .buttonStyle(.plain)
-        .disabled(viewModel.busyContainerID == container.id)
+        .disabled(viewModel.containers.busyContainerID == container.id)
     }
 
     // MARK: - 概要
@@ -172,7 +172,7 @@ struct ContainerDetailView: View {
         case .console:
             TerminalScreen(
                 host: host, connectionManager: dependencies.connectionManager,
-                autoCommand: viewModel.consoleCommand(for: container)
+                autoCommand: viewModel.containers.consoleCommand(for: container)
             )
         }
     }
@@ -181,13 +181,13 @@ struct ContainerDetailView: View {
 
     private func loadDetail() async {
         loading = detail == nil
-        detail = await viewModel.detail(for: container)
+        detail = await viewModel.containers.detail(for: container)
         loading = false
     }
 
     private func perform(_ action: ContainerAction) {
         Task {
-            await viewModel.perform(action, on: container)
+            await viewModel.containers.perform(action, on: container)
             await loadDetail()
         }
     }

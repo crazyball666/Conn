@@ -36,15 +36,15 @@ struct DockerView: View {
         content
             .task { await viewModel.loadIfNeeded() }
             .task { await autoRefreshLoop() }
-            .alert(L("删除容器"), isPresented: removalBinding, presenting: viewModel.pendingRemoval) { _ in
-                Button(L("删除容器"), role: .destructive) { Task { await viewModel.confirmRemoval() } }
-                Button(L("取消"), role: .cancel) { viewModel.pendingRemoval = nil }
+            .alert(L("删除容器"), isPresented: removalBinding, presenting: viewModel.containers.pendingRemoval) { _ in
+                Button(L("删除容器"), role: .destructive) { Task { await viewModel.containers.confirmRemoval() } }
+                Button(L("取消"), role: .cancel) { viewModel.containers.pendingRemoval = nil }
             } message: { container in
                 Text(String(format: L("删除容器 %@？此操作不可撤销（docker rm -f）。"), container.name))
             }
-            .alert(L("删除镜像"), isPresented: imageRemovalBinding, presenting: viewModel.pendingImageRemoval) { _ in
-                Button(L("删除"), role: .destructive) { Task { await viewModel.confirmImageRemoval() } }
-                Button(L("取消"), role: .cancel) { viewModel.pendingImageRemoval = nil }
+            .alert(L("删除镜像"), isPresented: imageRemovalBinding, presenting: viewModel.images.pendingRemoval) { _ in
+                Button(L("删除"), role: .destructive) { Task { await viewModel.images.confirmRemoval() } }
+                Button(L("取消"), role: .cancel) { viewModel.images.pendingRemoval = nil }
             } message: { image in
                 Text(String(format: L("删除镜像 %@？"), image.displayName))
             }
@@ -73,7 +73,7 @@ struct DockerView: View {
         case let .console(container):
             TerminalScreen(
                 host: host, connectionManager: dependencies.connectionManager,
-                autoCommand: viewModel.consoleCommand(for: container)
+                autoCommand: viewModel.containers.consoleCommand(for: container)
             )
         }
     }
@@ -117,8 +117,8 @@ struct DockerView: View {
             try? await Task.sleep(for: .seconds(settings.dockerRefreshInterval.rawValue))
             guard !Task.isCancelled, viewModel.hasLoaded else { continue }
             switch tab {
-            case .containers: await viewModel.refreshContainers()
-            case .images: await viewModel.loadImages()
+            case .containers: await viewModel.containers.refresh()
+            case .images: await viewModel.images.load()
             }
         }
     }
@@ -128,8 +128,8 @@ struct DockerView: View {
         let clock = ContinuousClock()
         let start = clock.now
         switch tab {
-        case .containers: await viewModel.refreshContainers()
-        case .images: await viewModel.loadImages()
+        case .containers: await viewModel.containers.refresh()
+        case .images: await viewModel.images.load()
         }
         let minimum = Duration.milliseconds(500)
         let elapsed = clock.now - start
@@ -140,7 +140,7 @@ struct DockerView: View {
 
     private var containerList: some View {
         VStack(spacing: ConnSpacing.sm) {
-            if viewModel.containers.isEmpty {
+            if viewModel.containers.items.isEmpty {
                 Text(L("该主机上没有容器")).font(.connSubheadline).foregroundStyle(.connMuted)
                     .padding(.vertical, ConnSpacing.xl)
             } else {
@@ -154,9 +154,9 @@ struct DockerView: View {
 
     /// 运行中优先：运行 → 其它活动（重启中/暂停）→ 已停止；组内保持 docker 原序。
     private var sortedContainers: [ContainerInfo] {
-        let running = viewModel.containers.filter(\.isRunning)
-        let otherActive = viewModel.containers.filter { $0.isActive && !$0.isRunning }
-        let inactive = viewModel.containers.filter { !$0.isActive }
+        let running = viewModel.containers.items.filter(\.isRunning)
+        let otherActive = viewModel.containers.items.filter { $0.isActive && !$0.isRunning }
+        let inactive = viewModel.containers.items.filter { !$0.isActive }
         return running + otherActive + inactive
     }
 
@@ -165,34 +165,34 @@ struct DockerView: View {
     private var imageSection: some View {
         VStack(spacing: ConnSpacing.sm) {
             HStack {
-                Text(String(format: L("共 %d 个镜像"), viewModel.images.count))
+                Text(String(format: L("共 %d 个镜像"), viewModel.images.items.count))
                     .font(.connData(.caption2)).foregroundStyle(.connDim)
                 Spacer()
                 Menu {
-                    Button { Task { await viewModel.pruneImages() } } label: {
+                    Button { Task { await viewModel.images.prune() } } label: {
                         Label(L("清理悬空镜像"), systemImage: "trash")
                     }
-                    Button { Task { await viewModel.loadImages() } } label: {
+                    Button { Task { await viewModel.images.load() } } label: {
                         Label(L("刷新"), systemImage: "arrow.clockwise")
                     }
                 } label: {
                     Image(systemName: "ellipsis.circle").font(.system(size: 18)).foregroundStyle(.connAccent)
                 }
             }
-            if let error = viewModel.imagesError {
+            if let error = viewModel.images.error {
                 ConnBanner(error, systemImage: "exclamationmark.triangle")
-            } else if !viewModel.imagesLoaded {
+            } else if !viewModel.images.loaded {
                 ProgressView(L("读取镜像…")).font(.connFootnote).foregroundStyle(.connMuted)
                     .frame(maxWidth: .infinity).padding(.vertical, ConnSpacing.xl)
-            } else if viewModel.images.isEmpty {
+            } else if viewModel.images.items.isEmpty {
                 Text(L("没有镜像")).font(.connSubheadline).foregroundStyle(.connMuted)
                     .padding(.vertical, ConnSpacing.xl)
             } else {
-                ForEach(viewModel.images) { image in imageRow(image) }
+                ForEach(viewModel.images.items) { image in imageRow(image) }
             }
         }
         .padding(.bottom, ConnSpacing.lg)
-        .task { await viewModel.loadImagesIfNeeded() }
+        .task { await viewModel.images.loadIfNeeded() }
     }
 
     private func imageRow(_ image: ImageInfo) -> some View {
@@ -205,14 +205,14 @@ struct DockerView: View {
                     .font(.connData(.caption2)).foregroundStyle(.connMuted).lineLimit(1)
             }
             Spacer(minLength: ConnSpacing.xs)
-            if viewModel.busyImageID == image.id {
+            if viewModel.images.busyImageID == image.id {
                 ProgressView()
             }
         }
         .padding(ConnSpacing.cardPadding)
         .connSurface(cornerRadius: ConnRadius.card)
         .contextMenu {
-            Button(role: .destructive) { viewModel.requestImageRemoval(image) } label: {
+            Button(role: .destructive) { viewModel.images.requestRemoval(image) } label: {
                 Label(L("删除"), systemImage: "trash")
             }
         }
@@ -242,11 +242,11 @@ struct DockerView: View {
     // MARK: - 辅助
 
     private var removalBinding: Binding<Bool> {
-        Binding(get: { viewModel.pendingRemoval != nil }, set: { if !$0 { viewModel.pendingRemoval = nil } })
+        Binding(get: { viewModel.containers.pendingRemoval != nil }, set: { if !$0 { viewModel.containers.pendingRemoval = nil } })
     }
 
     private var imageRemovalBinding: Binding<Bool> {
-        Binding(get: { viewModel.pendingImageRemoval != nil }, set: { if !$0 { viewModel.pendingImageRemoval = nil } })
+        Binding(get: { viewModel.images.pendingRemoval != nil }, set: { if !$0 { viewModel.images.pendingRemoval = nil } })
     }
 
     private var messageBinding: Binding<Bool> {

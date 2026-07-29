@@ -4,7 +4,10 @@ import ConnSSH
 import Foundation
 import Observation
 
-/// Docker 容器管理 ViewModel（Phase 8）。
+/// Docker 分段外壳：可用性探测、sudo 标志、共用的结果提示，以及四个资源模型。
+///
+/// 它**不再直接持有任何资源列表**——容器、镜像、卷、网络各自一个模型，
+/// 各管各的加载与状态。这样加第五类资源时只多一个文件，不动这里。
 @Observable
 @MainActor
 final class DockerViewModel {
@@ -18,29 +21,39 @@ final class DockerViewModel {
     private(set) var loadState: LoadState = .loading
     /// 首次加载后置真——切换分段时不再自动重拉（改下拉刷新）。
     private(set) var hasLoaded = false
-    private(set) var containers: [ContainerInfo] = []
-    /// 正在执行操作的容器 id（禁用该行按钮 + 显示忙碌）。
-    private(set) var busyContainerID: String?
-    /// 待确认删除的容器（rm 强确认，方案 §4.4）。
-    var pendingRemoval: ContainerInfo?
     var actionMessage: String?
 
-    // 镜像
-    private(set) var images: [ImageInfo] = []
-    private(set) var imagesLoaded = false
-    private(set) var imagesError: String?
-    private(set) var busyImageID: String?
-    var pendingImageRemoval: ImageInfo?
+    // 下面三个隐式解包可选值并非疏忽：`context` 的 report/audit 闭包要弱引用
+    // 捕获 self，而 `containers`/`images` 又是拿 `context` 构造的——三者必须在
+    // init 里互相依赖着赋值，Swift 的两段式初始化要求它们在此之前"已经有值"
+    // （哪怕是隐式 nil）才允许捕获 self。改成普通 Optional 会让每个调用点都要
+    // 多一层 `?`，偏离了 Step 1 清单里那些无需判空的调用写法。
+    // swiftlint:disable:next implicitly_unwrapped_optional
+    private(set) var containers: DockerContainersModel!
+    // swiftlint:disable:next implicitly_unwrapped_optional
+    private(set) var images: DockerImagesModel!
 
     private let host: Host
     private let connectionManager: ConnectionManager
     private let runHistory: any RunHistoryRepository
     private var availability: DockerAvailability = .notInstalled
+    // swiftlint:disable:next implicitly_unwrapped_optional
+    private var context: DockerContext!
 
     init(host: Host, dependencies: AppDependencies) {
         self.host = host
         connectionManager = dependencies.connectionManager
         runHistory = dependencies.runHistory
+        let manager = dependencies.connectionManager
+        let currentHost = host
+        context = DockerContext(
+            session: { try await manager.session(for: currentHost) },
+            sudo: false,
+            report: { [weak self] message in self?.actionMessage = message },
+            audit: { [weak self] command, result in self?.audit(command: command, result: result) }
+        )
+        containers = DockerContainersModel(context: context)
+        images = DockerImagesModel(context: context)
     }
 
     /// 当前是否需 sudo（供容器日志沿用同一提权）。
@@ -63,127 +76,27 @@ final class DockerViewModel {
                 loadState = .unavailable(probe)
                 return
             }
-            containers = try await DockerService.list(on: session, sudo: probe.sudo)
+            // 探测晚于上下文构造，sudo 标志要回填给全部子模型
+            propagateSudo(probe.sudo)
+            try await containers.load()
             loadState = .ready
         } catch {
             loadState = .failed(error.friendlyDiagnosis)
         }
     }
 
-    /// 下拉刷新容器：静默重拉，不切 `.loading`——保留分段与列表、避免闪烁。
-    /// 失败时保留上次结果，仅弹提示。
-    func refreshContainers() async {
-        guard availability.isUsable else { await load(); return }
-        do {
-            let session = try await connectionManager.session(for: host)
-            containers = try await DockerService.list(on: session, sudo: availability.sudo)
-        } catch {
-            actionMessage = String(format: L("%@ 失败：%@"), L("刷新"), error.friendlyDiagnosis)
-        }
+    /// 回填 sudo 标志——同时会重建全部子模型（`DockerContext` 里 `session` /
+    /// `report` / `audit` 均为值闭包，`struct` 无法就地改后传播，只能重建持有者）。
+    ///
+    /// **只能在任何列表加载之前调用**：此刻子模型都还是空列表，重建无损；
+    /// 若未来在列表已加载后调用此方法，会悄悄清空用户正在看的数据。
+    /// 目前唯一调用点在 `load()` 里、紧邻探测之后、`containers.load()` 之前，
+    /// 正好满足这个前提。
+    private func propagateSudo(_ sudo: Bool) {
+        context.sudo = sudo
+        containers = DockerContainersModel(context: context)
+        images = DockerImagesModel(context: context)
     }
-
-    func perform(_ action: ContainerAction, on container: ContainerInfo) async {
-        busyContainerID = container.id
-        defer { busyContainerID = nil }
-        do {
-            let session = try await connectionManager.session(for: host)
-            let result = try await DockerService.perform(action, id: container.id, on: session, sudo: availability.sudo)
-            audit(command: "docker \(action.verb) \(container.name)", result: result)
-            let detail = result.stderrText.isEmpty ? result.stdoutText : result.stderrText
-            actionMessage = result.isSuccess
-                ? String(format: L("%@ %@ 成功"), action.label, container.name)
-                : String(format: L("%@ %@ 失败：%@"), action.label, container.name, detail)
-            await refreshContainers()
-        } catch {
-            actionMessage = String(format: L("%@ 失败：%@"), action.label, error.friendlyDiagnosis)
-        }
-    }
-
-    func requestRemoval(_ container: ContainerInfo) {
-        pendingRemoval = container
-    }
-
-    func confirmRemoval() async {
-        guard let container = pendingRemoval else { return }
-        pendingRemoval = nil
-        await perform(.remove, on: container)
-    }
-
-    /// 容器详情（inspect）——供详情页加载。
-    func detail(for container: ContainerInfo) async -> ContainerDetail? {
-        do {
-            let session = try await connectionManager.session(for: host)
-            return try await DockerService.inspect(id: container.id, on: session, sudo: availability.sudo)
-        } catch {
-            return nil
-        }
-    }
-
-    /// 进入容器控制台的命令（PTY 里 exec）。
-    func consoleCommand(for container: ContainerInfo) -> String {
-        DockerCommand.console(id: container.id, sudo: availability.sudo)
-    }
-
-    // MARK: - 镜像
-
-    /// 仅首次加载镜像（镜像分段出现时调用）。
-    func loadImagesIfNeeded() async {
-        guard !imagesLoaded else { return }
-        await loadImages()
-    }
-
-    func loadImages() async {
-        guard availability.isUsable else { return }
-        do {
-            let session = try await connectionManager.session(for: host)
-            images = try await DockerService.listImages(on: session, sudo: availability.sudo)
-            imagesError = nil
-        } catch {
-            imagesError = error.friendlyDiagnosis
-        }
-        imagesLoaded = true
-    }
-
-    func requestImageRemoval(_ image: ImageInfo) {
-        pendingImageRemoval = image
-    }
-
-    func confirmImageRemoval() async {
-        guard let image = pendingImageRemoval else { return }
-        pendingImageRemoval = nil
-        busyImageID = image.id
-        defer { busyImageID = nil }
-        await runImageOp(String(format: L("删除镜像 %@"), image.displayName)) { session, sudo in
-            try await DockerService.removeImage(reference: image.reference, on: session, sudo: sudo)
-        }
-    }
-
-    func pruneImages() async {
-        await runImageOp(L("清理悬空镜像")) { session, sudo in
-            try await DockerService.pruneImages(on: session, sudo: sudo)
-        }
-    }
-
-    /// 镜像写操作统一执行 + 审计 + 刷新 + 结果提示。
-    private func runImageOp(
-        _ label: String,
-        _ operation: (any SSHSession, Bool) async throws -> ExecResult
-    ) async {
-        do {
-            let session = try await connectionManager.session(for: host)
-            let result = try await operation(session, availability.sudo)
-            audit(command: label, result: result)
-            let detail = result.stderrText.isEmpty ? result.stdoutText : result.stderrText
-            actionMessage = result.isSuccess
-                ? String(format: L("%@ 成功"), label)
-                : String(format: L("%@ 失败：%@"), label, detail)
-            await loadImages()
-        } catch {
-            actionMessage = String(format: L("%@ 失败：%@"), label, error.friendlyDiagnosis)
-        }
-    }
-
-    // MARK: - 私有
 
     private func audit(command: String, result: ExecResult) {
         try? runHistory.record(RunHistoryEntry(
@@ -193,5 +106,4 @@ final class DockerViewModel {
             outputHead: String(result.stdoutText.prefix(500))
         ))
     }
-
 }
