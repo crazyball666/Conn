@@ -55,6 +55,13 @@ public enum DockerCommand {
         prefix(sudo) + "docker history \(reference) --format '{{json .}}'"
     }
 
+    /// 磁盘占用明细。**这条在镜像/卷多的主机上要数秒**，调用方须单独异步取，
+    /// 不可与列表串在一起。`--format json` 在较老 docker 上不支持，
+    /// 那时输出是表格文本，解析器会返回 nil，上层显示「—」。
+    public static func diskUsage(sudo: Bool) -> String {
+        prefix(sudo) + "docker system df -v --format '{{json .}}'"
+    }
+
     // MARK: - 卷
 
     /// 全部卷，JSON 每行一个。
