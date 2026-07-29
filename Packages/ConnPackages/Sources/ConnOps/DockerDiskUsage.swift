@@ -37,10 +37,11 @@ extension DockerParser {
     /// 让上层显示「—」而不是崩或给出错误数字。
     public static func parseDiskUsage(_ output: String) -> DockerDiskUsage? {
         let trimmed = output.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard trimmed.hasPrefix("{"),
-              let data = trimmed.data(using: .utf8),
-              let dto = try? JSONDecoder().decode(DiskUsageDTO.self, from: data)
-        else { return nil }
+        // 表格文本必然不以 `{` 开头，先挡掉——避免拿一段肯定不是 JSON 的输出
+        // 去走一遍解码；真正的「trim + 转 Data + 解码」交给下面共用的 `decodeSingleObject`。
+        guard trimmed.hasPrefix("{"), let dto: DiskUsageDTO = decodeSingleObject(output) else {
+            return nil
+        }
 
         var volumes: [String: String] = [:]
         for entry in dto.volumes ?? [] {
@@ -50,10 +51,28 @@ extension DockerParser {
         for entry in dto.images ?? [] {
             // system df 给带 sha256: 前缀的长 ID，而 docker images 给 12 位短 ID。
             // 不归一化成同一规格，imageSize 永远查不到。
-            let bare = entry.id.hasPrefix("sha256:") ? String(entry.id.dropFirst(7)) : entry.id
+            let bare = stripSHA256Prefix(entry.id)
             images[String(bare.prefix(12))] = entry.size
         }
         return DockerDiskUsage(volumeSizes: volumes, imageSizes: images)
+    }
+
+    /// trim + 转 Data + 解码单个 JSON 对象（非数组）。`docker system df -v` 的
+    /// 顶层输出就是一个对象，不是 `decodeFirst` 期待的「JSON 数组取首个」，
+    /// 也不是 `decodeLines` 期待的「逐行一个 JSON」，所以单独留一份——
+    /// 但底下这段「trim + 转 Data + 解码」的骨架与 `decodeFirst` 共享，
+    /// 不再各写一遍。
+    static func decodeSingleObject<T: Decodable>(_ output: String) -> T? {
+        let trimmed = output.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let data = trimmed.data(using: .utf8) else { return nil }
+        return try? JSONDecoder().decode(T.self, from: data)
+    }
+
+    /// `sha256:` 前缀剥离。镜像 ID / digest 到处都要剥这个前缀——`ImageUsage`
+    /// 判定引用、`parseImageInspect` 取镜像 ID、这里的 `parseDiskUsage` 归一化
+    /// 镜像 ID 规格，原先各写一份，现在收在一处。
+    static func stripSHA256Prefix(_ value: String) -> String {
+        value.hasPrefix("sha256:") ? String(value.dropFirst("sha256:".count)) : value
     }
 }
 

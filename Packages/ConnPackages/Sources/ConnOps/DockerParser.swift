@@ -92,7 +92,7 @@ public enum DockerParser {
     /// `docker image inspect <引用>`（JSON 数组，取首个）。空/坏输出返回 nil。
     public static func parseImageInspect(_ output: String) -> ImageDetail? {
         guard let dto: ImageInspectDTO = decodeFirst(output) else { return nil }
-        let bareID = dto.id.hasPrefix("sha256:") ? String(dto.id.dropFirst(7)) : dto.id
+        let bareID = stripSHA256Prefix(dto.id)
         let entrypoint = (dto.config?.entrypoint ?? []).joined(separator: " ")
         let command = (dto.config?.cmd ?? []).joined(separator: " ")
         return ImageDetail(
@@ -230,15 +230,16 @@ public enum DockerParser {
     }
 
     /// ISO8601（`2024-01-15T06:13:00.123Z`）→ `2024-01-15 06:13`。空串返回「—」。
-    private static func shortDate(_ iso: String) -> String {
+    static func shortDate(_ iso: String) -> String {
         guard iso.count >= 16 else { return iso.isEmpty ? "—" : iso }
         return String(iso.prefix(16)).replacingOccurrences(of: "T", with: " ")
     }
 
     // MARK: - 通用
+    // 下面四个原本是 file-private，改成 internal 供 DockerDiskUsage.swift 复用。
 
     /// 逐行 JSON 解码，坏行跳过（docker 偶尔混入 warning 行）。
-    private static func decodeLines<T: Decodable>(_ output: String) -> [T] {
+    static func decodeLines<T: Decodable>(_ output: String) -> [T] {
         let decoder = JSONDecoder()
         return output.split(separator: "\n").compactMap { line in
             let trimmed = line.trimmingCharacters(in: .whitespaces)
@@ -253,14 +254,14 @@ public enum DockerParser {
     }
 
     /// JSON 数组取首个元素解码。`docker X inspect` 全都是这个形状。
-    private static func decodeFirst<T: Decodable>(_ output: String) -> T? {
+    static func decodeFirst<T: Decodable>(_ output: String) -> T? {
         let trimmed = output.trimmingCharacters(in: .whitespacesAndNewlines)
         guard let data = trimmed.data(using: .utf8) else { return nil }
         return (try? JSONDecoder().decode([T].self, from: data))?.first
     }
 
     /// `{"a":"1","b":"2"}` → `["a=1", "b=2"]`。已排序，nil 得空数组。
-    private static func keyValueList(_ dict: [String: String]?) -> [String] {
+    static func keyValueList(_ dict: [String: String]?) -> [String] {
         (dict ?? [:]).map { "\($0.key)=\($0.value)" }.sorted()
     }
 }
