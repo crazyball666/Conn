@@ -194,7 +194,10 @@ struct DockerView: View {
         VStack(spacing: ConnSpacing.sm) {
             ConnSearchField(L("搜索容器"), text: $search)
             if sortedContainers.isEmpty {
-                Text(L("该主机上没有容器")).font(.connSubheadline).foregroundStyle(.connMuted)
+                // 搜索词非空但无匹配时不能说「没有容器」——主机上可能明明有 20 个，
+                // 只是用户搜错了一个字母，那是对服务器状态的事实性错误陈述。
+                Text(search.isEmpty ? L("该主机上没有容器") : L("没有匹配的容器"))
+                    .font(.connSubheadline).foregroundStyle(.connMuted)
                     .padding(.vertical, ConnSpacing.xl)
             } else {
                 ForEach(sortedContainers) { container in
@@ -434,18 +437,27 @@ extension DockerView {
 
     // `DockerDetail.listBody` 的状态入参也挪到这里——同样是为了不把主体顶过
     // type_body_length，顺带让三个分段的调用点从多行拆装收成一行。
+    //
+    // `emptyText` 按搜索词是否为空二选一：搜索无匹配时不能沿用「没有镜像/卷/网络」
+    // 这类断言主机上完全没有该类资源的文案——那是对服务器状态的事实性错误陈述。
     private var imagesListState: DockerDetail.ListState {
-        .init(error: viewModel.images.error, loaded: viewModel.images.loaded, loadingText: L("读取镜像…"), emptyText: L("没有镜像"))
+        .init(
+            error: viewModel.images.error, loaded: viewModel.images.loaded, loadingText: L("读取镜像…"),
+            emptyText: search.isEmpty ? L("没有镜像") : L("没有匹配的镜像")
+        )
     }
 
     private var volumesListState: DockerDetail.ListState {
-        .init(error: viewModel.volumes.error, loaded: viewModel.volumes.loaded, loadingText: L("读取卷…"), emptyText: L("没有卷"))
+        .init(
+            error: viewModel.volumes.error, loaded: viewModel.volumes.loaded, loadingText: L("读取卷…"),
+            emptyText: search.isEmpty ? L("没有卷") : L("没有匹配的卷")
+        )
     }
 
     private var networksListState: DockerDetail.ListState {
         .init(
             error: viewModel.networks.error, loaded: viewModel.networks.loaded,
-            loadingText: L("读取网络…"), emptyText: L("没有网络")
+            loadingText: L("读取网络…"), emptyText: search.isEmpty ? L("没有网络") : L("没有匹配的网络")
         )
     }
 }
