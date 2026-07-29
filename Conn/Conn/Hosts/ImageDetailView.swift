@@ -60,7 +60,12 @@ struct ImageDetailView: View {
                 (L("标签"), detail.map { $0.tags.isEmpty ? "—" : $0.tags.joined(separator: ", ") } ?? image.displayName),
                 (L("镜像 ID"), detail?.id ?? image.imageID),
                 (L("大小"), diskSize ?? image.size),
-                (L("架构"), [detail?.os, detail?.architecture].compactMap { $0 }.joined(separator: "/")),
+                // `detail == nil` 时（详情还没读回来，或 inspect 失败）两个字段都是 nil，
+                // `joined` 会给空串——同一行其它字段都有 `?? image.xxx` 兜底，这行也补一个。
+                (L("架构"), {
+                    let parts = [detail?.os, detail?.architecture].compactMap { $0 }
+                    return parts.isEmpty ? "—" : parts.joined(separator: "/")
+                }()),
                 (L("创建于"), detail?.created ?? image.created),
                 (L("摘要"), detail?.digest ?? "—")
             ])
