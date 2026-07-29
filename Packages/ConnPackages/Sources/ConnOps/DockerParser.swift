@@ -87,6 +87,40 @@ public enum DockerParser {
         }
     }
 
+    // MARK: - 镜像详情
+
+    /// `docker image inspect <引用>`（JSON 数组，取首个）。空/坏输出返回 nil。
+    public static func parseImageInspect(_ output: String) -> ImageDetail? {
+        guard let dto: ImageInspectDTO = decodeFirst(output) else { return nil }
+        let bareID = dto.id.hasPrefix("sha256:") ? String(dto.id.dropFirst(7)) : dto.id
+        let entrypoint = (dto.config?.entrypoint ?? []).joined(separator: " ")
+        let command = (dto.config?.cmd ?? []).joined(separator: " ")
+        return ImageDetail(
+            id: String(bareID.prefix(12)),
+            tags: dto.repoTags ?? [],
+            digest: dto.repoDigests?.first,
+            architecture: dto.architecture ?? "—",
+            os: dto.os ?? "—",
+            sizeBytes: dto.size ?? 0,
+            entrypoint: entrypoint.isEmpty ? nil : entrypoint,
+            command: command.isEmpty ? nil : command,
+            env: (dto.config?.env ?? []).sorted(),
+            labels: keyValueList(dto.config?.labels),
+            created: shortDate(dto.created ?? "")
+        )
+    }
+
+    public static func parseImageHistory(_ output: String) -> [ImageLayer] {
+        decodeLines(output).map { (line: HistoryLine) in
+            ImageLayer(
+                id: line.id,
+                createdBy: line.createdBy,
+                size: line.size,
+                createdSince: line.createdSince
+            )
+        }
+    }
+
     // MARK: - 卷
 
     public static func parseVolumes(_ output: String) -> [VolumeInfo] {
@@ -413,4 +447,45 @@ private struct NetworkContainerDTO: Decodable {
     let name: String?
     let ipv4Address: String?
     enum CodingKeys: String, CodingKey { case name = "Name", ipv4Address = "IPv4Address" }
+}
+
+// MARK: - 镜像详情 DTO
+
+private struct ImageInspectDTO: Decodable {
+    let id: String
+    let repoTags: [String]?
+    let repoDigests: [String]?
+    let created: String?
+    let size: Int64?
+    let architecture: String?
+    let os: String?
+    let config: ImageConfigDTO?
+
+    enum CodingKeys: String, CodingKey {
+        case id = "Id", repoTags = "RepoTags", repoDigests = "RepoDigests"
+        case created = "Created", size = "Size", architecture = "Architecture"
+        case os = "Os", config = "Config"
+    }
+}
+
+private struct ImageConfigDTO: Decodable {
+    let entrypoint: [String]?
+    let cmd: [String]?
+    let env: [String]?
+    let labels: [String: String]?
+
+    enum CodingKeys: String, CodingKey {
+        case entrypoint = "Entrypoint", cmd = "Cmd", env = "Env", labels = "Labels"
+    }
+}
+
+private struct HistoryLine: Decodable {
+    let id: String
+    let createdBy: String
+    let size: String
+    let createdSince: String
+
+    enum CodingKeys: String, CodingKey {
+        case id = "ID", createdBy = "CreatedBy", size = "Size", createdSince = "CreatedSince"
+    }
 }

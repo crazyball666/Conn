@@ -44,6 +44,17 @@ public enum DockerCommand {
         prefix(sudo) + "docker image prune -f"
     }
 
+    /// 镜像详情（JSON 数组）。
+    public static func imageInspect(reference: String, sudo: Bool) -> String {
+        prefix(sudo) + "docker image inspect \(reference)"
+    }
+
+    /// 镜像层历史，JSON 每行一个。`--no-trunc` 不加：指令过长在手机上没法读，
+    /// docker 默认的截断正合适。
+    public static func imageHistory(reference: String, sudo: Bool) -> String {
+        prefix(sudo) + "docker history \(reference) --format '{{json .}}'"
+    }
+
     // MARK: - 卷
 
     /// 全部卷，JSON 每行一个。
