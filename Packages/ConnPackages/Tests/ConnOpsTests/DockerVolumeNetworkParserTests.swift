@@ -18,6 +18,7 @@ struct DockerVolumeNetworkParserTests {
         #expect(volumes.count == 2)
         #expect(volumes[0].name == "pgdata")
         #expect(volumes[0].driver == "local")
+        #expect(volumes[0].scope == "local")
         #expect(volumes[0].mountpoint == "/var/lib/docker/volumes/pgdata/_data")
         #expect(volumes[1].name == "web_assets")
     }
@@ -48,6 +49,7 @@ struct DockerVolumeNetworkParserTests {
         #expect(networks.count == 2)
         #expect(networks[0].name == "bridge")
         #expect(networks[0].driver == "bridge")
+        #expect(networks[0].scope == "local")
         #expect(networks[1].id == "f6e5d4c3b2a1")
     }
 
@@ -62,9 +64,12 @@ struct DockerVolumeNetworkParserTests {
         #expect(NetworkInfo(id: "x", name: "none", driver: "null", scope: "local").isPredefined)
     }
 
+    // Labels/Options 各给两个键，且故意按非字典序书写（先 com.example.owner 后
+    // com.docker.compose.project；先 type 后 device）——单键数组排不排序结果一样，
+    // 只有真的执行了 keyValueList 里的 .sorted() 才能得到断言里的字典序结果。
     // swiftlint:disable line_length
     static let volumeInspectJSON = """
-    [{"CreatedAt":"2026-01-02T03:04:05Z","Driver":"local","Labels":{"com.docker.compose.project":"web"},"Mountpoint":"/var/lib/docker/volumes/pgdata/_data","Name":"pgdata","Options":{"type":"none"},"Scope":"local"}]
+    [{"CreatedAt":"2026-01-02T03:04:05Z","Driver":"local","Labels":{"com.example.owner":"ops","com.docker.compose.project":"web"},"Mountpoint":"/var/lib/docker/volumes/pgdata/_data","Name":"pgdata","Options":{"type":"nfs","device":":/data"},"Scope":"local"}]
     """
     // swiftlint:enable line_length
 
@@ -72,10 +77,11 @@ struct DockerVolumeNetworkParserTests {
     func parsesVolumeInspect() throws {
         let detail = try #require(DockerParser.parseVolumeInspect(Self.volumeInspectJSON))
         #expect(detail.name == "pgdata")
+        #expect(detail.driver == "local")
         #expect(detail.mountpoint == "/var/lib/docker/volumes/pgdata/_data")
         #expect(detail.createdAt == "2026-01-02 03:04")
-        #expect(detail.labels == ["com.docker.compose.project=web"])
-        #expect(detail.options == ["type=none"])
+        #expect(detail.labels == ["com.docker.compose.project=web", "com.example.owner=ops"])
+        #expect(detail.options == ["device=:/data", "type=nfs"])
     }
 
     @Test("坏的卷详情返回 nil 而不是崩")
@@ -95,7 +101,11 @@ struct DockerVolumeNetworkParserTests {
     @Test("解析网络详情，含接入容器")
     func parsesNetworkInspect() throws {
         let detail = try #require(DockerParser.parseNetworkInspect(Self.networkInspectJSON))
+        // 网络详情的 id 不截断（不同于容器 inspect 的 12 位短 id），要与夹具里的完整长串一致
+        #expect(detail.id == "f6e5d4c3b2a1c0d9e8f7a6b5c4d3e2f1")
         #expect(detail.name == "web_default")
+        #expect(detail.driver == "bridge")
+        #expect(detail.scope == "local")
         #expect(detail.subnet == "172.20.0.0/16")
         #expect(detail.gateway == "172.20.0.1")
         #expect(!detail.isInternal)
