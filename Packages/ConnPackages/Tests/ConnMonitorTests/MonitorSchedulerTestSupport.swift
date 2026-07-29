@@ -104,6 +104,7 @@ final class FlakySession: SSHSession {
     private let log: CallLog
     private let address: String
     let state: AsyncStream<SSHSessionState>
+    let isConnected = true
     private let continuation: AsyncStream<SSHSessionState>.Continuation
 
     init(log: CallLog, address: String) {
