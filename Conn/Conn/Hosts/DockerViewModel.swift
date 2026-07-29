@@ -23,15 +23,19 @@ final class DockerViewModel {
     private(set) var hasLoaded = false
     var actionMessage: String?
 
-    // 下面三个隐式解包可选值并非疏忽：`context` 的 report/audit 闭包要弱引用
-    // 捕获 self，而 `containers`/`images` 又是拿 `context` 构造的——三者必须在
-    // init 里互相依赖着赋值，Swift 的两段式初始化要求它们在此之前"已经有值"
-    // （哪怕是隐式 nil）才允许捕获 self。改成普通 Optional 会让每个调用点都要
-    // 多一层 `?`，偏离了 Step 1 清单里那些无需判空的调用写法。
+    // 下面四个隐式解包可选值并非疏忽：`context` 的 report/audit 闭包要弱引用
+    // 捕获 self，而 `containers`/`images`/`volumes`/`networks` 又是拿 `context`
+    // 构造的——它们必须在 init 里互相依赖着赋值，Swift 的两段式初始化要求
+    // 在此之前"已经有值"（哪怕是隐式 nil）才允许捕获 self。改成普通 Optional
+    // 会让每个调用点都要多一层 `?`，偏离了既有调用写法（无需判空即可用）。
     // swiftlint:disable:next implicitly_unwrapped_optional
     private(set) var containers: DockerContainersModel!
     // swiftlint:disable:next implicitly_unwrapped_optional
     private(set) var images: DockerImagesModel!
+    // swiftlint:disable:next implicitly_unwrapped_optional
+    private(set) var volumes: DockerVolumesModel!
+    // swiftlint:disable:next implicitly_unwrapped_optional
+    private(set) var networks: DockerNetworksModel!
 
     private let host: Host
     private let connectionManager: ConnectionManager
@@ -56,6 +60,8 @@ final class DockerViewModel {
         )
         containers = DockerContainersModel(context: context)
         images = DockerImagesModel(context: context)
+        volumes = DockerVolumesModel(context: context)
+        networks = DockerNetworksModel(context: context)
     }
 
     /// 当前是否需 sudo（供容器日志沿用同一提权）。
@@ -102,6 +108,8 @@ final class DockerViewModel {
         context.isUsable = probe.isUsable
         containers = DockerContainersModel(context: context)
         images = DockerImagesModel(context: context)
+        volumes = DockerVolumesModel(context: context)
+        networks = DockerNetworksModel(context: context)
     }
 
     private func audit(command: String, result: ExecResult) {

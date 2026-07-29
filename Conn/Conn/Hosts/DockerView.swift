@@ -4,7 +4,8 @@ import ConnUI
 import SwiftUI
 
 /// Docker 管理（Phase 8+）：容器（列表 / 详情 / 启停重启 / 日志 / 控制台 / 删除）
-/// + 镜像（列表 / 删除 / 清理悬空）。分段切换，操作走行内菜单。
+/// + 镜像（列表 / 删除 / 清理悬空）+ 卷 / 网络（列表 / 详情，均只读）。
+/// 四项分段切换，写操作走行内菜单。
 struct DockerView: View {
     let viewModel: DockerViewModel
     @Environment(SettingsStore.self) private var settings
@@ -17,19 +18,6 @@ struct DockerView: View {
         self.host = host
         self.dependencies = dependencies
         self.viewModel = viewModel
-    }
-
-    enum Tab: String, CaseIterable, Identifiable { case containers = "容器", images = "镜像"; var id: String { rawValue } }
-
-    enum Route: Hashable, Identifiable {
-        case detail(ContainerInfo), logs(ContainerInfo), console(ContainerInfo)
-        var id: String {
-            switch self {
-            case let .detail(container): "detail-\(container.id)"
-            case let .logs(container): "logs-\(container.id)"
-            case let .console(container): "console-\(container.id)"
-            }
-        }
     }
 
     var body: some View {
@@ -56,9 +44,11 @@ struct DockerView: View {
             .navigationDestination(item: $route, destination: destination)
     }
 
+    // 参数名故意不叫 route——它是本函数的局部值，而 volumeDetail/networkDetail
+    // 分支要在闭包里给 @State private var route 赋新值，同名会被局部值遮蔽掉。
     @ViewBuilder
-    private func destination(_ route: Route) -> some View {
-        switch route {
+    private func destination(_ target: Route) -> some View {
+        switch target {
         case let .detail(container):
             ContainerDetailView(host: host, dependencies: dependencies, container: container, viewModel: viewModel)
         case let .logs(container):
@@ -75,6 +65,20 @@ struct DockerView: View {
                 host: host, connectionManager: dependencies.connectionManager,
                 autoCommand: viewModel.containers.consoleCommand(for: container)
             )
+        case let .volumeDetail(volume):
+            // 磁盘占用（system df -v）要到 Task 7 才接入 DockerViewModel，本任务先传
+            // nil，页面按设计显示「—」——它本就是「查不到就退化」的锦上添花字段。
+            VolumeDetailView(volume: volume, model: viewModel.volumes, size: nil) { container in
+                route = .detail(container)
+            }
+        case let .networkDetail(network):
+            NetworkDetailView(network: network, model: viewModel.networks) { containerID in
+                // AttachedContainer 只有 id/name/ipv4，不是完整 ContainerInfo，
+                // 按 id 到容器列表里回查；找不到（容器已被删）时不跳转。
+                if let container = viewModel.containers.items.first(where: { $0.id == containerID }) {
+                    route = .detail(container)
+                }
+            }
         }
     }
 
@@ -102,6 +106,8 @@ struct DockerView: View {
                     switch tab {
                     case .containers: containerList
                     case .images: imageSection
+                    case .volumes: volumeSection
+                    case .networks: networkSection
                     }
                 }
                 .scrollBounceBehavior(.basedOnSize)
@@ -119,6 +125,8 @@ struct DockerView: View {
             switch tab {
             case .containers: await viewModel.containers.refresh()
             case .images: await viewModel.images.load()
+            case .volumes: await viewModel.volumes.load()
+            case .networks: await viewModel.networks.load()
             }
         }
     }
@@ -130,6 +138,8 @@ struct DockerView: View {
         switch tab {
         case .containers: await viewModel.containers.refresh()
         case .images: await viewModel.images.load()
+        case .volumes: await viewModel.volumes.load()
+        case .networks: await viewModel.networks.load()
         }
         let minimum = Duration.milliseconds(500)
         let elapsed = clock.now - start
@@ -218,6 +228,77 @@ struct DockerView: View {
         }
     }
 
+    // MARK: - 卷
+
+    private var volumeSection: some View {
+        VStack(spacing: ConnSpacing.sm) {
+            DockerDetail.listHeader(count: String(format: L("共 %d 个卷"), viewModel.volumes.items.count)) {
+                Task { await viewModel.volumes.load() }
+            }
+            if let error = viewModel.volumes.error {
+                ConnBanner(error, systemImage: "exclamationmark.triangle")
+            } else if !viewModel.volumes.loaded {
+                ProgressView(L("读取卷…")).font(.connFootnote).foregroundStyle(.connMuted)
+                    .frame(maxWidth: .infinity).padding(.vertical, ConnSpacing.xl)
+            } else if viewModel.volumes.items.isEmpty {
+                Text(L("没有卷")).font(.connSubheadline).foregroundStyle(.connMuted)
+                    .padding(.vertical, ConnSpacing.xl)
+            } else {
+                ForEach(viewModel.volumes.items) { volume in volumeRow(volume) }
+            }
+        }
+        .padding(.bottom, ConnSpacing.lg)
+        .task { await viewModel.volumes.loadIfNeeded() }
+    }
+
+    private func volumeRow(_ volume: VolumeInfo) -> some View {
+        let unused = viewModel.volumes.unusedNames.contains(volume.name)
+        return DockerDetail.resourceRow(
+            icon: "externaldrive.fill", accented: true,
+            title: (volume.name, "\(volume.driver) · \(volume.scope)"),
+            badge: unused ? (L("未使用"), .warn) : nil
+        ) { route = .volumeDetail(volume) }
+    }
+
+    // MARK: - 网络
+
+    private var networkSection: some View {
+        VStack(spacing: ConnSpacing.sm) {
+            DockerDetail.listHeader(count: String(format: L("共 %d 个网络"), viewModel.networks.items.count)) {
+                Task { await viewModel.networks.load() }
+            }
+            if let error = viewModel.networks.error {
+                ConnBanner(error, systemImage: "exclamationmark.triangle")
+            } else if !viewModel.networks.loaded {
+                ProgressView(L("读取网络…")).font(.connFootnote).foregroundStyle(.connMuted)
+                    .frame(maxWidth: .infinity).padding(.vertical, ConnSpacing.xl)
+            } else if viewModel.networks.items.isEmpty {
+                Text(L("没有网络")).font(.connSubheadline).foregroundStyle(.connMuted)
+                    .padding(.vertical, ConnSpacing.xl)
+            } else {
+                ForEach(viewModel.networks.items) { network in networkRow(network) }
+            }
+        }
+        .padding(.bottom, ConnSpacing.lg)
+        .task { await viewModel.networks.loadIfNeeded() }
+    }
+
+    private func networkRow(_ network: NetworkInfo) -> some View {
+        // 预置网络（bridge/host/none）优先展示「预置」而非「未使用」——
+        // 后者暗示可删，而预置网络永远删不掉，混着打会误导用户。
+        let badge: (text: String, semantic: StatusPill.Semantic)? = if network.isPredefined {
+            (L("预置"), .info)
+        } else if viewModel.networks.unusedNames.contains(network.name) {
+            (L("未使用"), .warn)
+        } else {
+            nil
+        }
+        return DockerDetail.resourceRow(
+            icon: "point.3.connected.trianglepath.dotted", accented: !network.isPredefined,
+            title: (network.name, "\(network.driver) · \(network.scope)"), badge: badge
+        ) { route = .networkDetail(network) }
+    }
+
     // MARK: - 不可用引导
 
     private func unavailableView(_ availability: DockerAvailability) -> some View {
@@ -251,5 +332,39 @@ struct DockerView: View {
 
     private var messageBinding: Binding<Bool> {
         Binding(get: { viewModel.actionMessage != nil }, set: { if !$0 { viewModel.actionMessage = nil } })
+    }
+}
+
+// MARK: - 分段与路由
+
+// 拆到同文件的 extension 里而非塞进主体：四项分段后 Route 带自定义 Hashable，
+// 与其余视图逻辑放一起会把 DockerView 主体推过 SwiftLint 的 300 行阈值。
+extension DockerView {
+    enum Tab: String, CaseIterable, Identifiable {
+        case containers = "容器"
+        case images = "镜像"
+        case volumes = "卷"
+        case networks = "网络"
+        var id: String { rawValue }
+    }
+
+    enum Route: Hashable, Identifiable {
+        case detail(ContainerInfo), logs(ContainerInfo), console(ContainerInfo)
+        case volumeDetail(VolumeInfo), networkDetail(NetworkInfo)
+
+        var id: String {
+            switch self {
+            case let .detail(container): "detail-\(container.id)"
+            case let .logs(container): "logs-\(container.id)"
+            case let .console(container): "console-\(container.id)"
+            case let .volumeDetail(volume): "volume-\(volume.name)"
+            case let .networkDetail(network): "network-\(network.id)"
+            }
+        }
+
+        // VolumeInfo / NetworkInfo（ConnOps 域层）只 Equatable，没有 Hashable，
+        // 编译器无法合成——按上面已算好的 id 手写哈希与相等，不必为此改动域层。
+        static func == (lhs: Route, rhs: Route) -> Bool { lhs.id == rhs.id }
+        func hash(into hasher: inout Hasher) { hasher.combine(id) }
     }
 }

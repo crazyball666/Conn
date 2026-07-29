@@ -1,0 +1,111 @@
+import ConnUI
+import SwiftUI
+
+/// Docker 各详情页 + 列表行共用的版式构件。
+///
+/// `section`/`infoRows`/`containerRow`/`unusedNotice` 从 `ContainerDetailView` 的
+/// 私有方法抽出——卷、网络、镜像三个详情页要用同一套版式，照抄三份就是四份会
+/// 各自漂移的重复。`resourceRow` 是卷、网络两个列表分段共用的行样式，二者结构
+/// 完全一致（图标 + 名称/副标题 + 尾部徽标 + chevron），只有图标与徽标判据不同。
+enum DockerDetail {
+    /// 带眉标的分组卡片。
+    @ViewBuilder
+    static func section(_ title: String, @ViewBuilder content: () -> some View) -> some View {
+        VStack(alignment: .leading, spacing: ConnSpacing.xs) {
+            Text(title).font(.connCaption).foregroundStyle(.connMuted).connEyebrowTracking()
+            VStack(alignment: .leading, spacing: ConnSpacing.sm) {
+                content()
+            }
+            .padding(ConnSpacing.cardPadding)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .connSurface(cornerRadius: ConnRadius.card)
+        }
+    }
+
+    /// 左标签右取值的键值行组，行间细分隔线。
+    static func infoRows(_ rows: [(String, String)]) -> some View {
+        VStack(spacing: 0) {
+            ForEach(Array(rows.enumerated()), id: \.offset) { index, row in
+                if index > 0 { Rectangle().fill(Color.connLine).frame(height: 0.5) }
+                HStack(spacing: ConnSpacing.sm) {
+                    Text(row.0).font(.connSubheadline).foregroundStyle(.connMuted)
+                    Spacer()
+                    Text(row.1).font(.connData()).connTabularNumbers().foregroundStyle(.connInk)
+                        .lineLimit(1).minimumScaleFactor(0.6).multilineTextAlignment(.trailing)
+                        .textSelection(.enabled)
+                }
+                .padding(.vertical, ConnSpacing.sm)
+            }
+        }
+    }
+
+    /// 可点的容器行。三个详情页的「引用/接入容器」段共用。
+    static func containerRow(name: String, subtitle: String?, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: ConnSpacing.sm) {
+                Image(systemName: "shippingbox").font(.system(size: 11))
+                    .foregroundStyle(.connMuted).frame(width: 16)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(name).font(.connData(.caption2)).foregroundStyle(.connInk)
+                    if let subtitle {
+                        Text(subtitle).font(.connData(.caption2)).foregroundStyle(.connMuted)
+                    }
+                }
+                Spacer(minLength: 0)
+                Image(systemName: "chevron.right").font(.system(size: 10)).foregroundStyle(.connMuted)
+            }
+            .padding(.vertical, ConnSpacing.xs)
+        }
+        .buttonStyle(.plain)
+    }
+
+    /// 「没有容器在用」的空态 + 未使用徽标。
+    static func unusedNotice(_ text: String) -> some View {
+        HStack(spacing: ConnSpacing.xs) {
+            StatusPill(L("未使用"), semantic: .warn)
+            Text(text).font(.connFootnote).foregroundStyle(.connMuted)
+        }
+    }
+
+    /// 卷 / 网络列表行：图标 + 名称/副标题 + 可选尾部徽标 + chevron，整行可点。
+    /// 两个列表的行样式逐字相同，抽出以免各自漂移。
+    /// `title` 打包 name/subtitle 两项——不打包会撞 SwiftLint 的参数个数上限。
+    static func resourceRow(
+        icon: String,
+        accented: Bool,
+        title: (name: String, subtitle: String),
+        badge: (text: String, semantic: StatusPill.Semantic)?,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            HStack(spacing: ConnSpacing.sm) {
+                Image(systemName: icon).font(.system(size: 18))
+                    .foregroundStyle(accented ? .connAccent : .connMuted).frame(width: 26)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title.name).font(.connData(.footnote)).foregroundStyle(.connInk).lineLimit(1)
+                    Text(title.subtitle).font(.connData(.caption2)).foregroundStyle(.connMuted).lineLimit(1)
+                }
+                Spacer(minLength: ConnSpacing.xs)
+                if let badge {
+                    StatusPill(badge.text, semantic: badge.semantic)
+                }
+                Image(systemName: "chevron.right").font(.system(size: 12)).foregroundStyle(.connMuted)
+            }
+            .padding(ConnSpacing.cardPadding)
+            .connSurface(cornerRadius: ConnRadius.card)
+        }
+        .buttonStyle(.plain)
+    }
+
+    /// 列表头：计数文案 + 刷新按钮。卷 / 网络两个分段共用
+    /// （镜像段另带清理悬空菜单，结构不同，不强行复用）。
+    static func listHeader(count: String, onRefresh: @escaping () -> Void) -> some View {
+        HStack {
+            Text(count).font(.connData(.caption2)).foregroundStyle(.connDim)
+            Spacer()
+            Button(action: onRefresh) {
+                Image(systemName: "arrow.clockwise").font(.system(size: 16)).foregroundStyle(.connAccent)
+            }
+        }
+    }
+}

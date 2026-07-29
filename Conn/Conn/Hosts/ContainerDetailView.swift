@@ -111,8 +111,8 @@ struct ContainerDetailView: View {
     // MARK: - 概要
 
     private func summarySection(_ detail: ContainerDetail) -> some View {
-        section(L("概要")) {
-            infoRows([
+        DockerDetail.section(L("概要")) {
+            DockerDetail.infoRows([
                 (L("状态"), detail.statusText),
                 (L("镜像"), detail.image),
                 (L("容器 ID"), detail.id),
@@ -125,7 +125,7 @@ struct ContainerDetailView: View {
     }
 
     private func commandSection(_ detail: ContainerDetail) -> some View {
-        section(L("命令")) {
+        DockerDetail.section(L("命令")) {
             Text(detail.command.isEmpty ? "—" : detail.command)
                 .font(.connData(.footnote)).foregroundStyle(.connInk)
                 .textSelection(.enabled)
@@ -138,7 +138,7 @@ struct ContainerDetailView: View {
     @ViewBuilder
     private func listSection(_ title: String, _ items: [String], icon: String) -> some View {
         if !items.isEmpty {
-            section(title) {
+            DockerDetail.section(title) {
                 VStack(alignment: .leading, spacing: 0) {
                     ForEach(Array(items.enumerated()), id: \.offset) { index, item in
                         if index > 0 { Rectangle().fill(Color.connLine).frame(height: 0.5) }
@@ -193,34 +193,6 @@ struct ContainerDetailView: View {
     }
 
     // MARK: - 通用块
-
-    private func section(_ title: String, @ViewBuilder content: () -> some View) -> some View {
-        VStack(alignment: .leading, spacing: ConnSpacing.xs) {
-            Text(title).font(.connCaption).foregroundStyle(.connMuted).connEyebrowTracking()
-            VStack(alignment: .leading, spacing: ConnSpacing.sm) {
-                content()
-            }
-            .padding(ConnSpacing.cardPadding)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .connSurface(cornerRadius: ConnRadius.card)
-        }
-    }
-
-    private func infoRows(_ rows: [(String, String)]) -> some View {
-        VStack(spacing: 0) {
-            ForEach(Array(rows.enumerated()), id: \.offset) { index, row in
-                if index > 0 { Rectangle().fill(Color.connLine).frame(height: 0.5) }
-                HStack(spacing: ConnSpacing.sm) {
-                    Text(row.0).font(.connSubheadline).foregroundStyle(.connMuted)
-                    Spacer()
-                    Text(row.1).font(.connData()).connTabularNumbers().foregroundStyle(.connInk)
-                        .lineLimit(1).minimumScaleFactor(0.6).multilineTextAlignment(.trailing)
-                        .textSelection(.enabled)
-                }
-                .padding(.vertical, ConnSpacing.sm)
-            }
-        }
-    }
 
     private var messageBinding: Binding<Bool> {
         Binding(get: { viewModel.actionMessage != nil }, set: { if !$0 { viewModel.actionMessage = nil } })
