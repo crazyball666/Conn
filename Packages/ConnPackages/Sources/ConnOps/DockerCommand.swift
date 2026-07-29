@@ -44,6 +44,45 @@ public enum DockerCommand {
         prefix(sudo) + "docker image prune -f"
     }
 
+    // MARK: - 卷
+
+    /// 全部卷，JSON 每行一个。
+    public static func volumes(sudo: Bool) -> String {
+        prefix(sudo) + "docker volume ls --format '{{json .}}'"
+    }
+
+    /// 无任何容器引用的卷名。对卷而言 `dangling` 的定义就是「没被引用」，
+    /// 与我们要表达的「未使用」一致，故直接用它而不在客户端比对容器列表。
+    public static func danglingVolumes(sudo: Bool) -> String {
+        prefix(sudo) + "docker volume ls --filter dangling=true -q"
+    }
+
+    /// 卷详情（JSON 数组）。
+    public static func volumeInspect(name: String, sudo: Bool) -> String {
+        prefix(sudo) + "docker volume inspect \(name)"
+    }
+
+    // MARK: - 网络
+
+    /// 全部网络，JSON 每行一个。
+    public static func networks(sudo: Bool) -> String {
+        prefix(sudo) + "docker network ls --format '{{json .}}'"
+    }
+
+    /// 无容器接入的网络名。**注意它会包含预置的 bridge / host / none**，
+    /// 打徽标前须用 `NetworkInfo.isPredefined` 滤掉。
+    ///
+    /// 用 `--format '{{.Name}}'` 而非 `-q`：`-q` 给的是网络 ID，而列表项与
+    /// inspect 都以名字为键，取 ID 还要再映射一次。
+    public static func danglingNetworks(sudo: Bool) -> String {
+        prefix(sudo) + "docker network ls --filter dangling=true --format '{{.Name}}'"
+    }
+
+    /// 网络详情（JSON 数组）。
+    public static func networkInspect(name: String, sudo: Bool) -> String {
+        prefix(sudo) + "docker network inspect \(name)"
+    }
+
     /// 跟随容器日志（execStream 用）。合并 stderr。
     public static func logs(id: String, tail: Int = 200, sudo: Bool) -> String {
         prefix(sudo) + "docker logs -f --tail \(tail) \(id) 2>&1"

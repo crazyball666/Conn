@@ -87,6 +87,71 @@ public enum DockerParser {
         }
     }
 
+    // MARK: - 卷
+
+    public static func parseVolumes(_ output: String) -> [VolumeInfo] {
+        decodeLines(output).map { (line: VolumeLine) in
+            VolumeInfo(
+                name: line.name,
+                driver: line.driver,
+                scope: line.scope ?? "local",
+                mountpoint: line.mountpoint ?? "—"
+            )
+        }
+    }
+
+    /// `docker volume inspect <名>`（JSON 数组，取首个）。空/坏输出返回 nil。
+    public static func parseVolumeInspect(_ output: String) -> VolumeDetail? {
+        guard let dto: VolumeInspectDTO = decodeFirst(output) else { return nil }
+        return VolumeDetail(
+            name: dto.name,
+            driver: dto.driver,
+            mountpoint: dto.mountpoint ?? "—",
+            createdAt: shortDate(dto.createdAt ?? ""),
+            labels: keyValueList(dto.labels),
+            options: keyValueList(dto.options)
+        )
+    }
+
+    // MARK: - 网络
+
+    public static func parseNetworks(_ output: String) -> [NetworkInfo] {
+        decodeLines(output).map { (line: NetworkLine) in
+            NetworkInfo(id: line.id, name: line.name, driver: line.driver, scope: line.scope ?? "local")
+        }
+    }
+
+    /// `docker network inspect <名>`（JSON 数组，取首个）。空/坏输出返回 nil。
+    public static func parseNetworkInspect(_ output: String) -> NetworkDetail? {
+        guard let dto: NetworkInspectDTO = decodeFirst(output) else { return nil }
+        let ipam = dto.ipam?.config?.first
+        let attached = (dto.containers ?? [:])
+            .map { id, container in
+                NetworkDetail.AttachedContainer(id: id, name: container.name ?? id, ipv4: container.ipv4Address)
+            }
+            // JSON 字典无序：不排序则每次刷新顺序都可能变，UI 会莫名跳动
+            .sorted { $0.name < $1.name }
+        return NetworkDetail(
+            id: dto.id,
+            name: dto.name,
+            driver: dto.driver ?? "—",
+            scope: dto.scope ?? "local",
+            subnet: ipam?.subnet,
+            gateway: ipam?.gateway,
+            isInternal: dto.isInternal ?? false,
+            attachedContainers: attached
+        )
+    }
+
+    /// `ls --filter dangling=true` 的名字输出 → 集合。空行剔除。
+    public static func parseNameList(_ output: String) -> Set<String> {
+        Set(
+            output.split(separator: "\n")
+                .map { $0.trimmingCharacters(in: .whitespaces) }
+                .filter { !$0.isEmpty }
+        )
+    }
+
     // MARK: - inspect
 
     /// `docker inspect <id>`（JSON 数组，取首个）→ 运维摘要。空/坏输出返回 nil。
@@ -147,6 +212,18 @@ public enum DockerParser {
     /// `12.34%` → 12.34；无效返回 nil。
     private static func percent(_ token: String) -> Double? {
         Double(token.replacingOccurrences(of: "%", with: "").trimmingCharacters(in: .whitespaces))
+    }
+
+    /// JSON 数组取首个元素解码。`docker X inspect` 全都是这个形状。
+    private static func decodeFirst<T: Decodable>(_ output: String) -> T? {
+        let trimmed = output.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let data = trimmed.data(using: .utf8) else { return nil }
+        return (try? JSONDecoder().decode([T].self, from: data))?.first
+    }
+
+    /// `{"a":"1","b":"2"}` → `["a=1", "b=2"]`。已排序，nil 得空数组。
+    private static func keyValueList(_ dict: [String: String]?) -> [String] {
+        (dict ?? [:]).map { "\($0.key)=\($0.value)" }.sorted()
     }
 }
 
@@ -266,4 +343,74 @@ private struct InspectMount: Decodable {
     let destination: String?
     let rw: Bool?
     enum CodingKeys: String, CodingKey { case source = "Source", destination = "Destination", rw = "RW" }
+}
+
+// MARK: - 卷 / 网络 DTO
+
+private struct VolumeLine: Decodable {
+    let name: String
+    let driver: String
+    let scope: String?
+    let mountpoint: String?
+
+    enum CodingKeys: String, CodingKey {
+        case name = "Name", driver = "Driver", scope = "Scope", mountpoint = "Mountpoint"
+    }
+}
+
+private struct NetworkLine: Decodable {
+    let id: String
+    let name: String
+    let driver: String
+    let scope: String?
+
+    enum CodingKeys: String, CodingKey {
+        case id = "ID", name = "Name", driver = "Driver", scope = "Scope"
+    }
+}
+
+private struct VolumeInspectDTO: Decodable {
+    let name: String
+    let driver: String
+    let mountpoint: String?
+    let createdAt: String?
+    let labels: [String: String]?
+    let options: [String: String]?
+
+    enum CodingKeys: String, CodingKey {
+        case name = "Name", driver = "Driver", mountpoint = "Mountpoint"
+        case createdAt = "CreatedAt", labels = "Labels", options = "Options"
+    }
+}
+
+private struct NetworkInspectDTO: Decodable {
+    let id: String
+    let name: String
+    let driver: String?
+    let scope: String?
+    let isInternal: Bool?
+    let ipam: NetworkIPAM?
+    let containers: [String: NetworkContainerDTO]?
+
+    enum CodingKeys: String, CodingKey {
+        case id = "Id", name = "Name", driver = "Driver", scope = "Scope"
+        case isInternal = "Internal", ipam = "IPAM", containers = "Containers"
+    }
+}
+
+private struct NetworkIPAM: Decodable {
+    let config: [NetworkIPAMConfig]?
+    enum CodingKeys: String, CodingKey { case config = "Config" }
+}
+
+private struct NetworkIPAMConfig: Decodable {
+    let subnet: String?
+    let gateway: String?
+    enum CodingKeys: String, CodingKey { case subnet = "Subnet", gateway = "Gateway" }
+}
+
+private struct NetworkContainerDTO: Decodable {
+    let name: String?
+    let ipv4Address: String?
+    enum CodingKeys: String, CodingKey { case name = "Name", ipv4Address = "IPv4Address" }
 }
