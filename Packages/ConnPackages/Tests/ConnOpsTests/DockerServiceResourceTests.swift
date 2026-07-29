@@ -80,6 +80,47 @@ struct DockerServiceResourceTests {
         #expect(try await DockerService.diskUsage(on: session, sudo: false) == nil)
     }
 
+    /// 正常路径：断言具体字段值，而不是只判非 nil——否则把函数体换成
+    /// 返回一个空壳 `VolumeDetail` 仍然会让测试通过，等于没测。
+    @Test("卷详情")
+    func volumeDetail() async throws {
+        let json = """
+        [{"CreatedAt":"2026-01-02T03:04:05Z","Driver":"local","Labels":{"com.example.owner":"ops"},
+          "Mountpoint":"/var/lib/docker/volumes/pgdata/_data","Name":"pgdata","Options":{"type":"nfs"},"Scope":"local"}]
+        """
+        let session = try await session([DockerCommand.volumeInspect(name: "pgdata", sudo: false): json])
+        let detail = try #require(try await DockerService.volumeDetail(name: "pgdata", on: session, sudo: false))
+        #expect(detail.name == "pgdata")
+        #expect(detail.driver == "local")
+        #expect(detail.mountpoint == "/var/lib/docker/volumes/pgdata/_data")
+        #expect(detail.createdAt == "2026-01-02 03:04")
+        #expect(detail.labels == ["com.example.owner=ops"])
+        #expect(detail.options == ["type=nfs"])
+    }
+
+    @Test("dangling 网络名集合")
+    func danglingNetworks() async throws {
+        let session = try await session([DockerCommand.danglingNetworks(sudo: false): "old_net\nweb_default\n"])
+        let names = try await DockerService.danglingNetworkNames(on: session, sudo: false)
+        #expect(names == ["old_net", "web_default"])
+    }
+
+    /// 正常路径：格式正确的 `docker system df -v --format json` 要能解析出
+    /// 有内容的 `DockerDiskUsage`。`diskUsageDegrades` 只覆盖了「格式不支持返回 nil」
+    /// 这条降级路径，两条合起来才把 `diskUsage` 的行为钉住。
+    @Test("磁盘占用格式支持时解析出具体占用")
+    func diskUsageParsesRealData() async throws {
+        let json = """
+        {"Images":[{"ID":"sha256:a1b2c3d4e5f6a7b8","Repository":"nginx","Tag":"1.25","Size":"142MB"}],
+         "Volumes":[{"Name":"pgdata","Size":"1.2GB","Links":1}],"Containers":[],"BuildCache":[]}
+        """
+        let session = try await session([DockerCommand.diskUsage(sudo: false): json])
+        let usage = try #require(try await DockerService.diskUsage(on: session, sudo: false))
+        // 镜像索引用 12 位短 ID：system df 给带 sha256: 前缀的长 ID，解析器会归一化。
+        #expect(usage.imageSize("a1b2c3d4e5f6") == "142MB")
+        #expect(usage.volumeSize("pgdata") == "1.2GB")
+    }
+
     @Test("反查引用某卷的容器")
     func containersUsingVolume() async throws {
         let json = """
