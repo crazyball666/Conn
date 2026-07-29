@@ -80,6 +80,11 @@ public enum DockerCommand {
         prefix(sudo) + "docker volume inspect \(name)"
     }
 
+    /// 引用某个卷的容器（含已停止的——它引用着就删不掉该卷）。
+    public static func containersUsingVolume(name: String, sudo: Bool) -> String {
+        prefix(sudo) + "docker ps -a --filter volume=\(name) --format '{{json .}}'"
+    }
+
     // MARK: - 网络
 
     /// 全部网络，JSON 每行一个。
