@@ -203,6 +203,9 @@ public enum DockerParser {
         let mounts = (dto.mounts ?? []).map {
             "\($0.source ?? "?") → \($0.destination ?? "?")\(($0.rw ?? true) ? "" : " (ro)")"
         }
+        // Name 只在卷挂载上有值（绑定挂载没有）；回退用宿主机路径，保证每个挂载都有
+        // 一个可展示/可比对的来源串，即便它最终对应不上任何一个卷。
+        let mountSources = (dto.mounts ?? []).map { $0.name ?? $0.source ?? "?" }
         let networks = (dto.networkSettings?.networks ?? [:]).map { name, net in
             net.ipAddress.map { $0.isEmpty ? name : "\(name) · \($0)" } ?? name
         }.sorted()
@@ -220,6 +223,7 @@ public enum DockerParser {
             health: dto.state.health?.status,
             ports: ports,
             mounts: mounts,
+            mountSources: mountSources,
             networks: networks,
             env: dto.config?.env ?? []
         )
@@ -373,10 +377,14 @@ private struct InspectNetwork: Decodable {
 }
 
 private struct InspectMount: Decodable {
+    /// 只有卷挂载才有；绑定挂载没有这个字段。
+    let name: String?
     let source: String?
     let destination: String?
     let rw: Bool?
-    enum CodingKeys: String, CodingKey { case source = "Source", destination = "Destination", rw = "RW" }
+    enum CodingKeys: String, CodingKey {
+        case name = "Name", source = "Source", destination = "Destination", rw = "RW"
+    }
 }
 
 // MARK: - 卷 / 网络 DTO

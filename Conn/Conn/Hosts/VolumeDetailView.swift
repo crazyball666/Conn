@@ -1,20 +1,29 @@
+import ConnKit
 import ConnOps
 import ConnUI
 import SwiftUI
 
 /// 卷详情：inspect 信息 + 哪些容器在引用它。
+///
+/// **导航栈说明**：点「引用容器」要推入 `ContainerDetailView`，本页自己持有
+/// `openedContainer` + 自己的 `navigationDestination(item:)`——而不是回调给
+/// `DockerView` 去改它那个更外层的 `route`。同一个 `route` 状态被两级导航复用时，
+/// `navigationDestination(item:)` 不会正确压栈（实测：改值会连累整条链重建，
+/// 返回键甚至不显示上一屏标题），每层各管自己的下一跳才是唯一稳的写法，
+/// 与 `ContainerDetailView` 自己的日志/控制台跳转同一套路数。
 struct VolumeDetailView: View {
     let volume: VolumeInfo
-    let model: DockerVolumesModel
+    let viewModel: DockerViewModel
     /// 磁盘占用查不到时显示「—」——这条信息由 `docker system df -v` 单独异步取，
     /// 它失败不该让本页看起来坏了。
     let size: String?
-    /// 点容器行时的跳转回调，由 `DockerView` 注入路由。
-    let onOpenContainer: (ContainerInfo) -> Void
+    let host: Host
+    let dependencies: AppDependencies
 
     @State private var detail: VolumeDetail?
     @State private var users: [ContainerInfo] = []
     @State private var loading = true
+    @State private var openedContainer: ContainerInfo?
 
     var body: some View {
         ScrollView {
@@ -41,6 +50,9 @@ struct VolumeDetailView: View {
         .navigationTitle(volume.name)
         .navigationBarTitleDisplayMode(.inline)
         .task { await load() }
+        .navigationDestination(item: $openedContainer) { container in
+            ContainerDetailView(host: host, dependencies: dependencies, container: container, viewModel: viewModel)
+        }
     }
 
     private var summary: some View {
@@ -66,7 +78,7 @@ struct VolumeDetailView: View {
                         if index > 0 { Rectangle().fill(Color.connLine).frame(height: 0.5) }
                         DockerDetail.containerRow(
                             name: container.name, subtitle: container.image
-                        ) { onOpenContainer(container) }
+                        ) { openedContainer = container }
                     }
                 }
             }
@@ -85,10 +97,30 @@ struct VolumeDetailView: View {
 
     private func load() async {
         // 两条并行：详情与引用查询互不依赖
-        async let detailTask = model.detail(for: volume)
-        async let usersTask = model.containersUsing(volume)
+        async let detailTask = viewModel.volumes.detail(for: volume)
+        async let usersTask = viewModel.volumes.containersUsing(volume)
         detail = await detailTask
         users = await usersTask
         loading = false
     }
 }
+
+// 演示依赖走真实的 DemoOps/MockSSHTransport——`load()` 会实际"跑"一遍
+// `docker volume inspect` / `docker ps -a --filter volume=` 拿到 Task 4 里新增的
+// 演示夹具（pgdata + 引用它的 pg-main），不是摆设。simctl 点不进详情页，
+// 这份 Preview 是本页唯一能在开发期肉眼确认渲染效果的地方。
+#if DEBUG
+#Preview {
+    let host = Host(name: "web-01", address: "10.20.0.11", username: "root")
+    NavigationStack {
+        VolumeDetailView(
+            volume: VolumeInfo(
+                name: "pgdata", driver: "local", scope: "local",
+                mountpoint: "/var/lib/docker/volumes/pgdata/_data"
+            ),
+            viewModel: DockerViewModel(host: host, dependencies: .demo()),
+            size: "1.2GB", host: host, dependencies: .demo()
+        )
+    }
+}
+#endif

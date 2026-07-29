@@ -9,7 +9,7 @@ import SwiftUI
 struct DockerView: View {
     let viewModel: DockerViewModel
     @Environment(SettingsStore.self) private var settings
-    @State private var tab: Tab = .containers
+    @State private var tab: Tab
     @State private var route: Route?
     /// 四个分段共用一个搜索词——切分段时清空（见下方 `.onChange`），
     /// 否则上一分段的过滤条件会悄悄套在新分段上。
@@ -21,6 +21,23 @@ struct DockerView: View {
         self.host = host
         self.dependencies = dependencies
         self.viewModel = viewModel
+        _tab = State(initialValue: Self.initialTab())
+    }
+
+    /// 四段截图验收要逐段看（容器/镜像/卷/网络），但 `simctl` 没有点击能力，
+    /// 点不到分段选择器——`CONN_SMOKE_DOCKER_TAB` 让冒烟脚本直接从目标分段起步，
+    /// 与 `HostDetailView` 的 `CONN_SMOKE_SEGMENT` 同一套路数。仅 DEBUG 编译。
+    private static func initialTab() -> Tab {
+        #if DEBUG
+            switch ProcessInfo.processInfo.environment["CONN_SMOKE_DOCKER_TAB"] {
+            case "images": .images
+            case "volumes": .volumes
+            case "networks": .networks
+            default: .containers
+            }
+        #else
+            .containers
+        #endif
     }
 
     var body: some View {
@@ -47,8 +64,11 @@ struct DockerView: View {
             .navigationDestination(item: $route, destination: destination)
     }
 
-    // 参数名故意不叫 route——它是本函数的局部值，而 volumeDetail/networkDetail
-    // 分支要在闭包里给 @State private var route 赋新值，同名会被局部值遮蔽掉。
+    // 这一层只管「从 DockerView 直接推一层」——卷/网络/镜像详情页各自往下再推容器详情
+    // 用的是它们自己的本地 route 状态（见三个详情页文件顶部的说明），不会回头改这里的
+    // `route`。同一个 `route` 被两级导航复用会让 `navigationDestination(item:)`
+    // 压不对栈（已用模拟器实测：返回键甚至不显示中间那一屏的标题），
+    // 所以这里绝不能再接回调闭包。
     @ViewBuilder
     private func destination(_ target: Route) -> some View {
         switch target {
@@ -72,27 +92,18 @@ struct DockerView: View {
             // 磁盘占用来自 `viewModel.diskUsage`（Task 7 接入）；查不到时为 nil，
             // 页面按设计显示「—」——它本就是「查不到就退化」的锦上添花字段。
             VolumeDetailView(
-                volume: volume, model: viewModel.volumes, size: viewModel.diskUsage?.volumeSize(volume.name)
-            ) { container in
-                route = .detail(container)
-            }
+                volume: volume, viewModel: viewModel, size: viewModel.diskUsage?.volumeSize(volume.name),
+                host: host, dependencies: dependencies
+            )
         case let .networkDetail(network):
-            NetworkDetailView(network: network, model: viewModel.networks) { containerID in
-                // AttachedContainer 只有 id/name/ipv4，不是完整 ContainerInfo，
-                // 按 id 到容器列表里回查；找不到（容器已被删）时不跳转。
-                if let container = viewModel.containers.items.first(where: { $0.id == containerID }) {
-                    route = .detail(container)
-                }
-            }
+            NetworkDetailView(network: network, viewModel: viewModel, host: host, dependencies: dependencies)
         case let .imageDetail(image):
             ImageDetailView(
-                image: image,
-                model: viewModel.images,
+                image: image, viewModel: viewModel,
                 users: ImageUsage.containersUsing(image, in: viewModel.containers.items),
-                diskSize: viewModel.diskUsage?.imageSize(image.imageID)
-            ) { container in
-                route = .detail(container)
-            }
+                diskSize: viewModel.diskUsage?.imageSize(image.imageID),
+                host: host, dependencies: dependencies
+            )
         }
     }
 

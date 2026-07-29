@@ -1,21 +1,28 @@
+import ConnKit
 import ConnOps
 import ConnUI
 import SwiftUI
 
 /// 镜像详情：inspect 信息 + 层历史 + 哪些容器在用它。
+///
+/// 导航栈说明同 `VolumeDetailView`：本页自己持有 `openedContainer` 与自己的
+/// `navigationDestination(item:)`，不回调给 `DockerView` 改它的 `route`——
+/// 两级导航复用同一个状态时 `navigationDestination(item:)` 不会正确压栈（已实测）。
 struct ImageDetailView: View {
     let image: ImageInfo
-    let model: DockerImagesModel
+    let viewModel: DockerViewModel
     /// 引用该镜像的容器。由调用方用容器列表算好传入——判定是纯函数，
     /// 不该让视图自己去取数。
     let users: [ContainerInfo]
     /// 来自 `docker system df -v`，查不到为 nil，显示时回退到 `ImageInfo.size`。
     let diskSize: String?
-    let onOpenContainer: (ContainerInfo) -> Void
+    let host: Host
+    let dependencies: AppDependencies
 
     @State private var detail: ImageDetail?
     @State private var layers: [ImageLayer] = []
     @State private var loading = true
+    @State private var openedContainer: ContainerInfo?
 
     var body: some View {
         ScrollView {
@@ -42,6 +49,9 @@ struct ImageDetailView: View {
         .navigationTitle(image.displayName)
         .navigationBarTitleDisplayMode(.inline)
         .task { await load() }
+        .navigationDestination(item: $openedContainer) { container in
+            ContainerDetailView(host: host, dependencies: dependencies, container: container, viewModel: viewModel)
+        }
     }
 
     private var summary: some View {
@@ -68,7 +78,7 @@ struct ImageDetailView: View {
                         if index > 0 { Rectangle().fill(Color.connLine).frame(height: 0.5) }
                         DockerDetail.containerRow(
                             name: container.name, subtitle: container.status
-                        ) { onOpenContainer(container) }
+                        ) { openedContainer = container }
                     }
                 }
             }
@@ -132,10 +142,32 @@ struct ImageDetailView: View {
 
     private func load() async {
         // 两条并行：详情与层历史互不依赖
-        async let detailTask = model.detail(for: image)
-        async let layersTask = model.history(for: image)
+        async let detailTask = viewModel.images.detail(for: image)
+        async let layersTask = viewModel.images.history(for: image)
         detail = await detailTask
         layers = await layersTask
         loading = false
     }
 }
+
+// 走真实的 DemoOps 演示夹具（nginx:1.25，Task 4 新增的多层历史）。simctl 点不进
+// 详情页，这份 Preview 是本页唯一能在开发期肉眼确认渲染效果的地方。
+// `users` 由调用方算好传入（纯函数，不是本页自己取数），这里直接给一个夹具容器。
+#if DEBUG
+#Preview {
+    let host = Host(name: "web-01", address: "10.20.0.11", username: "root")
+    NavigationStack {
+        ImageDetailView(
+            image: ImageInfo(imageID: "a1b2c3d4e5f6", repository: "nginx", tag: "1.25", size: "142MB", created: "9 days ago"),
+            viewModel: DockerViewModel(host: host, dependencies: .demo()),
+            users: [
+                ContainerInfo(
+                    id: "a1b2c3d4e5f6", name: "web-nginx", image: "nginx:1.25",
+                    state: .running, status: "Up 9 days", ports: "0.0.0.0:80->80/tcp"
+                )
+            ],
+            diskSize: "142MB", host: host, dependencies: .demo()
+        )
+    }
+}
+#endif

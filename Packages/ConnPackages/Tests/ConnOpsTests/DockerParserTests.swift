@@ -134,6 +134,31 @@ struct DockerParserTests {
         #expect(DockerParser.parseInspect("[]") == nil)
     }
 
+    /// `mountSources` 与 `mounts` 逐项对应：卷挂载有 `Name` 就优先用它（真卷名，
+    /// UI 靠它反查卷列表）；绑定挂载没有 `Name`，回退宿主机路径——这类路径
+    /// 前端会按「非卷名」处理，不给可点。
+    @Test("挂载来源：卷挂载优先用 Name，绑定挂载回退 Source")
+    func mountSourcesPrefersNameFallsBackToSource() {
+        let output = """
+        [{
+          "Id": "a1b2c3d4e5f6aaaa",
+          "Name": "/web-nginx",
+          "Created": "2024-01-15T06:13:00Z",
+          "RestartCount": 0,
+          "State": {"Status": "running"},
+          "Mounts": [
+            {"Name": "pgdata", "Source": "/var/lib/docker/volumes/pgdata/_data", "Destination": "/data", "RW": true},
+            {"Source": "/host/etc/nginx", "Destination": "/etc/nginx", "RW": false}
+          ]
+        }]
+        """
+        let detail = DockerParser.parseInspect(output)
+        #expect(detail?.mounts == [
+            "/var/lib/docker/volumes/pgdata/_data → /data", "/host/etc/nginx → /etc/nginx (ro)"
+        ])
+        #expect(detail?.mountSources == ["pgdata", "/host/etc/nginx"])
+    }
+
     @Test("stats 用 64 位全 id、ps 用 12 位短 id 仍能合并（#11）")
     func mergesShortVsFullID() {
         let ps = #"{"ID":"a1b2c3d4e5f6","Image":"nginx","Names":"web","State":"running","Status":"Up 1h"}"#

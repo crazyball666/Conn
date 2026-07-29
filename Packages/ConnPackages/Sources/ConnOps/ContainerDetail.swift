@@ -18,6 +18,9 @@ public struct ContainerDetail: Sendable, Equatable {
     public let ports: [String]
     /// 挂载，如 `/host/path → /container/path (rw)`。
     public let mounts: [String]
+    /// 与 `mounts` 逐项对应的纯来源名——`Mount.Name`（卷名）优先，缺失时回退 `Source`
+    /// （宿主机路径，绑定挂载没有 Name）。UI 靠这个去反查卷、而不是拆展示串。
+    public let mountSources: [String]
     /// 网络，如 `bridge · 172.17.0.2`。
     public let networks: [String]
     /// 环境变量 `KEY=VALUE`（敏感值可能在此，仅本机展示、不外传）。
@@ -26,7 +29,8 @@ public struct ContainerDetail: Sendable, Equatable {
     public init(
         id: String, name: String, image: String, command: String, created: String,
         statusText: String, startedAt: String, restartCount: Int, restartPolicy: String,
-        health: String?, ports: [String], mounts: [String], networks: [String], env: [String]
+        health: String?, ports: [String], mounts: [String], mountSources: [String],
+        networks: [String], env: [String]
     ) {
         self.id = id
         self.name = name
@@ -40,6 +44,7 @@ public struct ContainerDetail: Sendable, Equatable {
         self.health = health
         self.ports = ports
         self.mounts = mounts
+        self.mountSources = mountSources
         self.networks = networks
         self.env = env
     }
