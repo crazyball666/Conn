@@ -126,6 +126,30 @@ struct ImageUsageTests {
         #expect(unused.isEmpty, "容器引用比短 ID 更短的前缀时也必须算在用")
     }
 
+    /// 最要紧的一条漏认：`docker run -d nginx` 不写 tag 时，`docker ps` 的 IMAGE
+    /// 列原样显示 `nginx`（docker 不会补全成 `nginx:latest` 再显示），而
+    /// `docker images` 给的却是 `repository=nginx, tag=latest`——旧的三步比对
+    /// 全部落空，会把这个仍在用的镜像判成「未使用」，用户据此删掉就是事故。
+    @Test("无 tag 裸引用（隐含 latest）被认出")
+    func matchesByBareReferenceWithoutTag() {
+        let nginx = image("nginx", "latest", id: "a1b2c3d4e5f6")
+        let unused = ImageUsage.unusedImageIDs(
+            images: [nginx], containers: [container(image: "nginx")]
+        )
+        #expect(unused.isEmpty, "容器 image 字段无 tag（隐含 latest）时也必须算在用")
+    }
+
+    /// 同类漏认：digest 引用（`repo@sha256:...`）。`ImageInfo` 不单独记录
+    /// RepoDigests，这里按「摘掉 repo@ 前缀后与 ID 做前缀比对」近似匹配。
+    @Test("digest 引用被认出")
+    func matchesByDigestReference() {
+        let img = image("nginx", "1.25", id: "deadbeefcafe")
+        let unused = ImageUsage.unusedImageIDs(
+            images: [img], containers: [container(image: "nginx@sha256:deadbeef")]
+        )
+        #expect(unused.isEmpty, "容器 image 字段是 digest 引用时也必须算在用")
+    }
+
     @Test("真正没人用的镜像被标出")
     func detectsUnused() {
         let used = image("nginx", "1.25", id: "aaa111222333")
