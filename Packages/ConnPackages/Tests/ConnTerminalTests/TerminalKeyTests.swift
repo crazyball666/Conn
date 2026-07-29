@@ -27,15 +27,25 @@ struct TerminalKeyTests {
         #expect(TerminalKey.ctrl.bytes.isEmpty)
     }
 
-    @Test("sudo 发 'sudo ' 带尾空格")
-    func sudoText() {
-        #expect(TerminalKey.sudo.bytes == Array("sudo ".utf8))
+    /// ^C 直接发控制码，不经 Ctrl 粘滞——中断是终端最高频操作，
+    /// 不该要求「先点 Ctrl 再点 C」两次点击。
+    @Test("^C 直接发 0x03，且不是粘滞键")
+    func ctrlCByte() {
+        #expect(TerminalKey.ctrlC.bytes == [0x03])
+        #expect(!TerminalKey.ctrlC.isSticky)
+    }
+
+    @Test("Home / End 发 ESC [ H 与 ESC [ F")
+    func homeEndKeys() {
+        #expect(TerminalKey.home.bytes == [0x1B, 0x5B, 0x48])
+        #expect(TerminalKey.end.bytes == [0x1B, 0x5B, 0x46])
     }
 
     @Test("字符键发对应 ASCII")
     func charKeys() {
         #expect(TerminalKey.pipe.bytes == [0x7C]) // |
         #expect(TerminalKey.tilde.bytes == [0x7E]) // ~
+        #expect(TerminalKey.slash.bytes == [0x2F]) // /
     }
 }
 
