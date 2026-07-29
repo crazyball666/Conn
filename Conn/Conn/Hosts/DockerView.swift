@@ -159,10 +159,17 @@ struct DockerView: View {
     }
 
     /// 镜像列表重拉后，「未使用」判定要跟着用最新的容器列表重算一遍，
-    /// 否则展示的还是上一次判定——容器段这时大概率已经就绪（首次进入镜像分段时
-    /// `loadImagesWithUsage()` 已经保证过一次），这里不再重复兜底加载。
+    /// 否则展示的还是上一次判定。
+    ///
+    /// 这里两条命令一起发（镜像 + 容器），而不是只重拉镜像：只拉镜像时，
+    /// 用户停在镜像分段、服务器上新起了一个用镜像 X 的容器，下拉刷新后 X
+    /// 仍会带着「未使用」徽标——而且自动刷新循环每轮都会重复这个错误结论，
+    /// 永不自愈。设计文档本来就认下了「多跑一次 docker ps -a 也值」这笔账，
+    /// 这里用它换正确性。
     private func refreshImages() async {
-        await viewModel.images.load()
+        async let imagesLoad: Void = viewModel.images.load()
+        async let containersRefresh: Void = viewModel.containers.refresh()
+        _ = await (imagesLoad, containersRefresh)
         viewModel.images.refreshUsage(containers: viewModel.containers.items)
     }
 

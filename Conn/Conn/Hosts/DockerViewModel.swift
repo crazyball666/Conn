@@ -104,11 +104,28 @@ final class DockerViewModel {
     /// 判定要拿容器列表比对，而容器可能还没加载过（用户直接点进镜像分段）。
     /// 所以这里保证两边都就绪——多跑一次 `docker ps -a` 也值，
     /// 否则「未使用」会全量误报成「都没在用」，用户据此删镜像就是事故。
+    ///
+    /// **容器取数失败时必须跳过 `refreshUsage`，不能拿空列表去算**：
+    /// `containers.load()` 失败时 `items` 保持空——如果不管三七二十一都调
+    /// `refreshUsage(containers: [])`，`ImageUsage.unusedImageIDs` 会把
+    /// **每一个**镜像都判成「未使用」（因为没有任何容器能匹配上），且没有任何
+    /// 提示告诉用户这其实是取数失败、不是真实状态。用 `containersReady` 显式
+    /// 记录这次取数是否成功，失败就整段跳过，保留上一次的判定。
     func loadImagesWithUsage() async {
         await images.loadIfNeeded()
-        if containers.items.isEmpty {
-            try? await containers.load()
+        var containersReady = !containers.items.isEmpty
+        if !containersReady {
+            do {
+                try await containers.load()
+                containersReady = true
+            } catch {
+                // 静默跳过：不刷新 usage，也不额外报错——`containers.refresh()`
+                // 之类的用户发起动作自己会报错，这里只是「多跑一次」的兜底加载，
+                // 失败了不该打扰用户，但也绝不能拿空列表去算「未使用」。
+                containersReady = false
+            }
         }
+        guard containersReady else { return }
         images.refreshUsage(containers: containers.items)
     }
 
