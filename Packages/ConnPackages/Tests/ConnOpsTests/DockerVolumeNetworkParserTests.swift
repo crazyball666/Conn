@@ -64,12 +64,16 @@ struct DockerVolumeNetworkParserTests {
         #expect(NetworkInfo(id: "x", name: "none", driver: "null", scope: "local").isPredefined)
     }
 
-    // Labels/Options 各给两个键，且故意按非字典序书写（先 com.example.owner 后
-    // com.docker.compose.project；先 type 后 device）——单键数组排不排序结果一样，
-    // 只有真的执行了 keyValueList 里的 .sorted() 才能得到断言里的字典序结果。
+    // Labels/Options 各给**三个**键，且故意按逆字典序书写。
+    //
+    // 为什么是三个不是两个：这条夹具是「inspect 字典字段一律排序输出」这条硬约束
+    // 的唯一护栏，判据是「删掉 keyValueList 的 .sorted() 后本用例会变红」。而 Swift
+    // 的 Dictionary 每进程重新播种，不排序时的迭代顺序是随机的——两个键时约有 1/2
+    // 概率恰好撞上字典序，实测约 20% 的运行会同时放过两个字段，护栏强度只有约 80%。
+    // 三个键把单字段撞中概率降到 1/6，两字段同时撞中降到约 1/36。
     // swiftlint:disable line_length
     static let volumeInspectJSON = """
-    [{"CreatedAt":"2026-01-02T03:04:05Z","Driver":"local","Labels":{"com.example.owner":"ops","com.docker.compose.project":"web"},"Mountpoint":"/var/lib/docker/volumes/pgdata/_data","Name":"pgdata","Options":{"type":"nfs","device":":/data"},"Scope":"local"}]
+    [{"CreatedAt":"2026-01-02T03:04:05Z","Driver":"local","Labels":{"com.example.owner":"ops","com.docker.compose.project":"web","com.example.backup":"nightly"},"Mountpoint":"/var/lib/docker/volumes/pgdata/_data","Name":"pgdata","Options":{"type":"nfs","o":"addr=10.0.0.1","device":":/data"},"Scope":"local"}]
     """
     // swiftlint:enable line_length
 
@@ -80,8 +84,10 @@ struct DockerVolumeNetworkParserTests {
         #expect(detail.driver == "local")
         #expect(detail.mountpoint == "/var/lib/docker/volumes/pgdata/_data")
         #expect(detail.createdAt == "2026-01-02 03:04")
-        #expect(detail.labels == ["com.docker.compose.project=web", "com.example.owner=ops"])
-        #expect(detail.options == ["device=:/data", "type=nfs"])
+        #expect(detail.labels == [
+            "com.docker.compose.project=web", "com.example.backup=nightly", "com.example.owner=ops"
+        ])
+        #expect(detail.options == ["device=:/data", "o=addr=10.0.0.1", "type=nfs"])
     }
 
     @Test("坏的卷详情返回 nil 而不是崩")
