@@ -72,7 +72,9 @@ struct NetworkDetailView: View {
         DockerDetail.section(L("接入容器")) {
             let containers = detail?.attachedContainers ?? []
             if containers.isEmpty {
-                DockerDetail.unusedNotice(L("没有容器接入此网络"))
+                // 预置网络（bridge/host/none）不打「未使用」胶囊——本页顶部已经显示
+                // 「预置，不可删除」，两个胶囊同屏出现会自相矛盾（详见 unusedNotice 注释）。
+                DockerDetail.unusedNotice(L("没有容器接入此网络"), showsUnusedBadge: !network.isPredefined)
             } else {
                 VStack(alignment: .leading, spacing: 0) {
                     ForEach(Array(containers.enumerated()), id: \.offset) { index, attached in

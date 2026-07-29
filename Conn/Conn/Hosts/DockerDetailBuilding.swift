@@ -59,10 +59,17 @@ enum DockerDetail {
         .buttonStyle(.plain)
     }
 
-    /// 「没有容器在用」的空态 + 未使用徽标。
-    static func unusedNotice(_ text: String) -> some View {
+    /// 「没有容器在用」的空态，可选带「未使用」徽标。
+    ///
+    /// - Parameter showsUnusedBadge: 默认 true（卷 / 镜像详情页的既有调用点不用改）。
+    ///   预置网络（bridge/host/none）必须传 `false`——它们永远删不掉，这里若还打出
+    ///   「未使用」warn 胶囊，会跟同一屏顶部已经显示的「预置，不可删除」自相矛盾，
+    ///   也推翻了列表侧 `DockerView.networkRow`「预置优先于未使用」的既有判断。
+    static func unusedNotice(_ text: String, showsUnusedBadge: Bool = true) -> some View {
         HStack(spacing: ConnSpacing.xs) {
-            StatusPill(L("未使用"), semantic: .warn)
+            if showsUnusedBadge {
+                StatusPill(L("未使用"), semantic: .warn)
+            }
             Text(text).font(.connFootnote).foregroundStyle(.connMuted)
         }
     }
