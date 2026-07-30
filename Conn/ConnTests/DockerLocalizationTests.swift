@@ -198,6 +198,7 @@ struct DockerLocalizationTests {
         "健康",
         "入口",
         "入口与命令",
+        "共 %d 个",
         "共 %d 个卷",
         "共 %d 个网络",
         "共 %d 个镜像",
@@ -274,13 +275,10 @@ struct DockerLocalizationTests {
     ]
 
     private func sourceLocalizedKeys() throws -> Set<String> {
-        let projectURL = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
         let expression = try NSRegularExpression(pattern: #"\bL\(\s*\"((?:\\.|[^\"\\])*)\""#)
 
         return try phase2DockerSourceFiles.reduce(into: Set<String>()) { keys, relativePath in
-            let source = try String(contentsOf: projectURL.appending(path: relativePath), encoding: .utf8)
+            let source = try source(named: relativePath)
             let range = NSRange(source.startIndex..., in: source)
             for match in expression.matches(in: source, range: range) {
                 guard let capturedRange = Range(match.range(at: 1), in: source) else { continue }
@@ -320,6 +318,34 @@ struct DockerLocalizationTests {
         }
 
         return result
+    }
+
+}
+
+extension DockerLocalizationTests {
+    @Test("四类 Docker 资源通过统一列表标题进入操作，顶部不再放添加入口")
+    func resourceOperationsUseSharedListHeaders() throws {
+        let dockerView = try source(named: "Conn/Hosts/DockerView.swift")
+        let routing = try source(named: "Conn/Hosts/DockerOperationRouting.swift")
+        let runForm = try source(named: "Conn/Hosts/DockerRunFormView.swift")
+
+        #expect(dockerView.components(separatedBy: "DockerDetail.listHeader").count - 1 == 4)
+        #expect(!routing.contains("operationToolbar"))
+        #expect(dockerView.contains("L(\"共 %d 个\")"))
+        #expect(!dockerView.contains("L(\"%@容器\")"))
+        #expect(dockerView.contains("operationSheet = .runContainer"))
+        #expect(dockerView.contains("operationSheet = .pullImage"))
+        #expect(dockerView.contains("operationSheet = .createVolume"))
+        #expect(dockerView.contains("operationSheet = .createNetwork"))
+        #expect(runForm.contains("DockerCommand.run(draft, sudo: false)"))
+        #expect(!runForm.contains("maskedArguments"))
+    }
+
+    private func source(named relativePath: String) throws -> String {
+        let projectURL = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        return try String(contentsOf: projectURL.appending(path: relativePath), encoding: .utf8)
     }
 
     private func printfPlaceholders(in string: String) -> [String] {

@@ -48,7 +48,6 @@ struct DockerView: View {
                     autoCommand: viewModel.containers.consoleCommand(for: container)
                 )
             }
-            .toolbar { operationToolbar }
     }
 
     // 这一层只管「从 DockerView 直接推一层」——卷/网络/镜像详情页各自往下再推容器详情
@@ -169,11 +168,24 @@ struct DockerView: View {
         let elapsed = clock.now - start
         if elapsed < minimum { try? await Task.sleep(for: minimum - elapsed) }
     }
+}
+
+// MARK: - 资源列表
+
+extension DockerView {
 
     // MARK: - 容器
 
     private var containerList: some View {
         VStack(spacing: ConnSpacing.sm) {
+            DockerDetail.listHeader(
+                count: String(format: L("共 %d 个"), filteredContainers.count) + L("容器"),
+                isMenuEnabled: viewModel.canWrite
+            ) {
+                Button { operationSheet = .runContainer } label: {
+                    Label(L("创建容器"), systemImage: "plus")
+                }
+            }
             ConnSearchField(L("搜索容器"), text: $search)
             if sortedContainers.isEmpty {
                 // 搜索词非空但无匹配时不能说「没有容器」——主机上可能明明有 20 个，
@@ -204,20 +216,15 @@ struct DockerView: View {
 
     private var imageSection: some View {
         VStack(spacing: ConnSpacing.sm) {
-            HStack {
-                Text(String(format: L("共 %d 个镜像"), filteredImages.count))
-                    .font(.connData(.caption2)).foregroundStyle(.connDim)
-                Spacer()
-                Menu {
-                    Button { Task { await viewModel.images.prune() } } label: {
-                        Label(L("清理悬空镜像"), systemImage: "trash")
-                    }
-                    .disabled(!viewModel.canWrite)
-                    Button { Task { await refreshImages() } } label: {
-                        Label(L("刷新"), systemImage: "arrow.clockwise")
-                    }
-                } label: {
-                    Image(systemName: "ellipsis.circle").font(.system(size: 18)).foregroundStyle(.connAccent)
+            DockerDetail.listHeader(
+                count: String(format: L("共 %d 个镜像"), filteredImages.count),
+                isMenuEnabled: viewModel.canWrite
+            ) {
+                Button { operationSheet = .pullImage } label: {
+                    Label(L("拉取镜像"), systemImage: "arrow.down.circle")
+                }
+                Button(role: .destructive) { Task { await viewModel.images.prune() } } label: {
+                    Label(L("清理悬空镜像"), systemImage: "trash")
                 }
             }
             ConnSearchField(L("搜索镜像"), text: $search)
@@ -269,8 +276,13 @@ struct DockerView: View {
 
     private var volumeSection: some View {
         VStack(spacing: ConnSpacing.sm) {
-            DockerDetail.listHeader(count: String(format: L("共 %d 个卷"), filteredVolumes.count)) {
-                Task { await viewModel.volumes.load() }
+            DockerDetail.listHeader(
+                count: String(format: L("共 %d 个卷"), filteredVolumes.count),
+                isMenuEnabled: viewModel.canWrite
+            ) {
+                Button { operationSheet = .createVolume } label: {
+                    Label(L("创建卷"), systemImage: "plus")
+                }
             }
             ConnSearchField(L("搜索卷"), text: $search)
             DockerDetail.listBody(items: filteredVolumes, state: volumesListState) { volume in volumeRow(volume) }
@@ -301,8 +313,13 @@ struct DockerView: View {
 
     private var networkSection: some View {
         VStack(spacing: ConnSpacing.sm) {
-            DockerDetail.listHeader(count: String(format: L("共 %d 个网络"), filteredNetworks.count)) {
-                Task { await viewModel.networks.load() }
+            DockerDetail.listHeader(
+                count: String(format: L("共 %d 个网络"), filteredNetworks.count),
+                isMenuEnabled: viewModel.canWrite
+            ) {
+                Button { operationSheet = .createNetwork } label: {
+                    Label(L("创建网络"), systemImage: "plus")
+                }
             }
             ConnSearchField(L("搜索网络"), text: $search)
             DockerDetail.listBody(items: filteredNetworks, state: networksListState) { network in networkRow(network) }

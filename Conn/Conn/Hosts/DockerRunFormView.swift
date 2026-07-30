@@ -340,9 +340,10 @@ private struct DockerRunReviewView: View {
                 }
             }
             Section(L("有效配置")) {
-                ForEach(Array(maskedArguments.enumerated()), id: \.offset) { _, argument in
-                    Text(argument).font(.connData(.footnote)).textSelection(.enabled)
-                }
+                Text(command)
+                    .font(.connData(.footnote))
+                    .textSelection(.enabled)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
         .scrollContentBackground(.hidden)
@@ -366,19 +367,7 @@ private struct DockerRunReviewView: View {
 
     private var risks: [DockerRunRisk] { DockerRunRiskDetector.detect(draft) }
 
-    private var maskedArguments: [String] {
-        var result: [String] = []
-        var masksNextEnvironment = false
-        for argument in draft.effectiveArguments {
-            if masksNextEnvironment {
-                let key = argument.split(separator: "=", maxSplits: 1).first.map(String.init) ?? argument
-                result.append("\(key)=••••")
-                masksNextEnvironment = false
-            } else {
-                result.append(argument)
-                masksNextEnvironment = argument == "--env"
-            }
-        }
-        return result
-    }
+    /// 复核的是即将交给 SSH 的 docker argv（不含是否走 sudo 的环境差异），
+    /// 因此必须复用真正的命令构造器，不能单独拼一个只用于显示的近似版本。
+    private var command: String { DockerCommand.run(draft, sudo: false) }
 }

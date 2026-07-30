@@ -353,7 +353,13 @@
 
         /// 只改 `.bottom` 这一个字段——`configureContentPadding(horizontal:)` 单独管
         /// left/right，`.bottom = ` 这种写法是读取当前结构体、改一个字段、写回，
-        /// 不会把它们已经设好的值覆盖掉。
+        /// 不会把它们已经设好的值覆盖掉。保留当前纵向位置：键盘出现时若强制滚到底，
+        /// 短终端内容会被推入下方新增的空白 inset，反而看不到提示符和历史输出。
+        func setKeyboardInset(_ bottom: CGFloat) {
+            contentInset.bottom = bottom
+            verticalScrollIndicatorInsets.bottom = bottom
+        }
+
         private func applyKeyboardInset(_ bottom: CGFloat, userInfo: [AnyHashable: Any]?) {
             let duration = (userInfo?[UIResponder.keyboardAnimationDurationUserInfoKey] as? TimeInterval) ?? 0.25
             // 键盘曲线常量取不到时退回 0（= .easeInOut），跟键盘动画不同步的代价
@@ -361,23 +367,8 @@
             let curveRaw = (userInfo?[UIResponder.keyboardAnimationCurveUserInfoKey] as? UInt) ?? 0
             let options = UIView.AnimationOptions(rawValue: curveRaw << 16)
             UIView.animate(withDuration: duration, delay: 0, options: options) {
-                self.contentInset.bottom = bottom
-                self.verticalScrollIndicatorInsets.bottom = bottom
-                // 键盘收起（bottom == 0）时不强制滚动——只在键盘真遮住内容时才把光标带回可见区。
-                if bottom > 0 {
-                    self.scrollToBottomForKeyboard()
-                }
+                self.setKeyboardInset(bottom)
             }
-        }
-
-        /// 滚到底：公式与 SwiftTerm 内部算「最大可达 offset」的私有方法
-        /// `maxContentOffsetY()`同款（`contentSize.height - bounds.height +
-        /// adjustedContentInset.bottom`）。直接赋值 `contentOffset` 会经它自身
-        /// 的 `didSet` 把 `yDisp`（当前显示行）同步过去，不需要碰任何私有 API，
-        /// 也不会让 SwiftTerm 的自动跟随状态和视觉位置错位。
-        private func scrollToBottomForKeyboard() {
-            let maxY = max(0, contentSize.height - bounds.height + adjustedContentInset.bottom)
-            contentOffset = CGPoint(x: contentOffset.x, y: maxY)
         }
     }
 #endif

@@ -110,15 +110,23 @@ enum DockerDetail {
         .buttonStyle(.plain)
     }
 
-    /// 列表头：计数文案 + 刷新按钮。卷 / 网络两个分段共用
-    /// （镜像段另带清理悬空菜单，结构不同，不强行复用）。
-    static func listHeader(count: String, onRefresh: @escaping () -> Void) -> some View {
+    /// 列表头：所有 Docker 资源都在这里呈现数量与当前资源的更多操作。
+    /// 刷新仍由下拉手势承担，避免每个分段出现不同的右侧入口。
+    static func listHeader<MenuContent: View>(
+        count: String, isMenuEnabled: Bool,
+        @ViewBuilder menuContent: @escaping () -> MenuContent
+    ) -> some View {
         HStack {
             Text(count).font(.connData(.caption2)).foregroundStyle(.connDim)
             Spacer()
-            Button(action: onRefresh) {
-                Image(systemName: "arrow.clockwise").font(.system(size: 16)).foregroundStyle(.connAccent)
+            Menu(content: menuContent) {
+                Image(systemName: "ellipsis.circle")
+                    .font(.system(size: 18))
+                    .foregroundStyle(.connAccent)
+                    .frame(width: 44, height: 44)
+                    .contentShape(Rectangle())
             }
+            .disabled(!isMenuEnabled)
         }
     }
 

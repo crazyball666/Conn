@@ -23,4 +23,17 @@ struct TerminalLayoutTests {
         #expect(view.contentOffset.x == -padding)
         #expect(view.getTerminal().cols < unpaddedColumns)
     }
+
+    @Test("键盘底部 inset 不把终端内容强制滚进下方空白")
+    func keyboardInsetPreservesCurrentVerticalScrollPosition() {
+        let view = KeybarTerminalView(frame: CGRect(x: 0, y: 0, width: 320, height: 480))
+        view.contentSize = CGSize(width: 320, height: 960)
+        view.contentOffset = CGPoint(x: 0, y: 120)
+
+        view.setKeyboardInset(300)
+
+        #expect(view.contentInset.bottom == 300)
+        #expect(view.verticalScrollIndicatorInsets.bottom == 300)
+        #expect(view.contentOffset.y == 120)
+    }
 }

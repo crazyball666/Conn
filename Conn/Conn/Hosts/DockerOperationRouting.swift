@@ -87,38 +87,4 @@ extension DockerView {
         }
     }
 
-    @ToolbarContentBuilder
-    var operationToolbar: some ToolbarContent {
-        ToolbarItem(placement: .topBarTrailing) {
-            switch tab {
-            case .containers:
-                Button { operationSheet = .runContainer } label: {
-                    Label(L("创建容器"), systemImage: "plus")
-                }
-                .disabled(!viewModel.canWrite)
-            case .images:
-                Menu {
-                    Button { operationSheet = .pullImage } label: {
-                        Label(L("拉取镜像"), systemImage: "arrow.down.circle")
-                    }
-                    Button(role: .destructive) { Task { await viewModel.images.prune() } } label: {
-                        Label(L("清理悬空镜像"), systemImage: "trash")
-                    }
-                } label: {
-                    Label(L("镜像操作"), systemImage: "plus")
-                }
-                .disabled(!viewModel.canWrite)
-            case .volumes:
-                Button { operationSheet = .createVolume } label: {
-                    Label(L("创建卷"), systemImage: "plus")
-                }
-                .disabled(!viewModel.canWrite)
-            case .networks:
-                Button { operationSheet = .createNetwork } label: {
-                    Label(L("创建网络"), systemImage: "plus")
-                }
-                .disabled(!viewModel.canWrite)
-            }
-        }
-    }
 }
