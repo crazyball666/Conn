@@ -4,6 +4,87 @@ import Foundation
 ///
 /// `sudo` 为真时前缀 `sudo -n `——用户不在 docker 组但有免密 sudo 时的回退。
 public enum DockerCommand {
+    // MARK: - 第二期写操作
+
+    /// 拉取一个镜像引用。
+    public static func pull(reference: String, sudo: Bool) -> String {
+        prefix(sudo) + "docker pull \(ShellArgument.quote(reference))"
+    }
+
+    /// 根据本地已校验的草稿构造 `docker run`。动态参数均是独立 shell argv。
+    public static func run(_ draft: DockerRunDraft, sudo: Bool) -> String {
+        var arguments: [String] = []
+        if let name = draft.name {
+            arguments += ["--name", ShellArgument.quote(name)]
+        }
+        if draft.detached {
+            arguments.append("--detach")
+        }
+        if let network = draft.network {
+            arguments += ["--network", ShellArgument.quote(network)]
+        }
+        for port in draft.ports {
+            arguments += ["--publish", ShellArgument.quote(port.dockerValue)]
+        }
+        for entry in draft.environment {
+            arguments += ["--env", ShellArgument.quote(entry.dockerValue)]
+        }
+        for mount in draft.mounts {
+            arguments += ["--mount", ShellArgument.quote(mount.dockerValue)]
+        }
+        if draft.restartPolicy != .no {
+            arguments += ["--restart", ShellArgument.quote(draft.restartPolicy.rawValue)]
+        }
+        arguments += draft.otherOptionTokens.map(ShellArgument.quote)
+        arguments.append(ShellArgument.quote(draft.image))
+        arguments += draft.commandTokens.map(ShellArgument.quote)
+        return prefix(sudo) + "docker run \(arguments.joined(separator: " "))"
+    }
+
+    /// 创建 Docker 卷。
+    public static func createVolume(_ draft: DockerVolumeDraft, sudo: Bool) -> String {
+        let arguments = ([draft.driver] + draft.otherOptionTokens + [draft.name])
+            .map(ShellArgument.quote)
+            .joined(separator: " ")
+        return prefix(sudo) + "docker volume create --driver \(arguments)"
+    }
+
+    /// 删除 Docker 卷。
+    public static func removeVolume(name: String, sudo: Bool) -> String {
+        prefix(sudo) + "docker volume rm \(ShellArgument.quote(name))"
+    }
+
+    /// 创建 Docker 网络。
+    public static func createNetwork(_ draft: DockerNetworkDraft, sudo: Bool) -> String {
+        var arguments: [String] = []
+        if draft.isInternal {
+            arguments.append("--internal")
+        }
+        if draft.isAttachable {
+            arguments.append("--attachable")
+        }
+        arguments += draft.otherOptionTokens.map(ShellArgument.quote)
+        arguments.append(ShellArgument.quote(draft.name))
+        return prefix(sudo) + "docker network create --driver \(ShellArgument.quote(draft.driver)) \(arguments.joined(separator: " "))"
+    }
+
+    /// 删除 Docker 网络。
+    public static func removeNetwork(name: String, sudo: Bool) -> String {
+        prefix(sudo) + "docker network rm \(ShellArgument.quote(name))"
+    }
+
+    /// 清理未使用 Docker 资源；`-f` 始终存在，避免远端交互确认。
+    public static func systemPrune(_ options: DockerSystemPruneOptions, sudo: Bool) -> String {
+        var command = prefix(sudo) + "docker system prune -f"
+        if options.allUnusedImages {
+            command += " -a"
+        }
+        if options.includeVolumes {
+            command += " --volumes"
+        }
+        return command
+    }
+
     /// 全部容器（含已停），JSON 每行一个。
     public static func list(sudo: Bool) -> String {
         prefix(sudo) + "docker ps -a --format '{{json .}}'"

@@ -1,0 +1,121 @@
+import Testing
+@testable import ConnOps
+
+@Suite("Docker 操作草稿与命令")
+struct DockerOperationCommandTests {
+    @Test("用户值被视为一个 shell 参数而不是代码")
+    func quotesShellMetacharacters() {
+        #expect(ShellArgument.quote("") == "''")
+        #expect(ShellArgument.quote(" white space ") == "' white space '")
+        #expect(ShellArgument.quote("x'y") == "'x'\\''y'")
+        #expect(ShellArgument.quote("one; two") == "'one; two'")
+        #expect(ShellArgument.quote("`uname`") == "'`uname`'")
+        #expect(ShellArgument.quote("$(whoami); x'y") == "'$(whoami); x'\\''y'")
+    }
+
+    @Test("run 草稿校验缺失镜像")
+    func validatesMissingImage() {
+        let draft = DockerRunDraft(image: "")
+
+        #expect(draft.validate() == [.imageRequired])
+    }
+
+    @Test("run 草稿校验端口范围与宿主端口协议重复")
+    func validatesPorts() {
+        let invalid = PortBinding(hostPort: "0", containerPort: "70000", protocol: .tcp)
+        #expect(DockerRunDraft(image: "nginx", ports: [invalid]).validate() == [.invalidPort(invalid)])
+
+        let duplicate = DockerRunDraft(
+            image: "nginx",
+            ports: [
+                PortBinding(hostPort: "8080", containerPort: "80", protocol: .tcp),
+                PortBinding(hostPort: "8080", containerPort: "8080", protocol: .tcp),
+            ]
+        )
+        #expect(duplicate.validate() == [.duplicateHostPort(hostPort: "8080", protocol: .tcp)])
+    }
+
+    @Test("run 草稿校验环境变量和挂载目标")
+    func validatesEnvironmentAndMount() {
+        let draft = DockerRunDraft(
+            image: "nginx",
+            environment: [.init(key: "NOT-VALID", value: "value")],
+            mounts: [.init(source: .namedVolume("data"), target: "relative/path")]
+        )
+
+        #expect(draft.validate() == [
+            .invalidEnvironmentKey("NOT-VALID"),
+            .mountTargetMustBeAbsolute("relative/path"),
+        ])
+    }
+
+    @Test("run 草稿拒绝空和覆盖结构化字段的其他选项")
+    func rejectsEmptyAndConflictingOtherOptions() {
+        let conflicts = [
+            "--name", "--network=app", "--restart=always", "--detach", "-d",
+            "--publish=8080:80", "-p", "--env=KEY=value", "-e",
+            "--volume=data:/data", "-v", "--mount", "--mount=type=volume", "--",
+        ]
+        let errors = DockerRunDraft(image: "nginx", otherOptionTokens: [""] + conflicts).validate()
+
+        #expect(errors.contains(.emptyOtherOptionToken))
+        for token in conflicts {
+            #expect(errors.contains(.conflictingOtherOptionToken(token)))
+        }
+    }
+
+    @Test("run 草稿允许未冲突的高级选项和任意启动命令 token")
+    func allowsAdvancedOptionsAndCommandTokens() {
+        let draft = DockerRunDraft(
+            image: "nginx",
+            otherOptionTokens: ["--cpus=1", "--add-host", "db:10.0.0.2"],
+            commandTokens: ["--name", "", "$(id)"]
+        )
+
+        #expect(draft.validate().isEmpty)
+    }
+
+    @Test("构造新 Docker 操作并逐个编码动态参数")
+    func buildsOperationCommands() {
+        let run = DockerRunDraft(
+            image: "nginx:1.27",
+            name: "web app",
+            detached: true,
+            network: "app net",
+            ports: [.init(hostPort: "8080", containerPort: "80", protocol: .tcp)],
+            environment: [.init(key: "APP_MODE", value: "prod;$(whoami)")],
+            mounts: [.init(source: .namedVolume("data vol"), target: "/var/lib/app", readOnly: true)],
+            restartPolicy: .unlessStopped,
+            otherOptionTokens: ["--cpus=1", "--add-host", "db:10.0.0.2"],
+            commandTokens: ["nginx", "-g", "daemon off;"]
+        )
+        let volume = DockerVolumeDraft(
+            name: "app data", driver: "local driver", otherOptionTokens: ["--opt", "type=nfs;"]
+        )
+        let network = DockerNetworkDraft(
+            name: "app net", driver: "bridge driver", isInternal: true, isAttachable: true,
+            otherOptionTokens: ["--opt", "com.example.note=hello world"]
+        )
+
+        #expect(DockerCommand.pull(reference: "repo;$(whoami)", sudo: false) == "docker pull 'repo;$(whoami)'")
+        #expect(
+            DockerCommand.run(run, sudo: true)
+                == "sudo -n docker run --name 'web app' --detach --network 'app net' --publish '8080:80/tcp' --env 'APP_MODE=prod;$(whoami)' --mount 'type=volume,src=data vol,dst=/var/lib/app,readonly' --restart 'unless-stopped' '--cpus=1' '--add-host' 'db:10.0.0.2' 'nginx:1.27' 'nginx' '-g' 'daemon off;'"
+        )
+        #expect(
+            DockerCommand.createVolume(volume, sudo: false)
+                == "docker volume create --driver 'local driver' '--opt' 'type=nfs;' 'app data'"
+        )
+        #expect(DockerCommand.removeVolume(name: "app data; rm -rf /", sudo: true) == "sudo -n docker volume rm 'app data; rm -rf /'")
+        #expect(
+            DockerCommand.createNetwork(network, sudo: false)
+                == "docker network create --driver 'bridge driver' --internal --attachable '--opt' 'com.example.note=hello world' 'app net'"
+        )
+        #expect(DockerCommand.removeNetwork(name: "app net;$(id)", sudo: true) == "sudo -n docker network rm 'app net;$(id)'")
+        #expect(
+            DockerCommand.systemPrune(.init(allUnusedImages: true, includeVolumes: true), sudo: true)
+                == "sudo -n docker system prune -f -a --volumes"
+        )
+        #expect(DockerCommand.systemPrune(.init(), sudo: false) == "docker system prune -f")
+    }
+}
