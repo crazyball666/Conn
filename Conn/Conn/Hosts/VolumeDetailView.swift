@@ -49,6 +49,16 @@ struct VolumeDetailView: View {
         .background(Color.connBg.ignoresSafeArea())
         .navigationTitle(volume.name)
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            if viewModel.volumes.canRemove(volume) {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button(role: .destructive) { viewModel.volumes.requestRemoval(volume) } label: {
+                        Label(L("删除"), systemImage: "trash")
+                    }
+                    .disabled(!viewModel.canWrite)
+                }
+            }
+        }
         .task { await load() }
         .navigationDestination(item: $openedContainer) { container in
             ContainerDetailView(host: host, dependencies: dependencies, container: container, viewModel: viewModel)

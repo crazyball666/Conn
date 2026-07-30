@@ -48,6 +48,14 @@ struct ImageDetailView: View {
         .background(Color.connBg.ignoresSafeArea())
         .navigationTitle(image.displayName)
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button(role: .destructive) { viewModel.images.requestRemoval(image) } label: {
+                    Label(L("删除"), systemImage: "trash")
+                }
+                .disabled(!viewModel.canWrite)
+            }
+        }
         .task { await load() }
         .navigationDestination(item: $openedContainer) { container in
             ContainerDetailView(host: host, dependencies: dependencies, container: container, viewModel: viewModel)

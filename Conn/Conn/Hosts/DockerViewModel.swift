@@ -75,12 +75,14 @@ final class DockerViewModel {
         )
         containers = DockerContainersModel(context: context, operations: operations)
         images = DockerImagesModel(context: context, operations: operations)
-        volumes = DockerVolumesModel(context: context)
-        networks = DockerNetworksModel(context: context)
+        volumes = DockerVolumesModel(context: context, operations: operations)
+        networks = DockerNetworksModel(context: context, operations: operations)
     }
 
     /// 当前是否需 sudo（供容器日志沿用同一提权）。
     var usesSudo: Bool { availability.sudo }
+    /// 读取始终可用，写入口则需要 Docker 可用且共享 gate 空闲。
+    var canWrite: Bool { context.isUsable && !operations.isBusy }
 
     /// 仅首次加载（分段出现时调用）。已加载则跳过。
     func loadIfNeeded() async {
@@ -167,8 +169,8 @@ final class DockerViewModel {
         )
         containers = DockerContainersModel(context: context, operations: operations)
         images = DockerImagesModel(context: context, operations: operations)
-        volumes = DockerVolumesModel(context: context)
-        networks = DockerNetworksModel(context: context)
+        volumes = DockerVolumesModel(context: context, operations: operations)
+        networks = DockerNetworksModel(context: context, operations: operations)
     }
 
     /// 已知 Docker 写结果只重拉它实际影响的列表。这里不走 `load()`，避免在操作闸门

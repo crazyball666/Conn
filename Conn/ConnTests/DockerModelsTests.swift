@@ -45,7 +45,11 @@ struct DockerModelsTests {
         // 最终的 unusedNames 里。
         session.setResponse(DockerCommand.danglingNetworks(sudo: false), stdout: "bridge\napp-net")
 
-        let model = DockerNetworksModel(context: makeContext(session: { session }, isUsable: true))
+        let context = makeContext(session: { session }, isUsable: true)
+        let operations = DockerOperationsModel(
+            context: context, hostUUID: "h1", runHistory: StubRunHistoryRepository()
+        )
+        let model = DockerNetworksModel(context: context, operations: operations)
         await model.load()
 
         #expect(model.unusedNames == ["app-net"])
@@ -98,6 +102,53 @@ struct DockerModelsTests {
         #expect(!flags.sessionRequested)
         #expect(model.loaded == false)
         #expect(model.items.isEmpty)
+    }
+
+    @Test("卷和网络删除入口只在可用、未使用且非预置时暂存 Operations 确认")
+    func resourceDeletionAvailabilityRules() async throws {
+        let session = ScriptedSession()
+        session.setResponse(
+            DockerCommand.volumes(sudo: false),
+            stdout: #"{"Name":"cache","Driver":"local","Scope":"local","Mountpoint":"/var/lib/docker/volumes/cache/_data"}"#
+        )
+        session.setResponse(DockerCommand.danglingVolumes(sudo: false), stdout: "cache")
+        session.setResponse(
+            DockerCommand.networks(sudo: false),
+            stdout: [
+                #"{"ID":"bridge","Name":"bridge","Driver":"bridge","Scope":"local"}"#,
+                #"{"ID":"app","Name":"app-net","Driver":"bridge","Scope":"local"}"#
+            ].joined(separator: "\n")
+        )
+        session.setResponse(DockerCommand.danglingNetworks(sudo: false), stdout: "bridge\napp-net")
+        let context = makeContext(session: { session }, isUsable: true)
+        let operations = DockerOperationsModel(
+            context: context, hostUUID: "h1", runHistory: StubRunHistoryRepository()
+        )
+        let volumes = DockerVolumesModel(context: context, operations: operations)
+        let networks = DockerNetworksModel(context: context, operations: operations)
+        await volumes.load()
+        await networks.load()
+
+        let volume = try #require(volumes.items.first)
+        let predefined = try #require(networks.items.first(where: { $0.isPredefined }))
+        let unusedNetwork = try #require(networks.items.first(where: { $0.name == "app-net" }))
+
+        #expect(volumes.canRemove(volume))
+        #expect(!volumes.canRemove(VolumeInfo(name: "used", driver: "local", scope: "local", mountpoint: "/used")))
+        #expect(!networks.canRemove(predefined))
+        #expect(networks.canRemove(unusedNetwork))
+        #expect(!networks.canRemove(NetworkInfo(id: "used", name: "used-net", driver: "bridge", scope: "local")))
+        volumes.requestRemoval(volume)
+        #expect(operations.pendingDestructiveAction == .removeVolume(volume))
+
+        let unavailableContext = makeContext(session: { session }, isUsable: false)
+        let unavailableOperations = DockerOperationsModel(
+            context: unavailableContext, hostUUID: "h1", runHistory: StubRunHistoryRepository()
+        )
+        let unavailableNetworks = DockerNetworksModel(context: unavailableContext, operations: unavailableOperations)
+        #expect(!unavailableNetworks.canRemove(unusedNetwork))
+        unavailableNetworks.requestRemoval(unusedNetwork)
+        #expect(unavailableOperations.pendingDestructiveAction == nil)
     }
 
     // MARK: - 4. loadImagesWithUsage() 的容器兜底分支（必修 4b 的修复行为）

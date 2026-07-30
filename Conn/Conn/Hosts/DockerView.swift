@@ -9,8 +9,9 @@ import SwiftUI
 struct DockerView: View {
     let viewModel: DockerViewModel
     @Environment(SettingsStore.self) private var settings
-    @State private var tab: Tab
+    @State var tab: Tab
     @State private var route: Route?
+    @State var operationSheet: OperationSheet?
     /// 控制台单独拆出来走 `.fullScreenCover`——`route` 剩下的几个目的地
     /// （容器/卷/网络/镜像详情）仍是 push，两种呈现方式不能共用同一个 optional。
     @State private var consoleContainer: ContainerInfo?
@@ -27,39 +28,27 @@ struct DockerView: View {
         _tab = State(initialValue: Self.initialTab())
     }
 
-    /// 四段截图验收要逐段看（容器/镜像/卷/网络），但 `simctl` 没有点击能力，
-    /// 点不到分段选择器——`CONN_SMOKE_DOCKER_TAB` 让冒烟脚本直接从目标分段起步，
-    /// 与 `HostDetailView` 的 `CONN_SMOKE_SEGMENT` 同一套路数。仅 DEBUG 编译。
-    private static func initialTab() -> Tab {
-        #if DEBUG
-            switch ProcessInfo.processInfo.environment["CONN_SMOKE_DOCKER_TAB"] {
-            case "images": .images
-            case "volumes": .volumes
-            case "networks": .networks
-            default: .containers
-            }
-        #else
-            .containers
-        #endif
-    }
-
     var body: some View {
         content
             .task { await viewModel.loadIfNeeded() }
             .task { await autoRefreshLoop() }
-            .modifier(DockerDestructiveConfirmationModifier(operations: viewModel.operations))
+            .sheet(item: operationSheetBinding, content: operationSheetView)
             .alert(L("Docker 操作"), isPresented: messageBinding) {
                 Button(L("好"), role: .cancel) { viewModel.actionMessage = nil }
             } message: {
                 Text(viewModel.actionMessage ?? "")
             }
             .navigationDestination(item: $route, destination: destination)
+            .fullScreenCover(item: pullPresentationBinding) { _ in
+                DockerPullProgressView(operations: viewModel.operations)
+            }
             .fullScreenCover(item: $consoleContainer) { container in
                 TerminalScreen(
                     host: host, connectionManager: dependencies.connectionManager,
                     autoCommand: viewModel.containers.consoleCommand(for: container)
                 )
             }
+            .toolbar { operationToolbar }
     }
 
     // 这一层只管「从 DockerView 直接推一层」——卷/网络/镜像详情页各自往下再推容器详情
@@ -223,6 +212,7 @@ struct DockerView: View {
                     Button { Task { await viewModel.images.prune() } } label: {
                         Label(L("清理悬空镜像"), systemImage: "trash")
                     }
+                    .disabled(!viewModel.canWrite)
                     Button { Task { await refreshImages() } } label: {
                         Label(L("刷新"), systemImage: "arrow.clockwise")
                     }
@@ -271,6 +261,7 @@ struct DockerView: View {
             Button(role: .destructive) { viewModel.images.requestRemoval(image) } label: {
                 Label(L("删除"), systemImage: "trash")
             }
+            .disabled(!viewModel.canWrite)
         }
     }
 
@@ -297,6 +288,13 @@ struct DockerView: View {
             title: (volume.name, "\(volume.driver) · \(volume.scope)"),
             badge: unused ? (L("未使用"), .warn) : nil
         ) { route = .volumeDetail(volume) }
+        .contextMenu {
+            if viewModel.volumes.canRemove(volume) {
+                Button(role: .destructive) { viewModel.volumes.requestRemoval(volume) } label: {
+                    Label(L("删除"), systemImage: "trash")
+                }
+            }
+        }
     }
 
     // MARK: - 网络
@@ -327,6 +325,13 @@ struct DockerView: View {
             icon: "point.3.connected.trianglepath.dotted", accented: !network.isPredefined,
             title: (network.name, "\(network.driver) · \(network.scope)"), badge: badge
         ) { route = .networkDetail(network) }
+        .contextMenu {
+            if viewModel.networks.canRemove(network) {
+                Button(role: .destructive) { viewModel.networks.requestRemoval(network) } label: {
+                    Label(L("删除"), systemImage: "trash")
+                }
+            }
+        }
     }
 
     // MARK: - 不可用引导
@@ -350,52 +355,6 @@ struct DockerView: View {
         .frame(maxWidth: .infinity).padding(.vertical, ConnSpacing.xl).padding(.horizontal, ConnSpacing.page)
     }
 
-    // MARK: - 辅助
-
-    private var messageBinding: Binding<Bool> {
-        Binding(get: { viewModel.actionMessage != nil }, set: { if !$0 { viewModel.actionMessage = nil } })
-    }
-}
-
-/// 破坏性操作确认从列表和详情页共用的 `DockerOperationsModel` 读取 pending action；
-/// 输入框归属 modifier，因此替换目标或清理选项时能确定性清空旧确认词。
-private struct DockerDestructiveConfirmationModifier: ViewModifier {
-    let operations: DockerOperationsModel
-    @State private var confirmation = ""
-
-    func body(content: Content) -> some View {
-        content
-            .onChange(of: operations.pendingDestructiveAction) { _, _ in confirmation = "" }
-            .alert(
-                L("确认 Docker 操作"),
-                isPresented: actionBinding,
-                presenting: operations.pendingDestructiveAction
-            ) { action in
-                TextField(L("确认词"), text: $confirmation)
-                Button(action.confirmationButtonTitle, role: .destructive) {
-                    let input = confirmation
-                    Task { _ = await operations.confirmPendingAction(confirmation: input) }
-                }
-                .disabled(!action.accepts(confirmation: confirmation))
-                Button(L("取消"), role: .cancel) {
-                    operations.pendingDestructiveAction = nil
-                    confirmation = ""
-                }
-            } message: { action in
-                Text(action.confirmationMessage)
-            }
-    }
-
-    private var actionBinding: Binding<Bool> {
-        Binding(
-            get: { operations.pendingDestructiveAction != nil },
-            set: { isPresented in
-                guard !isPresented else { return }
-                operations.pendingDestructiveAction = nil
-                confirmation = ""
-            }
-        )
-    }
 }
 
 // MARK: - 分段与路由

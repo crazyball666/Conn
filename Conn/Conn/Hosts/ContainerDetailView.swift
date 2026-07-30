@@ -99,21 +99,24 @@ struct ContainerDetailView: View {
     private var actionBar: some View {
         HStack(spacing: ConnSpacing.sm) {
             if isActive {
-                actionButton(L("停止"), "stop.circle") { perform(.stop) }
-                actionButton(L("重启"), "arrow.clockwise.circle") { perform(.restart) }
+                actionButton(L("停止"), "stop.circle", disabled: !viewModel.canWrite) { perform(.stop) }
+                actionButton(L("重启"), "arrow.clockwise.circle", disabled: !viewModel.canWrite) { perform(.restart) }
                 if isRunning {
                     actionButton(L("控制台"), "terminal") { showConsole = true }
                 }
             } else {
-                actionButton(L("启动"), "play.circle") { perform(.start) }
+                actionButton(L("启动"), "play.circle", disabled: !viewModel.canWrite) { perform(.start) }
             }
             actionButton(L("日志"), "doc.text.magnifyingglass") { route = .logs }
-            actionButton(L("删除"), "trash", tint: .connCrit) { viewModel.containers.requestRemoval(container) }
+            actionButton(L("删除"), "trash", tint: .connCrit, disabled: !viewModel.canWrite) {
+                viewModel.containers.requestRemoval(container)
+            }
         }
     }
 
     private func actionButton(
-        _ label: String, _ icon: String, tint: Color = .connAccent, action: @escaping () -> Void
+        _ label: String, _ icon: String, tint: Color = .connAccent, disabled: Bool = false,
+        action: @escaping () -> Void
     ) -> some View {
         Button(action: action) {
             VStack(spacing: 4) {
@@ -126,7 +129,7 @@ struct ContainerDetailView: View {
             .connSurface(cornerRadius: ConnRadius.card)
         }
         .buttonStyle(.plain)
-        .disabled(viewModel.containers.busyContainerID == container.id)
+        .disabled(disabled)
     }
 
     // MARK: - 概要

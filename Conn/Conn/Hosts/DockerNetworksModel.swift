@@ -15,9 +15,11 @@ final class DockerNetworksModel {
     private(set) var unusedNames: Set<String> = []
 
     private let context: DockerContext
+    private let operations: DockerOperationsModel
 
-    init(context: DockerContext) {
+    init(context: DockerContext, operations: DockerOperationsModel) {
         self.context = context
+        self.operations = operations
     }
 
     func loadIfNeeded() async {
@@ -50,5 +52,15 @@ final class DockerNetworksModel {
         try? await DockerService.networkDetail(
             name: network.name, on: context.session(), sudo: context.sudo
         )
+    }
+
+    /// 预置网络永远不可删；普通网络还必须由 Docker 判定为没有接入容器。
+    func canRemove(_ network: NetworkInfo) -> Bool {
+        context.isUsable && !operations.isBusy && !network.isPredefined && unusedNames.contains(network.name)
+    }
+
+    func requestRemoval(_ network: NetworkInfo) {
+        guard canRemove(network) else { return }
+        operations.requestDestructiveAction(.removeNetwork(network))
     }
 }

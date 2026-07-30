@@ -45,6 +45,16 @@ struct NetworkDetailView: View {
         .background(Color.connBg.ignoresSafeArea())
         .navigationTitle(network.name)
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            if viewModel.networks.canRemove(network) {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button(role: .destructive) { viewModel.networks.requestRemoval(network) } label: {
+                        Label(L("删除"), systemImage: "trash")
+                    }
+                    .disabled(!viewModel.canWrite)
+                }
+            }
+        }
         .task {
             detail = await viewModel.networks.detail(for: network)
             loading = false

@@ -15,9 +15,11 @@ final class DockerVolumesModel {
     private(set) var unusedNames: Set<String> = []
 
     private let context: DockerContext
+    private let operations: DockerOperationsModel
 
-    init(context: DockerContext) {
+    init(context: DockerContext, operations: DockerOperationsModel) {
         self.context = context
+        self.operations = operations
     }
 
     func loadIfNeeded() async {
@@ -54,5 +56,15 @@ final class DockerVolumesModel {
         (try? await DockerService.containersUsingVolume(
             name: volume.name, on: context.session(), sudo: context.sudo
         )) ?? []
+    }
+
+    /// 只有 Docker 明确标记为 dangling 的卷才提供删除入口；详情页与列表共用这条判断。
+    func canRemove(_ volume: VolumeInfo) -> Bool {
+        context.isUsable && !operations.isBusy && unusedNames.contains(volume.name)
+    }
+
+    func requestRemoval(_ volume: VolumeInfo) {
+        guard canRemove(volume) else { return }
+        operations.requestDestructiveAction(.removeVolume(volume))
     }
 }
