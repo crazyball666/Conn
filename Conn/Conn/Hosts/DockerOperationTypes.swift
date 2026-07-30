@@ -161,6 +161,20 @@ enum DockerOperation: Sendable {
     }
 }
 
+/// 拉取进度页唯一持有的展示状态。日志只留在内存中，不会进入审计记录；`result == nil`
+/// 表示远端终态尚未知，因而不允许 SwiftUI 的手势或绑定提前关闭该页。
+struct DockerPullPresentation: Identifiable, Equatable {
+    let id: UUID
+    var logs: String
+    var result: DockerOperationResultState?
+
+    init(id: UUID = UUID(), logs: String = "", result: DockerOperationResultState? = nil) {
+        self.id = id
+        self.logs = logs
+        self.result = result
+    }
+}
+
 /// 需要用户输入确认词的破坏性动作。Task 5 的表单只需持有这个强类型值，不能把
 /// 任意字符串再解释成命令。
 enum DockerPendingAction: Sendable, Equatable {

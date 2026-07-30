@@ -268,6 +268,97 @@ struct DockerOperationsModelTests {
         #expect(operations.pendingDestructiveAction?.confirmationWord == "PRUNE")
     }
 
+    @Test("创建容器表单保留重复字段与 token 的输入顺序")
+    func runFormStatePreservesDraftOrder() async {
+        var state = DockerRunFormState()
+        state.image = "registry.example/api:1"
+        state.name = "api"
+        state.detached = true
+        state.network = "app-net"
+        state.ports = [
+            DockerPortRow(hostPort: "8080", containerPort: "80", protocol: .tcp),
+            DockerPortRow(hostPort: "8443", containerPort: "443", protocol: .tcp)
+        ]
+        state.environment = [
+            DockerEnvironmentRow(key: "FIRST", value: "one"),
+            DockerEnvironmentRow(key: "SECOND", value: "two")
+        ]
+        state.mounts = [
+            DockerMountRow(sourceKind: .namedVolume, source: "data", target: "/var/lib/api"),
+            DockerMountRow(sourceKind: .bind, source: "/srv/config", target: "/etc/api", readOnly: true)
+        ]
+        state.otherOptions = [DockerTokenRow(value: "--cpus=1"), DockerTokenRow(value: "--add-host"), DockerTokenRow(value: "db:10.0.0.2")]
+        state.command = [DockerTokenRow(value: "serve"), DockerTokenRow(value: "--foreground")]
+
+        #expect(state.isValid)
+        #expect(state.draft == DockerRunDraft(
+            image: "registry.example/api:1", name: "api", detached: true, network: "app-net",
+            ports: [
+                PortBinding(hostPort: "8080", containerPort: "80"),
+                PortBinding(hostPort: "8443", containerPort: "443")
+            ],
+            environment: [EnvironmentEntry(key: "FIRST", value: "one"), EnvironmentEntry(key: "SECOND", value: "two")],
+            mounts: [
+                MountEntry(source: .namedVolume("data"), target: "/var/lib/api"),
+                MountEntry(source: .bind("/srv/config"), target: "/etc/api", readOnly: true)
+            ],
+            otherOptionTokens: ["--cpus=1", "--add-host", "db:10.0.0.2"],
+            commandTokens: ["serve", "--foreground"]
+        ))
+
+        let session = OperationSession()
+        let operations = DockerOperationsModel(
+            context: makeContext(session: { session }), hostUUID: "host-1", runHistory: RecordingHistory()
+        )
+        await operations.runContainer(state.draft)
+        #expect(session.lastCommand == DockerCommand.run(state.draft, sudo: false))
+    }
+
+    @Test("非法创建草稿禁用继续，高风险配置会被显式标记")
+    func runFormValidationAndRiskDetection() {
+        var invalid = DockerRunFormState()
+        #expect(!invalid.isValid)
+
+        invalid.image = "nginx"
+        invalid.ports = [DockerPortRow(hostPort: "0", containerPort: "80")]
+        #expect(!invalid.isValid)
+
+        let risky = DockerRunDraft(
+            image: "docker:dind", network: "host",
+            mounts: [
+                MountEntry(source: .bind("/var/run/docker.sock"), target: "/var/run/docker.sock"),
+                MountEntry(source: .bind("/"), target: "/host")
+            ],
+            otherOptionTokens: ["--privileged"]
+        )
+        #expect(Set(DockerRunRiskDetector.detect(risky)) == [.privileged, .hostNetwork, .dockerSocket, .rootBind])
+    }
+
+    @Test("活动 pull 拒绝关闭，终态才允许完成关闭")
+    func activePullCannotDismissUntilTerminalResult() async {
+        let gate = OperationGate()
+        let session = GatedPullSession(gate: gate)
+        let operations = DockerOperationsModel(
+            context: makeContext(session: { session }), hostUUID: "host-1", runHistory: RecordingHistory()
+        )
+
+        let pull = Task { await operations.pullImage(reference: "registry.example/app:1") { _ in } }
+        await gate.waitForFirstCommand()
+
+        #expect(operations.isPullActive)
+        #expect(!operations.canDismissPull)
+        operations.dismissPullProgress()
+        #expect(operations.pullPresentation != nil)
+
+        await gate.allow()
+        await pull.value
+
+        #expect(!operations.isPullActive)
+        #expect(operations.canDismissPull)
+        operations.dismissPullProgress()
+        #expect(operations.pullPresentation == nil)
+    }
+
     private func makeContext(
         session: @escaping () async throws -> any SSHSession,
         refresh: @escaping (DockerRefreshScope) async -> Void = { _ in }
@@ -394,6 +485,7 @@ private final class OperationSession: SSHSession, @unchecked Sendable {
     private let throwsUnknown: Bool
     private let lock = NSLock()
     private var executeCount = 0
+    private var commands: [String] = []
 
     init(
         result: ExecResult = ExecResult(exitCode: 0, stdout: Data(), stderr: Data()),
@@ -406,13 +498,17 @@ private final class OperationSession: SSHSession, @unchecked Sendable {
     }
 
     func exec(_ command: String, timeout: Duration) async throws -> ExecResult {
-        lock.withLock { executeCount += 1 }
+        lock.withLock {
+            executeCount += 1
+            commands.append(command)
+        }
         if throwsUnknown { throw SSHError.channelClosed }
         return result
     }
 
     var didExecute: Bool { lock.withLock { executeCount > 0 } }
     var executionCount: Int { lock.withLock { executeCount } }
+    var lastCommand: String? { lock.withLock { commands.last } }
 
     func execStream(_ command: String) async throws -> AsyncThrowingStream<Data, Error> {
         AsyncThrowingStream { $0.finish() }
@@ -462,6 +558,40 @@ private final class PullSession: SSHSession, @unchecked Sendable {
         }
         return SSHCommandStream(output: output) {
             try self.finalResult.get()
+        }
+    }
+
+    func openShell(term: TermSize) async throws -> any ShellChannel { throw SSHError.channelClosed }
+    func sftp() async throws -> any RemoteFileSystem { throw SSHError.channelClosed }
+    func openTunnel(to target: SSHEndpoint) async throws -> any SSHTunnel { throw SSHError.channelClosed }
+    func close() async { continuation.finish() }
+}
+
+private final class GatedPullSession: SSHSession, @unchecked Sendable {
+    let state: AsyncStream<SSHSessionState>
+    private let continuation: AsyncStream<SSHSessionState>.Continuation
+    let isConnected = true
+    private let gate: OperationGate
+
+    init(gate: OperationGate) {
+        self.gate = gate
+        (state, continuation) = AsyncStream.makeStream()
+        continuation.yield(.connected)
+    }
+
+    func exec(_ command: String, timeout: Duration) async throws -> ExecResult {
+        ExecResult(exitCode: 0, stdout: Data(), stderr: Data())
+    }
+
+    func execStream(_ command: String) async throws -> AsyncThrowingStream<Data, Error> {
+        AsyncThrowingStream { $0.finish() }
+    }
+
+    func execCommandStream(_ command: String, timeout: Duration) async throws -> SSHCommandStream {
+        _ = await gate.begin(command)
+        return SSHCommandStream(output: AsyncThrowingStream { $0.finish() }) { [gate] in
+            await gate.waitUntilOpen()
+            return ExecResult(exitCode: 0, stdout: Data(), stderr: Data())
         }
     }
 

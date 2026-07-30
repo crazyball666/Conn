@@ -11,6 +11,7 @@ import Observation
 final class DockerOperationsModel {
     private(set) var activeOperation: DockerOperation?
     var pendingDestructiveAction: DockerPendingAction?
+    private(set) var pullPresentation: DockerPullPresentation?
 
     private let context: DockerContext
     private let hostUUID: String
@@ -23,8 +24,14 @@ final class DockerOperationsModel {
     }
 
     var isBusy: Bool { activeOperation != nil }
+    var isWriteAvailable: Bool { context.isUsable && !isBusy }
     var activeContainerID: String? { activeOperation?.activeContainerID }
     var activeImageID: String? { activeOperation?.activeImageID }
+    var isPullActive: Bool {
+        guard case .pullImage? = activeOperation else { return false }
+        return true
+    }
+    var canDismissPull: Bool { pullPresentation?.result != nil }
 
     // MARK: - Existing write entry points
 
@@ -107,9 +114,36 @@ final class DockerOperationsModel {
 
     /// 拉取是唯一流式写操作：远端启动前先同步写 pending；若本地审计不可用，就宁可不发
     /// 命令，避免制造无法追踪的长任务。
+    /// 从普通 sheet 提交拉取。先同步建立 presentation，再启动远端工作，让顶层
+    /// `fullScreenCover(item:)` 不会有一帧可被手势关掉的空窗。
+    func startPull(reference: String) {
+        guard !reference.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            context.report(L("镜像引用不能为空"))
+            return
+        }
+        guard begin(.pullImage) else { return }
+        pullPresentation = DockerPullPresentation()
+        Task { [weak self] in
+            await self?.performPull(reference: reference, onChunk: { _ in })
+        }
+    }
+
+    /// 测试和非 UI 调用使用的 await 入口；和 `startPull` 复用同一终态与审计语义。
     func pullImage(reference: String, onChunk: @escaping (String) -> Void) async {
+        guard begin(.pullImage) else { return }
+        pullPresentation = DockerPullPresentation()
+        await performPull(reference: reference, onChunk: onChunk)
+    }
+
+    /// 只有已经拿到 known 或 unknown 终态才可关闭。外部 binding 的 nil 写入也经这道
+    /// 门，避免 interactive dismiss 或 SwiftUI route 重置中断活动中的远端 pull。
+    func dismissPullProgress() {
+        guard canDismissPull else { return }
+        pullPresentation = nil
+    }
+
+    private func performPull(reference: String, onChunk: @escaping (String) -> Void) async {
         let operation = DockerOperation.pullImage
-        guard begin(operation) else { return }
         defer { activeOperation = nil }
 
         let pending = DockerAuditSummary(operation: operation.auditOperation, state: .unknown)
@@ -127,6 +161,7 @@ final class DockerOperationsModel {
             try runHistory.record(pendingEntry)
         } catch {
             context.report(L("无法保存拉取审计，未开始拉取"))
+            setPullResult(.unknown)
             return
         }
 
@@ -139,7 +174,9 @@ final class DockerOperationsModel {
                 for try await chunk in stream.output {
                     // SSH 输出可能含截断 UTF-8；与 ExecResult 一样保留可读部分。
                     // swiftlint:disable:next optional_data_string_conversion
-                    onChunk(String(decoding: chunk, as: UTF8.self))
+                    let text = String(decoding: chunk, as: UTF8.self)
+                    appendPullLog(text)
+                    onChunk(text)
                 }
             } catch {
                 // result() below remains the authority for result certainty.
@@ -151,19 +188,30 @@ final class DockerOperationsModel {
             let auditSaved = update(finalEntry)
             reportKnown(label: L("拉取镜像"), state: state, auditSaved: auditSaved)
             await context.refresh(operation.refreshScope)
+            setPullResult(state)
         } catch {
             let finalEntry = DockerAuditSummary(
                 operation: operation.auditOperation, state: .unknown, ranAt: pending.ranAt
             ).historyEntry(hostUUID: hostUUID, id: pendingEntry.id)
             let auditSaved = update(finalEntry)
             reportUnknown(label: L("拉取镜像"), auditSaved: auditSaved)
+            setPullResult(.unknown)
         }
     }
 
     // MARK: - Destructive confirmation
 
     func requestDestructiveAction(_ action: DockerPendingAction) {
+        guard isWriteAvailable else { return }
         pendingDestructiveAction = action
+    }
+
+    func cancelPendingAction() {
+        pendingDestructiveAction = nil
+    }
+
+    func canConfirmPendingAction(input: String) -> Bool {
+        pendingDestructiveAction?.accepts(confirmation: input) == true
     }
 
     @discardableResult
@@ -210,12 +258,28 @@ final class DockerOperationsModel {
     }
 
     private func begin(_ operation: DockerOperation) -> Bool {
+        guard context.isUsable else {
+            context.report(L("Docker 当前不可用"))
+            return false
+        }
         guard activeOperation == nil else {
             context.report(L("另一个 Docker 操作正在进行"))
             return false
         }
         activeOperation = operation
         return true
+    }
+
+    private func appendPullLog(_ text: String) {
+        guard var presentation = pullPresentation else { return }
+        presentation.logs += text
+        pullPresentation = presentation
+    }
+
+    private func setPullResult(_ result: DockerOperationResultState) {
+        guard var presentation = pullPresentation else { return }
+        presentation.result = result
+        pullPresentation = presentation
     }
 
     private func record(_ summary: DockerAuditSummary) -> Bool {
