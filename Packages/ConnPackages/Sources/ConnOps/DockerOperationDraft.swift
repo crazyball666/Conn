@@ -244,11 +244,31 @@ public struct DockerRunDraft: Equatable, Sendable {
             return true
         }
 
-        // Docker accepts values attached to these short flags (`-p8080:80` etc.).
-        // `-dfoo` does not attach a value: Docker parses it as an invalid shorthand cluster.
-        return ["-p", "-e", "-v"].contains { option in
-            token.hasPrefix(option) && token.count > option.count
+        return containsStructuredShortOption(in: token)
+    }
+
+    /// Docker short options may be clustered (`-di`) until a value-taking option consumes
+    /// the remainder (`-p8080:80`). Unknown characters make the cluster invalid, so they
+    /// must not cause a false structured-field conflict (`-dfoo` is invalid to Docker).
+    private static func containsStructuredShortOption(in token: String) -> Bool {
+        guard token.hasPrefix("-"), !token.hasPrefix("--") else {
+            return false
         }
+
+        var containsStructuredOption = false
+        for option in token.dropFirst() {
+            if ["d", "p", "e", "v"].contains(option) {
+                containsStructuredOption = true
+            }
+
+            if ["a", "c", "e", "h", "l", "m", "p", "u", "v", "w"].contains(option) {
+                return containsStructuredOption
+            }
+            guard ["d", "i", "P", "q", "t"].contains(option) else {
+                return false
+            }
+        }
+        return containsStructuredOption
     }
 }
 

@@ -92,6 +92,17 @@ struct DockerOperationCommandTests {
         #expect(errors == conflicts.map(ValidationError.conflictingOtherOptionToken))
     }
 
+    @Test("run 草稿拒绝含 detach 的短选项簇但保留无关簇")
+    func rejectsDetachShortOptionClusters() {
+        let detached = DockerRunDraft(image: "nginx", otherOptionTokens: ["-di"])
+        let unrelated = DockerRunDraft(image: "nginx", otherOptionTokens: ["-it", "-P"])
+        let invalidAttachedJunk = DockerRunDraft(image: "nginx", otherOptionTokens: ["-dfoo"])
+
+        #expect(detached.validate() == [.conflictingOtherOptionToken("-di")])
+        #expect(unrelated.validate().isEmpty)
+        #expect(invalidAttachedJunk.validate().isEmpty)
+    }
+
     @Test("run 草稿允许未冲突的高级选项和任意启动命令 token")
     func allowsAdvancedOptionsAndCommandTokens() {
         let draft = DockerRunDraft(
