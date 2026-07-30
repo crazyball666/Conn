@@ -23,6 +23,8 @@ enum DemoOps {
     }
 
     private static func containerResponse(_ command: String) -> MockSSHTransport.CommandResponse? {
+        // 写命令先于列表读取分支；演示不会改写后续的 JSON 夹具，只回显可审计的终态。
+        if command.contains("docker run") { return .init(stdout: "c7d8e9f0a1b2\n") }
         if command.contains("docker ps -q") {
             return .init(stdout: "a1b2c3d4e5f6\nb2c3d4e5f6a7\n__EXIT__0")
         }
@@ -43,6 +45,8 @@ enum DemoOps {
     // `parseNameList` 把每一行 JSON 当成一个「名字」，结果没有一个卷名对得上，
     // 反而是没有任何卷显示「未使用」（已用模拟器实测两种顺序验证过，不是没试过的猜测）。
     private static func volumeResponse(_ command: String) -> MockSSHTransport.CommandResponse? {
+        if command.contains("docker volume create") { return .init(stdout: "demo-volume\n") }
+        if command.contains("docker volume rm") { return .init(stdout: "demo-volume\n") }
         if command.contains("docker volume ls"), command.contains("dangling") {
             return .init(stdout: "old_cache\n")
         }
@@ -53,6 +57,8 @@ enum DemoOps {
 
     /// 网络同理：dangling 变体先判。
     private static func networkResponse(_ command: String) -> MockSSHTransport.CommandResponse? {
+        if command.contains("docker network create") { return .init(stdout: "demo-network\n") }
+        if command.contains("docker network rm") { return .init(stdout: "demo-network\n") }
         if command.contains("docker network ls"), command.contains("dangling") {
             return .init(stdout: "none\nisolated\n")
         }
@@ -62,6 +68,31 @@ enum DemoOps {
     }
 
     private static func imageResponse(_ command: String) -> MockSSHTransport.CommandResponse? {
+        // 特定的失败 / 中断夹具必须放在常规 pull 前，才能稳定展示 known 与 unknown 终态。
+        if command.contains("docker pull"), command.contains("conn-demo/interrupted") {
+            return .init(
+                streamChunks: [Data("Pulling fs layer\n".utf8)], streamFailure: .channelClosed
+            )
+        }
+        if command.contains("docker pull"), command.contains("conn-demo/failing") {
+            return .init(
+                streamChunks: [
+                    Data("latest: Pulling from conn-demo/failing\n".utf8),
+                    Data("error: denied\n".utf8)
+                ],
+                stderr: "Error response from daemon: pull access denied", exitCode: 1
+            )
+        }
+        if command.contains("docker pull") {
+            return .init(streamChunks: [
+                Data("1.27: Pulling from library/nginx\n".utf8),
+                Data("Digest: sha256:demo\n".utf8),
+                Data("Status: Downloaded newer image for nginx:1.27\n".utf8)
+            ])
+        }
+        if command.contains("docker system prune") {
+            return .init(stdout: "Deleted Containers:\n\nTotal reclaimed space: 96MB\n")
+        }
         if command.contains("docker image prune") { return .init(stdout: "Total reclaimed space: 128MB") }
         if command.contains("docker system df") { return .init(stdout: diskUsageJSON) }
         if command.contains("docker history") { return .init(stdout: historyJSON) }

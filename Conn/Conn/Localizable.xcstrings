@@ -1,6 +1,638 @@
 {
   "sourceLanguage": "zh-Hans",
   "strings": {
+    "%@ 失败（退出码 %d）": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "%@ failed (exit code %d)" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "%@ に失敗しました（終了コード %d）" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "%@ 실패(종료 코드 %d)" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "%@ 失敗（結束代碼 %d）" } }
+      }
+    },
+    "%@ 结果未知": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "%@ result unknown" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "%@ の結果は不明です" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "%@ 결과를 알 수 없음" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "%@ 結果未知" } }
+      }
+    },
+    "%@容器": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "%@ container" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "%@ コンテナ" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "%@ 컨테이너" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "%@ 容器" } }
+      }
+    },
+    "Docker Socket": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Docker Socket" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "Docker ソケット" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "Docker 소켓" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "Docker Socket" } }
+      }
+    },
+    "Docker 停止容器": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Docker stopped container" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "Docker コンテナを停止" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "Docker 컨테이너 중지" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "Docker 停止容器" } }
+      }
+    },
+    "Docker 创建卷": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Docker created volume" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "Docker ボリュームを作成" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "Docker 볼륨 생성" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "Docker 建立磁碟區" } }
+      }
+    },
+    "Docker 创建容器": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Docker created container" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "Docker コンテナを作成" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "Docker 컨테이너 생성" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "Docker 建立容器" } }
+      }
+    },
+    "Docker 创建网络": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Docker created network" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "Docker ネットワークを作成" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "Docker 네트워크 생성" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "Docker 建立網路" } }
+      }
+    },
+    "Docker 删除卷": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Docker deleted volume" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "Docker ボリュームを削除" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "Docker 볼륨 삭제" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "Docker 刪除磁碟區" } }
+      }
+    },
+    "Docker 删除容器": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Docker deleted container" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "Docker コンテナを削除" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "Docker 컨테이너 삭제" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "Docker 刪除容器" } }
+      }
+    },
+    "Docker 删除网络": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Docker deleted network" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "Docker ネットワークを削除" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "Docker 네트워크 삭제" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "Docker 刪除網路" } }
+      }
+    },
+    "Docker 删除镜像": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Docker deleted image" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "Docker イメージを削除" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "Docker 이미지 삭제" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "Docker 刪除映像檔" } }
+      }
+    },
+    "Docker 启动容器": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Docker started container" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "Docker コンテナを開始" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "Docker 컨테이너 시작" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "Docker 啟動容器" } }
+      }
+    },
+    "Docker 当前不可用": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Docker is currently unavailable" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "Docker は現在利用できません" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "Docker를 현재 사용할 수 없습니다" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "Docker 目前無法使用" } }
+      }
+    },
+    "Docker 拉取镜像": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Docker pulled image" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "Docker イメージを取得" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "Docker 이미지 가져오기" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "Docker 拉取映像檔" } }
+      }
+    },
+    "Docker 清理悬空镜像": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Docker pruned dangling images" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "Docker の不要なイメージを削除" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "Docker 댕글링 이미지 정리" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "Docker 清理懸空映像檔" } }
+      }
+    },
+    "Docker 系统清理": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Docker system prune" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "Docker システムをクリーンアップ" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "Docker 시스템 정리" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "Docker 系統清理" } }
+      }
+    },
+    "Docker 重启容器": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Docker restarted container" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "Docker コンテナを再起動" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "Docker 컨테이너 재시작" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "Docker 重新啟動容器" } }
+      }
+    },
+    "不设置": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Not set" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "設定しない" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "설정 안 함" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "不設定" } }
+      }
+    },
+    "不重启": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "No restart" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "再起動しない" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "재시작 안 함" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "不重新啟動" } }
+      }
+    },
+    "主机端口": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Host port" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "ホストポート" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "호스트 포트" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "主機連接埠" } }
+      }
+    },
+    "主机网络": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Host network" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "ホストネットワーク" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "호스트 네트워크" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "主機網路" } }
+      }
+    },
+    "主机路径": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Host path" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "ホストパス" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "호스트 경로" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "主機路徑" } }
+      }
+    },
+    "具名卷": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Named volume" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "名前付きボリューム" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "명명된 볼륨" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "具名磁碟區" } }
+      }
+    },
+    "创建卷": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Create volume" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "ボリュームを作成" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "볼륨 생성" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "建立磁碟區" } }
+      }
+    },
+    "创建容器": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Create container" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "コンテナを作成" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "컨테이너 생성" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "建立容器" } }
+      }
+    },
+    "创建网络": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Create network" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "ネットワークを作成" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "네트워크 생성" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "建立網路" } }
+      }
+    },
+    "删除卷": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Delete volume" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "ボリュームを削除" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "볼륨 삭제" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "刪除磁碟區" } }
+      }
+    },
+    "删除网络": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Delete network" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "ネットワークを削除" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "네트워크 삭제" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "刪除網路" } }
+      }
+    },
+    "包含未使用卷": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Include unused volumes" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "未使用のボリュームを含める" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "사용하지 않는 볼륨 포함" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "包含未使用的磁碟區" } }
+      }
+    },
+    "协议": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Protocol" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "プロトコル" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "프로토콜" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "通訊協定" } }
+      }
+    },
+    "卷配置无效，未执行 Docker 操作": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Invalid volume configuration; Docker operation was not run" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "ボリューム構成が無効なため、Docker 操作は実行されませんでした" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "볼륨 구성이 올바르지 않아 Docker 작업을 실행하지 않았습니다" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "磁碟區設定無效，未執行 Docker 操作" } }
+      }
+    },
+    "参数": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Argument" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "引数" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "인수" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "引數" } }
+      }
+    },
+    "另一个 Docker 操作正在进行": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Another Docker operation is in progress" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "別の Docker 操作が進行中です" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "다른 Docker 작업이 진행 중입니다" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "另一個 Docker 操作正在進行" } }
+      }
+    },
+    "只读": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Read-only" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "読み取り専用" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "읽기 전용" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "唯讀" } }
+      }
+    },
+    "可附加": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Attachable" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "接続可能" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "연결 가능" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "可附加" } }
+      }
+    },
+    "后台运行": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Run in background" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "バックグラウンドで実行" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "백그라운드에서 실행" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "在背景執行" } }
+      }
+    },
+    "启动命令": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Startup command" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "起動コマンド" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "시작 명령" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "啟動命令" } }
+      }
+    },
+    "基本": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Basic" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "基本" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "기본" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "基本" } }
+      }
+    },
+    "复核配置": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Review configuration" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "構成を確認" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "구성 검토" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "複核設定" } }
+      }
+    },
+    "失败时": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "On failure" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "失敗時" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "실패 시" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "失敗時" } }
+      }
+    },
+    "始终": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Always" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "常に" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "항상" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "永遠" } }
+      }
+    },
+    "容器端口": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Container port" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "コンテナポート" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "컨테이너 포트" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "容器連接埠" } }
+      }
+    },
+    "容器路径": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Container path" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "コンテナパス" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "컨테이너 경로" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "容器路徑" } }
+      }
+    },
+    "容器配置无效，未执行 Docker 操作": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Invalid container configuration; Docker operation was not run" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "コンテナ構成が無効なため、Docker 操作は実行されませんでした" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "컨테이너 구성이 올바르지 않아 Docker 작업을 실행하지 않았습니다" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "容器設定無效，未執行 Docker 操作" } }
+      }
+    },
+    "拉取": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Pull" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "取得" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "가져오기" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "拉取" } }
+      }
+    },
+    "拉取完成": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Pull complete" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "取得が完了しました" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "가져오기 완료" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "拉取完成" } }
+      }
+    },
+    "拉取镜像": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Pull image" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "イメージを取得" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "이미지 가져오기" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "拉取映像檔" } }
+      }
+    },
+    "无法保存拉取审计，未开始拉取": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Unable to save pull audit; pull was not started" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "取得監査を保存できないため、取得は開始されませんでした" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "가져오기 감사를 저장할 수 없어 가져오기를 시작하지 않았습니다" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "無法儲存拉取稽核，未開始拉取" } }
+      }
+    },
+    "有效配置": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Effective configuration" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "有効な構成" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "유효한 구성" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "有效設定" } }
+      }
+    },
+    "根目录绑定": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Root directory bind" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "ルートディレクトリのバインド" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "루트 디렉터리 바인드" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "根目錄繫結" } }
+      }
+    },
+    "正在拉取镜像": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Pulling image" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "イメージを取得中" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "이미지 가져오는 중" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "正在拉取映像檔" } }
+      }
+    },
+    "添加参数": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Add argument" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "引数を追加" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "인수 추가" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "新增引數" } }
+      }
+    },
+    "添加挂载": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Add mount" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "マウントを追加" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "마운트 추가" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "新增掛載" } }
+      }
+    },
+    "添加环境变量": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Add environment variable" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "環境変数を追加" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "환경 변수 추가" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "新增環境變數" } }
+      }
+    },
+    "添加端口": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Add port" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "ポートを追加" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "포트 추가" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "新增連接埠" } }
+      }
+    },
+    "添加选项": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Add option" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "オプションを追加" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "옵션 추가" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "新增選項" } }
+      }
+    },
+    "清理": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Prune" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "クリーンアップ" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "정리" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "清理" } }
+      }
+    },
+    "清理 Docker 资源": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Prune Docker resources" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "Docker リソースをクリーンアップ" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "Docker 리소스 정리" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "清理 Docker 資源" } }
+      }
+    },
+    "清理范围": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Prune scope" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "クリーンアップの範囲" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "정리 범위" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "清理範圍" } }
+      }
+    },
+    "特权容器": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Privileged container" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "特権コンテナ" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "권한 있는 컨테이너" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "特權容器" } }
+      }
+    },
+    "确认 Docker 操作": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Confirm Docker operation" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "Docker 操作を確認" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "Docker 작업 확인" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "確認 Docker 操作" } }
+      }
+    },
+    "确认词": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Confirmation text" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "確認語句" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "확인 문구" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "確認詞" } }
+      }
+    },
+    "确认词不匹配，未执行 Docker 操作": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Confirmation text does not match; Docker operation was not run" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "確認語句が一致しないため、Docker 操作は実行されませんでした" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "확인 문구가 일치하지 않아 Docker 작업을 실행하지 않았습니다" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "確認詞不符，未執行 Docker 操作" } }
+      }
+    },
+    "移除所有未使用镜像": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Remove all unused images" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "未使用のイメージをすべて削除" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "사용하지 않는 모든 이미지 제거" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "移除所有未使用的映像檔" } }
+      }
+    },
+    "等待远端输出…": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Waiting for remote output…" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "リモート出力を待機中…" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "원격 출력을 기다리는 중…" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "正在等待遠端輸出…" } }
+      }
+    },
+    "绑定挂载": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Bind mount" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "バインドマウント" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "바인드 마운트" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "繫結掛載" } }
+      }
+    },
+    "结果未知": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Result unknown" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "結果不明" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "결과를 알 수 없음" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "結果未知" } }
+      }
+    },
+    "继续": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Continue" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "続ける" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "계속" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "繼續" } }
+      }
+    },
+    "网络配置无效，未执行 Docker 操作": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Invalid network configuration; Docker operation was not run" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "ネットワーク構成が無効なため、Docker 操作は実行されませんでした" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "네트워크 구성이 올바르지 않아 Docker 작업을 실행하지 않았습니다" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "網路設定無效，未執行 Docker 操作" } }
+      }
+    },
+    "请输入 %@ 以继续。": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Enter %@ to continue." } },
+        "ja": { "stringUnit": { "state": "translated", "value": "続行するには %@ を入力してください。" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "계속하려면 %@을(를) 입력하세요." } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "請輸入 %@ 以繼續。" } }
+      }
+    },
+    "返回": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Back" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "戻る" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "뒤로" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "返回" } }
+      }
+    },
+    "选择卷": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Select volume" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "ボリュームを選択" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "볼륨 선택" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "選擇磁碟區" } }
+      }
+    },
+    "镜像引用": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Image reference" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "イメージ参照" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "이미지 참조" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "映像檔參照" } }
+      }
+    },
+    "镜像引用不能为空": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Image reference cannot be empty" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "イメージ参照は空にできません" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "이미지 참조는 비워 둘 수 없습니다" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "映像檔參照不可為空" } }
+      }
+    },
+    "镜像操作": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Image actions" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "イメージ操作" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "이미지 작업" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "映像檔操作" } }
+      }
+    },
+    "除非手动停止": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Unless manually stopped" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "手動で停止するまで" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "수동으로 중지할 때까지" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "除非手動停止" } }
+      }
+    },
+    "高风险配置": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "High-risk configuration" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "高リスク構成" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "고위험 구성" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "高風險設定" } }
+      }
+    },
+    "；审计未保存": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "; audit was not saved" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "；監査は保存されませんでした" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "; 감사가 저장되지 않았습니다" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "；稽核未儲存" } }
+      }
+    },
     "%": {},
     "%@ %@ 失败：%@": {
       "extractionState": "stale",
