@@ -47,18 +47,7 @@ struct DockerView: View {
         content
             .task { await viewModel.loadIfNeeded() }
             .task { await autoRefreshLoop() }
-            .alert(L("删除容器"), isPresented: removalBinding, presenting: viewModel.containers.pendingRemoval) { _ in
-                Button(L("删除容器"), role: .destructive) { Task { await viewModel.containers.confirmRemoval() } }
-                Button(L("取消"), role: .cancel) { viewModel.containers.pendingRemoval = nil }
-            } message: { container in
-                Text(String(format: L("删除容器 %@？此操作不可撤销（docker rm -f）。"), container.name))
-            }
-            .alert(L("删除镜像"), isPresented: imageRemovalBinding, presenting: viewModel.images.pendingRemoval) { _ in
-                Button(L("删除"), role: .destructive) { Task { await viewModel.images.confirmRemoval() } }
-                Button(L("取消"), role: .cancel) { viewModel.images.pendingRemoval = nil }
-            } message: { image in
-                Text(String(format: L("删除镜像 %@？"), image.displayName))
-            }
+            .modifier(DockerDestructiveConfirmationModifier(operations: viewModel.operations))
             .alert(L("Docker 操作"), isPresented: messageBinding) {
                 Button(L("好"), role: .cancel) { viewModel.actionMessage = nil }
             } message: {
@@ -363,16 +352,49 @@ struct DockerView: View {
 
     // MARK: - 辅助
 
-    private var removalBinding: Binding<Bool> {
-        Binding(get: { viewModel.containers.pendingRemoval != nil }, set: { if !$0 { viewModel.containers.pendingRemoval = nil } })
-    }
-
-    private var imageRemovalBinding: Binding<Bool> {
-        Binding(get: { viewModel.images.pendingRemoval != nil }, set: { if !$0 { viewModel.images.pendingRemoval = nil } })
-    }
-
     private var messageBinding: Binding<Bool> {
         Binding(get: { viewModel.actionMessage != nil }, set: { if !$0 { viewModel.actionMessage = nil } })
+    }
+}
+
+/// 破坏性操作确认从列表和详情页共用的 `DockerOperationsModel` 读取 pending action；
+/// 输入框归属 modifier，因此替换目标或清理选项时能确定性清空旧确认词。
+private struct DockerDestructiveConfirmationModifier: ViewModifier {
+    let operations: DockerOperationsModel
+    @State private var confirmation = ""
+
+    func body(content: Content) -> some View {
+        content
+            .onChange(of: operations.pendingDestructiveAction) { _, _ in confirmation = "" }
+            .alert(
+                L("确认 Docker 操作"),
+                isPresented: actionBinding,
+                presenting: operations.pendingDestructiveAction
+            ) { action in
+                TextField(L("确认词"), text: $confirmation)
+                Button(action.confirmationButtonTitle, role: .destructive) {
+                    let input = confirmation
+                    Task { _ = await operations.confirmPendingAction(confirmation: input) }
+                }
+                .disabled(!action.accepts(confirmation: confirmation))
+                Button(L("取消"), role: .cancel) {
+                    operations.pendingDestructiveAction = nil
+                    confirmation = ""
+                }
+            } message: { action in
+                Text(action.confirmationMessage)
+            }
+    }
+
+    private var actionBinding: Binding<Bool> {
+        Binding(
+            get: { operations.pendingDestructiveAction != nil },
+            set: { isPresented in
+                guard !isPresented else { return }
+                operations.pendingDestructiveAction = nil
+                confirmation = ""
+            }
+        )
     }
 }
 

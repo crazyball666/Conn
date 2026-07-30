@@ -76,14 +76,7 @@ final class DockerImagesModel {
         operations.requestDestructiveAction(.removeImage(image))
     }
 
-    func confirmRemoval() async {
-        guard let action = operations.pendingDestructiveAction,
-              case .removeImage = action
-        else { return }
-        _ = await operations.confirmPendingAction(confirmation: action.confirmationWord)
-    }
-
     func prune() async {
-        await operations.pruneImages()
+        operations.requestDestructiveAction(.pruneImages)
     }
 }

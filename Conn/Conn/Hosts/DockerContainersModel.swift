@@ -76,13 +76,6 @@ final class DockerContainersModel {
         operations.requestDestructiveAction(.removeContainer(container))
     }
 
-    func confirmRemoval() async {
-        guard let action = operations.pendingDestructiveAction,
-              case .removeContainer = action
-        else { return }
-        _ = await operations.confirmPendingAction(confirmation: action.confirmationWord)
-    }
-
     /// 容器详情（inspect）——供详情页加载。
     func detail(for container: ContainerInfo) async -> ContainerDetail? {
         do {

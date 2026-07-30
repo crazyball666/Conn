@@ -10,11 +10,9 @@ struct ContainerDetailView: View {
     let container: ContainerInfo
     let viewModel: DockerViewModel
 
-    @Environment(\.dismiss) private var dismiss
     @State private var detail: ContainerDetail?
     @State private var loading = true
     @State private var route: Route?
-    @State private var showRemoveConfirm = false
     /// 控制台单独拆出来走 `.fullScreenCover`——不需要额外数据（host/container 本页
     /// 自己就有），一个 Bool 比再造一个 Identifiable 包装类型更直接。
     @State private var showConsole = false
@@ -77,14 +75,6 @@ struct ContainerDetailView: View {
                 autoCommand: viewModel.containers.consoleCommand(for: container)
             )
         }
-        .alert(L("删除容器"), isPresented: $showRemoveConfirm) {
-            Button(L("删除容器"), role: .destructive) {
-                Task { await viewModel.containers.perform(.remove, on: container); dismiss() }
-            }
-            Button(L("取消"), role: .cancel) {}
-        } message: {
-            Text(String(format: L("删除容器 %@？此操作不可撤销（docker rm -f）。"), container.name))
-        }
         .alert(L("Docker 操作"), isPresented: messageBinding) {
             Button(L("好"), role: .cancel) { viewModel.actionMessage = nil }
         } message: {
@@ -118,7 +108,7 @@ struct ContainerDetailView: View {
                 actionButton(L("启动"), "play.circle") { perform(.start) }
             }
             actionButton(L("日志"), "doc.text.magnifyingglass") { route = .logs }
-            actionButton(L("删除"), "trash", tint: .connCrit) { showRemoveConfirm = true }
+            actionButton(L("删除"), "trash", tint: .connCrit) { viewModel.containers.requestRemoval(container) }
         }
     }
 

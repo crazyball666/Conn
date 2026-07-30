@@ -29,19 +29,27 @@ final class DockerOperationsModel {
     // MARK: - Existing write entry points
 
     func perform(_ action: ContainerAction, on container: ContainerInfo) async {
+        guard !action.isDestructive else {
+            requestDestructiveAction(.removeContainer(container))
+            return
+        }
+        await performConfirmed(action, on: container)
+    }
+
+    private func performConfirmed(_ action: ContainerAction, on container: ContainerInfo) async {
         let operation = DockerOperation.container(action: action, targetID: container.id)
         await execute(operation, label: String(format: L("%@容器"), action.label)) { session, sudo in
             try await DockerService.perform(action, id: container.id, on: session, sudo: sudo)
         }
     }
 
-    func removeImage(_ image: ImageInfo) async {
+    private func removeImageConfirmed(_ image: ImageInfo) async {
         await execute(.removeImage(targetID: image.id), label: L("删除镜像")) { session, sudo in
             try await DockerService.removeImage(reference: image.reference, on: session, sudo: sudo)
         }
     }
 
-    func pruneImages() async {
+    private func pruneImagesConfirmed() async {
         await execute(.pruneImages, label: L("清理悬空镜像")) { session, sudo in
             try await DockerService.pruneImages(on: session, sudo: sudo)
         }
@@ -69,7 +77,7 @@ final class DockerOperationsModel {
         }
     }
 
-    func removeVolume(name: String) async {
+    private func removeVolumeConfirmed(name: String) async {
         await execute(.removeVolume, label: L("删除卷")) { session, sudo in
             try await DockerService.removeVolume(name: name, on: session, sudo: sudo)
         }
@@ -85,13 +93,13 @@ final class DockerOperationsModel {
         }
     }
 
-    func removeNetwork(name: String) async {
+    private func removeNetworkConfirmed(name: String) async {
         await execute(.removeNetwork, label: L("删除网络")) { session, sudo in
             try await DockerService.removeNetwork(name: name, on: session, sudo: sudo)
         }
     }
 
-    func systemPrune(_ options: DockerSystemPruneOptions) async {
+    private func systemPruneConfirmed(_ options: DockerSystemPruneOptions) async {
         await execute(.systemPrune, label: L("清理 Docker 资源")) { session, sudo in
             try await DockerService.systemPrune(options, on: session, sudo: sudo)
         }
@@ -167,12 +175,12 @@ final class DockerOperationsModel {
         }
         pendingDestructiveAction = nil
         switch action {
-        case let .removeContainer(container): await perform(.remove, on: container)
-        case let .removeImage(image): await removeImage(image)
-        case let .removeVolume(volume): await removeVolume(name: volume.name)
-        case let .removeNetwork(network): await removeNetwork(name: network.name)
-        case .pruneImages: await pruneImages()
-        case let .systemPrune(options): await systemPrune(options)
+        case let .removeContainer(container): await performConfirmed(.remove, on: container)
+        case let .removeImage(image): await removeImageConfirmed(image)
+        case let .removeVolume(volume): await removeVolumeConfirmed(name: volume.name)
+        case let .removeNetwork(network): await removeNetworkConfirmed(name: network.name)
+        case .pruneImages: await pruneImagesConfirmed()
+        case let .systemPrune(options): await systemPruneConfirmed(options)
         }
         return true
     }

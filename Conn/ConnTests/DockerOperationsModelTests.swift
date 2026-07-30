@@ -49,8 +49,10 @@ struct DockerOperationsModelTests {
         let operations = DockerOperationsModel(context: context, hostUUID: "host-1", runHistory: history)
         let image = ImageInfo(imageID: "i1", repository: "registry/app", tag: "1", size: "1MB", created: "now")
 
-        await operations.removeImage(image)
+        operations.requestDestructiveAction(.removeImage(image))
+        let confirmed = await operations.confirmPendingAction(confirmation: image.displayName)
 
+        #expect(confirmed)
         #expect(refreshes == [.images])
         let entry = history.entries.first
         #expect(entry?.state == .known)
@@ -68,8 +70,10 @@ struct DockerOperationsModelTests {
         let operations = DockerOperationsModel(context: context, hostUUID: "host-1", runHistory: history)
         let image = ImageInfo(imageID: "i1", repository: "app", tag: "1", size: "1MB", created: "now")
 
-        await operations.removeImage(image)
+        operations.requestDestructiveAction(.removeImage(image))
+        let confirmed = await operations.confirmPendingAction(confirmation: image.displayName)
 
+        #expect(confirmed)
         #expect(refreshes.isEmpty)
         let entry = history.entries.first
         #expect(entry?.state == .unknown)
@@ -120,9 +124,10 @@ struct DockerOperationsModelTests {
         )
         let action = DockerPendingAction.removeContainer(container)
 
-        #expect(action.confirmationWord == "DELETE")
-        #expect(!action.accepts(confirmation: "delete"))
-        #expect(action.accepts(confirmation: "DELETE"))
+        #expect(action.confirmationWord == container.name)
+        #expect(!action.accepts(confirmation: "DELETE"))
+        #expect(action.accepts(confirmation: container.name))
+        #expect(DockerPendingAction.pruneImages.confirmationWord == "PRUNE")
     }
 
     @Test("拉取逐块交付输出，以相同 UUID 写入已知非零结果")
@@ -175,6 +180,92 @@ struct DockerOperationsModelTests {
         await operations.pullImage(reference: "registry.example/app:1") { _ in }
 
         #expect(!session.didStart)
+    }
+
+    @Test("镜像删除拒绝错误确认，并只在资源名精确匹配时执行一次")
+    func imageRemovalRequiresExactResourceConfirmation() async {
+        let session = OperationSession()
+        let history = RecordingHistory()
+        let context = makeContext(session: { session })
+        let operations = DockerOperationsModel(context: context, hostUUID: "host-1", runHistory: history)
+        let images = DockerImagesModel(context: context, operations: operations)
+        let image = ImageInfo(imageID: "i1", repository: "registry/app", tag: "1", size: "1MB", created: "now")
+
+        images.requestRemoval(image)
+        let wrong = await operations.confirmPendingAction(confirmation: "registry/app")
+
+        #expect(!wrong)
+        #expect(session.executionCount == 0)
+        #expect(operations.pendingDestructiveAction == .removeImage(image))
+
+        let exact = await operations.confirmPendingAction(confirmation: image.displayName)
+
+        #expect(exact)
+        #expect(session.executionCount == 1)
+        #expect(operations.pendingDestructiveAction == nil)
+    }
+
+    @Test("容器删除入口在空确认时不执行，并仅在名称精确匹配后执行")
+    func containerRemovalStagesUntilExactResourceConfirmation() async {
+        let session = OperationSession()
+        let history = RecordingHistory()
+        let context = makeContext(session: { session })
+        let operations = DockerOperationsModel(context: context, hostUUID: "host-1", runHistory: history)
+        let containers = DockerContainersModel(context: context, operations: operations)
+        let container = ContainerInfo(
+            id: "c1", name: "api", image: "registry/app:1", state: .running, status: "Up", ports: ""
+        )
+
+        await containers.perform(.remove, on: container)
+
+        #expect(operations.pendingDestructiveAction == .removeContainer(container))
+        #expect(session.executionCount == 0)
+        let empty = await operations.confirmPendingAction(confirmation: "")
+        #expect(!empty)
+        #expect(session.executionCount == 0)
+
+        let exact = await operations.confirmPendingAction(confirmation: container.name)
+        #expect(exact)
+        #expect(session.executionCount == 1)
+    }
+
+    @Test("镜像清理只暂存，PRUNE 确认后才执行一次")
+    func imagePruneStagesUntilPRUNEConfirmation() async {
+        let session = OperationSession()
+        let history = RecordingHistory()
+        let context = makeContext(session: { session })
+        let operations = DockerOperationsModel(context: context, hostUUID: "host-1", runHistory: history)
+        let images = DockerImagesModel(context: context, operations: operations)
+
+        await images.prune()
+
+        #expect(operations.pendingDestructiveAction == .pruneImages)
+        #expect(session.executionCount == 0)
+        let wrong = await operations.confirmPendingAction(confirmation: "prune")
+        #expect(!wrong)
+        #expect(session.executionCount == 0)
+
+        let confirmed = await operations.confirmPendingAction(confirmation: "PRUNE")
+        #expect(confirmed)
+        #expect(session.executionCount == 1)
+    }
+
+    @Test("修改系统清理选项会替换待确认动作和确认词状态")
+    func changingPruneOptionsReplacesPendingConfirmation() {
+        let session = OperationSession()
+        let operations = DockerOperationsModel(
+            context: makeContext(session: { session }), hostUUID: "host-1", runHistory: RecordingHistory()
+        )
+        let initial = DockerSystemPruneOptions()
+        let changed = DockerSystemPruneOptions(allUnusedImages: true, includeVolumes: true)
+
+        operations.requestDestructiveAction(.systemPrune(initial))
+        let first = operations.pendingDestructiveAction
+        operations.requestDestructiveAction(.systemPrune(changed))
+
+        #expect(first == .systemPrune(initial))
+        #expect(operations.pendingDestructiveAction == .systemPrune(changed))
+        #expect(operations.pendingDestructiveAction?.confirmationWord == "PRUNE")
     }
 
     private func makeContext(
@@ -321,6 +412,7 @@ private final class OperationSession: SSHSession, @unchecked Sendable {
     }
 
     var didExecute: Bool { lock.withLock { executeCount > 0 } }
+    var executionCount: Int { lock.withLock { executeCount } }
 
     func execStream(_ command: String) async throws -> AsyncThrowingStream<Data, Error> {
         AsyncThrowingStream { $0.finish() }

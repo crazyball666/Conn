@@ -171,7 +171,28 @@ enum DockerPendingAction: Sendable, Equatable {
     case pruneImages
     case systemPrune(DockerSystemPruneOptions)
 
-    var confirmationWord: String { "DELETE" }
+    /// 删除必须逐字输入资源名；清理类操作固定输入 PRUNE。资源名而非通用 DELETE
+    /// 让用户在确认时再看一眼目标，且不同 prune 选项替换 pending action 时 UI 会重置输入。
+    var confirmationWord: String {
+        switch self {
+        case let .removeContainer(container): container.name
+        case let .removeImage(image): image.displayName
+        case let .removeVolume(volume): volume.name
+        case let .removeNetwork(network): network.name
+        case .pruneImages, .systemPrune: "PRUNE"
+        }
+    }
+
+    var confirmationButtonTitle: String {
+        switch self {
+        case .removeContainer, .removeImage, .removeVolume, .removeNetwork: L("删除")
+        case .pruneImages, .systemPrune: L("清理")
+        }
+    }
+
+    var confirmationMessage: String {
+        String(format: L("请输入 %@ 以继续。"), confirmationWord)
+    }
 
     func accepts(confirmation: String) -> Bool {
         confirmation == confirmationWord
