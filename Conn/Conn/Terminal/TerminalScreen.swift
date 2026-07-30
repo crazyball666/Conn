@@ -15,6 +15,8 @@ struct TerminalScreen: View {
 
     @State private var phase: Phase = .connecting
     @Environment(SettingsStore.self) private var settings
+    /// fullScreenCover 没有下滑手势也没有返回键，关闭按钮是唯一出口。
+    @Environment(\.dismiss) private var dismiss
 
     init(host: Host, connectionManager: ConnectionManager, autoCommand: String? = nil) {
         self.host = host
@@ -35,8 +37,32 @@ struct TerminalScreen: View {
     }
 
     var body: some View {
+        // 六个调用点都改成了 `.fullScreenCover`（没有系统返回键/下滑手势），
+        // 所以这层导航栈与关闭按钮自己包在 `TerminalScreen` 内部，调用方无需关心。
+        // 唯一例外是 `ConnApp` 的 `CONN_SMOKE_TERMINAL` 冒烟入口——它把本视图直接当
+        // 根视图用，不会再套一层 `NavigationStack`，避免嵌两层导航栈。
+        NavigationStack {
+            terminalContent
+                .navigationTitle(host.name)
+                .navigationBarTitleDisplayMode(.inline)
+                // 终端背景是深色，nav bar 透明露出底色，强制 dark scheme 让标题/返回箭头
+                // 按深色模式渲染（浅色字），否则会出现「黑字黑底看不见」。
+                .toolbarBackground(.hidden, for: .navigationBar)
+                .toolbarColorScheme(.dark, for: .navigationBar)
+                .toolbar {
+                    ToolbarItem(placement: .topBarTrailing) { closeButton }
+                }
+        }
+        // 上面的 toolbarColorScheme 只管导航栏。状态栏不是 toolbar——时间 / 信号 /
+        // 电量跟的是 `preferredColorScheme`，App 在浅色模式时它们被画成黑字，压在
+        // 深色终端上几乎看不见。全部 8 个终端主题背景都是深色（#07090F～#2E3440），
+        // 所以这里无条件强制深色是安全的。
+        .preferredColorScheme(.dark)
+    }
+
+    private var terminalContent: some View {
         let configuration = settings.terminalConfiguration
-        ZStack {
+        return ZStack {
             color(configuration.theme.background).ignoresSafeArea()
             switch phase {
             case .connecting:
@@ -47,24 +73,23 @@ struct TerminalScreen: View {
                     // SwiftTerm 随即重算行数并触发 `sizeChanged` → `session.resize`，
                     // 也就是真的给远端发一次 SIGWINCH，收键盘时再发一次。对 vim /
                     // tmux 这类全屏程序，这两次尺寸变化会直接打乱它们的布局。
-                    // 改为终端保持全高、键盘盖住下半部分——远端全程无感。
+                    // 改为终端保持全高、键盘盖住下半部分——远端全程无感（键盘挡住的部分
+                    // 靠 `KeybarTerminalView` 自己加的 `contentInset` 补偿，见该文件）。
                     .ignoresSafeArea([.container, .keyboard], edges: .bottom)
             case let .failed(message):
                 failure(message)
             }
         }
-        .navigationTitle(host.name)
-        .navigationBarTitleDisplayMode(.inline)
-        // 终端背景是深色，nav bar 透明露出底色，强制 dark scheme 让标题/返回箭头
-        // 按深色模式渲染（浅色字），否则会出现「黑字黑底看不见」。
-        .toolbarBackground(.hidden, for: .navigationBar)
-        .toolbarColorScheme(.dark, for: .navigationBar)
-        // 上面那行**只管导航栏**。状态栏不是 toolbar——时间 / 信号 / 电量跟的是
-        // `preferredColorScheme`，App 在浅色模式时它们被画成黑字，压在深色终端上
-        // 几乎看不见。全部 8 个终端主题背景都是深色（#07090F～#2E3440），
-        // 所以这里无条件强制深色是安全的。
-        .preferredColorScheme(.dark)
         .task { await connect() }
+    }
+
+    private var closeButton: some View {
+        Button {
+            dismiss()
+        } label: {
+            Image(systemName: "xmark")
+        }
+        .accessibilityLabel(L("关闭"))
     }
 
     private func color(_ rgb: TerminalTheme.RGB) -> Color {

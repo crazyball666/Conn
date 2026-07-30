@@ -15,17 +15,19 @@ struct ContainerDetailView: View {
     @State private var loading = true
     @State private var route: Route?
     @State private var showRemoveConfirm = false
+    /// 控制台单独拆出来走 `.fullScreenCover`——不需要额外数据（host/container 本页
+    /// 自己就有），一个 Bool 比再造一个 Identifiable 包装类型更直接。
+    @State private var showConsole = false
 
-    /// 本页自己的下一跳（日志/控制台/挂载卷详情/网络详情）——挂载与网络行的跳转
+    /// 本页自己的下一跳（日志/挂载卷详情/网络详情）——挂载与网络行的跳转
     /// 落在这里而不是回调给 `DockerView`，理由见文件顶部导航栈说明。
     enum Route: Hashable, Identifiable {
-        case logs, console
+        case logs
         case volumeDetail(VolumeInfo), networkDetail(NetworkInfo)
 
         var id: String {
             switch self {
             case .logs: "logs"
-            case .console: "console"
             case let .volumeDetail(volume): "volume-\(volume.name)"
             case let .networkDetail(network): "network-\(network.id)"
             }
@@ -69,6 +71,12 @@ struct ContainerDetailView: View {
         .task { await viewModel.volumes.loadIfNeeded() }
         .task { await viewModel.networks.loadIfNeeded() }
         .navigationDestination(item: $route, destination: routeDestination)
+        .fullScreenCover(isPresented: $showConsole) {
+            TerminalScreen(
+                host: host, connectionManager: dependencies.connectionManager,
+                autoCommand: viewModel.containers.consoleCommand(for: container)
+            )
+        }
         .alert(L("删除容器"), isPresented: $showRemoveConfirm) {
             Button(L("删除容器"), role: .destructive) {
                 Task { await viewModel.containers.perform(.remove, on: container); dismiss() }
@@ -104,7 +112,7 @@ struct ContainerDetailView: View {
                 actionButton(L("停止"), "stop.circle") { perform(.stop) }
                 actionButton(L("重启"), "arrow.clockwise.circle") { perform(.restart) }
                 if isRunning {
-                    actionButton(L("控制台"), "terminal") { route = .console }
+                    actionButton(L("控制台"), "terminal") { showConsole = true }
                 }
             } else {
                 actionButton(L("启动"), "play.circle") { perform(.start) }
@@ -259,11 +267,6 @@ struct ContainerDetailView: View {
                     subtitle: container.image, kind: .container(id: container.id, name: container.name)
                 ),
                 sudo: viewModel.usesSudo
-            )
-        case .console:
-            TerminalScreen(
-                host: host, connectionManager: dependencies.connectionManager,
-                autoCommand: viewModel.containers.consoleCommand(for: container)
             )
         case let .volumeDetail(volume):
             VolumeDetailView(

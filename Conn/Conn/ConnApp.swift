@@ -56,16 +56,16 @@ struct ConnApp: App {
             if ProcessInfo.processInfo.environment["CONN_SMOKE_DIAGNOSTICS"] != nil {
                 DiagnosticsSmokeView(transport: dependencies.diagnosticsTransport)
             } else if ProcessInfo.processInfo.environment["CONN_SMOKE_TERMINAL"] != nil {
-                NavigationStack {
-                    TerminalScreen(
-                        host: Host(name: "spike-ubuntu24", address: "127.0.0.1", username: "deploy", port: 2202),
-                        // 冒烟专用：固定密码 resolver（正常路径走 Keychain）
-                        connectionManager: ConnectionManager(
-                            transport: dependencies.diagnosticsTransport
-                        ) { _ in .password("conntest123") },
-                        autoCommand: "echo '中文渲染测试 你好世界 café 日本語 🚀 制表符'; ls /"
-                    )
-                }
+                // `TerminalScreen` 现在自己包了一层 `NavigationStack`（配合 6 个调用点
+                // 都改成 `.fullScreenCover`），这里不再外包一层，否则嵌两层导航栈。
+                TerminalScreen(
+                    host: Host(name: "spike-ubuntu24", address: "127.0.0.1", username: "deploy", port: 2202),
+                    // 冒烟专用：固定密码 resolver（正常路径走 Keychain）
+                    connectionManager: ConnectionManager(
+                        transport: dependencies.diagnosticsTransport
+                    ) { _ in .password("conntest123") },
+                    autoCommand: "echo '中文渲染测试 你好世界 café 日本語 🚀 制表符'; ls /"
+                )
             } else if ProcessInfo.processInfo.environment["CONN_SMOKE_DETAIL"] != nil,
                       let host = smokeDetailHost() {
                 NavigationStack {

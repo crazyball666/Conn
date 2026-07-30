@@ -17,6 +17,8 @@ struct HostDetailView: View {
     @State private var fileVM: FileBrowserViewModel
     @State private var dockerVM: DockerViewModel
     @State private var logVM: LogCenterViewModel
+    /// 导航栏终端入口的呈现态——终端走 `.fullScreenCover`，不再是 push。
+    @State private var showTerminal = false
 
     init(host: Host, dependencies: AppDependencies, initialSegment: Segment = .overview) {
         self.host = host
@@ -51,14 +53,17 @@ struct HostDetailView: View {
         .toolbar { terminalToolbarItem }
         .onAppear { monitorVM.appear() }
         .onDisappear { monitorVM.disappear() }
+        .fullScreenCover(isPresented: $showTerminal) {
+            TerminalScreen(host: host, dependencies: dependencies)
+        }
     }
 
-    /// 终端入口：导航栏右上角图标，直接推入终端会话（无中间落地页）。
+    /// 终端入口：导航栏右上角图标，弹出终端会话（无中间落地页）。
     @ToolbarContentBuilder
     private var terminalToolbarItem: some ToolbarContent {
         ToolbarItem(placement: .topBarTrailing) {
-            NavigationLink {
-                TerminalScreen(host: host, dependencies: dependencies)
+            Button {
+                showTerminal = true
             } label: {
                 Image(systemName: "terminal")
                     .font(.system(size: 17, weight: .semibold))

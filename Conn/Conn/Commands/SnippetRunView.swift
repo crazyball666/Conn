@@ -11,9 +11,12 @@ struct SnippetRunView: View {
     @Environment(\.dismiss) private var dismiss
 
     private enum Mode { case silent, terminal }
-    private struct TerminalRoute: Hashable {
+    /// 终端弹层的呈现数据。`.fullScreenCover(item:)` 要求 `Identifiable`——
+    /// `host.id` 和命令拼起来保证同一主机不同命令也不会撞 id。
+    private struct TerminalRoute: Hashable, Identifiable {
         let host: Host
         let command: String
+        var id: String { "\(host.id)#\(command)" }
     }
 
     @State private var hosts: [Host] = []
@@ -45,7 +48,7 @@ struct SnippetRunView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .topBarTrailing) { Button(L("完成")) { dismiss() } } }
             .task { loadHosts() }
-            .navigationDestination(item: $terminalRoute) { route in
+            .fullScreenCover(item: $terminalRoute) { route in
                 TerminalScreen(
                     host: route.host,
                     connectionManager: dependencies.connectionManager,
