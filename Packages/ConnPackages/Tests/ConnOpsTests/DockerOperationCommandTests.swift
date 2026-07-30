@@ -84,6 +84,14 @@ struct DockerOperationCommandTests {
         #expect(errors == [.conflictingOtherOptionToken("--name=override")])
     }
 
+    @Test("run 草稿拒绝附值形式的冲突短选项")
+    func rejectsAttachedValueShortOptions() {
+        let conflicts = ["-p8080:80", "-eKEY=value", "-vhost:/dst"]
+        let errors = DockerRunDraft(image: "nginx", otherOptionTokens: conflicts).validate()
+
+        #expect(errors == conflicts.map(ValidationError.conflictingOtherOptionToken))
+    }
+
     @Test("run 草稿允许未冲突的高级选项和任意启动命令 token")
     func allowsAdvancedOptionsAndCommandTokens() {
         let draft = DockerRunDraft(

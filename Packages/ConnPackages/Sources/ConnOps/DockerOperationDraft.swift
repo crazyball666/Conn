@@ -238,8 +238,16 @@ public struct DockerRunDraft: Equatable, Sendable {
             "--name", "--network", "--restart", "--detach", "-d",
             "--publish", "-p", "--env", "-e", "--volume", "-v", "--mount",
         ]
-        return structuredOptions.contains { option in
+        if structuredOptions.contains(where: { option in
             token == option || token.hasPrefix(option + "=")
+        }) {
+            return true
+        }
+
+        // Docker accepts values attached to these short flags (`-p8080:80` etc.).
+        // `-dfoo` does not attach a value: Docker parses it as an invalid shorthand cluster.
+        return ["-p", "-e", "-v"].contains { option in
+            token.hasPrefix(option) && token.count > option.count
         }
     }
 }
