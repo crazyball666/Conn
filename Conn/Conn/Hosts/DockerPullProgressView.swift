@@ -38,7 +38,7 @@ struct DockerPullProgressView: View {
         }
         .padding(ConnSpacing.page)
         .background(Color.connBg.ignoresSafeArea())
-        .interactiveDismissDisabled(operations.isPullActive)
+        .interactiveDismissDisabled(true)
         .accessibilityIdentifier("docker-pull-progress")
     }
 

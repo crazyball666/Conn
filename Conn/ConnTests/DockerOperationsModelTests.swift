@@ -323,6 +323,11 @@ struct DockerOperationsModelTests {
         invalid.ports = [DockerPortRow(hostPort: "0", containerPort: "80")]
         #expect(!invalid.isValid)
 
+        var networkAlias = DockerRunFormState()
+        networkAlias.image = "nginx"
+        networkAlias.otherOptions = [DockerTokenRow(value: "--net=host")]
+        #expect(!networkAlias.isValid)
+
         let risky = DockerRunDraft(
             image: "docker:dind", network: "host",
             mounts: [
@@ -334,7 +339,7 @@ struct DockerOperationsModelTests {
         #expect(Set(DockerRunRiskDetector.detect(risky)) == [.privileged, .hostNetwork, .dockerSocket, .rootBind])
     }
 
-    @Test("活动 pull 拒绝关闭，终态才允许完成关闭")
+    @Test("pull 仅受控关闭：活动拒绝、终态由完成动作关闭")
     func activePullCannotDismissUntilTerminalResult() async {
         let gate = OperationGate()
         let session = GatedPullSession(gate: gate)

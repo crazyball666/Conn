@@ -235,7 +235,7 @@ public struct DockerRunDraft: Equatable, Sendable {
         }
 
         let structuredOptions = [
-            "--name", "--network", "--restart", "--detach", "-d",
+            "--name", "--network", "--net", "--restart", "--detach", "-d",
             "--publish", "-p", "--env", "-e", "--volume", "-v", "--mount",
         ]
         if structuredOptions.contains(where: { option in

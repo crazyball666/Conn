@@ -77,6 +77,21 @@ struct DockerOperationCommandTests {
         }
     }
 
+    @Test("run 草稿拒绝 --net 网络别名，不能绕开结构化网络复核")
+    func rejectsNetworkAliasOverrides() {
+        let equalsSyntax = DockerRunDraft(
+            image: "nginx",
+            otherOptionTokens: ["--net=host"]
+        )
+        let separateSyntax = DockerRunDraft(
+            image: "nginx",
+            otherOptionTokens: ["--net", "host"]
+        )
+
+        #expect(equalsSyntax.validate() == [.conflictingOtherOptionToken("--net=host")])
+        #expect(separateSyntax.validate() == [.conflictingOtherOptionToken("--net")])
+    }
+
     @Test("run 草稿拒绝等号形式的名称覆盖")
     func rejectsEqualsFormNameOverride() {
         let errors = DockerRunDraft(image: "nginx", otherOptionTokens: ["--name=override"]).validate()
