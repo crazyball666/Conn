@@ -52,8 +52,16 @@ struct DockerPullProgressView: View {
     }
 
     private var resultTitle: String {
-        guard let result = operations.pullPresentation?.result else { return L("拉取镜像") }
-        return result.isSuccess ? L("拉取完成") : L("拉取结果未知")
+        Self.resultTitle(for: operations.pullPresentation?.result)
+    }
+
+    static func resultTitle(for result: DockerOperationResultState?) -> String {
+        guard let result else { return L("拉取镜像") }
+        if result.isSuccess { return L("拉取完成") }
+        if let exitCode = result.exitCode {
+            return String(format: L("%@ 失败（退出码 %d）"), L("拉取镜像"), exitCode)
+        }
+        return L("拉取结果未知")
     }
 }
 

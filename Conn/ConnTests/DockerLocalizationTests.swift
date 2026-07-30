@@ -41,9 +41,12 @@ struct DockerLocalizationTests {
         }
     }
 
-    @Test("第二期 Docker 文案清单包含端口")
-    func phase2DockerKeyListIncludesPort() {
-        #expect(phase2Keys.contains("端口"))
+    @Test("第二期 Docker 本地化清单覆盖源码中的直接 L 调用")
+    func phase2DockerAllowlistCoversLocalizedCallsInSource() throws {
+        let usedKeys = try sourceLocalizedKeys()
+        let missingKeys = usedKeys.subtracting(phase2Keys)
+
+        #expect(missingKeys.isEmpty, "本地化清单遗漏第二期 Docker 文案：\(missingKeys.sorted())")
     }
 
     @Test("第二期 Docker 演示命令提供成功、已知失败与未知终态夹具")
@@ -142,6 +145,7 @@ struct DockerLocalizationTests {
         "拉取",
         "拉取完成",
         "拉取镜像",
+        "拉取结果未知",
         "挂载",
         "无法保存拉取审计，未开始拉取",
         "有效配置",
@@ -156,6 +160,7 @@ struct DockerLocalizationTests {
         "清理 Docker 资源",
         "清理悬空镜像",
         "清理范围",
+        "默认将移除已停止容器、未使用网络、悬空镜像和构建缓存。",
         "特权容器",
         "环境变量",
         "确认 Docker 操作",
@@ -186,6 +191,32 @@ struct DockerLocalizationTests {
         "高风险配置",
         "；审计未保存"
     ]
+
+    private let phase2DockerSourceFiles = [
+        "Conn/Hosts/DockerDestructiveConfirmationView.swift",
+        "Conn/Hosts/DockerOperationRouting.swift",
+        "Conn/Hosts/DockerOperationTypes.swift",
+        "Conn/Hosts/DockerOperationsModel.swift",
+        "Conn/Hosts/DockerPullProgressView.swift",
+        "Conn/Hosts/DockerResourceFormViews.swift",
+        "Conn/Hosts/DockerRunFormView.swift"
+    ]
+
+    private func sourceLocalizedKeys() throws -> Set<String> {
+        let projectURL = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let expression = try NSRegularExpression(pattern: #"\bL\(\s*\"((?:\\.|[^\"\\])*)\""#)
+
+        return try phase2DockerSourceFiles.reduce(into: Set<String>()) { keys, relativePath in
+            let source = try String(contentsOf: projectURL.appending(path: relativePath), encoding: .utf8)
+            let range = NSRange(source.startIndex..., in: source)
+            for match in expression.matches(in: source, range: range) {
+                guard let capturedRange = Range(match.range(at: 1), in: source) else { continue }
+                keys.insert(String(source[capturedRange]))
+            }
+        }
+    }
 
     private func printfPlaceholders(in string: String) -> [String] {
         guard let expression = try? NSRegularExpression(pattern: #"%(?:\d+\$)?[@d]"#) else { return [] }

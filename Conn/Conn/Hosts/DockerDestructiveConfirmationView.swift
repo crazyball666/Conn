@@ -56,6 +56,8 @@ struct DockerDestructiveConfirmationView: View {
     private func pruneOptions(_ action: DockerPendingAction) -> some View {
         if case let .systemPrune(options) = action {
             Section(L("清理范围")) {
+                Text(L("默认将移除已停止容器、未使用网络、悬空镜像和构建缓存。"))
+                    .foregroundStyle(.connMuted)
                 Toggle(L("移除所有未使用镜像"), isOn: pruneBinding(\.allUnusedImages, options: options))
                 Toggle(L("包含未使用卷"), isOn: pruneBinding(\.includeVolumes, options: options))
             }

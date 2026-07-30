@@ -392,6 +392,16 @@ struct DockerOperationsModelTests {
         #expect(!operations.isPullActive)
     }
 
+    @Test("pull 终态标题区分成功、已知失败与未知结果")
+    func pullTerminalTitlesDistinguishKnownFailureFromUnknownOutcome() {
+        #expect(DockerPullProgressView.resultTitle(for: .known(exitCode: 0)) == L("拉取完成"))
+        #expect(
+            DockerPullProgressView.resultTitle(for: .known(exitCode: 23))
+                == String(format: L("%@ 失败（退出码 %d）"), L("拉取镜像"), 23)
+        )
+        #expect(DockerPullProgressView.resultTitle(for: .unknown) == L("拉取结果未知"))
+    }
+
     private func makeContext(
         session: @escaping () async throws -> any SSHSession,
         refresh: @escaping (DockerRefreshScope) async -> Void = { _ in }

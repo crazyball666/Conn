@@ -385,6 +385,14 @@
         "zh-Hant": { "stringUnit": { "state": "translated", "value": "拉取映像檔" } }
       }
     },
+    "拉取结果未知": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Pull result unknown" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "取得結果は不明です" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "가져오기 결과를 알 수 없음" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "拉取結果未知" } }
+      }
+    },
     "无法保存拉取审计，未开始拉取": {
       "localizations": {
         "en": { "stringUnit": { "state": "translated", "value": "Unable to save pull audit; pull was not started" } },
@@ -479,6 +487,14 @@
         "ja": { "stringUnit": { "state": "translated", "value": "クリーンアップの範囲" } },
         "ko": { "stringUnit": { "state": "translated", "value": "정리 범위" } },
         "zh-Hant": { "stringUnit": { "state": "translated", "value": "清理範圍" } }
+      }
+    },
+    "默认将移除已停止容器、未使用网络、悬空镜像和构建缓存。": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "By default, this removes stopped containers, unused networks, dangling images, and build cache." } },
+        "ja": { "stringUnit": { "state": "translated", "value": "デフォルトでは、停止済みコンテナ、未使用ネットワーク、ダングリングイメージ、ビルドキャッシュを削除します。" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "기본적으로 중지된 컨테이너, 사용하지 않는 네트워크, 댕글링 이미지 및 빌드 캐시를 제거합니다." } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "預設會移除已停止容器、未使用網路、懸空映像檔和建置快取。" } }
       }
     },
     "特权容器": {
