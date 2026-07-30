@@ -68,6 +68,25 @@ struct SSHCommandStreamTests {
         #expect(await calls.count == 1)
     }
 
+    @Test("取消中介会取消 shared result")
+    func cancellationMediatorCancelsSharedResult() async throws {
+        let cancellation = SSHCommandStreamCancellation()
+        let resultTask = Task<ExecResult, Error> {
+            try await Task.sleep(for: .seconds(30))
+            return ExecResult(exitCode: 0, stdout: Data(), stderr: Data())
+        }
+        cancellation.install(resultTask)
+        let stream = SSHCommandStream(output: AsyncThrowingStream { $0.finish() }) {
+            try await resultTask.value
+        }
+
+        cancellation.cancel()
+
+        await #expect(throws: CancellationError.self) {
+            _ = try await stream.result()
+        }
+    }
+
     @Test("流中断后已到达的输出仍可读取")
     func preservesOutputWhenStreamFails() async throws {
         let session = try await session(response: .init(
@@ -126,6 +145,27 @@ struct SSHCommandStreamTests {
         await #expect(throws: CancellationError.self) {
             _ = try await stream.result()
         }
+    }
+
+    @Test("停止显示输出后仍可等待最终结果")
+    func breakingOutputIterationPreservesFinalResult() async throws {
+        let session = try await session(response: .init(
+            streamChunks: [Data("first\n".utf8), Data("second\n".utf8)],
+            streamChunkDelay: .milliseconds(20)
+        ))
+        let stream = try await session.execCommandStream("docker pull bad:tag", timeout: .seconds(30))
+
+        for try await chunk in stream.output {
+            #expect(String(decoding: chunk, as: UTF8.self) == "first\n")
+            break
+        }
+
+        let result = try await stream.result()
+        #expect(result == ExecResult(
+            exitCode: 0,
+            stdout: Data("first\nsecond\n".utf8),
+            stderr: Data()
+        ))
     }
 
     private func collect(_ stream: AsyncThrowingStream<Data, Error>) async throws -> String {

@@ -98,7 +98,9 @@ final class CitadelSession: SSHSession, @unchecked Sendable {
 
     func execCommandStream(_ command: String, timeout: Duration) async throws -> SSHCommandStream {
         let (output, continuation) = AsyncThrowingStream<Data, Error>.makeStream()
-        let resultTask = Task { [self] in
+        let cancellation = SSHCommandStreamCancellation()
+        let resultTask = Task { [cancellation, self] in
+            defer { cancellation.finish() }
             do {
                 let result = try await execRacingTimeout(
                     command: command,
@@ -113,6 +115,10 @@ final class CitadelSession: SSHSession, @unchecked Sendable {
                 continuation.finish(throwing: error)
                 throw error
             }
+        }
+        cancellation.install(resultTask)
+        continuation.onTermination = { [cancellation] _ in
+            cancellation.cancel()
         }
         return SSHCommandStream(output: output) {
             try await resultTask.value
