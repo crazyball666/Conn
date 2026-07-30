@@ -16,9 +16,25 @@ struct ContainerDetailView: View {
     @State private var route: Route?
     @State private var showRemoveConfirm = false
 
+    /// 本页自己的下一跳（日志/控制台/挂载卷详情/网络详情）——挂载与网络行的跳转
+    /// 落在这里而不是回调给 `DockerView`，理由见文件顶部导航栈说明。
     enum Route: Hashable, Identifiable {
         case logs, console
-        var id: String { self == .logs ? "logs" : "console" }
+        case volumeDetail(VolumeInfo), networkDetail(NetworkInfo)
+
+        var id: String {
+            switch self {
+            case .logs: "logs"
+            case .console: "console"
+            case let .volumeDetail(volume): "volume-\(volume.name)"
+            case let .networkDetail(network): "network-\(network.id)"
+            }
+        }
+
+        // VolumeInfo / NetworkInfo（ConnOps 域层）只 Equatable，没有 Hashable，
+        // 编译器无法合成——按上面已算好的 id 手写哈希与相等（与 `DockerView.Route` 同款）。
+        static func == (lhs: Route, rhs: Route) -> Bool { lhs.id == rhs.id }
+        func hash(into hasher: inout Hasher) { hasher.combine(id) }
     }
 
     var body: some View {
@@ -31,8 +47,8 @@ struct ContainerDetailView: View {
                 } else if let detail {
                     summarySection(detail)
                     listSection(L("端口"), detail.ports, icon: "network")
-                    listSection(L("挂载"), detail.mounts, icon: "externaldrive")
-                    listSection(L("网络"), detail.networks, icon: "point.3.connected.trianglepath.dotted")
+                    mountsSection(detail)
+                    networksSection(detail)
                     listSection(L("环境变量"), detail.env, icon: "leaf")
                     commandSection(detail)
                 }
@@ -45,10 +61,17 @@ struct ContainerDetailView: View {
         .navigationTitle(container.name)
         .navigationBarTitleDisplayMode(.inline)
         .task { await loadDetail() }
+        // 挂载/网络行要按名字反查 `viewModel.volumes/networks.items`——这两个模型只在
+        // 各自分段出现过一次才会有数据。用户可能没点过「卷」「网络」分段就直接从
+        // 容器列表点进详情，届时两个列表仍是空的，挂载/网络行会因为查无匹配而
+        // 悄悄退化成不可点。主动 loadIfNeeded 一次（已加载则是空操作）避免这种依赖
+        // 访问顺序的隐性退化。
+        .task { await viewModel.volumes.loadIfNeeded() }
+        .task { await viewModel.networks.loadIfNeeded() }
         .navigationDestination(item: $route, destination: routeDestination)
         .alert(L("删除容器"), isPresented: $showRemoveConfirm) {
             Button(L("删除容器"), role: .destructive) {
-                Task { await viewModel.perform(.remove, on: container); dismiss() }
+                Task { await viewModel.containers.perform(.remove, on: container); dismiss() }
             }
             Button(L("取消"), role: .cancel) {}
         } message: {
@@ -105,14 +128,14 @@ struct ContainerDetailView: View {
             .connSurface(cornerRadius: ConnRadius.card)
         }
         .buttonStyle(.plain)
-        .disabled(viewModel.busyContainerID == container.id)
+        .disabled(viewModel.containers.busyContainerID == container.id)
     }
 
     // MARK: - 概要
 
     private func summarySection(_ detail: ContainerDetail) -> some View {
-        section(L("概要")) {
-            infoRows([
+        DockerDetail.section(L("概要")) {
+            DockerDetail.infoRows([
                 (L("状态"), detail.statusText),
                 (L("镜像"), detail.image),
                 (L("容器 ID"), detail.id),
@@ -125,7 +148,7 @@ struct ContainerDetailView: View {
     }
 
     private func commandSection(_ detail: ContainerDetail) -> some View {
-        section(L("命令")) {
+        DockerDetail.section(L("命令")) {
             Text(detail.command.isEmpty ? "—" : detail.command)
                 .font(.connData(.footnote)).foregroundStyle(.connInk)
                 .textSelection(.enabled)
@@ -138,21 +161,89 @@ struct ContainerDetailView: View {
     @ViewBuilder
     private func listSection(_ title: String, _ items: [String], icon: String) -> some View {
         if !items.isEmpty {
-            section(title) {
+            DockerDetail.section(title) {
                 VStack(alignment: .leading, spacing: 0) {
                     ForEach(Array(items.enumerated()), id: \.offset) { index, item in
                         if index > 0 { Rectangle().fill(Color.connLine).frame(height: 0.5) }
-                        HStack(spacing: ConnSpacing.sm) {
-                            Image(systemName: icon).font(.system(size: 11)).foregroundStyle(.connMuted).frame(width: 16)
-                            Text(item).font(.connData(.caption2)).foregroundStyle(.connInk)
-                                .textSelection(.enabled).lineLimit(2)
-                            Spacer(minLength: 0)
-                        }
-                        .padding(.vertical, ConnSpacing.xs)
+                        listRow(item, icon: icon, chevron: false)
                     }
                 }
             }
         }
+    }
+
+    /// 挂载：逐项对上 `mountSources`——命中卷列表里的真实卷名才可点，绑定挂载
+    /// （来源是宿主机路径）与匿名卷（来源是 Docker 自动生成的 64 位哈希名）都不可点。
+    @ViewBuilder
+    private func mountsSection(_ detail: ContainerDetail) -> some View {
+        if !detail.mounts.isEmpty {
+            DockerDetail.section(L("挂载")) {
+                VStack(alignment: .leading, spacing: 0) {
+                    ForEach(Array(zip(detail.mounts, detail.mountSources).enumerated()), id: \.offset) { index, pair in
+                        if index > 0 { Rectangle().fill(Color.connLine).frame(height: 0.5) }
+                        mountRow(text: pair.0, source: pair.1)
+                    }
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func mountRow(text: String, source: String) -> some View {
+        if isNamedVolumeSource(source), let volume = viewModel.volumes.items.first(where: { $0.name == source }) {
+            Button { route = .volumeDetail(volume) } label: { listRow(text, icon: "externaldrive", chevron: true) }
+                .buttonStyle(.plain)
+        } else {
+            listRow(text, icon: "externaldrive", chevron: false)
+        }
+    }
+
+    /// 匿名卷得名是 Docker 自动生成的 64 位十六进制串——点进去也只会看到同一串哈希
+    /// 当标题，没有辨识度，不给可点；绑定挂载（来源是宿主机路径）本来就不是卷。
+    private func isNamedVolumeSource(_ source: String) -> Bool {
+        !source.hasPrefix("/") && !(source.count == 64 && source.allSatisfy(\.isHexDigit))
+    }
+
+    /// 网络：展示串是 `"name"` 或 `"name · ip"`，按分隔符还原出纯网络名去反查列表。
+    @ViewBuilder
+    private func networksSection(_ detail: ContainerDetail) -> some View {
+        if !detail.networks.isEmpty {
+            DockerDetail.section(L("网络")) {
+                VStack(alignment: .leading, spacing: 0) {
+                    ForEach(Array(detail.networks.enumerated()), id: \.offset) { index, item in
+                        if index > 0 { Rectangle().fill(Color.connLine).frame(height: 0.5) }
+                        networkRow(item)
+                    }
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func networkRow(_ text: String) -> some View {
+        let name = text.components(separatedBy: " · ").first ?? text
+        if let network = viewModel.networks.items.first(where: { $0.name == name }) {
+            Button { route = .networkDetail(network) } label: {
+                listRow(text, icon: "point.3.connected.trianglepath.dotted", chevron: true)
+            }
+            .buttonStyle(.plain)
+        } else {
+            listRow(text, icon: "point.3.connected.trianglepath.dotted", chevron: false)
+        }
+    }
+
+    /// 端口 / 挂载 / 网络 / 环境四段共用的行版式，`chevron` 只在真能跳转时打开。
+    private func listRow(_ text: String, icon: String, chevron: Bool) -> some View {
+        HStack(spacing: ConnSpacing.sm) {
+            Image(systemName: icon).font(.system(size: 11)).foregroundStyle(.connMuted).frame(width: 16)
+            Text(text).font(.connData(.caption2)).foregroundStyle(.connInk)
+                .textSelection(.enabled).lineLimit(2)
+            Spacer(minLength: 0)
+            if chevron {
+                Image(systemName: "chevron.right").font(.system(size: 10)).foregroundStyle(.connMuted)
+            }
+        }
+        .padding(.vertical, ConnSpacing.xs)
     }
 
     // MARK: - 导航目的地
@@ -172,8 +263,15 @@ struct ContainerDetailView: View {
         case .console:
             TerminalScreen(
                 host: host, connectionManager: dependencies.connectionManager,
-                autoCommand: viewModel.consoleCommand(for: container)
+                autoCommand: viewModel.containers.consoleCommand(for: container)
             )
+        case let .volumeDetail(volume):
+            VolumeDetailView(
+                volume: volume, viewModel: viewModel, size: viewModel.diskUsage?.volumeSize(volume.name),
+                host: host, dependencies: dependencies
+            )
+        case let .networkDetail(network):
+            NetworkDetailView(network: network, viewModel: viewModel, host: host, dependencies: dependencies)
         }
     }
 
@@ -181,48 +279,40 @@ struct ContainerDetailView: View {
 
     private func loadDetail() async {
         loading = detail == nil
-        detail = await viewModel.detail(for: container)
+        detail = await viewModel.containers.detail(for: container)
         loading = false
     }
 
     private func perform(_ action: ContainerAction) {
         Task {
-            await viewModel.perform(action, on: container)
+            await viewModel.containers.perform(action, on: container)
             await loadDetail()
         }
     }
 
     // MARK: - 通用块
 
-    private func section(_ title: String, @ViewBuilder content: () -> some View) -> some View {
-        VStack(alignment: .leading, spacing: ConnSpacing.xs) {
-            Text(title).font(.connCaption).foregroundStyle(.connMuted).connEyebrowTracking()
-            VStack(alignment: .leading, spacing: ConnSpacing.sm) {
-                content()
-            }
-            .padding(ConnSpacing.cardPadding)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .connSurface(cornerRadius: ConnRadius.card)
-        }
-    }
-
-    private func infoRows(_ rows: [(String, String)]) -> some View {
-        VStack(spacing: 0) {
-            ForEach(Array(rows.enumerated()), id: \.offset) { index, row in
-                if index > 0 { Rectangle().fill(Color.connLine).frame(height: 0.5) }
-                HStack(spacing: ConnSpacing.sm) {
-                    Text(row.0).font(.connSubheadline).foregroundStyle(.connMuted)
-                    Spacer()
-                    Text(row.1).font(.connData()).connTabularNumbers().foregroundStyle(.connInk)
-                        .lineLimit(1).minimumScaleFactor(0.6).multilineTextAlignment(.trailing)
-                        .textSelection(.enabled)
-                }
-                .padding(.vertical, ConnSpacing.sm)
-            }
-        }
-    }
-
     private var messageBinding: Binding<Bool> {
         Binding(get: { viewModel.actionMessage != nil }, set: { if !$0 { viewModel.actionMessage = nil } })
     }
 }
+
+// 走真实的 DemoOps 演示夹具（web-nginx，Task 4 补了一条指到 web_assets 卷的具名
+// 挂载）——挂载段应有 3 行：2 条绑定挂载不可点，"web_assets" 那条可点；网络段
+// "bridge" 可点。本页不在 brief 明确要求的「三个详情页」之列，但它是本任务改动
+// 最大的既有视图（新增挂载/网络可点），加一个 Preview 成本很低、价值不小。
+#if DEBUG
+#Preview {
+    let host = Host(name: "web-01", address: "10.20.0.11", username: "root")
+    NavigationStack {
+        ContainerDetailView(
+            host: host, dependencies: .demo(),
+            container: ContainerInfo(
+                id: "a1b2c3d4e5f6", name: "web-nginx", image: "nginx:1.25",
+                state: .running, status: "Up 3 days", ports: "0.0.0.0:80->80/tcp"
+            ),
+            viewModel: DockerViewModel(host: host, dependencies: .demo())
+        )
+    }
+}
+#endif

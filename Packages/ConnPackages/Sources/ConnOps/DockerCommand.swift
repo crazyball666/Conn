@@ -44,6 +44,68 @@ public enum DockerCommand {
         prefix(sudo) + "docker image prune -f"
     }
 
+    /// 镜像详情（JSON 数组）。
+    public static func imageInspect(reference: String, sudo: Bool) -> String {
+        prefix(sudo) + "docker image inspect \(reference)"
+    }
+
+    /// 镜像层历史，JSON 每行一个。`--no-trunc` 不加：指令过长在手机上没法读，
+    /// docker 默认的截断正合适。
+    public static func imageHistory(reference: String, sudo: Bool) -> String {
+        prefix(sudo) + "docker history \(reference) --format '{{json .}}'"
+    }
+
+    /// 磁盘占用明细。**这条在镜像/卷多的主机上要数秒**，调用方须单独异步取，
+    /// 不可与列表串在一起。`--format json` 在较老 docker 上不支持，
+    /// 那时输出是表格文本，解析器会返回 nil，上层显示「—」。
+    public static func diskUsage(sudo: Bool) -> String {
+        prefix(sudo) + "docker system df -v --format '{{json .}}'"
+    }
+
+    // MARK: - 卷
+
+    /// 全部卷，JSON 每行一个。
+    public static func volumes(sudo: Bool) -> String {
+        prefix(sudo) + "docker volume ls --format '{{json .}}'"
+    }
+
+    /// 无任何容器引用的卷名。对卷而言 `dangling` 的定义就是「没被引用」，
+    /// 与我们要表达的「未使用」一致，故直接用它而不在客户端比对容器列表。
+    public static func danglingVolumes(sudo: Bool) -> String {
+        prefix(sudo) + "docker volume ls --filter dangling=true -q"
+    }
+
+    /// 卷详情（JSON 数组）。
+    public static func volumeInspect(name: String, sudo: Bool) -> String {
+        prefix(sudo) + "docker volume inspect \(name)"
+    }
+
+    /// 引用某个卷的容器（含已停止的——它引用着就删不掉该卷）。
+    public static func containersUsingVolume(name: String, sudo: Bool) -> String {
+        prefix(sudo) + "docker ps -a --filter volume=\(name) --format '{{json .}}'"
+    }
+
+    // MARK: - 网络
+
+    /// 全部网络，JSON 每行一个。
+    public static func networks(sudo: Bool) -> String {
+        prefix(sudo) + "docker network ls --format '{{json .}}'"
+    }
+
+    /// 无容器接入的网络名。**注意它会包含预置的 bridge / host / none**，
+    /// 打徽标前须用 `NetworkInfo.isPredefined` 滤掉。
+    ///
+    /// 用 `--format '{{.Name}}'` 而非 `-q`：`-q` 给的是网络 ID，而列表项与
+    /// inspect 都以名字为键，取 ID 还要再映射一次。
+    public static func danglingNetworks(sudo: Bool) -> String {
+        prefix(sudo) + "docker network ls --filter dangling=true --format '{{.Name}}'"
+    }
+
+    /// 网络详情（JSON 数组）。
+    public static func networkInspect(name: String, sudo: Bool) -> String {
+        prefix(sudo) + "docker network inspect \(name)"
+    }
+
     /// 跟随容器日志（execStream 用）。合并 stderr。
     public static func logs(id: String, tail: Int = 200, sudo: Bool) -> String {
         prefix(sudo) + "docker logs -f --tail \(tail) \(id) 2>&1"

@@ -108,6 +108,77 @@ public enum DockerService {
         try await session.exec(DockerCommand.pruneImages(sudo: sudo), timeout: pruneTimeout)
     }
 
+    // MARK: - 卷
+
+    public static func listVolumes(on session: any SSHSession, sudo: Bool) async throws -> [VolumeInfo] {
+        let result = try await session.exec(DockerCommand.volumes(sudo: sudo))
+        return DockerParser.parseVolumes(result.stdoutText)
+    }
+
+    public static func danglingVolumeNames(on session: any SSHSession, sudo: Bool) async throws -> Set<String> {
+        let result = try await session.exec(DockerCommand.danglingVolumes(sudo: sudo))
+        return DockerParser.parseNameList(result.stdoutText)
+    }
+
+    public static func volumeDetail(
+        name: String, on session: any SSHSession, sudo: Bool
+    ) async throws -> VolumeDetail? {
+        let result = try await session.exec(DockerCommand.volumeInspect(name: name, sudo: sudo))
+        return DockerParser.parseVolumeInspect(result.stdoutText)
+    }
+
+    /// 引用某卷的容器。含已停止的——它引用着就删不掉该卷。
+    public static func containersUsingVolume(
+        name: String, on session: any SSHSession, sudo: Bool
+    ) async throws -> [ContainerInfo] {
+        let result = try await session.exec(DockerCommand.containersUsingVolume(name: name, sudo: sudo))
+        return DockerParser.parsePS(result.stdoutText)
+    }
+
+    // MARK: - 网络
+
+    public static func listNetworks(on session: any SSHSession, sudo: Bool) async throws -> [NetworkInfo] {
+        let result = try await session.exec(DockerCommand.networks(sudo: sudo))
+        return DockerParser.parseNetworks(result.stdoutText)
+    }
+
+    public static func danglingNetworkNames(on session: any SSHSession, sudo: Bool) async throws -> Set<String> {
+        let result = try await session.exec(DockerCommand.danglingNetworks(sudo: sudo))
+        return DockerParser.parseNameList(result.stdoutText)
+    }
+
+    public static func networkDetail(
+        name: String, on session: any SSHSession, sudo: Bool
+    ) async throws -> NetworkDetail? {
+        let result = try await session.exec(DockerCommand.networkInspect(name: name, sudo: sudo))
+        return DockerParser.parseNetworkInspect(result.stdoutText)
+    }
+
+    // MARK: - 镜像详情
+
+    public static func imageDetail(
+        reference: String, on session: any SSHSession, sudo: Bool
+    ) async throws -> ImageDetail? {
+        let result = try await session.exec(DockerCommand.imageInspect(reference: reference, sudo: sudo))
+        return DockerParser.parseImageInspect(result.stdoutText)
+    }
+
+    public static func imageHistory(
+        reference: String, on session: any SSHSession, sudo: Bool
+    ) async throws -> [ImageLayer] {
+        let result = try await session.exec(DockerCommand.imageHistory(reference: reference, sudo: sudo))
+        return DockerParser.parseImageHistory(result.stdoutText)
+    }
+
+    // MARK: - 磁盘占用
+
+    /// 磁盘占用。**格式不支持时返回 nil 而不抛错**——它只是锦上添花的字段，
+    /// 抛错会让调用方以为整页坏了。
+    public static func diskUsage(on session: any SSHSession, sudo: Bool) async throws -> DockerDiskUsage? {
+        let result = try await session.exec(DockerCommand.diskUsage(sudo: sudo), timeout: .seconds(30))
+        return DockerParser.parseDiskUsage(result.stdoutText)
+    }
+
     /// 跟随容器日志流。
     public static func logStream(
         id: String,
