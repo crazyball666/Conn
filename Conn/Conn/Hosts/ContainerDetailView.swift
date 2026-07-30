@@ -252,6 +252,9 @@ struct ContainerDetailView: View {
             }
         }
         .padding(.vertical, ConnSpacing.xs)
+        // 挂载 / 网络行是可点的（跳卷、网络详情）。Button 的命中区默认只覆盖实际
+        // 绘制的内容，Spacer 与留白不算——不补这句，点行的空白处没有反应。
+        .contentShape(Rectangle())
     }
 
     // MARK: - 导航目的地

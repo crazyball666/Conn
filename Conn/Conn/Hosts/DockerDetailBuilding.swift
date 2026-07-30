@@ -55,6 +55,9 @@ enum DockerDetail {
                 Image(systemName: "chevron.right").font(.system(size: 10)).foregroundStyle(.connMuted)
             }
             .padding(.vertical, ConnSpacing.xs)
+            // Button 的命中区默认只覆盖**实际绘制出来的内容**，HStack 里的 Spacer
+            // 与留白不算在内——不补这句，用户点行的空白处没有任何反应。
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
     }
@@ -100,6 +103,9 @@ enum DockerDetail {
             }
             .padding(ConnSpacing.cardPadding)
             .connSurface(cornerRadius: ConnRadius.card)
+            // Button 的命中区默认只覆盖**实际绘制出来的内容**，Spacer 与留白不算，
+            // 用户点行的空白处会没有反应。整块卡片都该是命中区。
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
     }
