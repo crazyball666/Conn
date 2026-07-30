@@ -29,6 +29,16 @@ public struct ContainerInfo: Identifiable, Sendable, Equatable, Hashable {
     public var isRunning: Bool { state == .running }
     /// 是否处于活动态（运行 / 重启中 / 暂停）——这些都可以被「停止」。
     public var isActive: Bool { state == .running || state == .restarting || state == .paused }
+    /// 内存实际已用值，例如从 `78.5MiB / 2GiB` 提取 `78.5MiB`。
+    public var memUsed: String? {
+        guard let value = memUsage?
+            .split(separator: "/", maxSplits: 1)
+            .first?
+            .trimmingCharacters(in: .whitespaces),
+            !value.isEmpty
+        else { return nil }
+        return value
+    }
 
     public init(
         id: String,

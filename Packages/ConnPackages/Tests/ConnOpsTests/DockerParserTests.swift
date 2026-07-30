@@ -22,6 +22,7 @@ struct DockerParserTests {
         #expect(nginx?.cpuPercent == 1.5)
         #expect(nginx?.memPercent == 3.2)
         #expect(nginx?.memUsage == "12MiB / 2GiB")
+        #expect(nginx?.memUsed == "12MiB")
         #expect(nginx?.netIO == "1.2kB / 3.4kB")
         #expect(nginx?.blockIO == "0B / 8.19kB")
     }

@@ -49,15 +49,13 @@ struct ContainerCard: View {
     private var metrics: some View {
         HStack(alignment: .top, spacing: ConnSpacing.md) {
             percentCell(L("CPU"), value: container.cpuPercent)
-            percentCell(L("内存"), value: container.memPercent)
+            memoryCell
             flowCell(L("网络"), container.netIO)
             flowCell("IO", container.blockIO)
         }
     }
 
-    /// CPU / 内存：标签 + 大百分比 + 细进度条。
-    ///
-    /// 条的颜色走负载色标（低=绿、高=红），与主机卡的环、详情页的每核条统一。
+    /// CPU：标签 + 大百分比 + 细进度条。
     private func percentCell(_ label: String, value: Double?) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             Text(label).font(.connData(.caption2)).foregroundStyle(.connMuted)
@@ -65,6 +63,20 @@ struct ContainerCard: View {
                 .font(.system(size: 17, weight: .semibold, design: .rounded))
                 .connTabularNumbers().foregroundStyle(.connInk)
             ConnLoadBar(percent: value, minWidth: 3)
+                .frame(height: 4)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    /// 内存显示实际已用值，进度条仍按百分比着色和填充。
+    private var memoryCell: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(L("内存")).font(.connData(.caption2)).foregroundStyle(.connMuted)
+            Text(container.memUsed ?? "—")
+                .font(.system(size: 17, weight: .semibold, design: .rounded))
+                .connTabularNumbers().foregroundStyle(.connInk)
+                .lineLimit(1).minimumScaleFactor(0.65)
+            ConnLoadBar(percent: container.memPercent, minWidth: 3)
                 .frame(height: 4)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
