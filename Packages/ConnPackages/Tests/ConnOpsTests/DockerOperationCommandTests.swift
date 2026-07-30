@@ -35,6 +35,19 @@ struct DockerOperationCommandTests {
         #expect(duplicate.validate() == [.duplicateHostPort(hostPort: "8080", protocol: .tcp)])
     }
 
+    @Test("同一宿主端口可映射到不同协议")
+    func allowsSameHostPortForDifferentProtocols() {
+        let draft = DockerRunDraft(
+            image: "nginx",
+            ports: [
+                .init(hostPort: "8080", containerPort: "80", protocol: .tcp),
+                .init(hostPort: "8080", containerPort: "80", protocol: .udp),
+            ]
+        )
+
+        #expect(draft.validate().isEmpty)
+    }
+
     @Test("run 草稿校验环境变量和挂载目标")
     func validatesEnvironmentAndMount() {
         let draft = DockerRunDraft(
@@ -62,6 +75,13 @@ struct DockerOperationCommandTests {
         for token in conflicts {
             #expect(errors.contains(.conflictingOtherOptionToken(token)))
         }
+    }
+
+    @Test("run 草稿拒绝等号形式的名称覆盖")
+    func rejectsEqualsFormNameOverride() {
+        let errors = DockerRunDraft(image: "nginx", otherOptionTokens: ["--name=override"]).validate()
+
+        #expect(errors == [.conflictingOtherOptionToken("--name=override")])
     }
 
     @Test("run 草稿允许未冲突的高级选项和任意启动命令 token")
@@ -117,5 +137,26 @@ struct DockerOperationCommandTests {
                 == "sudo -n docker system prune -f -a --volumes"
         )
         #expect(DockerCommand.systemPrune(.init(), sudo: false) == "docker system prune -f")
+    }
+
+    @Test("构造 bind 挂载并保留只读语义")
+    func buildsBindMountCommands() {
+        let readWrite = DockerRunDraft(
+            image: "busybox:1",
+            mounts: [.init(source: .bind("/srv/data;$(id)"), target: "/container dir")]
+        )
+        let readOnly = DockerRunDraft(
+            image: "busybox",
+            mounts: [.init(source: .bind("/host dir"), target: "/container dir", readOnly: true)]
+        )
+
+        #expect(
+            DockerCommand.run(readWrite, sudo: false)
+                == "docker run --mount 'type=bind,src=/srv/data;$(id),dst=/container dir' 'busybox:1'"
+        )
+        #expect(
+            DockerCommand.run(readOnly, sudo: false)
+                == "docker run --mount 'type=bind,src=/host dir,dst=/container dir,readonly' 'busybox'"
+        )
     }
 }
