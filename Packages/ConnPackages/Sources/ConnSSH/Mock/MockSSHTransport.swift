@@ -172,7 +172,9 @@ final class MockSSHSession: SSHSession, @unchecked Sendable {
             seconds: Self.roundedUpSeconds(timeout)
         )
         let (output, continuation) = AsyncThrowingStream<Data, Error>.makeStream()
-        let resultTask = Task { [response, delay, timeout, timeoutError] in
+        let cancellation = CommandStreamCancellation()
+        let resultTask = Task { [cancellation, response, delay, timeout, timeoutError] in
+            defer { cancellation.finish() }
             do {
                 let result = try await withThrowingTaskGroup(of: ExecResult.self) { group in
                     group.addTask {
@@ -210,6 +212,10 @@ final class MockSSHSession: SSHSession, @unchecked Sendable {
                 continuation.finish(throwing: error)
                 throw error
             }
+        }
+        cancellation.install(resultTask)
+        continuation.onTermination = { [cancellation] _ in
+            cancellation.cancel()
         }
         return SSHCommandStream(output: output) {
             try await resultTask.value
@@ -271,6 +277,36 @@ final class MockSSHSession: SSHSession, @unchecked Sendable {
         let components = duration.components
         let seconds = Int(components.seconds)
         return components.attoseconds > 0 ? max(1, seconds + 1) : max(1, seconds)
+    }
+}
+
+/// 将 output 的终止传给命令任务，并在终止时先断开引用以免形成保留环。
+private final class CommandStreamCancellation: @unchecked Sendable {
+    private let lock = NSLock()
+    private var task: Task<ExecResult, Error>?
+    private var isFinished = false
+
+    func install(_ task: Task<ExecResult, Error>) {
+        lock.withLock {
+            guard !isFinished else { return }
+            self.task = task
+        }
+    }
+
+    func cancel() {
+        let task = lock.withLock {
+            isFinished = true
+            defer { self.task = nil }
+            return self.task
+        }
+        task?.cancel()
+    }
+
+    func finish() {
+        lock.withLock {
+            isFinished = true
+            task = nil
+        }
     }
 }
 

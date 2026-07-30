@@ -51,6 +51,23 @@ struct SSHCommandStreamTests {
         #expect(second == first)
     }
 
+    @Test("公共结果闭包只执行一次")
+    func invokesPublicResultClosureOnlyOnce() async throws {
+        let calls = ResultCallCounter()
+        let expected = ExecResult(exitCode: 0, stdout: Data("done".utf8), stderr: Data())
+        let stream = SSHCommandStream(output: AsyncThrowingStream { $0.finish() }) {
+            await calls.increment()
+            return expected
+        }
+
+        let first = try await stream.result()
+        let second = try await stream.result()
+
+        #expect(first == expected)
+        #expect(second == expected)
+        #expect(await calls.count == 1)
+    }
+
     @Test("流中断后已到达的输出仍可读取")
     func preservesOutputWhenStreamFails() async throws {
         let session = try await session(response: .init(
@@ -85,6 +102,32 @@ struct SSHCommandStreamTests {
         }
     }
 
+    @Test("fallback 输出读取被取消会取消后台生产者")
+    func cancellingFallbackOutputCancelsProducer() async throws {
+        let session = try await session(response: .init(
+            streamChunks: nil,
+            streamChunkDelay: .seconds(1),
+            stdout: "first\nsecond\n"
+        ))
+        let stream = try await session.execCommandStream("docker pull bad:tag", timeout: .seconds(30))
+        let firstChunk = FirstChunkLatch()
+        let reader = Task {
+            do {
+                for try await _ in stream.output {
+                    await firstChunk.receive()
+                }
+            } catch {}
+        }
+
+        await firstChunk.wait()
+        reader.cancel()
+        await reader.value
+
+        await #expect(throws: CancellationError.self) {
+            _ = try await stream.result()
+        }
+    }
+
     private func collect(_ stream: AsyncThrowingStream<Data, Error>) async throws -> String {
         var output = Data()
         for try await chunk in stream {
@@ -105,5 +148,31 @@ struct SSHCommandStreamTests {
         } catch {
             return (String(decoding: output, as: UTF8.self), error)
         }
+    }
+}
+
+private actor ResultCallCounter {
+    private var calls = 0
+
+    var count: Int { calls }
+
+    func increment() {
+        calls += 1
+    }
+}
+
+private actor FirstChunkLatch {
+    private var received = false
+    private var waiting: CheckedContinuation<Void, Never>?
+
+    func receive() {
+        received = true
+        waiting?.resume()
+        waiting = nil
+    }
+
+    func wait() async {
+        if received { return }
+        await withCheckedContinuation { waiting = $0 }
     }
 }
