@@ -57,7 +57,7 @@
 | `Conn/ConnTests/DockerLocalizationTests.swift` | 第二期新增 key 的五语与 format 占位符完整性检查。 |
 
 现有 `SSHSession` 测试替身也要加 `execCommandStream`：
-`Packages/ConnPackages/Tests/ConnMonitorTests/MonitorSchedulerTestSupport.swift` 与 `Packages/ConnPackages/Tests/ConnSSHTests/ConnectionManagerTests.swift`。
+`Packages/ConnPackages/Tests/ConnMonitorTests/MonitorSchedulerTestSupport.swift`、`Packages/ConnPackages/Tests/ConnSSHTests/ConnectionManagerTests.swift`、`Conn/ConnTests/ServersViewModelTests.swift` 的 `GatedSession`，以及 `Conn/ConnTests/DockerModelsTests.swift` 的 `ScriptedSession`。
 
 ### Task 1: 建立带终态的流式 SSH 命令契约
 
@@ -68,6 +68,8 @@
 - Modify: `Packages/ConnPackages/Sources/ConnSSH/Mock/MockSSHTransport.swift`
 - Modify: `Packages/ConnPackages/Tests/ConnMonitorTests/MonitorSchedulerTestSupport.swift`
 - Modify: `Packages/ConnPackages/Tests/ConnSSHTests/ConnectionManagerTests.swift`
+- Modify: `Conn/ConnTests/ServersViewModelTests.swift`
+- Modify: `Conn/ConnTests/DockerModelsTests.swift`
 - Test: `Packages/ConnPackages/Tests/ConnSSHTests/SSHCommandStreamTests.swift`
 
 - [ ] **Step 1: 写会失败的流协议测试**
@@ -118,7 +120,7 @@
 
   Citadel 内部创建一个只消费一次 `client.executeCommandStream` 的任务：每个 stdout/stderr chunk 同时 append 到累计 `Data` 并 yield 到 `output`；正常结束产出 `ExecResult(exitCode: 0, ...)`；`SSHClient.CommandFailed` 转成非零 `ExecResult` 并正常 finish；其余错误同时 finish stream 并让 result task 抛错。用现有 `execRacingTimeout` 包裹等待任务，超时仍须保留 Citadel 的“远端可能继续运行”语义。
 
-  Mock 的 `CommandResponse` 增加可选 `streamChunks`、`streamFailure`、`streamChunkDelay`，让测试能决定块边界和最终结果；没有专用 chunks 时保持旧 `execStream` 的逐行行为。两个测试替身实现返回空成功 stream，避免无关测试的协议编译错误。
+  Mock 的 `CommandResponse` 增加可选 `streamChunks`、`streamFailure`、`streamChunkDelay`，让测试能决定块边界和最终结果；没有专用 chunks 时保持旧 `execStream` 的逐行行为。四个既有测试替身（`FlakySession`、`CloseRecordingSession`、`GatedSession`、`ScriptedSession`）实现返回确定性空成功 `SSHCommandStream`，避免 package 与 App 的无关测试在协议变更后无法编译。
 
 - [ ] **Step 5: 运行流协议与回归测试**
 
@@ -134,7 +136,8 @@
     Packages/ConnPackages/Sources/ConnSSH/Mock/MockSSHTransport.swift \
     Packages/ConnPackages/Sources/ConnSSHCitadel/CitadelSession.swift \
     Packages/ConnPackages/Tests/ConnSSHTests \
-    Packages/ConnPackages/Tests/ConnMonitorTests/MonitorSchedulerTestSupport.swift
+    Packages/ConnPackages/Tests/ConnMonitorTests/MonitorSchedulerTestSupport.swift \
+    Conn/ConnTests/ServersViewModelTests.swift Conn/ConnTests/DockerModelsTests.swift
   git commit -m "feat(ssh): 流式命令返回最终结果"
   ```
 
