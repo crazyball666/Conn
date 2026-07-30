@@ -13,14 +13,28 @@ import Observation
 final class DockerContainersModel {
     private(set) var items: [ContainerInfo] = []
     /// 正在执行操作的容器 id（禁用该行按钮 + 显示忙碌）。
-    private(set) var busyContainerID: String?
+    var busyContainerID: String? { operations.activeContainerID }
     /// 待确认删除的容器（rm 强确认，方案 §4.4）。
-    var pendingRemoval: ContainerInfo?
+    var pendingRemoval: ContainerInfo? {
+        get {
+            guard case let .removeContainer(container)? = operations.pendingDestructiveAction else { return nil }
+            return container
+        }
+        set {
+            if let newValue {
+                operations.requestDestructiveAction(.removeContainer(newValue))
+            } else if case .removeContainer = operations.pendingDestructiveAction {
+                operations.pendingDestructiveAction = nil
+            }
+        }
+    }
 
     private let context: DockerContext
+    private let operations: DockerOperationsModel
 
-    init(context: DockerContext) {
+    init(context: DockerContext, operations: DockerOperationsModel) {
         self.context = context
+        self.operations = operations
     }
 
     /// - Parameter session: 外壳做完可用性探测后已经取到的会话，传进来复用，
@@ -55,31 +69,18 @@ final class DockerContainersModel {
     }
 
     func perform(_ action: ContainerAction, on container: ContainerInfo) async {
-        busyContainerID = container.id
-        defer { busyContainerID = nil }
-        do {
-            let result = try await DockerService.perform(
-                action, id: container.id, on: context.session(), sudo: context.sudo
-            )
-            context.audit("docker \(action.verb) \(container.name)", result)
-            let detail = result.stderrText.isEmpty ? result.stdoutText : result.stderrText
-            context.report(result.isSuccess
-                ? String(format: L("%@ %@ 成功"), action.label, container.name)
-                : String(format: L("%@ %@ 失败：%@"), action.label, container.name, detail))
-            await refresh()
-        } catch {
-            context.report(String(format: L("%@ 失败：%@"), action.label, error.friendlyDiagnosis))
-        }
+        await operations.perform(action, on: container)
     }
 
     func requestRemoval(_ container: ContainerInfo) {
-        pendingRemoval = container
+        operations.requestDestructiveAction(.removeContainer(container))
     }
 
     func confirmRemoval() async {
-        guard let container = pendingRemoval else { return }
-        pendingRemoval = nil
-        await perform(.remove, on: container)
+        guard let action = operations.pendingDestructiveAction,
+              case .removeContainer = action
+        else { return }
+        _ = await operations.confirmPendingAction(confirmation: action.confirmationWord)
     }
 
     /// 容器详情（inspect）——供详情页加载。

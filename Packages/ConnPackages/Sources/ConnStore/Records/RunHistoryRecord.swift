@@ -11,6 +11,7 @@ struct RunHistoryRecord: Codable, FetchableRecord, PersistableRecord, Sendable {
     var command: String
     var exitCode: Int32?
     var outputHead: String?
+    var state: RunHistoryState
     var ranAt: Int64
 
     enum CodingKeys: String, CodingKey {
@@ -18,6 +19,7 @@ struct RunHistoryRecord: Codable, FetchableRecord, PersistableRecord, Sendable {
         case hostUUID = "host_uuid"
         case exitCode = "exit_code"
         case outputHead = "output_head"
+        case state
         case ranAt = "ran_at"
     }
 }
@@ -29,6 +31,7 @@ extension RunHistoryRecord {
         command = entry.command
         exitCode = entry.exitCode
         outputHead = entry.outputHead
+        state = entry.state
         ranAt = entry.ranAt
     }
 
@@ -39,6 +42,7 @@ extension RunHistoryRecord {
             command: command,
             exitCode: exitCode,
             outputHead: outputHead,
+            state: state,
             ranAt: ranAt
         )
     }

@@ -42,7 +42,10 @@ struct RunHistoryView: View {
                 Text(hostNames[entry.hostUUID] ?? L("主机"))
                     .font(.connFootnote).foregroundStyle(.connMuted)
                 Spacer()
-                if let code = entry.exitCode {
+                if entry.state != .known || entry.exitCode == nil {
+                    Text(L("结果未知"))
+                        .font(.connData(.caption2)).foregroundStyle(.connMuted)
+                } else if let code = entry.exitCode {
                     Text("exit \(code)")
                         .font(.connData(.caption2)).connTabularNumbers()
                         .foregroundStyle(entry.isSuccess ? .connGood : .connCrit)

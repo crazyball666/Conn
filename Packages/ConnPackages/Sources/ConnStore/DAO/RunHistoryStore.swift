@@ -14,6 +14,19 @@ public struct RunHistoryStore: RunHistoryRepository {
         try database.writer.write { try RunHistoryRecord(entry).insert($0) }
     }
 
+    public func update(_ entry: RunHistoryEntry) throws {
+        try database.writer.write { try RunHistoryRecord(entry).update($0) }
+    }
+
+    public func recoverPending() throws {
+        try database.writer.write { db in
+            try db.execute(
+                sql: "UPDATE run_history SET state = ?, exit_code = NULL WHERE state = ?",
+                arguments: [RunHistoryState.unknown.rawValue, RunHistoryState.pending.rawValue]
+            )
+        }
+    }
+
     public func recent(hostUUID: String?, limit: Int) throws -> [RunHistoryEntry] {
         try database.writer.read { db in
             let request: QueryInterfaceRequest<RunHistoryRecord>

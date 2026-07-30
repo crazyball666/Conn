@@ -27,7 +27,7 @@ final class DockerViewModel {
     /// 不该让整个页面看起来坏了。
     private(set) var diskUsage: DockerDiskUsage?
 
-    // 下面四个隐式解包可选值并非疏忽：`context` 的 report/audit 闭包要弱引用
+    // 下面五个隐式解包可选值并非疏忽：`context` 的 report/refresh/reprobe 闭包要弱引用
     // 捕获 self，而 `containers`/`images`/`volumes`/`networks` 又是拿 `context`
     // 构造的——它们必须在 init 里互相依赖着赋值，Swift 的两段式初始化要求
     // 在此之前"已经有值"（哪怕是隐式 nil）才允许捕获 self。改成普通 Optional
@@ -40,6 +40,8 @@ final class DockerViewModel {
     private(set) var volumes: DockerVolumesModel!
     // swiftlint:disable:next implicitly_unwrapped_optional
     private(set) var networks: DockerNetworksModel!
+    // swiftlint:disable:next implicitly_unwrapped_optional
+    private(set) var operations: DockerOperationsModel!
 
     private let host: Host
     private let connectionManager: ConnectionManager
@@ -59,11 +61,20 @@ final class DockerViewModel {
             sudo: false,
             isUsable: false,
             report: { [weak self] message in self?.actionMessage = message },
-            audit: { [weak self] command, result in self?.audit(command: command, result: result) },
-            reprobe: { [weak self] in await self?.load() }
+            refresh: { [weak self] scope in
+                guard let self else { return }
+                await self.refreshAfterOperation(scope)
+            },
+            reprobe: { [weak self] in
+                guard let self, !self.operations.isBusy else { return }
+                await self.load()
+            }
         )
-        containers = DockerContainersModel(context: context)
-        images = DockerImagesModel(context: context)
+        operations = DockerOperationsModel(
+            context: context, hostUUID: host.id, runHistory: runHistory
+        )
+        containers = DockerContainersModel(context: context, operations: operations)
+        images = DockerImagesModel(context: context, operations: operations)
         volumes = DockerVolumesModel(context: context)
         networks = DockerNetworksModel(context: context)
     }
@@ -78,6 +89,9 @@ final class DockerViewModel {
     }
 
     func load() async {
+        // 重新探测会改 sudo 上下文并重建各模型；写操作持锁时这么做会让正在执行的
+        // 操作与刷新闭包握着旧模型，故只能等 gate 空闲后再进行。
+        guard !operations.isBusy else { return }
         hasLoaded = true
         loadState = .loading
         do {
@@ -136,8 +150,8 @@ final class DockerViewModel {
         )
     }
 
-    /// 回填 sudo / isUsable 标志——同时会重建全部子模型（`DockerContext` 是
-    /// `struct`，`session` / `report` / `audit` / `reprobe` 均为值闭包，无法就地
+    /// 回填 sudo / isUsable 标志——同时会重建全部子模型和写操作模型（`DockerContext` 是
+    /// `struct`，`session` / `report` / `refresh` / `reprobe` 均为值闭包，无法就地
     /// 改后传播，只能重建持有者）。
     ///
     /// **只能在任何列表加载之前调用**：此刻子模型都还是空列表，重建无损；
@@ -145,20 +159,34 @@ final class DockerViewModel {
     /// 目前唯一调用点在 `load()` 里、紧邻探测之后、`containers.load()` 之前，
     /// 正好满足这个前提。
     private func propagateAvailability(_ probe: DockerAvailability) {
+        guard !operations.isBusy else { return }
         context.sudo = probe.sudo
         context.isUsable = probe.isUsable
-        containers = DockerContainersModel(context: context)
-        images = DockerImagesModel(context: context)
+        operations = DockerOperationsModel(
+            context: context, hostUUID: host.id, runHistory: runHistory
+        )
+        containers = DockerContainersModel(context: context, operations: operations)
+        images = DockerImagesModel(context: context, operations: operations)
         volumes = DockerVolumesModel(context: context)
         networks = DockerNetworksModel(context: context)
     }
 
-    private func audit(command: String, result: ExecResult) {
-        try? runHistory.record(RunHistoryEntry(
-            hostUUID: host.id,
-            command: command,
-            exitCode: result.exitCode,
-            outputHead: String(result.stdoutText.prefix(500))
-        ))
+    /// 已知 Docker 写结果只重拉它实际影响的列表。这里不走 `load()`，避免在操作闸门
+    /// 持有期间触发可用性探测和模型重建；刷新失败保留当前列表，由下一次手动/自动刷新恢复。
+    private func refreshAfterOperation(_ scope: DockerRefreshScope) async {
+        guard context.isUsable else { return }
+        if scope.contains(.containers) {
+            try? await containers.load()
+        }
+        if scope.contains(.images) {
+            await images.load()
+            images.refreshUsage(containers: containers.items)
+        }
+        if scope.contains(.volumes) {
+            await volumes.load()
+        }
+        if scope.contains(.networks) {
+            await networks.load()
+        }
     }
 }

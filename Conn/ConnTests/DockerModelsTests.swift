@@ -22,7 +22,7 @@ struct DockerModelsTests {
     ) -> DockerContext {
         DockerContext(
             session: session, sudo: false, isUsable: isUsable,
-            report: { _ in }, audit: { _, _ in }, reprobe: {}
+            report: { _ in }, refresh: { _ in }, reprobe: {}
         )
     }
 
@@ -63,9 +63,12 @@ struct DockerModelsTests {
         let context = DockerContext(
             session: { flags.sessionRequested = true; throw SSHError.channelClosed },
             sudo: false, isUsable: false,
-            report: { _ in }, audit: { _, _ in }, reprobe: { flags.reprobed = true }
+            report: { _ in }, refresh: { _ in }, reprobe: { flags.reprobed = true }
         )
-        let model = DockerContainersModel(context: context)
+        let operations = DockerOperationsModel(
+            context: context, hostUUID: "h1", runHistory: StubRunHistoryRepository()
+        )
+        let model = DockerContainersModel(context: context, operations: operations)
 
         await model.refresh()
 
@@ -85,7 +88,10 @@ struct DockerModelsTests {
             session: { flags.sessionRequested = true; throw SSHError.channelClosed },
             isUsable: false
         )
-        let model = DockerImagesModel(context: context)
+        let operations = DockerOperationsModel(
+            context: context, hostUUID: "h1", runHistory: StubRunHistoryRepository()
+        )
+        let model = DockerImagesModel(context: context, operations: operations)
 
         await model.load()
 
@@ -236,6 +242,8 @@ private final class StubSSHKeyRepository: SSHKeyRepository, @unchecked Sendable 
 
 private final class StubRunHistoryRepository: RunHistoryRepository, @unchecked Sendable {
     func record(_ entry: RunHistoryEntry) throws {}
+    func update(_ entry: RunHistoryEntry) throws {}
+    func recoverPending() throws {}
     func recent(hostUUID: String?, limit: Int) throws -> [RunHistoryEntry] { [] }
 }
 

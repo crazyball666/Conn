@@ -178,6 +178,10 @@ struct AppDependencies {
 
             let snippetStore = SnippetStore(database: database)
             let snippetGroupStore = SnippetGroupStore(database: database)
+            let runHistoryStore = RunHistoryStore(database: database)
+            // 遗留 pending 表示应用上次在等待流式命令终态时退出；远端是否最终完成
+            // 无法可靠推断，必须在依赖注入前同步转为 unknown，失败则让启动明确失败。
+            try runHistoryStore.recoverPending()
             try importBuiltinSnippetsIfNeeded(snippetStore, snippetGroupStore)
 
             return AppDependencies(
@@ -188,7 +192,7 @@ struct AppDependencies {
                 connectionManager: connectionManager,
                 diagnosticsTransport: transport,
                 monitor: monitor,
-                runHistory: RunHistoryStore(database: database),
+                runHistory: runHistoryStore,
                 snippetRepository: snippetStore,
                 snippetGroupRepository: snippetGroupStore,
                 appLock: AppLockController(
@@ -223,6 +227,8 @@ struct AppDependencies {
             let monitor = MonitorScheduler(connectionManager: connectionManager)
             let snippetStore = SnippetStore(database: database)
             let snippetGroupStore = SnippetGroupStore(database: database)
+            let runHistoryStore = RunHistoryStore(database: database)
+            try runHistoryStore.recoverPending()
             try importBuiltinSnippetsIfNeeded(snippetStore, snippetGroupStore)
 
             return AppDependencies(
@@ -233,7 +239,7 @@ struct AppDependencies {
                 connectionManager: connectionManager,
                 diagnosticsTransport: transport,
                 monitor: monitor,
-                runHistory: RunHistoryStore(database: database),
+                runHistory: runHistoryStore,
                 snippetRepository: snippetStore,
                 snippetGroupRepository: snippetGroupStore,
                 appLock: AppLockController(authenticator: LABiometricAuthenticator(), isEnabled: false)
