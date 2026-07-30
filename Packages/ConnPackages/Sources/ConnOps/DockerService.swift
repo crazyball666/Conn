@@ -34,6 +34,12 @@ public enum DockerService {
     /// 取 2 分钟：够覆盖正常的优雅停机，又不至于让一次误操作把 UI 挂太久。
     private static let writeTimeout: Duration = .seconds(120)
 
+    /// 拉取镜像的超时。
+    ///
+    /// 拉取的镜像层大小和网络状况均不可预知；5 分钟内仍属正常范围。调用方用流式
+    /// 输出展示进度，并在最终 `ExecResult` 到达后判定已知成功或失败。
+    private static let pullTimeout: Duration = .seconds(300)
+
     /// 清理类操作（prune）的超时。
     ///
     /// 比单容器写操作更宽松：`docker image prune -a` 要遍历并删除全部未被引用的镜像层，
@@ -82,6 +88,59 @@ public enum DockerService {
         sudo: Bool
     ) async throws -> ExecResult {
         try await session.exec(DockerCommand.action(action, id: id, sudo: sudo), timeout: writeTimeout)
+    }
+
+    // MARK: - 第二期写操作
+
+    /// 拉取镜像并实时返回远端输出；最终退出结果由流的 `result()` 提供。
+    public static func pullImage(
+        reference: String, on session: any SSHSession, sudo: Bool
+    ) async throws -> SSHCommandStream {
+        try await session.execCommandStream(
+            DockerCommand.pull(reference: reference, sudo: sudo), timeout: pullTimeout
+        )
+    }
+
+    /// 根据已校验的草稿创建容器。
+    public static func runContainer(
+        _ draft: DockerRunDraft, on session: any SSHSession, sudo: Bool
+    ) async throws -> ExecResult {
+        try await session.exec(DockerCommand.run(draft, sudo: sudo), timeout: writeTimeout)
+    }
+
+    /// 创建卷。
+    public static func createVolume(
+        _ draft: DockerVolumeDraft, on session: any SSHSession, sudo: Bool
+    ) async throws -> ExecResult {
+        try await session.exec(DockerCommand.createVolume(draft, sudo: sudo), timeout: writeTimeout)
+    }
+
+    /// 删除卷。
+    public static func removeVolume(
+        name: String, on session: any SSHSession, sudo: Bool
+    ) async throws -> ExecResult {
+        try await session.exec(DockerCommand.removeVolume(name: name, sudo: sudo), timeout: writeTimeout)
+    }
+
+    /// 创建网络。
+    public static func createNetwork(
+        _ draft: DockerNetworkDraft, on session: any SSHSession, sudo: Bool
+    ) async throws -> ExecResult {
+        try await session.exec(DockerCommand.createNetwork(draft, sudo: sudo), timeout: writeTimeout)
+    }
+
+    /// 删除网络。
+    public static func removeNetwork(
+        name: String, on session: any SSHSession, sudo: Bool
+    ) async throws -> ExecResult {
+        try await session.exec(DockerCommand.removeNetwork(name: name, sudo: sudo), timeout: writeTimeout)
+    }
+
+    /// 清理未使用 Docker 资源。
+    public static func systemPrune(
+        _ options: DockerSystemPruneOptions, on session: any SSHSession, sudo: Bool
+    ) async throws -> ExecResult {
+        try await session.exec(DockerCommand.systemPrune(options, sudo: sudo), timeout: pruneTimeout)
     }
 
     /// 容器详情（inspect）。解析失败返回 nil。
