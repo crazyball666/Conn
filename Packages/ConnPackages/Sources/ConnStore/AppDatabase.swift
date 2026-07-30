@@ -31,7 +31,7 @@ public struct AppDatabase {
         return try AppDatabase(DatabasePool(path: url.path, configuration: baseConfiguration))
     }
 
-    /// 迁移器。新增 schema 版本时在此追加，**已发布的迁移不得修改**。
+    /// 迁移器。预发布阶段由初始 schema 创建空数据库。
     public static var migrator: DatabaseMigrator {
         var migrator = DatabaseMigrator()
         #if DEBUG
@@ -39,7 +39,6 @@ public struct AppDatabase {
             migrator.eraseDatabaseOnSchemaChange = true
         #endif
         SchemaV1.register(in: &migrator)
-        SchemaV2.register(in: &migrator)
         return migrator
     }
 

@@ -27,6 +27,26 @@ struct SchemaV1Tests {
         ])
     }
 
+    @Test("初始 schema 的 run_history 包含状态列及已知默认值")
+    func initialSchemaIncludesRunHistoryState() throws {
+        let queue = try DatabaseQueue()
+        var migrator = DatabaseMigrator()
+        SchemaV1.register(in: &migrator)
+        try migrator.migrate(queue)
+
+        try queue.write { db in
+            try db.execute(
+                sql: "INSERT INTO run_history (uuid, host_uuid, command, ran_at) VALUES (?, ?, ?, ?)",
+                arguments: ["run-1", "host-1", "uptime", 1000]
+            )
+        }
+
+        let state = try queue.read { db in
+            try String.fetchOne(db, sql: "SELECT state FROM run_history WHERE uuid = ?", arguments: ["run-1"])
+        }
+        #expect(state == RunHistoryState.known.rawValue)
+    }
+
     @Test("迁移可重复执行且幂等")
     func migrationIsIdempotent() throws {
         let queue = try DatabaseQueue()

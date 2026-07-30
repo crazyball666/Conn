@@ -1,3 +1,4 @@
+import ConnKit
 import Foundation
 import GRDB
 
@@ -135,6 +136,7 @@ enum SchemaV1 {
                 t.column("command", .text).notNull()
                 t.column("exit_code", .integer)
                 t.column("output_head", .text)
+                t.column("state", .text).notNull().defaults(to: RunHistoryState.known.rawValue)
                 t.column("ran_at", .integer).notNull()
             }
             try db.create(index: "idx_run_history_host", on: "run_history", columns: ["host_uuid", "ran_at"])
