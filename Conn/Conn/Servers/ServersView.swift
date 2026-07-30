@@ -9,9 +9,11 @@ struct HostFormRequest: Identifiable {
     let editingHostID: String?
 }
 
-/// 终端跳转目标——独立类型，避免与 `selectedHost`（同为 `Host`）的 navigationDestination 撞类型。
-private struct TerminalRoute: Hashable {
+/// 终端弹层目标——独立类型，避免与 `selectedHost`（同为 `Host`）的 navigationDestination 撞类型。
+/// `.fullScreenCover(item:)` 要求 `Identifiable`，直接借 `host.id`。
+private struct TerminalRoute: Hashable, Identifiable {
     let host: Host
+    var id: String { host.id }
 }
 
 /// 「服务器」页：原「仪表盘 S1」+「主机 S2」合并为一屏。
@@ -93,7 +95,7 @@ struct ServersView: View {
         .navigationDestination(item: $selectedHost) { host in
             HostDetailView(host: host, dependencies: dependencies)
         }
-        .navigationDestination(item: $terminalRoute) { route in
+        .fullScreenCover(item: $terminalRoute) { route in
             TerminalScreen(host: route.host, dependencies: dependencies)
         }
         .groupManagementAlerts(

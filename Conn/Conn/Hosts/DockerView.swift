@@ -11,6 +11,9 @@ struct DockerView: View {
     @Environment(SettingsStore.self) private var settings
     @State private var tab: Tab
     @State private var route: Route?
+    /// 控制台单独拆出来走 `.fullScreenCover`——`route` 剩下的几个目的地
+    /// （容器/卷/网络/镜像详情）仍是 push，两种呈现方式不能共用同一个 optional。
+    @State private var consoleContainer: ContainerInfo?
     /// 四个分段共用一个搜索词——切分段时清空（见下方 `.onChange`），
     /// 否则上一分段的过滤条件会悄悄套在新分段上。
     @State private var search = ""
@@ -62,6 +65,12 @@ struct DockerView: View {
                 Text(viewModel.actionMessage ?? "")
             }
             .navigationDestination(item: $route, destination: destination)
+            .fullScreenCover(item: $consoleContainer) { container in
+                TerminalScreen(
+                    host: host, connectionManager: dependencies.connectionManager,
+                    autoCommand: viewModel.containers.consoleCommand(for: container)
+                )
+            }
     }
 
     // 这一层只管「从 DockerView 直接推一层」——卷/网络/镜像详情页各自往下再推容器详情
@@ -82,11 +91,6 @@ struct DockerView: View {
                     subtitle: container.image, kind: .container(id: container.id, name: container.name)
                 ),
                 sudo: viewModel.usesSudo
-            )
-        case let .console(container):
-            TerminalScreen(
-                host: host, connectionManager: dependencies.connectionManager,
-                autoCommand: viewModel.containers.consoleCommand(for: container)
             )
         case let .volumeDetail(volume):
             // 磁盘占用来自 `viewModel.diskUsage`（Task 7 接入）；查不到时为 nil，
@@ -383,14 +387,13 @@ extension DockerView {
     }
 
     enum Route: Hashable, Identifiable {
-        case detail(ContainerInfo), logs(ContainerInfo), console(ContainerInfo)
+        case detail(ContainerInfo), logs(ContainerInfo)
         case volumeDetail(VolumeInfo), networkDetail(NetworkInfo), imageDetail(ImageInfo)
 
         var id: String {
             switch self {
             case let .detail(container): "detail-\(container.id)"
             case let .logs(container): "logs-\(container.id)"
-            case let .console(container): "console-\(container.id)"
             case let .volumeDetail(volume): "volume-\(volume.name)"
             case let .networkDetail(network): "network-\(network.id)"
             case let .imageDetail(image): "image-\(image.id)"
