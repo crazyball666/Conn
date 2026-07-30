@@ -41,6 +41,11 @@ struct DockerLocalizationTests {
         }
     }
 
+    @Test("第二期 Docker 文案清单包含端口")
+    func phase2DockerKeyListIncludesPort() {
+        #expect(phase2Keys.contains("端口"))
+    }
+
     @Test("第二期 Docker 演示命令提供成功、已知失败与未知终态夹具")
     func demoOperationsHaveDeterministicResponses() throws {
         let endpoint = SSHEndpoint(host: "demo.local", port: 22)
@@ -157,6 +162,7 @@ struct DockerLocalizationTests {
         "确认词",
         "确认词不匹配，未执行 Docker 操作",
         "移除所有未使用镜像",
+        "端口",
         "等待远端输出…",
         "类型",
         "绑定挂载",
