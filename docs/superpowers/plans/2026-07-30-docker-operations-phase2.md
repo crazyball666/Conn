@@ -19,7 +19,7 @@
 - 所有新增用户输入都要作为一个单独 shell argv 以 POSIX 单引号编码；禁止接收整段 Shell 命令。
 - `SSHCommandStream` 只服务需要真实终态的短期流式操作。既有日志跟随继续使用 `SSHSession.execStream`，不得悄悄改变日志流的取消语义。
 - 所有 Docker 写操作（包括现有容器动作、镜像删除、镜像清理）都必须经一个 `DockerOperationsModel` 共享 gate。没有 `ExecResult` 的结果一律标为未知，不重试。
-- Docker 操作审计只记录脱敏摘要与已知 exit code；不记录环境变量值、extra token、远端输出或拉取日志。`exitCode == nil` 在历史 UI 中显示“结果未知”，不可被当作成功。
+- Docker pull 在远端启动前持久化脱敏 `.pending` 审计；拿到最终结果时以同一 UUID 原子更新，App 启动会把遗留 pending 恢复为 `.unknown`。不记录环境变量值、extra token、远端输出或拉取日志；unknown 的 `exitCode == nil` 在历史 UI 中显示“结果未知”，不可被当作成功。
 - 强确认：删除容器/镜像/卷/网络必须逐字输入资源名；镜像清理和 system prune 必须输入 `PRUNE`。prune 选项改动会清空确认词。
 - 用户可见文本用 `L("…")`，在 `Conn/Conn/Localizable.xcstrings` 完成 zh-Hans、en、ja、ko、zh-Hant。
 - 当前 SwiftLint 基线为 6 条；从 `Tooling/` 运行 `swiftlint lint --quiet | wc -l`，不得增加。
@@ -39,8 +39,9 @@
 | `Packages/ConnPackages/Sources/ConnOps/DockerService.swift` | 对上述命令的 SSH 薄封装与写入超时。 |
 | `Conn/Conn/Hosts/DockerOperationsModel.swift` | 全部 Docker 写操作的共享 gate、pull 状态、待确认目标与刷新协调。 |
 | `Conn/Conn/Hosts/DockerOperationTypes.swift` | App 层的刷新范围、脱敏审计摘要、确认目标与表单状态。 |
-| `Conn/Conn/Hosts/DockerContext.swift` | 注入刷新和安全审计闭包。 |
-| `Conn/Conn/Hosts/DockerViewModel.swift` | 创建 Operations，编排定向刷新，安全写入 run history。 |
+| `Conn/Conn/Hosts/DockerContext.swift` | 注入提示、刷新和重探测闭包，不携带原始命令审计。 |
+| `Conn/Conn/Hosts/DockerViewModel.swift` | 创建 Operations，编排定向刷新并注入已脱敏的 run history 依赖。 |
+| `Conn/Conn/ConnApp.swift` | App 启动时恢复遗留的 pending Docker pull 审计。 |
 | `Conn/Conn/Hosts/DockerContainersModel.swift` / `DockerImagesModel.swift` | 删除各自的写操作执行路径，统一委托 Operations。 |
 | `Conn/Conn/Hosts/DockerRunFormView.swift` | 创建容器的结构化字段、重复行编辑与有效配置复核。 |
 | `Conn/Conn/Hosts/DockerResourceFormViews.swift` | 创建卷、创建网络两个小表单。 |
@@ -50,11 +51,15 @@
 | `Conn/Conn/Demo/DemoOps.swift` | Phase 2 写命令和流式拉取的演示响应。 |
 | `Conn/Conn/Commands/RunHistoryView.swift` | 清晰呈现未知结果，不把 nil exit code 染成成功。 |
 | `Conn/Conn/Localizable.xcstrings` | 第二期的五语文案。 |
+| `Packages/ConnPackages/Sources/ConnKit/Models/RunHistoryEntry.swift` / `Repositories/RunHistoryRepository.swift` | 定义 pending/known/unknown 审计状态与原子更新接口。 |
+| `Packages/ConnPackages/Sources/ConnStore/Migrations/SchemaV2.swift` / `AppDatabase.swift` | 为已安装数据库迁移 run history 的状态列。 |
+| `Packages/ConnPackages/Sources/ConnStore/Records/RunHistoryRecord.swift` / `DAO/RunHistoryStore.swift` | 保存状态，原子完成 audit，并恢复遗留 pending。 |
 | `Packages/ConnPackages/Tests/ConnSSHTests/SSHCommandStreamTests.swift` | 流协议的终态、错误、超时与 mock 夹具。 |
 | `Packages/ConnPackages/Tests/ConnOpsTests/DockerOperationCommandTests.swift` | 参数转义、草稿校验与 Docker 命令的纯函数测试。 |
 | `Packages/ConnPackages/Tests/ConnOpsTests/DockerOperationServiceTests.swift` | Service 超时和精确调用测试。 |
 | `Conn/ConnTests/DockerOperationsModelTests.swift` | App 操作 gate、确认、脱敏审计和刷新目标测试。 |
 | `Conn/ConnTests/DockerLocalizationTests.swift` | 第二期新增 key 的五语与 format 占位符完整性检查。 |
+| `Packages/ConnPackages/Tests/ConnStoreTests/RunHistoryStoreTests.swift` | pending 审计的覆盖、更新与冷启动恢复。 |
 
 现有 `SSHSession` 测试替身也要加 `execCommandStream`：
 `Packages/ConnPackages/Tests/ConnMonitorTests/MonitorSchedulerTestSupport.swift`、`Packages/ConnPackages/Tests/ConnSSHTests/ConnectionManagerTests.swift`、`Conn/ConnTests/ServersViewModelTests.swift` 的 `GatedSession`，以及 `Conn/ConnTests/DockerModelsTests.swift` 的 `ScriptedSession`。
@@ -247,10 +252,17 @@
 - Modify: `Conn/Conn/Hosts/DockerViewModel.swift`
 - Modify: `Conn/Conn/Hosts/DockerContainersModel.swift`
 - Modify: `Conn/Conn/Hosts/DockerImagesModel.swift`
+- Modify: `Conn/Conn/ConnApp.swift`
 - Modify: `Packages/ConnPackages/Sources/ConnKit/Models/RunHistoryEntry.swift`
+- Modify: `Packages/ConnPackages/Sources/ConnKit/Repositories/RunHistoryRepository.swift`
+- Create: `Packages/ConnPackages/Sources/ConnStore/Migrations/SchemaV2.swift`
+- Modify: `Packages/ConnPackages/Sources/ConnStore/AppDatabase.swift`
+- Modify: `Packages/ConnPackages/Sources/ConnStore/Records/RunHistoryRecord.swift`
+- Modify: `Packages/ConnPackages/Sources/ConnStore/DAO/RunHistoryStore.swift`
 - Modify: `Conn/Conn/Commands/RunHistoryView.swift`
 - Test: `Conn/ConnTests/DockerOperationsModelTests.swift`
 - Test: `Conn/ConnTests/DockerModelsTests.swift`
+- Modify Test: `Packages/ConnPackages/Tests/ConnStoreTests/RunHistoryStoreTests.swift`
 
 - [ ] **Step 1: 写失败的 Operations 行为测试**
 
@@ -260,8 +272,11 @@
   - 容器 start/stop/restart/remove、image remove/prune 都经同一 gate；
   - known success 和 known nonzero 都调用相应 `DockerRefreshScope`，transport/timeout unknown 不自动刷新；
   - unknown 审计 `exitCode == nil`，且摘要不含 `SECRET=value`、extra token、stdout；
+  - pull 在请求 `DockerService.pullImage` **之前**写入同一 UUID 的 `.pending` 审计，已知终态以该 UUID 更新为 `.known`，流中断更新为 `.unknown`，不得再插入第二条记录；
   - 删除确认必须精确输入目标名，prune 必须为 `PRUNE`，切换 prune option 会复位确认词；
   - pull 收到 chunk，最终非零成为 known failure；流中断保留日志并成为 unknown。
+
+  扩展既有 `RunHistoryStoreTests`，覆盖同一 UUID 的 pending → known 覆盖、调用 `recoverPending()` 后遗留 pending 变为 unknown。另在该 suite 或 `AppDatabaseTests` 用真实 `DatabaseQueue` 先只注册/执行 `SchemaV1`、插入 `exit_code == nil` 的旧记录，再交给 `AppDatabase(queue)` 运行 V2，断言该行迁移为 unknown；不能用已经直达最新 schema 的 `AppDatabase.inMemory()` 冒充升级测试，也不能只验证 mock 调用。
 
 - [ ] **Step 2: 运行 App 测试确认失败**
 
@@ -280,11 +295,17 @@
   enum DockerOperationResult: Equatable { case success, failure(String), unknown(String) }
   ```
 
-  `DockerContext` 将 `audit` 改成 `(DockerAuditSummary, Int32?) -> Void`，新增 `refresh: (DockerRefreshScope) async -> Void`。不得再将完整 `ExecResult` 或 stdout 交给审计闭包。
+  `DockerContext` 去除能泄漏完整命令/输出的 `audit` 闭包，新增 `refresh: (DockerRefreshScope) async -> Void`。`DockerOperationsModel` 构造时显式注入 `hostUUID` 和 `RunHistoryRepository`，只把 `DockerAuditSummary` 转成脱敏 `RunHistoryEntry`；不得再将完整 `ExecResult`、原始命令或 stdout 交给外壳审计。
+
+  在 `ConnKit` 增加 `RunHistoryState: String, Codable, Sendable, Equatable`（`.pending`、`.known`、`.unknown`）及 `RunHistoryEntry.state`；`isSuccess` 仅在 `state == .known && exitCode == 0` 时为真。`RunHistoryRepository` 增加明确的 `update(_ entry:)`（按 UUID 覆盖）和 `recoverPending()` 接口。`SchemaV2` 只能新增迁移：给 `run_history` 添加非空 `state` 文本列（默认 `known`），再把历史 `exit_code IS NULL` 的行更新为 `unknown`；在 `AppDatabase.migrator` 追加 V2，绝不修改 V1。`RunHistoryRecord` 映射该列；`RunHistoryStore.update` 在单个 writer transaction 内按 UUID 更新并提供批量 pending → unknown 恢复。
+
+  `AppDependencies.live()` 与 `.demo()` 都先创建一个 `RunHistoryStore`，在装配依赖前同步调用一次 `recoverPending()`，然后把同一实例注入依赖容器。恢复失败应沿用数据库初始化的失败路径，不能静默跳过并把 pending 误显示为成功。
 
 - [ ] **Step 4: 实现 Operations，并迁移已有动作**
 
-  `DockerOperationsModel` 在 `@MainActor` 下维护 `activeOperation`，所有入口先同步取得 gate、以 `defer` 释放。它接收草稿或现有资源，调用 Task 3 的 service，分类 result 并通过 context 发 audit / refresh / report。
+  `DockerOperationsModel` 在 `@MainActor` 下维护 `activeOperation`，所有入口先同步取得 gate、以 `defer` 释放。它接收草稿或现有资源，调用 Task 3 的 service，分类 result 并通过 context 发 refresh / report。
+
+  pull 先将脱敏摘要作为 `.pending` 同步 `record`，**成功记录后才允许调用** `DockerService.pullImage`；终态到达后对同一个 UUID 做一次 `.known` 更新（包括非零 exit）；流读取/超时/transport 异常则以同一个 UUID 更新 `.unknown` 和 `nil` exit。若 pending 初始写入失败，向用户报告本地审计失败且不启动远端 pull，避免产生无法恢复的无锚点操作。非 pull 写操作只在取得已知 `ExecResult` 后记录 `.known`，未获得终态的远端调用记录 `.unknown`，本地草稿校验失败不审计。
 
   在 ViewModel 中**先创建 Operations，再创建四个资源模型**，并以弱捕获的 `refresh` 闭包实现 `refresh(scope:)`；按 scope 静默 reload 容器、镜像（连同 usage）、卷、网络和磁盘占用。可用性重新探测只能在 gate 空闲时重建所有模型。
 
@@ -292,9 +313,14 @@
 
 - [ ] **Step 5: 运行 model、历史与既有 Docker 回归测试**
 
-  Run: `xcodebuild test -workspace Conn.xcworkspace -scheme Conn -destination 'platform=iOS Simulator,name=iPhone 16' -only-testing:ConnTests/DockerOperationsModelTests -only-testing:ConnTests/DockerModelsTests`
+  Run:
 
-  Expected: 全绿；known nonzero 不是 unknown，nil exit code 不是绿色成功。
+  ```bash
+  cd Packages/ConnPackages && swift test --filter RunHistoryStoreTests
+  cd ../.. && xcodebuild test -workspace Conn.xcworkspace -scheme Conn -destination 'platform=iOS Simulator,name=iPhone 16' -only-testing:ConnTests/DockerOperationsModelTests -only-testing:ConnTests/DockerModelsTests
+  ```
+
+  Expected: 全绿；known nonzero 不是 unknown，nil exit code 不是绿色成功；冷启动恢复没有留下 pending。
 
 - [ ] **Step 6: 提交操作协调层**
 
@@ -302,9 +328,16 @@
   git add Conn/Conn/Hosts/DockerOperationTypes.swift \
     Conn/Conn/Hosts/DockerOperationsModel.swift Conn/Conn/Hosts/DockerContext.swift \
     Conn/Conn/Hosts/DockerViewModel.swift Conn/Conn/Hosts/DockerContainersModel.swift \
-    Conn/Conn/Hosts/DockerImagesModel.swift Conn/Conn/Commands/RunHistoryView.swift \
+    Conn/Conn/Hosts/DockerImagesModel.swift Conn/Conn/ConnApp.swift \
+    Conn/Conn/Commands/RunHistoryView.swift \
     Conn/ConnTests/DockerOperationsModelTests.swift Conn/ConnTests/DockerModelsTests.swift \
-    Packages/ConnPackages/Sources/ConnKit/Models/RunHistoryEntry.swift
+    Packages/ConnPackages/Sources/ConnKit/Models/RunHistoryEntry.swift \
+    Packages/ConnPackages/Sources/ConnKit/Repositories/RunHistoryRepository.swift \
+    Packages/ConnPackages/Sources/ConnStore/Migrations/SchemaV2.swift \
+    Packages/ConnPackages/Sources/ConnStore/AppDatabase.swift \
+    Packages/ConnPackages/Sources/ConnStore/Records/RunHistoryRecord.swift \
+    Packages/ConnPackages/Sources/ConnStore/DAO/RunHistoryStore.swift \
+    Packages/ConnPackages/Tests/ConnStoreTests/RunHistoryStoreTests.swift
   git commit -m "feat(docker): 统一操作确认、审计与刷新"
   ```
 
@@ -321,6 +354,8 @@
 
   向 App 测试加入：每种 repeatable row 删除/增加后仍保持草稿顺序；非法草稿禁用“继续”；有效草稿会把结构化字段、other option tokens、command tokens 不改变地交给 Operations；高风险配置检测 `--privileged`、host network、`/var/run/docker.sock` 与 `/` bind。
 
+  同时覆盖 pull 展示状态：`active` 时 `canDismissPull == false`，只有 `.known` 或 `.unknown` 终态才变为 `true`；关闭请求在 active 状态不得清空 Operations 持有的 presentation，避免 route 被异步或手势写成 nil。
+
 - [ ] **Step 2: 运行测试确认表单 API 缺失**
 
   Run: `xcodebuild test -workspace Conn.xcworkspace -scheme Conn -destination 'platform=iOS Simulator,name=iPhone 16' -only-testing:ConnTests/DockerOperationsModelTests`
@@ -335,7 +370,7 @@
 
 - [ ] **Step 4: 实现 pull 与 typed destructive 页面**
 
-  `DockerPullProgressView` 从 Operations 观察 logs / result，活动期间使用 `.interactiveDismissDisabled(true)`、不提供取消按钮；已知完成或 unknown 后才显示完成按钮。它不创建自己的 `.task`。
+  `DockerPullProgressView` 从 Operations 观察 logs / result，且只由 Task 6 的 `fullScreenCover(item:)` 呈现；活动期间使用 `.interactiveDismissDisabled(true)`、不提供 NavigationStack 的返回按钮、toolbar cancel 或取消命令。它不创建自己的 `.task`。已知完成或 unknown 后才显示“完成”按钮；该按钮通过 Operations 的终态 API 关闭 presentation。视图不能直接将 active pull 的 binding 写成 nil。
 
   `DockerDestructiveConfirmationView` 根据 pending action 显示影响、资源名和 `TextField`；只在 `operations.canConfirm(input:)` 时启用 destructive button。prune 开关绑定 Operations，任何更改必须清空 confirmation input。
 
@@ -376,7 +411,9 @@
 
 - [ ] **Step 3: 改造 DockerView 的路由和工具栏**
 
-  建立 `OperationSheet` 路由：container create、image pull、volume create、network create、pull progress、destructive confirmation。容器、镜像、卷、网络分段工具栏依次展示创建/拉取按钮；镜像菜单把旧的直接 `image prune` 替换为 Operations 的 typed confirmation。删除容器/镜像的旧 `.alert` 必须移除，改呈现统一 confirmation sheet。
+  建立 `OperationSheet` 路由：container create、image pull form、volume create、network create、destructive confirmation。容器、镜像、卷、网络分段工具栏依次展示创建/拉取按钮；镜像菜单把旧的直接 `image prune` 替换为 Operations 的 typed confirmation。删除容器/镜像的旧 `.alert` 必须移除，改呈现统一 confirmation sheet。
+
+  pull form 提交后，把 Operations 的 pull presentation 作为 `DockerView` 顶层独立的 `fullScreenCover(item:)`；**不得**把进度页放进 `NavigationStack` path、`OperationSheet` 或普通 sheet。cover 的 binding setter 在 `activeOperation` 存在时忽略外部 nil 写入，只有 Operations 收到终态后的完成动作才能清空它。这样侧滑、导航返回、分段切换和 SwiftUI 的意外 route 重置都不能离开活动 pull；App 被系统终止仍由 Task 4 的 pending 恢复承担，如实显示 unknown。
 
   对卷和网络使用整行命中区的 menu 或 swipe action；无“未使用”标记的卷/网络不显示删除。选项一经提交即让 Operations 处理，不在 View 内直调 service。
 
@@ -456,15 +493,20 @@
 
   Expected: 所有 package suites 成功；任何 `SSHSession` conformer 都已适配新方法。
 
-- [ ] **Step 2: 跑 App 的 Docker 与本地化测试**
+- [ ] **Step 2: 跑 App 的 Docker、历史与本地化测试**
 
-  Run: `xcodebuild test -workspace Conn.xcworkspace -scheme Conn -destination 'platform=iOS Simulator,name=iPhone 16' -only-testing:ConnTests/DockerModelsTests -only-testing:ConnTests/DockerOperationsModelTests -only-testing:ConnTests/DockerLocalizationTests`
+  Run:
+
+  ```bash
+  cd Packages/ConnPackages && swift test --filter RunHistoryStoreTests
+  cd ../.. && xcodebuild test -workspace Conn.xcworkspace -scheme Conn -destination 'platform=iOS Simulator,name=iPhone 16' -only-testing:ConnTests/DockerModelsTests -only-testing:ConnTests/DockerOperationsModelTests -only-testing:ConnTests/DockerLocalizationTests
+  ```
 
   Expected: 全绿，无 flaky sleep 或未等待的异步任务。
 
 - [ ] **Step 3: 做演示模式 UI 冒烟**
 
-  使用现有 `Tooling/run_sim.sh` 和 `CONN_DEMO=1` 启动 App；依次检查容器创建表单、有效配置复核、镜像 pull 日志、卷/网络创建、typed 删除、prune 选项和“结果未知”。若自动化点击无法覆盖表单，添加仅 DEBUG 的确定性 smoke route，而不是在发行代码保留测试开关。
+  使用现有 `Tooling/run_sim.sh` 和 `CONN_DEMO=1` 启动 App；依次检查容器创建表单、有效配置复核、镜像 pull 日志、卷/网络创建、typed 删除、prune 选项和“结果未知”。pull 仍 active 时分别尝试下滑关闭、导航返回和切换 Docker 分段，确认都不能关闭进度页；到 known/unknown 终态后确认“完成”可关闭。若自动化点击无法覆盖表单，添加仅 DEBUG 的确定性 smoke route，而不是在发行代码保留测试开关。
 
 - [ ] **Step 4: 验证真实 Docker 主机的最小矩阵**
 
@@ -495,5 +537,6 @@
 | 用户输入不能逃逸 shell | `ShellArgument` 的 metacharacter 夹具与命令快照。 |
 | 创建容器覆盖结构化字段和手动参数 | 草稿校验、有效配置复核、UI 冒烟。 |
 | 删除和清理不可误触 | typed confirmation 测试，prune option 重置测试。 |
-| 审计不会存秘密且 unknown 不误报成功 | audit/RunHistory 单测。 |
+| 审计不会存秘密且 unknown 不误报成功 | audit/RunHistory 单测和 pending 冷启动恢复测试。 |
+| 活动 pull 不可意外离开 | full-screen cover 路由测试与模拟器手势/返回冒烟。 |
 | UI、i18n 与工程完整性 | catalog 测试、lint、clean build、模拟器冒烟。 |
