@@ -83,7 +83,7 @@ struct DockerLocalizationTests {
 
     private let locales = ["en", "ja", "ko", "zh-Hant"]
 
-    // 所有第二期 Docker 写操作引入的用户可见 L key；zh-Hans 是 catalog 的 sourceLanguage。
+    // 第二期 Docker 源码 surface 的所有直接 L key；zh-Hans 是 catalog 的 sourceLanguage。
     private let phase2Keys = [
         "%@ 失败（退出码 %d）",
         "%@ 成功",
@@ -189,17 +189,88 @@ struct DockerLocalizationTests {
         "驱动",
         "高级选项",
         "高风险配置",
-        "；审计未保存"
+        "；审计未保存",
+        "Docker 守护进程未运行。\n请在服务器上启动：\nsudo systemctl start docker",
+        "Docker 操作",
+        "Docker 预置，不可删除",
+        "主机",
+        "作用域",
+        "健康",
+        "入口",
+        "入口与命令",
+        "共 %d 个卷",
+        "共 %d 个网络",
+        "共 %d 个镜像",
+        "创建于",
+        "刷新",
+        "否",
+        "启动于",
+        "命令",
+        "大小",
+        "好",
+        "子网",
+        "容器 ID",
+        "容器操作与片段执行会记录在这里",
+        "层历史",
+        "引用容器",
+        "当前用户无权访问 Docker。\n将用户加入 docker 组：\nsudo usermod -aG docker $USER\n然后重新登录后重试。",
+        "执行历史",
+        "挂载点",
+        "接入容器",
+        "控制台",
+        "搜索卷",
+        "搜索容器",
+        "搜索网络",
+        "搜索镜像",
+        "摘要",
+        "日志",
+        "是",
+        "未使用",
+        "未检测到 Docker CLI。请确认该服务器已安装 Docker。",
+        "架构",
+        "标签",
+        "概要",
+        "段",
+        "没有匹配的卷",
+        "没有匹配的容器",
+        "没有匹配的网络",
+        "没有匹配的镜像",
+        "没有卷",
+        "没有容器使用此镜像",
+        "没有容器引用此卷",
+        "没有容器接入此网络",
+        "没有网络",
+        "没有镜像",
+        "状态",
+        "网关",
+        "网络 ID",
+        "该主机上没有容器",
+        "读取卷…",
+        "读取容器…",
+        "读取网络…",
+        "读取详情…",
+        "读取镜像…",
+        "还没有执行记录",
+        "重启次数",
+        "重试",
+        "镜像 ID",
+        "预置"
     ]
 
     private let phase2DockerSourceFiles = [
+        "Conn/Commands/RunHistoryView.swift",
+        "Conn/Hosts/ContainerDetailView.swift",
         "Conn/Hosts/DockerDestructiveConfirmationView.swift",
         "Conn/Hosts/DockerOperationRouting.swift",
         "Conn/Hosts/DockerOperationTypes.swift",
         "Conn/Hosts/DockerOperationsModel.swift",
         "Conn/Hosts/DockerPullProgressView.swift",
         "Conn/Hosts/DockerResourceFormViews.swift",
-        "Conn/Hosts/DockerRunFormView.swift"
+        "Conn/Hosts/DockerRunFormView.swift",
+        "Conn/Hosts/DockerView.swift",
+        "Conn/Hosts/ImageDetailView.swift",
+        "Conn/Hosts/NetworkDetailView.swift",
+        "Conn/Hosts/VolumeDetailView.swift"
     ]
 
     private func sourceLocalizedKeys() throws -> Set<String> {
@@ -213,9 +284,42 @@ struct DockerLocalizationTests {
             let range = NSRange(source.startIndex..., in: source)
             for match in expression.matches(in: source, range: range) {
                 guard let capturedRange = Range(match.range(at: 1), in: source) else { continue }
-                keys.insert(String(source[capturedRange]))
+                keys.insert(unescapedSwiftStringLiteral(String(source[capturedRange])))
             }
         }
+    }
+
+    private func unescapedSwiftStringLiteral(_ literal: String) -> String {
+        var result = ""
+        var index = literal.startIndex
+
+        while index < literal.endIndex {
+            let character = literal[index]
+            guard character == "\\" else {
+                result.append(character)
+                index = literal.index(after: index)
+                continue
+            }
+
+            let escapedIndex = literal.index(after: index)
+            guard escapedIndex < literal.endIndex else {
+                result.append(character)
+                break
+            }
+
+            switch literal[escapedIndex] {
+            case "n": result.append("\n")
+            case "r": result.append("\r")
+            case "t": result.append("\t")
+            case "\\", "\"": result.append(literal[escapedIndex])
+            default:
+                result.append(character)
+                result.append(literal[escapedIndex])
+            }
+            index = literal.index(after: escapedIndex)
+        }
+
+        return result
     }
 
     private func printfPlaceholders(in string: String) -> [String] {
