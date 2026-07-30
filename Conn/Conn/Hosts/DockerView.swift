@@ -273,6 +273,9 @@ struct DockerView: View {
             }
             .padding(ConnSpacing.cardPadding)
             .connSurface(cornerRadius: ConnRadius.card)
+            // Button 的命中区默认只覆盖**实际绘制出来的内容**，Spacer 与留白不算，
+            // 用户点行的空白处会没有反应。整块卡片都该是命中区。
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .contextMenu {
