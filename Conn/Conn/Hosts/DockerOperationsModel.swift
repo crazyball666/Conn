@@ -187,8 +187,8 @@ final class DockerOperationsModel {
                 .historyEntry(hostUUID: hostUUID, id: pendingEntry.id)
             let auditSaved = update(finalEntry)
             reportKnown(label: L("拉取镜像"), state: state, auditSaved: auditSaved)
-            await context.refresh(operation.refreshScope)
             setPullResult(state)
+            await context.refresh(operation.refreshScope)
         } catch {
             let finalEntry = DockerAuditSummary(
                 operation: operation.auditOperation, state: .unknown, ranAt: pending.ranAt

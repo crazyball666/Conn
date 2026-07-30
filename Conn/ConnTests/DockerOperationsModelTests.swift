@@ -364,6 +364,34 @@ struct DockerOperationsModelTests {
         #expect(operations.pullPresentation == nil)
     }
 
+    @Test("pull 终态在刷新继续前就可供完成")
+    func pullTerminalPresentationPrecedesBlockedRefresh() async {
+        let refreshGate = RefreshGate()
+        let session = PullSession(
+            chunks: [], result: .success(ExecResult(exitCode: 0, stdout: Data(), stderr: Data()))
+        )
+        let operations = DockerOperationsModel(
+            context: makeContext(
+                session: { session },
+                refresh: { _ in await refreshGate.waitUntilAllowed() }
+            ),
+            hostUUID: "host-1",
+            runHistory: RecordingHistory()
+        )
+
+        let pull = Task { await operations.pullImage(reference: "registry.example/app:1") { _ in } }
+        await refreshGate.waitForRefresh()
+
+        #expect(operations.isPullActive)
+        #expect(operations.pullPresentation?.result == .known(exitCode: 0))
+        #expect(operations.canDismissPull)
+
+        await refreshGate.allow()
+        await pull.value
+
+        #expect(!operations.isPullActive)
+    }
+
     private func makeContext(
         session: @escaping () async throws -> any SSHSession,
         refresh: @escaping (DockerRefreshScope) async -> Void = { _ in }
@@ -447,6 +475,32 @@ private actor OperationGate {
     }
 
     var commandCount: Int { commands.count }
+}
+
+private actor RefreshGate {
+    private var refreshStarted = false
+    private var allowed = false
+    private var refreshWaiter: CheckedContinuation<Void, Never>?
+    private var allowedWaiter: CheckedContinuation<Void, Never>?
+
+    func waitUntilAllowed() async {
+        refreshStarted = true
+        refreshWaiter?.resume()
+        refreshWaiter = nil
+        guard !allowed else { return }
+        await withCheckedContinuation { allowedWaiter = $0 }
+    }
+
+    func waitForRefresh() async {
+        guard !refreshStarted else { return }
+        await withCheckedContinuation { refreshWaiter = $0 }
+    }
+
+    func allow() {
+        allowed = true
+        allowedWaiter?.resume()
+        allowedWaiter = nil
+    }
 }
 
 private final class GatedOperationSession: SSHSession, @unchecked Sendable {
