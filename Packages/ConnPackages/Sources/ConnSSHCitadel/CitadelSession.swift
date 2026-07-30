@@ -96,6 +96,56 @@ final class CitadelSession: SSHSession, @unchecked Sendable {
         }
     }
 
+    func execCommandStream(_ command: String, timeout: Duration) async throws -> SSHCommandStream {
+        let (output, continuation) = AsyncThrowingStream<Data, Error>.makeStream()
+        let resultTask = Task { [self] in
+            do {
+                let result = try await execRacingTimeout(
+                    command: command,
+                    timeout: timeout,
+                    endpoint: endpoint
+                ) { [self] command in
+                    try await runCommandStream(command, continuation: continuation)
+                }
+                continuation.finish()
+                return result
+            } catch {
+                continuation.finish(throwing: error)
+                throw error
+            }
+        }
+        return SSHCommandStream(output: output) {
+            try await resultTask.value
+        }
+    }
+
+    /// 只消费一次 Citadel 命令流，同时把每块输出送给 UI 并累计为最终结果。
+    private func runCommandStream(
+        _ command: String,
+        continuation: AsyncThrowingStream<Data, Error>.Continuation
+    ) async throws -> ExecResult {
+        var stdout = Data()
+        var stderr = Data()
+        do {
+            let stream = try await client.executeCommandStream(command)
+            for try await chunk in stream {
+                let data: Data
+                switch chunk {
+                case let .stdout(buffer):
+                    data = Data(buffer.readableBytesView)
+                    stdout.append(data)
+                case let .stderr(buffer):
+                    data = Data(buffer.readableBytesView)
+                    stderr.append(data)
+                }
+                continuation.yield(data)
+            }
+            return ExecResult(exitCode: 0, stdout: stdout, stderr: stderr)
+        } catch let failure as SSHClient.CommandFailed {
+            return ExecResult(exitCode: Int32(failure.exitCode), stdout: stdout, stderr: stderr)
+        }
+    }
+
     func openShell(term: TermSize) async throws -> any ShellChannel {
         try await CitadelShellChannel.open(client: client, term: term)
     }

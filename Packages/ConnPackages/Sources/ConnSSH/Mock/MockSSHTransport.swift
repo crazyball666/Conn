@@ -11,11 +11,40 @@ public final class MockSSHTransport: SSHTransport {
         public var stdout: String
         public var stderr: String
         public var exitCode: Int32
+        /// `execCommandStream` 专用的块边界；nil 时使用 `stdout` 的旧按行边界。
+        public var streamChunks: [Data]?
+        /// 块写完后让 `execCommandStream` 失败，用于模拟传输中断。
+        public var streamFailure: SSHError?
+        /// 专用块之间的延迟；nil 时回落到 Behavior 的旧全局设置。
+        public var streamChunkDelay: Duration?
 
-        public init(stdout: String = "", stderr: String = "", exitCode: Int32 = 0) {
+        public init(
+            stdout: String = "",
+            stderr: String = "",
+            exitCode: Int32 = 0
+        ) {
             self.stdout = stdout
             self.stderr = stderr
             self.exitCode = exitCode
+            streamChunks = nil
+            streamFailure = nil
+            streamChunkDelay = nil
+        }
+
+        public init(
+            streamChunks: [Data]?,
+            streamFailure: SSHError? = nil,
+            streamChunkDelay: Duration? = nil,
+            stdout: String = "",
+            stderr: String = "",
+            exitCode: Int32 = 0
+        ) {
+            self.stdout = stdout
+            self.stderr = stderr
+            self.exitCode = exitCode
+            self.streamChunks = streamChunks
+            self.streamFailure = streamFailure
+            self.streamChunkDelay = streamChunkDelay
         }
     }
 
@@ -135,6 +164,58 @@ final class MockSSHSession: SSHSession, @unchecked Sendable {
         }
     }
 
+    func execCommandStream(_ command: String, timeout: Duration) async throws -> SSHCommandStream {
+        let response = resolve(command)
+        let delay = response.streamChunkDelay ?? behavior.streamChunkDelay
+        let timeoutError = SSHError.commandTimeout(
+            endpoint: endpoint,
+            seconds: Self.roundedUpSeconds(timeout)
+        )
+        let (output, continuation) = AsyncThrowingStream<Data, Error>.makeStream()
+        let resultTask = Task { [response, delay, timeout, timeoutError] in
+            do {
+                let result = try await withThrowingTaskGroup(of: ExecResult.self) { group in
+                    group.addTask {
+                        let chunks = response.streamChunks ?? Self.lineChunks(response.stdout)
+                        var stdout = Data()
+                        for (index, chunk) in chunks.enumerated() {
+                            if index > 0, delay > .zero {
+                                try await Task.sleep(for: delay)
+                            }
+                            stdout.append(chunk)
+                            continuation.yield(chunk)
+                        }
+                        if let failure = response.streamFailure {
+                            throw failure
+                        }
+                        return ExecResult(
+                            exitCode: response.exitCode,
+                            stdout: stdout,
+                            stderr: Data(response.stderr.utf8)
+                        )
+                    }
+                    group.addTask {
+                        try await Task.sleep(for: timeout)
+                        throw timeoutError
+                    }
+                    defer { group.cancelAll() }
+                    for try await result in group {
+                        return result
+                    }
+                    throw timeoutError
+                }
+                continuation.finish()
+                return result
+            } catch {
+                continuation.finish(throwing: error)
+                throw error
+            }
+        }
+        return SSHCommandStream(output: output) {
+            try await resultTask.value
+        }
+    }
+
     func openShell(term: TermSize) async throws -> any ShellChannel {
         _ = term
         return MockShellChannel()
@@ -178,6 +259,18 @@ final class MockSSHSession: SSHSession, @unchecked Sendable {
 
     private func firstWord(_ command: String) -> String {
         String(command.split(separator: " ").first ?? "")
+    }
+
+    private static func lineChunks(_ output: String) -> [Data] {
+        output.split(separator: "\n", omittingEmptySubsequences: false).map {
+            Data(($0 + "\n").utf8)
+        }
+    }
+
+    private static func roundedUpSeconds(_ duration: Duration) -> Int {
+        let components = duration.components
+        let seconds = Int(components.seconds)
+        return components.attoseconds > 0 ? max(1, seconds + 1) : max(1, seconds)
     }
 }
 

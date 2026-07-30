@@ -368,6 +368,11 @@ private final class GatedSession: SSHSession {
     func execStream(_ command: String) async throws -> AsyncThrowingStream<Data, Error> {
         AsyncThrowingStream { $0.finish() }
     }
+    func execCommandStream(_ command: String, timeout: Duration) async throws -> SSHCommandStream {
+        SSHCommandStream(output: AsyncThrowingStream { $0.finish() }) {
+            ExecResult(exitCode: 0, stdout: Data(), stderr: Data())
+        }
+    }
     func openShell(term: TermSize) async throws -> any ShellChannel { throw SSHError.channelClosed }
     func sftp() async throws -> any RemoteFileSystem { throw SSHError.channelClosed }
     func openTunnel(to target: SSHEndpoint) async throws -> any SSHTunnel { throw SSHError.channelClosed }

@@ -307,6 +307,12 @@ private final class CloseRecordingSession: SSHSession {
         throw SSHError.channelClosed
     }
 
+    func execCommandStream(_ command: String, timeout: Duration) async throws -> SSHCommandStream {
+        SSHCommandStream(output: AsyncThrowingStream { $0.finish() }) {
+            ExecResult(exitCode: 0, stdout: Data(), stderr: Data())
+        }
+    }
+
     func openShell(term: TermSize) async throws -> any ShellChannel {
         throw SSHError.channelClosed
     }

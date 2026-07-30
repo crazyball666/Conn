@@ -29,6 +29,9 @@ public protocol SSHSession: AnyObject, Sendable {
     /// 执行一条命令，按块流式返回 stdout（日志跟随、docker logs -f 用）。
     func execStream(_ command: String) async throws -> AsyncThrowingStream<Data, Error>
 
+    /// 执行一条命令，实时返回 stdout/stderr，并在结束后提供最终退出结果。
+    func execCommandStream(_ command: String, timeout: Duration) async throws -> SSHCommandStream
+
     /// 开一个交互式 PTY（终端用，Phase 4 深用）。
     func openShell(term: TermSize) async throws -> any ShellChannel
 
