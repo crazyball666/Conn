@@ -56,8 +56,15 @@ struct NetworkDetailView: View {
             }
         }
         .task {
-            detail = await viewModel.networks.detail(for: network)
+            let loadedDetail = await viewModel.networks.detail(for: network)
+            detail = loadedDetail
             loading = false
+            #if DEBUG
+                if ProcessInfo.processInfo.environment["CONN_SMOKE_NETWORK_CONTAINER_ROUTE"] != nil,
+                   let attached = loadedDetail?.attachedContainers.first {
+                    open(attached)
+                }
+            #endif
         }
         .navigationDestination(item: $openedContainer) { container in
             ContainerDetailView(host: host, dependencies: dependencies, container: container, viewModel: viewModel)
@@ -77,6 +84,14 @@ struct NetworkDetailView: View {
         }
     }
 
+    private func open(_ attached: NetworkDetail.AttachedContainer) {
+        if let container = viewModel.containers.items.first(where: {
+            attached.matches(containerID: $0.id)
+        }) {
+            openedContainer = container
+        }
+    }
+
     @ViewBuilder
     private var attachedSection: some View {
         DockerDetail.section(L("接入容器")) {
@@ -92,11 +107,9 @@ struct NetworkDetailView: View {
                         DockerDetail.containerRow(
                             name: attached.name, subtitle: attached.ipv4
                         ) {
-                            // AttachedContainer 只有 id/name/ipv4，不是完整 ContainerInfo，
-                            // 按 id 到容器列表里回查；找不到（容器已被删）时不跳转。
-                            if let container = viewModel.containers.items.first(where: { $0.id == attached.id }) {
-                                openedContainer = container
-                            }
+                            // network inspect 与 docker ps 输出的容器 ID 长度不同：前者通常为
+                            // 完整 ID，后者通常为 12 位短 ID；按公共前缀回查。
+                            open(attached)
                         }
                     }
                 }

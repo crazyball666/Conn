@@ -30,7 +30,7 @@ struct DockerView: View {
 
     var body: some View {
         content
-            .task { await viewModel.loadIfNeeded() }
+            .task { await loadForSmokeRoute() }
             .task { await autoRefreshLoop() }
             .sheet(item: operationSheetBinding, content: operationSheetView)
             .alert(L("Docker 操作"), isPresented: messageBinding) {
@@ -137,6 +137,20 @@ struct DockerView: View {
             case .networks: await viewModel.networks.load()
             }
         }
+    }
+
+    private func loadForSmokeRoute() async {
+        await viewModel.loadIfNeeded()
+        #if DEBUG
+            let environment = ProcessInfo.processInfo.environment
+            guard environment["CONN_SMOKE_NETWORK_DETAIL_ROUTE"] != nil
+                    || environment["CONN_SMOKE_NETWORK_CONTAINER_ROUTE"] != nil
+            else { return }
+            await viewModel.networks.load()
+            if let network = viewModel.networks.items.first(where: { $0.name == "isolated" }) {
+                route = .networkDetail(network)
+            }
+        #endif
     }
 
     /// 镜像列表重拉后，「未使用」判定要跟着用最新的容器列表重算一遍，

@@ -120,6 +120,19 @@ struct DockerVolumeNetworkParserTests {
         #expect(detail.attachedContainers[1].ipv4 == "172.20.0.2/16")
     }
 
+    @Test("网络 inspect 的长容器 ID 可以匹配容器列表的短 ID")
+    func attachedContainerMatchesShortContainerID() {
+        let attached = NetworkDetail.AttachedContainer(
+            id: "c1d2e3f4a5b6c7d8e9f00112233445566778899aabbccddeeff001122334455",
+            name: "web-nginx",
+            ipv4: "172.20.0.2/16"
+        )
+
+        #expect(attached.matches(containerID: "c1d2e3f4a5b6"))
+        #expect(!attached.matches(containerID: "a1b2c3d4e5f6"))
+        #expect(!attached.matches(containerID: ""))
+    }
+
     /// 没有容器接入时不能崩，也不能返回 nil——网络本身还在。
     @Test("无接入容器的网络仍能解析")
     func networkWithoutContainers() throws {

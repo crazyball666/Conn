@@ -60,9 +60,14 @@ enum DemoOps {
         if command.contains("docker network create") { return .init(stdout: "demo-network\n") }
         if command.contains("docker network rm") { return .init(stdout: "demo-network\n") }
         if command.contains("docker network ls"), command.contains("dangling") {
+            if isNetworkNavigationSmoke {
+                return .init(stdout: "none\n")
+            }
             return .init(stdout: "none\nisolated\n")
         }
-        if command.contains("docker network inspect") { return .init(stdout: networkInspectJSON) }
+        if command.contains("docker network inspect") {
+            return .init(stdout: isNetworkNavigationSmoke ? networkInspectWithAttachedContainerJSON : networkInspectJSON)
+        }
         if command.contains("docker network ls") { return .init(stdout: networksJSON) }
         return nil
     }
@@ -217,6 +222,20 @@ enum DemoOps {
       "IPAM":{"Config":[{"Subnet":"172.25.0.0/16","Gateway":"172.25.0.1"}]},
       "Containers":{}}]
     """
+
+    /// 仅供 iPhone 冒烟验证网络详情 → 容器详情：network inspect 给完整 ID，
+    /// docker ps 给 12 位短 ID，正好覆盖两种 ID 格式间的跳转。
+    private static let networkInspectWithAttachedContainerJSON = """
+    [{"Name":"isolated","Id":"f6e5d4c3b2a1c0d9e8f7a6b5c4d3e2f1","Scope":"local","Driver":"bridge","Internal":false,
+      "IPAM":{"Config":[{"Subnet":"172.25.0.0/16","Gateway":"172.25.0.1"}]},
+      "Containers":{"a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6":{"Name":"web-nginx","IPv4Address":"172.25.0.2/16"}}}]
+    """
+
+    private static var isNetworkNavigationSmoke: Bool {
+        let environment = ProcessInfo.processInfo.environment
+        return environment["CONN_SMOKE_NETWORK_DETAIL_ROUTE"] != nil
+            || environment["CONN_SMOKE_NETWORK_CONTAINER_ROUTE"] != nil
+    }
 
     // MARK: - 磁盘占用 / 镜像详情假数据
 

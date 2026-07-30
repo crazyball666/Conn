@@ -37,6 +37,13 @@ public struct NetworkDetail: Equatable, Sendable {
             self.name = name
             self.ipv4 = ipv4
         }
+
+        /// `network inspect` 给完整 ID，`docker ps` 通常给 12 位短 ID。
+        /// 两端任一方可能已经截断，因此以公共前缀确认是否是同一个容器。
+        public func matches(containerID: String) -> Bool {
+            guard !id.isEmpty, !containerID.isEmpty else { return false }
+            return id == containerID || id.hasPrefix(containerID) || containerID.hasPrefix(id)
+        }
     }
 
     public let id: String
