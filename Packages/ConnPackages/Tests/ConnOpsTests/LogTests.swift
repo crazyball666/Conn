@@ -66,6 +66,32 @@ struct LogSourceTests {
         #expect(file.followCommand(sudo: true) == "sudo -n tail -n 300 -F '/var/log/auth.log' 2>&1")
     }
 
+    @Test("Compose 项目和服务日志使用项目配置并安全转义")
+    func composeFollowCommands() {
+        let project = DockerComposeProject(
+            name: "web app", state: .running,
+            configFiles: ["/srv/web app/compose.yml"], projectDirectory: "/srv/web app",
+            source: .manual
+        )
+        let projectLog = LogSource(
+            id: "compose-web", title: "", subtitle: "",
+            kind: .compose(project: project, dialect: .v2, service: nil)
+        )
+        let serviceLog = LogSource(
+            id: "compose-web-api", title: "", subtitle: "",
+            kind: .compose(project: project, dialect: .v1, service: "api service")
+        )
+
+        #expect(
+            projectLog.followCommand(sudo: true)
+                == "sudo -n docker compose -f '/srv/web app/compose.yml' --project-directory '/srv/web app' -p 'web app' logs --no-color --tail 300 -f 2>&1"
+        )
+        #expect(
+            serviceLog.followCommand(tail: 50)
+                == "docker-compose -f '/srv/web app/compose.yml' --project-directory '/srv/web app' -p 'web app' logs --no-color --tail 50 -f 'api service' 2>&1"
+        )
+    }
+
     @Test("探测解析：有 journalctl → 含系统源 + 存在的文件源")
     func discoveryWithJournal() {
         let output = "__JOURNAL__\n__FILE__ nginx-error\n__FILE__ syslog"

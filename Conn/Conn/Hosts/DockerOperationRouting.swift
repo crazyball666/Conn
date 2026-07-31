@@ -11,6 +11,7 @@ extension DockerView {
             case "images": .images
             case "volumes": .volumes
             case "networks": .networks
+            case "compose": .compose
             default: .containers
             }
         #else
@@ -27,6 +28,7 @@ extension DockerView {
         case pullImage
         case createVolume
         case createNetwork
+        case addComposeProject
         case destructive(DockerPendingAction)
 
         var id: String {
@@ -35,6 +37,7 @@ extension DockerView {
             case .pullImage: "pull-image"
             case .createVolume: "create-volume"
             case .createNetwork: "create-network"
+            case .addComposeProject: "add-compose-project"
             case let .destructive(action): "destructive-\(action.confirmationWord)"
             }
         }
@@ -82,6 +85,8 @@ extension DockerView {
             DockerVolumeFormView(operations: viewModel.operations)
         case .createNetwork:
             DockerNetworkFormView(operations: viewModel.operations)
+        case .addComposeProject:
+            DockerComposeManualFormView(model: viewModel.compose)
         case .destructive:
             DockerDestructiveConfirmationView(operations: viewModel.operations)
         }

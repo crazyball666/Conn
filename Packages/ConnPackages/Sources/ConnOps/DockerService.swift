@@ -90,6 +90,113 @@ public enum DockerService {
         try await session.exec(DockerCommand.action(action, id: id, sudo: sudo), timeout: writeTimeout)
     }
 
+    // MARK: - 第三期 Compose
+
+    public static func composeDialect(
+        on session: any SSHSession,
+        sudo: Bool
+    ) async throws -> DockerComposeDialect? {
+        let v2 = try await session.exec(DockerCommand.composeVersion(.v2, sudo: sudo))
+        if v2.exitCode == 0 {
+            return .v2
+        }
+        let v1 = try await session.exec(DockerCommand.composeVersion(.v1, sudo: sudo))
+        return v1.exitCode == 0 ? .v1 : nil
+    }
+
+    public static func listComposeProjects(
+        dialect: DockerComposeDialect,
+        on session: any SSHSession,
+        sudo: Bool
+    ) async throws -> [DockerComposeProject] {
+        let listed: [DockerComposeProject]
+        if dialect == .v2 {
+            let result = try await session.exec(DockerCommand.composeProjects(sudo: sudo))
+            try requireComposeSuccess(result)
+            listed = DockerComposeParser.parseV2Projects(result.stdoutText)
+        } else {
+            listed = []
+        }
+        let containerResult = try await session.exec(
+            DockerCommand.composeContainers(sudo: sudo)
+        )
+        try requireComposeSuccess(containerResult)
+        let labeled = DockerComposeParser.parseProjectsFromContainers(containerResult.stdoutText)
+        return DockerComposeParser.mergeDiscoveredProjects(listed: listed, labeled: labeled)
+    }
+
+    public static func composeServices(
+        _ project: DockerComposeProject,
+        dialect: DockerComposeDialect,
+        on session: any SSHSession,
+        sudo: Bool
+    ) async throws -> [DockerComposeService] {
+        let config = try await session.exec(
+            DockerCommand.composeConfigServices(project, dialect: dialect, sudo: sudo)
+        )
+        guard config.exitCode == 0 else {
+            throw DockerComposeError.commandFailed(
+                exitCode: config.exitCode,
+                message: config.stderrText.isEmpty ? config.stdoutText : config.stderrText
+            )
+        }
+        let declared = config.stdoutText.split(separator: "\n")
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        let containers = try await session.exec(
+            DockerCommand.composeContainers(projectName: project.name, sudo: sudo)
+        )
+        guard containers.exitCode == 0 else {
+            throw DockerComposeError.commandFailed(
+                exitCode: containers.exitCode,
+                message: containers.stderrText.isEmpty ? containers.stdoutText : containers.stderrText
+            )
+        }
+        return DockerComposeParser.parseServices(
+            containerOutput: containers.stdoutText,
+            declaredServices: declared
+        )
+    }
+
+    public static func composeUp(
+        _ project: DockerComposeProject,
+        dialect: DockerComposeDialect,
+        on session: any SSHSession,
+        sudo: Bool
+    ) async throws -> ExecResult {
+        try await session.exec(
+            DockerCommand.composeUp(project, dialect: dialect, sudo: sudo),
+            timeout: writeTimeout
+        )
+    }
+
+    public static func composeDown(
+        _ project: DockerComposeProject,
+        dialect: DockerComposeDialect,
+        on session: any SSHSession,
+        sudo: Bool
+    ) async throws -> ExecResult {
+        try await session.exec(
+            DockerCommand.composeDown(project, dialect: dialect, sudo: sudo),
+            timeout: writeTimeout
+        )
+    }
+
+    public static func composeRestart(
+        _ project: DockerComposeProject,
+        service: String? = nil,
+        dialect: DockerComposeDialect,
+        on session: any SSHSession,
+        sudo: Bool
+    ) async throws -> ExecResult {
+        try await session.exec(
+            DockerCommand.composeRestart(
+                project, service: service, dialect: dialect, sudo: sudo
+            ),
+            timeout: writeTimeout
+        )
+    }
+
     // MARK: - 第二期写操作
 
     /// 拉取镜像并实时返回远端输出；最终退出结果由流的 `result()` 提供。
@@ -246,5 +353,14 @@ public enum DockerService {
         sudo: Bool
     ) async throws -> AsyncThrowingStream<Data, Error> {
         try await session.execStream(DockerCommand.logs(id: id, tail: tail, sudo: sudo))
+    }
+
+    private static func requireComposeSuccess(_ result: ExecResult) throws {
+        guard result.exitCode == 0 else {
+            throw DockerComposeError.commandFailed(
+                exitCode: result.exitCode,
+                message: result.stderrText.isEmpty ? result.stdoutText : result.stderrText
+            )
+        }
     }
 }

@@ -1,6 +1,14 @@
 {
   "sourceLanguage" : "zh-Hans",
   "strings" : {
+    "Docker Compose 命令失败（退出码 %d）" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Docker Compose command failed (exit code %d)" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "Docker Compose コマンドに失敗しました（終了コード %d）" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "Docker Compose 명령 실패(종료 코드 %d)" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "Docker Compose 指令失敗（結束代碼 %d）" } }
+      }
+    },
     "启动" : {
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Start" } },

@@ -1,6 +1,350 @@
 {
   "sourceLanguage": "zh-Hans",
   "strings": {
+    "%@ · %d 个服务 · %d/%d 个容器运行": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "%@ · %d services · %d/%d containers running" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "%@・%d件のサービス・%d/%d個のコンテナが実行中" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "%@ · 서비스 %d개 · 컨테이너 %d/%d개 실행 중" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "%@ · %d 個服務 · %d/%d 個容器執行中" } }
+      }
+    },
+    "%d/%d 个容器运行": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "%d/%d containers running" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "%d/%d個のコンテナが実行中" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "컨테이너 %d/%d개 실행 중" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "%d/%d 個容器執行中" } }
+      }
+    },
+    "Compose": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Compose" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "Compose" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "Compose" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "Compose" } }
+      }
+    },
+    "Compose 服务日志": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Compose service logs" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "Compose サービスログ" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "Compose 서비스 로그" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "Compose 服務日誌" } }
+      }
+    },
+    "Compose 项目日志": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Compose project logs" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "Compose プロジェクトログ" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "Compose 프로젝트 로그" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "Compose 專案日誌" } }
+      }
+    },
+    "Compose 项目配置无效": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Invalid Compose project configuration" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "Compose プロジェクト設定が無効です" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "Compose 프로젝트 구성이 올바르지 않습니다" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "Compose 專案設定無效" } }
+      }
+    },
+    "Docker Compose 停止项目": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Docker Compose stopped project" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "Docker Compose プロジェクトを停止" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "Docker Compose 프로젝트 중지" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "Docker Compose 停止專案" } }
+      }
+    },
+    "Docker Compose 启动项目": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Docker Compose started project" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "Docker Compose プロジェクトを起動" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "Docker Compose 프로젝트 시작" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "Docker Compose 啟動專案" } }
+      }
+    },
+    "Docker Compose 重启服务": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Docker Compose restarted service" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "Docker Compose サービスを再起動" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "Docker Compose 서비스 재시작" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "Docker Compose 重新啟動服務" } }
+      }
+    },
+    "Docker Compose 重启项目": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Docker Compose restarted project" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "Docker Compose プロジェクトを再起動" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "Docker Compose 프로젝트 재시작" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "Docker Compose 重新啟動專案" } }
+      }
+    },
+    "停止 Compose 项目": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Stop Compose project" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "Compose プロジェクトを停止" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "Compose 프로젝트 중지" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "停止 Compose 專案" } }
+      }
+    },
+    "共 %d 个项目": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "%d projects" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "%d件のプロジェクト" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "프로젝트 %d개" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "共 %d 個專案" } }
+      }
+    },
+    "启动 Compose 项目": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Start Compose project" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "Compose プロジェクトを起動" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "Compose 프로젝트 시작" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "啟動 Compose 專案" } }
+      }
+    },
+    "将使用项目名称：%@": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Project name: %@" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "使用するプロジェクト名：%@" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "사용할 프로젝트 이름: %@" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "將使用專案名稱：%@" } }
+      }
+    },
+    "已停止": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Stopped" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "停止済み" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "중지됨" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "已停止" } }
+      }
+    },
+    "手动": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Manual" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "手動" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "수동" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "手動" } }
+      }
+    },
+    "手动添加 Compose 项目": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Add Compose Project Manually" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "Compose プロジェクトを手動追加" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "Compose 프로젝트 수동 추가" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "手動新增 Compose 專案" } }
+      }
+    },
+    "手动添加项目": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Add Project Manually" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "プロジェクトを手動追加" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "프로젝트 수동 추가" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "手動新增專案" } }
+      }
+    },
+    "搜索 Compose 项目": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Search Compose projects" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "Compose プロジェクトを検索" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "Compose 프로젝트 검색" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "搜尋 Compose 專案" } }
+      }
+    },
+    "操作": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Actions" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "操作" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "작업" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "操作" } }
+      }
+    },
+    "无镜像": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "No image" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "イメージなし" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "이미지 없음" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "無映像檔" } }
+      }
+    },
+    "服务": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Services" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "サービス" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "서비스" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "服務" } }
+      }
+    },
+    "未检测到 Docker Compose": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Docker Compose was not detected" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "Docker Compose が見つかりません" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "Docker Compose를 찾을 수 없습니다" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "未偵測到 Docker Compose" } }
+      }
+    },
+    "没有 Compose 项目": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "No Compose projects" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "Compose プロジェクトがありません" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "Compose 프로젝트가 없습니다" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "沒有 Compose 專案" } }
+      }
+    },
+    "没有匹配的 Compose 项目": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "No matching Compose projects" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "一致する Compose プロジェクトがありません" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "일치하는 Compose 프로젝트가 없습니다" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "沒有相符的 Compose 專案" } }
+      }
+    },
+    "添加": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Add" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "追加" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "추가" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "新增" } }
+      }
+    },
+    "自动发现": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Auto-discovered" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "自動検出" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "자동 발견" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "自動探索" } }
+      }
+    },
+    "该项目没有服务": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "This project has no services" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "このプロジェクトにはサービスがありません" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "이 프로젝트에는 서비스가 없습니다" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "此專案沒有服務" } }
+      }
+    },
+    "读取 Compose 项目…": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Loading Compose projects…" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "Compose プロジェクトを読み込み中…" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "Compose 프로젝트 불러오는 중…" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "正在讀取 Compose 專案…" } }
+      }
+    },
+    "读取服务…": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Loading services…" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "サービスを読み込み中…" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "서비스 불러오는 중…" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "正在讀取服務…" } }
+      }
+    },
+    "运行中": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Running" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "実行中" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "실행 중" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "執行中" } }
+      }
+    },
+    "部分运行": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Partially running" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "一部実行中" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "일부 실행 중" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "部分執行中" } }
+      }
+    },
+    "配置文件": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Configuration file" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "設定ファイル" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "구성 파일" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "設定檔" } }
+      }
+    },
+    "配置文件必须使用服务器上的绝对路径。": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "The configuration file must use an absolute path on the server." } },
+        "ja": { "stringUnit": { "state": "translated", "value": "設定ファイルにはサーバー上の絶対パスを使用してください。" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "구성 파일은 서버의 절대 경로를 사용해야 합니다." } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "設定檔必須使用伺服器上的絕對路徑。" } }
+      }
+    },
+    "配置文件绝对路径": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Absolute path to configuration file" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "設定ファイルの絶対パス" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "구성 파일 절대 경로" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "設定檔絕對路徑" } }
+      }
+    },
+    "重启 Compose 服务": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Restart Compose service" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "Compose サービスを再起動" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "Compose 서비스 재시작" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "重新啟動 Compose 服務" } }
+      }
+    },
+    "重启 Compose 项目": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Restart Compose project" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "Compose プロジェクトを再起動" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "Compose 프로젝트 재시작" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "重新啟動 Compose 專案" } }
+      }
+    },
+    "重启服务": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Restart service" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "サービスを再起動" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "서비스 재시작" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "重新啟動服務" } }
+      }
+    },
+    "项目名称": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Project name" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "プロジェクト名" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "프로젝트 이름" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "專案名稱" } }
+      }
+    },
+    "项目名称（可选）": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Project name (optional)" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "プロジェクト名（任意）" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "프로젝트 이름(선택 사항)" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "專案名稱（可選）" } }
+      }
+    },
+    "项目目录": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Project directory" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "プロジェクトディレクトリ" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "프로젝트 디렉터리" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "專案目錄" } }
+      }
+    },
+    "项目目录（可选）": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Project directory (optional)" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "プロジェクトディレクトリ（任意）" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "프로젝트 디렉터리(선택 사항)" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "專案目錄（可選）" } }
+      }
+    },
+    "项目配置": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Project configuration" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "プロジェクト設定" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "프로젝트 구성" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "專案設定" } }
+      }
+    },
     "%@ 失败（退出码 %d）": {
       "localizations": {
         "en": { "stringUnit": { "state": "translated", "value": "%@ failed (exit code %d)" } },

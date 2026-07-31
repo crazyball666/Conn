@@ -131,6 +131,7 @@ struct LogCenterView: View {
         case .journal: "list.bullet.rectangle"
         case .file: "doc.text"
         case .container: "shippingbox"
+        case .compose: "square.stack.3d.up"
         }
     }
 }

@@ -4,6 +4,69 @@ import Foundation
 ///
 /// `sudo` 为真时前缀 `sudo -n `——用户不在 docker 组但有免密 sudo 时的回退。
 public enum DockerCommand {
+    // MARK: - 第三期 Compose
+
+    public static func composeVersion(_ dialect: DockerComposeDialect, sudo: Bool) -> String {
+        prefix(sudo) + dialect.command + " version"
+    }
+
+    public static func composeProjects(sudo: Bool) -> String {
+        prefix(sudo) + "docker compose ls --all --format json"
+    }
+
+    public static func composeContainers(projectName: String? = nil, sudo: Bool) -> String {
+        let label = projectName.map { "label=com.docker.compose.project=\($0)" }
+            ?? "label=com.docker.compose.project"
+        return prefix(sudo)
+            + "docker ps -a --filter \(ShellArgument.quote(label)) --format '{{json .}}'"
+    }
+
+    public static func composeUp(
+        _ project: DockerComposeProject,
+        dialect: DockerComposeDialect,
+        sudo: Bool
+    ) -> String {
+        composeBase(project, dialect: dialect, sudo: sudo) + " up -d"
+    }
+
+    public static func composeDown(
+        _ project: DockerComposeProject,
+        dialect: DockerComposeDialect,
+        sudo: Bool
+    ) -> String {
+        composeBase(project, dialect: dialect, sudo: sudo) + " down"
+    }
+
+    public static func composeRestart(
+        _ project: DockerComposeProject,
+        service: String? = nil,
+        dialect: DockerComposeDialect,
+        sudo: Bool
+    ) -> String {
+        let target = service.map { " " + ShellArgument.quote($0) } ?? ""
+        return composeBase(project, dialect: dialect, sudo: sudo) + " restart" + target
+    }
+
+    public static func composeLogs(
+        _ project: DockerComposeProject,
+        service: String?,
+        tail: Int = 300,
+        dialect: DockerComposeDialect,
+        sudo: Bool
+    ) -> String {
+        let target = service.map { " " + ShellArgument.quote($0) } ?? ""
+        return composeBase(project, dialect: dialect, sudo: sudo)
+            + " logs --no-color --tail \(tail) -f" + target
+    }
+
+    public static func composeConfigServices(
+        _ project: DockerComposeProject,
+        dialect: DockerComposeDialect,
+        sudo: Bool
+    ) -> String {
+        composeBase(project, dialect: dialect, sudo: sudo) + " config --services"
+    }
+
     // MARK: - 第二期写操作
 
     /// 拉取一个镜像引用。
@@ -200,5 +263,16 @@ public enum DockerCommand {
 
     private static func prefix(_ sudo: Bool) -> String {
         sudo ? "sudo -n " : ""
+    }
+
+    private static func composeBase(
+        _ project: DockerComposeProject,
+        dialect: DockerComposeDialect,
+        sudo: Bool
+    ) -> String {
+        var arguments = project.configFiles.flatMap { ["-f", ShellArgument.quote($0)] }
+        arguments += ["--project-directory", ShellArgument.quote(project.projectDirectory)]
+        arguments += ["-p", ShellArgument.quote(project.name)]
+        return prefix(sudo) + dialect.command + " " + arguments.joined(separator: " ")
     }
 }

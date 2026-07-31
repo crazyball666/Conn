@@ -4,7 +4,7 @@ import ConnSSH
 import Foundation
 import Observation
 
-/// Docker 分段外壳：可用性探测、sudo 标志、共用的结果提示，以及四个资源模型。
+/// Docker 分段外壳：可用性探测、sudo 标志、共用的结果提示，以及各资源模型。
 ///
 /// 它**不再直接持有任何资源列表**——容器、镜像、卷、网络各自一个模型，
 /// 各管各的加载与状态。这样加第五类资源时只多一个文件，不动这里。
@@ -27,7 +27,7 @@ final class DockerViewModel {
     /// 不该让整个页面看起来坏了。
     private(set) var diskUsage: DockerDiskUsage?
 
-    // 下面五个隐式解包可选值并非疏忽：`context` 的 report/refresh/reprobe 闭包要弱引用
+    // 下面这些隐式解包可选值并非疏忽：`context` 的 report/refresh/reprobe 闭包要弱引用
     // 捕获 self，而 `containers`/`images`/`volumes`/`networks` 又是拿 `context`
     // 构造的——它们必须在 init 里互相依赖着赋值，Swift 的两段式初始化要求
     // 在此之前"已经有值"（哪怕是隐式 nil）才允许捕获 self。改成普通 Optional
@@ -41,12 +41,15 @@ final class DockerViewModel {
     // swiftlint:disable:next implicitly_unwrapped_optional
     private(set) var networks: DockerNetworksModel!
     // swiftlint:disable:next implicitly_unwrapped_optional
+    private(set) var compose: DockerComposeModel!
+    // swiftlint:disable:next implicitly_unwrapped_optional
     private(set) var operations: DockerOperationsModel!
 
     private let host: Host
     private let connectionManager: ConnectionManager
     private let runHistory: any RunHistoryRepository
     private var availability: DockerAvailability = .notInstalled
+    private let composeRegistry = DockerComposeRegistry()
     // swiftlint:disable:next implicitly_unwrapped_optional
     private var context: DockerContext!
 
@@ -77,6 +80,7 @@ final class DockerViewModel {
         images = DockerImagesModel(context: context, operations: operations)
         volumes = DockerVolumesModel(context: context, operations: operations)
         networks = DockerNetworksModel(context: context, operations: operations)
+        compose = DockerComposeModel(context: context, registry: composeRegistry)
     }
 
     /// 当前是否需 sudo（供容器日志沿用同一提权）。
@@ -171,6 +175,7 @@ final class DockerViewModel {
         images = DockerImagesModel(context: context, operations: operations)
         volumes = DockerVolumesModel(context: context, operations: operations)
         networks = DockerNetworksModel(context: context, operations: operations)
+        compose = DockerComposeModel(context: context, registry: composeRegistry)
     }
 
     /// 已知 Docker 写结果只重拉它实际影响的列表。这里不走 `load()`，避免在操作闸门
@@ -189,6 +194,9 @@ final class DockerViewModel {
         }
         if scope.contains(.networks) {
             await networks.load()
+        }
+        if scope.contains(.compose) {
+            await compose.load()
         }
     }
 }

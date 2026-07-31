@@ -130,6 +130,69 @@ struct DockerOperationsModelTests {
         #expect(DockerPendingAction.pruneImages.confirmationWord == "PRUNE")
     }
 
+    @Test("Compose down 必须输入项目名并经共享操作模型执行")
+    func composeDownRequiresExactProjectNameAndUsesSharedOperations() async {
+        let session = OperationSession()
+        let history = RecordingHistory()
+        var refreshes: [DockerRefreshScope] = []
+        let context = makeContext(session: { session }, refresh: { refreshes.append($0) })
+        let operations = DockerOperationsModel(
+            context: context, hostUUID: "host-1", runHistory: history
+        )
+        let project = DockerComposeProject(
+            name: "web", state: .running,
+            configFiles: ["/srv/web/compose.yml"], projectDirectory: "/srv/web",
+            source: .automatic
+        )
+
+        operations.requestDestructiveAction(.composeDown(project: project, dialect: .v2))
+        let wrong = await operations.confirmPendingAction(confirmation: "DOWN")
+        #expect(!wrong)
+        #expect(session.executionCount == 0)
+
+        let confirmed = await operations.confirmPendingAction(confirmation: "web")
+
+        #expect(confirmed)
+        #expect(session.lastCommand == DockerCommand.composeDown(project, dialect: .v2, sudo: false))
+        #expect(refreshes == [.all])
+        #expect(history.entries.first?.command == L("Docker Compose 停止项目"))
+        #expect(history.entries.first?.command.contains("/srv/web") == false)
+    }
+
+    @Test("Compose up 与既有镜像操作共用同一单槽写闸门")
+    func composeAndLegacyWritesShareOneGate() async {
+        let gate = OperationGate()
+        let session = GatedOperationSession(gate: gate)
+        let operations = DockerOperationsModel(
+            context: makeContext(session: { session }),
+            hostUUID: "host-1",
+            runHistory: RecordingHistory()
+        )
+        let images = DockerImagesModel(
+            context: makeContext(session: { session }),
+            operations: operations
+        )
+        let project = DockerComposeProject(
+            name: "web", state: .stopped,
+            configFiles: ["/srv/web/compose.yml"], projectDirectory: "/srv/web",
+            source: .automatic
+        )
+
+        let first = Task {
+            await operations.composeUp(project, dialect: .v2)
+        }
+        await gate.waitForFirstCommand()
+        let second = Task { await images.prune() }
+        await Task.yield()
+
+        #expect(await gate.commandCount == 1)
+
+        await gate.allow()
+        await first.value
+        await second.value
+        #expect(await gate.commandCount == 1)
+    }
+
     @Test("拉取逐块交付输出，以相同 UUID 写入已知非零结果")
     func pullDeliversChunksAndUpdatesPendingAudit() async {
         let session = PullSession(

@@ -112,6 +112,47 @@ final class DockerOperationsModel {
         }
     }
 
+    // MARK: - Phase 3 Compose write entry points
+
+    func composeUp(
+        _ project: DockerComposeProject,
+        dialect: DockerComposeDialect
+    ) async {
+        await execute(.composeUp(projectName: project.name), label: L("启动 Compose 项目")) {
+            session, sudo in
+            try await DockerService.composeUp(
+                project, dialect: dialect, on: session, sudo: sudo
+            )
+        }
+    }
+
+    func composeRestart(
+        _ project: DockerComposeProject,
+        service: String? = nil,
+        dialect: DockerComposeDialect
+    ) async {
+        await execute(
+            .composeRestart(projectName: project.name, serviceName: service),
+            label: service == nil ? L("重启 Compose 项目") : L("重启 Compose 服务")
+        ) { session, sudo in
+            try await DockerService.composeRestart(
+                project, service: service, dialect: dialect, on: session, sudo: sudo
+            )
+        }
+    }
+
+    private func composeDownConfirmed(
+        _ project: DockerComposeProject,
+        dialect: DockerComposeDialect
+    ) async {
+        await execute(.composeDown(projectName: project.name), label: L("停止 Compose 项目")) {
+            session, sudo in
+            try await DockerService.composeDown(
+                project, dialect: dialect, on: session, sudo: sudo
+            )
+        }
+    }
+
     /// 拉取是唯一流式写操作：远端启动前先同步写 pending；若本地审计不可用，就宁可不发
     /// 命令，避免制造无法追踪的长任务。
     /// 从普通 sheet 提交拉取。先同步建立 presentation，再启动远端工作，让顶层
@@ -229,6 +270,8 @@ final class DockerOperationsModel {
         case let .removeNetwork(network): await removeNetworkConfirmed(name: network.name)
         case .pruneImages: await pruneImagesConfirmed()
         case let .systemPrune(options): await systemPruneConfirmed(options)
+        case let .composeDown(project, dialect):
+            await composeDownConfirmed(project, dialect: dialect)
         }
         return true
     }

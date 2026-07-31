@@ -11,7 +11,8 @@ struct DockerRefreshScope: OptionSet, Sendable, Equatable {
     static let images = DockerRefreshScope(rawValue: 1 << 1)
     static let volumes = DockerRefreshScope(rawValue: 1 << 2)
     static let networks = DockerRefreshScope(rawValue: 1 << 3)
-    static let all: DockerRefreshScope = [.containers, .images, .volumes, .networks]
+    static let compose = DockerRefreshScope(rawValue: 1 << 4)
+    static let all: DockerRefreshScope = [.containers, .images, .volumes, .networks, .compose]
 }
 
 /// 远端最终退出结果的可知性。此类型刻意只留退出码，绝不携带 `ExecResult`、命令或输出。
@@ -54,6 +55,10 @@ enum DockerAuditOperation: Sendable, Equatable {
     case createNetwork
     case removeNetwork
     case systemPrune
+    case composeUp
+    case composeDown
+    case composeRestartProject
+    case composeRestartService
 
     var historyLabel: String {
         switch self {
@@ -70,6 +75,10 @@ enum DockerAuditOperation: Sendable, Equatable {
         case .createNetwork: L("Docker 创建网络")
         case .removeNetwork: L("Docker 删除网络")
         case .systemPrune: L("Docker 系统清理")
+        case .composeUp: L("Docker Compose 启动项目")
+        case .composeDown: L("Docker Compose 停止项目")
+        case .composeRestartProject: L("Docker Compose 重启项目")
+        case .composeRestartService: L("Docker Compose 重启服务")
         }
     }
 }
@@ -117,6 +126,9 @@ enum DockerOperation: Sendable {
     case createNetwork
     case removeNetwork
     case systemPrune
+    case composeUp(projectName: String)
+    case composeDown(projectName: String)
+    case composeRestart(projectName: String, serviceName: String?)
 
     var auditOperation: DockerAuditOperation {
         switch self {
@@ -136,6 +148,10 @@ enum DockerOperation: Sendable {
         case .createNetwork: .createNetwork
         case .removeNetwork: .removeNetwork
         case .systemPrune: .systemPrune
+        case .composeUp: .composeUp
+        case .composeDown: .composeDown
+        case let .composeRestart(_, serviceName):
+            serviceName == nil ? .composeRestartProject : .composeRestartService
         }
     }
 
@@ -147,6 +163,8 @@ enum DockerOperation: Sendable {
         case .createVolume, .removeVolume: .volumes
         case .createNetwork, .removeNetwork: .networks
         case .systemPrune: .all
+        case .composeUp, .composeDown: .all
+        case .composeRestart: [.containers, .compose]
         }
     }
 
@@ -184,6 +202,7 @@ enum DockerPendingAction: Sendable, Equatable {
     case removeNetwork(NetworkInfo)
     case pruneImages
     case systemPrune(DockerSystemPruneOptions)
+    case composeDown(project: DockerComposeProject, dialect: DockerComposeDialect)
 
     /// 删除必须逐字输入资源名；清理类操作固定输入 PRUNE。资源名而非通用 DELETE
     /// 让用户在确认时再看一眼目标，且不同 prune 选项替换 pending action 时 UI 会重置输入。
@@ -194,6 +213,7 @@ enum DockerPendingAction: Sendable, Equatable {
         case let .removeVolume(volume): volume.name
         case let .removeNetwork(network): network.name
         case .pruneImages, .systemPrune: "PRUNE"
+        case let .composeDown(project, _): project.name
         }
     }
 
@@ -201,6 +221,7 @@ enum DockerPendingAction: Sendable, Equatable {
         switch self {
         case .removeContainer, .removeImage, .removeVolume, .removeNetwork: L("删除")
         case .pruneImages, .systemPrune: L("清理")
+        case .composeDown: L("停止")
         }
     }
 

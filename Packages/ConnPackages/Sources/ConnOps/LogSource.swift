@@ -9,6 +9,12 @@ public struct LogSource: Identifiable, Sendable, Equatable, Hashable {
         case file(path: String)
         /// Docker 容器日志（复用 docker logs 通道）。
         case container(id: String, name: String)
+        /// Docker Compose 项目或单个服务日志。
+        case compose(
+            project: DockerComposeProject,
+            dialect: DockerComposeDialect,
+            service: String?
+        )
     }
 
     public let id: String
@@ -34,6 +40,14 @@ public struct LogSource: Identifiable, Sendable, Equatable, Hashable {
             return prefix + "tail -n \(tail) -F \(Self.shellQuote(path)) 2>&1"
         case let .container(id, _):
             return prefix + "docker logs -f --tail \(tail) \(id) 2>&1"
+        case let .compose(project, dialect, service):
+            return DockerCommand.composeLogs(
+                project,
+                service: service,
+                tail: tail,
+                dialect: dialect,
+                sudo: sudo
+            ) + " 2>&1"
         }
     }
 

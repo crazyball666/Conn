@@ -113,6 +113,158 @@ struct DockerOperationServiceTests {
     }
 }
 
+@Suite("DockerService — Compose 第三期")
+struct DockerComposeServiceTests {
+    @Test("Compose 探测优先 v2 并在失败后回退 v1")
+    func detectsComposeDialectWithFallback() async throws {
+        let v1Session = RecordingSSHSession(execResults: [
+            .init(exitCode: 1, stdout: Data(), stderr: Data("not a command".utf8)),
+            .init(exitCode: 0, stdout: Data("docker-compose version 1.29.2".utf8), stderr: Data()),
+        ])
+
+        let dialect = try await DockerService.composeDialect(on: v1Session, sudo: true)
+
+        #expect(dialect == .v1)
+        #expect(v1Session.invocations == [
+            .init(method: .exec, command: "sudo -n docker compose version", timeout: .seconds(30)),
+            .init(method: .exec, command: "sudo -n docker-compose version", timeout: .seconds(30)),
+        ])
+
+        let unavailable = RecordingSSHSession(execResults: [
+            .init(exitCode: 1, stdout: Data(), stderr: Data()),
+            .init(exitCode: 127, stdout: Data(), stderr: Data()),
+        ])
+        #expect(try await DockerService.composeDialect(on: unavailable, sudo: false) == nil)
+    }
+
+    @Test("v2 项目列表与容器标签合并项目目录和运行摘要")
+    func listsV2ProjectsAndMergesContainerMetadata() async throws {
+        let listed = """
+        [{"Name":"web","Status":"running(1)","ConfigFiles":"/listed/compose.yml"}]
+        """
+        let containers = """
+        {"ID":"c1","Image":"api:1","Names":"web-api-1","State":"running","Status":"Up","Ports":"8080/tcp","Labels":"com.docker.compose.project=web,com.docker.compose.project.config_files=/srv/web/compose.yml,com.docker.compose.project.working_dir=/srv/custom,com.docker.compose.service=api"}
+        """
+        let session = RecordingSSHSession(execResults: [
+            .init(exitCode: 0, stdout: Data(listed.utf8), stderr: Data()),
+            .init(exitCode: 0, stdout: Data(containers.utf8), stderr: Data()),
+        ])
+
+        let projects = try await DockerService.listComposeProjects(
+            dialect: .v2, on: session, sudo: true
+        )
+
+        #expect(projects.count == 1)
+        #expect(projects[0].name == "web")
+        #expect(projects[0].projectDirectory == "/srv/custom")
+        #expect(projects[0].configFiles == ["/srv/web/compose.yml"])
+        #expect(projects[0].containerCount == 1)
+        #expect(projects[0].runningContainerCount == 1)
+        #expect(session.invocations.map(\.command) == [
+            "sudo -n docker compose ls --all --format json",
+            "sudo -n docker ps -a --filter 'label=com.docker.compose.project' --format '{{json .}}'",
+        ])
+    }
+
+    @Test("项目服务合并 config 声明与现有容器")
+    func listsDeclaredAndExistingServices() async throws {
+        let project = DockerComposeProject(
+            name: "web", state: .running,
+            configFiles: ["/srv/web/compose.yml"], projectDirectory: "/srv/web",
+            source: .automatic
+        )
+        let containers = """
+        {"ID":"c1","Image":"api:1","Names":"web-api-1","State":"running","Status":"Up","Ports":"8080/tcp","Labels":"com.docker.compose.project=web,com.docker.compose.service=api"}
+        """
+        let session = RecordingSSHSession(execResults: [
+            .init(exitCode: 0, stdout: Data("api\nworker\n".utf8), stderr: Data()),
+            .init(exitCode: 0, stdout: Data(containers.utf8), stderr: Data()),
+        ])
+
+        let services = try await DockerService.composeServices(
+            project, dialect: .v2, on: session, sudo: false
+        )
+
+        #expect(services.map(\.name) == ["api", "worker"])
+        #expect(services.first(where: { $0.name == "worker" })?.state == .stopped)
+        #expect(session.invocations.map(\.command) == [
+            "docker compose -f '/srv/web/compose.yml' --project-directory '/srv/web' -p 'web' config --services",
+            "docker ps -a --filter 'label=com.docker.compose.project=web' --format '{{json .}}'",
+        ])
+    }
+
+    @Test("项目容器查询非零退出不能伪装成全部服务已停止")
+    func serviceContainerDiscoveryRejectsNonzeroResult() async {
+        let project = DockerComposeProject(
+            name: "web", state: .running,
+            configFiles: ["/srv/web/compose.yml"], projectDirectory: "/srv/web",
+            source: .automatic
+        )
+        let session = RecordingSSHSession(execResults: [
+            .init(exitCode: 0, stdout: Data("api\nworker\n".utf8), stderr: Data()),
+            .init(exitCode: 17, stdout: Data(), stderr: Data("daemon unavailable".utf8)),
+        ])
+
+        await #expect(throws: DockerComposeError.self) {
+            _ = try await DockerService.composeServices(
+                project, dialect: .v2, on: session, sudo: false
+            )
+        }
+    }
+
+    @Test("Compose 项目发现非零退出不能伪装成空列表")
+    func projectDiscoveryRejectsNonzeroResult() async {
+        let session = RecordingSSHSession(execResults: [
+            .init(exitCode: 17, stdout: Data(), stderr: Data("daemon unavailable".utf8)),
+        ])
+
+        await #expect(throws: DockerComposeError.self) {
+            _ = try await DockerService.listComposeProjects(
+                dialect: .v2, on: session, sudo: false
+            )
+        }
+    }
+
+    @Test("Compose 写操作沿用两分钟超时且保留明确非零结果")
+    func composeWritesUseSharedWriteTimeout() async throws {
+        let project = DockerComposeProject(
+            name: "web", state: .running,
+            configFiles: ["/srv/web/compose.yml"], projectDirectory: "/srv/web",
+            source: .automatic
+        )
+        let session = RecordingSSHSession(execResults: [
+            .init(exitCode: 0, stdout: Data(), stderr: Data()),
+            .init(exitCode: 7, stdout: Data(), stderr: Data("failed".utf8)),
+            .init(exitCode: 0, stdout: Data(), stderr: Data()),
+        ])
+
+        _ = try await DockerService.composeUp(project, dialect: .v2, on: session, sudo: true)
+        let down = try await DockerService.composeDown(project, dialect: .v2, on: session, sudo: true)
+        _ = try await DockerService.composeRestart(
+            project, service: "api", dialect: .v2, on: session, sudo: true
+        )
+
+        #expect(down.exitCode == 7)
+        #expect(session.invocations == [
+            .init(
+                method: .exec,
+                command: "sudo -n docker compose -f '/srv/web/compose.yml' --project-directory '/srv/web' -p 'web' up -d",
+                timeout: .seconds(120)
+            ),
+            .init(
+                method: .exec,
+                command: "sudo -n docker compose -f '/srv/web/compose.yml' --project-directory '/srv/web' -p 'web' down",
+                timeout: .seconds(120)
+            ),
+            .init(
+                method: .exec,
+                command: "sudo -n docker compose -f '/srv/web/compose.yml' --project-directory '/srv/web' -p 'web' restart 'api'",
+                timeout: .seconds(120)
+            ),
+        ])
+    }
+}
+
 private struct SSHInvocation: Equatable {
     enum Method: Equatable {
         case exec

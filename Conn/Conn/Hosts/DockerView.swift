@@ -5,7 +5,7 @@ import SwiftUI
 
 /// Docker 管理（Phase 8+）：容器（列表 / 详情 / 启停重启 / 日志 / 控制台 / 删除）
 /// + 镜像（列表 / 删除 / 清理悬空）+ 卷 / 网络（列表 / 详情，均只读）。
-/// 四项分段切换，写操作走行内菜单。
+/// 五项分段切换，写操作走各列表右上角的更多菜单。
 struct DockerView: View {
     let viewModel: DockerViewModel
     @Environment(SettingsStore.self) private var settings
@@ -15,7 +15,7 @@ struct DockerView: View {
     /// 控制台单独拆出来走 `.fullScreenCover`——`route` 剩下的几个目的地
     /// （容器/卷/网络/镜像详情）仍是 push，两种呈现方式不能共用同一个 optional。
     @State private var consoleContainer: ContainerInfo?
-    /// 四个分段共用一个搜索词——切分段时清空（见下方 `.onChange`），
+    /// 五个分段共用一个搜索词——切分段时清空（见下方 `.onChange`），
     /// 否则上一分段的过滤条件会悄悄套在新分段上。
     @State private var search = ""
     private let host: Host
@@ -85,6 +85,13 @@ struct DockerView: View {
                 diskSize: viewModel.diskUsage?.imageSize(image.imageID),
                 host: host, dependencies: dependencies
             )
+        case let .composeDetail(project):
+            DockerComposeProjectDetailView(
+                initialProject: project,
+                viewModel: viewModel,
+                host: host,
+                dependencies: dependencies
+            )
         }
     }
 
@@ -116,6 +123,14 @@ struct DockerView: View {
                     case .images: imageSection
                     case .volumes: volumeSection
                     case .networks: networkSection
+                    case .compose:
+                        DockerComposeListView(
+                            model: viewModel.compose,
+                            canWrite: viewModel.canWrite,
+                            search: $search,
+                            addManual: { operationSheet = .addComposeProject },
+                            open: { route = .composeDetail($0) }
+                        )
                     }
                 }
                 .scrollBounceBehavior(.basedOnSize)
@@ -135,6 +150,7 @@ struct DockerView: View {
             case .images: await refreshImages()
             case .volumes: await viewModel.volumes.load()
             case .networks: await viewModel.networks.load()
+            case .compose: await viewModel.compose.load()
             }
         }
     }
@@ -143,6 +159,18 @@ struct DockerView: View {
         await viewModel.loadIfNeeded()
         #if DEBUG
             let environment = ProcessInfo.processInfo.environment
+            if environment["CONN_SMOKE_COMPOSE_DETAIL_ROUTE"] != nil {
+                await viewModel.compose.load()
+                if let project = viewModel.compose.items.first(where: { $0.name == "conn-web" }) {
+                    route = .composeDetail(project)
+                }
+                return
+            }
+            if environment["CONN_SMOKE_COMPOSE_FORM"] != nil {
+                await viewModel.compose.load()
+                operationSheet = .addComposeProject
+                return
+            }
             guard environment["CONN_SMOKE_NETWORK_DETAIL_ROUTE"] != nil
                     || environment["CONN_SMOKE_NETWORK_CONTAINER_ROUTE"] != nil
             else { return }
@@ -177,6 +205,7 @@ struct DockerView: View {
         case .images: await refreshImages()
         case .volumes: await viewModel.volumes.load()
         case .networks: await viewModel.networks.load()
+        case .compose: await viewModel.compose.load()
         }
         let minimum = Duration.milliseconds(500)
         let elapsed = clock.now - start
@@ -390,7 +419,7 @@ extension DockerView {
 
 // MARK: - 分段与路由
 
-// 拆到同文件的 extension 里而非塞进主体：四项分段后 Route 带自定义 Hashable，
+// 拆到同文件的 extension 里而非塞进主体：五项分段后 Route 带自定义 Hashable，
 // 与其余视图逻辑放一起会把 DockerView 主体推过 SwiftLint 的 300 行阈值。
 extension DockerView {
     enum Tab: String, CaseIterable, Identifiable {
@@ -398,12 +427,14 @@ extension DockerView {
         case images = "镜像"
         case volumes = "卷"
         case networks = "网络"
+        case compose = "Compose"
         var id: String { rawValue }
     }
 
     enum Route: Hashable, Identifiable {
         case detail(ContainerInfo), logs(ContainerInfo)
         case volumeDetail(VolumeInfo), networkDetail(NetworkInfo), imageDetail(ImageInfo)
+        case composeDetail(DockerComposeProject)
 
         var id: String {
             switch self {
@@ -412,6 +443,7 @@ extension DockerView {
             case let .volumeDetail(volume): "volume-\(volume.name)"
             case let .networkDetail(network): "network-\(network.id)"
             case let .imageDetail(image): "image-\(image.id)"
+            case let .composeDetail(project): "compose-\(project.name)"
             }
         }
 

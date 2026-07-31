@@ -4,7 +4,7 @@ import Testing
 @testable import Conn
 
 struct DockerLocalizationTests {
-    @Test("第二期 Docker 文案在全部目标语言完成翻译，且 printf 占位符一致")
+    @Test("Docker 文案在全部目标语言完成翻译，且 printf 占位符一致")
     func phase2DockerStringsAreTranslatedWithMatchingPlaceholders() throws {
         let catalogURL = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
@@ -16,7 +16,7 @@ struct DockerLocalizationTests {
 
         for key in phase2Keys {
             guard let entry = strings[key] as? [String: Any] else {
-                Issue.record("缺少第二期 Docker 文案：\(key)")
+                Issue.record("缺少 Docker 文案：\(key)")
                 continue
             }
             let localizations = entry["localizations"] as? [String: Any] ?? [:]
@@ -41,12 +41,12 @@ struct DockerLocalizationTests {
         }
     }
 
-    @Test("第二期 Docker 本地化清单覆盖源码中的直接 L 调用")
+    @Test("Docker 本地化清单覆盖源码中的直接 L 调用")
     func phase2DockerAllowlistCoversLocalizedCallsInSource() throws {
         let usedKeys = try sourceLocalizedKeys()
         let missingKeys = usedKeys.subtracting(phase2Keys)
 
-        #expect(missingKeys.isEmpty, "本地化清单遗漏第二期 Docker 文案：\(missingKeys.sorted())")
+        #expect(missingKeys.isEmpty, "本地化清单遗漏 Docker 文案：\(missingKeys.sorted())")
     }
 
     @Test("第二期 Docker 演示命令提供成功、已知失败与未知终态夹具")
@@ -83,7 +83,7 @@ struct DockerLocalizationTests {
 
     private let locales = ["en", "ja", "ko", "zh-Hant"]
 
-    // 第二期 Docker 源码 surface 的所有直接 L key；zh-Hans 是 catalog 的 sourceLanguage。
+    // Docker 源码 surface 的所有直接 L key；zh-Hans 是 catalog 的 sourceLanguage。
     private let phase2Keys = [
         "%@ 失败（退出码 %d）",
         "%@ 成功",
@@ -255,12 +255,57 @@ struct DockerLocalizationTests {
         "重启次数",
         "重试",
         "镜像 ID",
-        "预置"
+        "预置",
+        "%@ · %d 个服务 · %d/%d 个容器运行",
+        "%d/%d 个容器运行",
+        "Compose",
+        "Compose 服务日志",
+        "Compose 项目日志",
+        "Compose 项目配置无效",
+        "Docker Compose 停止项目",
+        "Docker Compose 启动项目",
+        "Docker Compose 重启服务",
+        "Docker Compose 重启项目",
+        "停止 Compose 项目",
+        "共 %d 个项目",
+        "启动 Compose 项目",
+        "将使用项目名称：%@",
+        "已停止",
+        "手动",
+        "手动添加 Compose 项目",
+        "手动添加项目",
+        "搜索 Compose 项目",
+        "操作",
+        "无镜像",
+        "服务",
+        "未检测到 Docker Compose",
+        "没有 Compose 项目",
+        "没有匹配的 Compose 项目",
+        "添加",
+        "自动发现",
+        "该项目没有服务",
+        "读取 Compose 项目…",
+        "读取服务…",
+        "运行中",
+        "部分运行",
+        "配置文件",
+        "配置文件必须使用服务器上的绝对路径。",
+        "配置文件绝对路径",
+        "重启 Compose 服务",
+        "重启 Compose 项目",
+        "重启服务",
+        "项目名称",
+        "项目名称（可选）",
+        "项目目录",
+        "项目目录（可选）",
+        "项目配置"
     ]
 
     private let phase2DockerSourceFiles = [
         "Conn/Commands/RunHistoryView.swift",
         "Conn/Hosts/ContainerDetailView.swift",
+        "Conn/Hosts/DockerComposeModel.swift",
+        "Conn/Hosts/DockerComposeViews.swift",
         "Conn/Hosts/DockerDestructiveConfirmationView.swift",
         "Conn/Hosts/DockerOperationRouting.swift",
         "Conn/Hosts/DockerOperationTypes.swift",
@@ -323,13 +368,15 @@ struct DockerLocalizationTests {
 }
 
 extension DockerLocalizationTests {
-    @Test("四类 Docker 资源通过统一列表标题进入操作，顶部不再放添加入口")
+    @Test("五类 Docker 资源通过统一列表标题进入操作，顶部不再放添加入口")
     func resourceOperationsUseSharedListHeaders() throws {
         let dockerView = try source(named: "Conn/Hosts/DockerView.swift")
         let routing = try source(named: "Conn/Hosts/DockerOperationRouting.swift")
         let runForm = try source(named: "Conn/Hosts/DockerRunFormView.swift")
+        let composeViews = try source(named: "Conn/Hosts/DockerComposeViews.swift")
 
         #expect(dockerView.components(separatedBy: "DockerDetail.listHeader").count - 1 == 4)
+        #expect(composeViews.components(separatedBy: "DockerDetail.listHeader").count - 1 == 1)
         #expect(!routing.contains("operationToolbar"))
         #expect(dockerView.contains("L(\"共 %d 个\")"))
         #expect(!dockerView.contains("L(\"%@容器\")"))
@@ -337,6 +384,10 @@ extension DockerLocalizationTests {
         #expect(dockerView.contains("operationSheet = .pullImage"))
         #expect(dockerView.contains("operationSheet = .createVolume"))
         #expect(dockerView.contains("operationSheet = .createNetwork"))
+        #expect(dockerView.contains("operationSheet = .addComposeProject"))
+        #expect(composeViews.contains("Label(L(\"手动添加项目\"), systemImage: \"plus\")"))
+        #expect(composeViews.contains(".composeDown(project: project, dialect: dialect)"))
+        #expect(composeViews.contains("kind: .compose(project: project, dialect: dialect, service: service)"))
         #expect(runForm.contains("DockerCommand.run(draft, sudo: false)"))
         #expect(!runForm.contains("maskedArguments"))
     }

@@ -18,8 +18,37 @@ enum DemoOps {
     // 磁盘占用、层历史、镜像详情把原本一条函数的圈复杂度顶到 19（阈值 10），
     // 按资源种类拆开是真去重（各段本就管各的命令），不是为了压数字硬拆。
     private static func dockerResponse(_ command: String) -> MockSSHTransport.CommandResponse? {
-        containerResponse(command) ?? volumeResponse(command)
+        composeResponse(command) ?? containerResponse(command) ?? volumeResponse(command)
             ?? networkResponse(command) ?? imageResponse(command)
+    }
+
+    private static func composeResponse(_ command: String) -> MockSSHTransport.CommandResponse? {
+        if command.contains("docker compose version") {
+            return .init(stdout: "Docker Compose version v2.29.2\n")
+        }
+        if command.contains("docker-compose version") {
+            return .init(stdout: "docker-compose version 1.29.2\n")
+        }
+        if command.contains("compose ls --all --format json") {
+            return .init(stdout: composeProjectsJSON)
+        }
+        if command.contains("label=com.docker.compose.project=") {
+            return .init(stdout: composeWebContainersJSON)
+        }
+        if command.contains("label=com.docker.compose.project") {
+            return .init(stdout: composeContainersJSON)
+        }
+        if command.contains("config --services") {
+            return .init(stdout: "api\nworker\ndb\n")
+        }
+        if command.contains(" logs ") {
+            return .init(stdout: composeLog)
+        }
+        if command.contains(" up -d") || command.contains(" down")
+            || command.contains(" restart") {
+            return .init(stdout: "Compose operation completed\n")
+        }
+        return nil
     }
 
     private static func containerResponse(_ command: String) -> MockSSHTransport.CommandResponse? {
@@ -128,6 +157,33 @@ enum DemoOps {
     }
 
     // MARK: - Docker 假数据
+
+    private static let composeProjectsJSON = """
+    [
+      {"Name":"conn-web","Status":"running(3)","ConfigFiles":"/srv/conn-web/compose.yml"},
+      {"Name":"analytics","Status":"exited(2)","ConfigFiles":"/srv/analytics/docker-compose.yml"}
+    ]
+    """
+
+    private static let composeContainersJSON = """
+    {"ID":"ca1","Image":"conn-api:latest","Names":"conn-web-api-1","State":"running","Status":"Up 3 days","Ports":"8080/tcp","Labels":"com.docker.compose.project=conn-web,com.docker.compose.project.config_files=/srv/conn-web/compose.yml,com.docker.compose.project.working_dir=/srv/conn-web,com.docker.compose.service=api"}
+    {"ID":"cw1","Image":"conn-worker:latest","Names":"conn-web-worker-1","State":"running","Status":"Up 3 days","Ports":"","Labels":"com.docker.compose.project=conn-web,com.docker.compose.project.config_files=/srv/conn-web/compose.yml,com.docker.compose.project.working_dir=/srv/conn-web,com.docker.compose.service=worker"}
+    {"ID":"cd1","Image":"postgres:16","Names":"conn-web-db-1","State":"running","Status":"Up 3 days","Ports":"5432/tcp","Labels":"com.docker.compose.project=conn-web,com.docker.compose.project.config_files=/srv/conn-web/compose.yml,com.docker.compose.project.working_dir=/srv/conn-web,com.docker.compose.service=db"}
+    {"ID":"an1","Image":"clickhouse:latest","Names":"analytics-db-1","State":"exited","Status":"Exited (0) 2 hours ago","Ports":"","Labels":"com.docker.compose.project=analytics,com.docker.compose.project.config_files=/srv/analytics/docker-compose.yml,com.docker.compose.project.working_dir=/srv/analytics,com.docker.compose.service=db"}
+    {"ID":"an2","Image":"analytics-api:latest","Names":"analytics-api-1","State":"exited","Status":"Exited (0) 2 hours ago","Ports":"","Labels":"com.docker.compose.project=analytics,com.docker.compose.project.config_files=/srv/analytics/docker-compose.yml,com.docker.compose.project.working_dir=/srv/analytics,com.docker.compose.service=api"}
+    """
+
+    private static let composeWebContainersJSON = """
+    {"ID":"ca1","Image":"conn-api:latest","Names":"conn-web-api-1","State":"running","Status":"Up 3 days","Ports":"0.0.0.0:8080->8080/tcp","Labels":"com.docker.compose.project=conn-web,com.docker.compose.service=api"}
+    {"ID":"cw1","Image":"conn-worker:latest","Names":"conn-web-worker-1","State":"running","Status":"Up 3 days","Ports":"","Labels":"com.docker.compose.project=conn-web,com.docker.compose.service=worker"}
+    {"ID":"cd1","Image":"postgres:16","Names":"conn-web-db-1","State":"running","Status":"Up 3 days","Ports":"5432/tcp","Labels":"com.docker.compose.project=conn-web,com.docker.compose.service=db"}
+    """
+
+    private static let composeLog = """
+    api-1     | 2026-07-31T10:00:00Z server listening on :8080
+    worker-1  | 2026-07-31T10:00:01Z queue connected
+    db-1      | 2026-07-31T10:00:02Z database system is ready
+    """
 
     private static let containersJSON = """
     {"ID":"a1b2c3d4e5f6","Image":"nginx:1.25","Names":"web-nginx","State":"running","Status":"Up 3 days","Ports":"0.0.0.0:80->80/tcp"}
