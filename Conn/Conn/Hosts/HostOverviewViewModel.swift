@@ -129,6 +129,12 @@ final class HostOverviewViewModel {
         }
     }
 
+    /// 进程页失败后的显式重试：确保采集脚本携带 `ps`，成功后 monitor 会清掉错误。
+    func retryProcesses() async {
+        monitor.wantsProcesses = true
+        await monitor.refreshDetail(host: host)
+    }
+
     /// 向进程发 SIGTERM，返回结果文案。二次确认与结果提示由各视图自持有本地状态呈现
     /// ——详情页是列表推入的子层，集中在祖先视图的对话框在被覆盖时呈现不可靠。
     func performKill(_ process: RemoteProcess) async -> String {

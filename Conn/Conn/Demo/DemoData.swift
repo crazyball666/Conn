@@ -20,7 +20,12 @@ enum DemoData {
     /// 组装 Mock 行为：指标走动态发生器，日志流带 30ms 节流模拟跟随。
     /// Docker/日志/片段的响应在 Phase 8/9 由 `dockerResponse` / `logResponse` 扩展。
     static func behavior() -> MockSSHTransport.Behavior {
-        MockSSHTransport.Behavior(
+        let shouldFailConnection =
+            ProcessInfo.processInfo.environment["CONN_SMOKE_PROCESS_FAILURE"] != nil
+        return MockSSHTransport.Behavior(
+            failConnect: shouldFailConnection
+                ? .connectionRefused(endpoint: SSHEndpoint(host: faultHostAddress))
+                : nil,
             dynamicResponder: { command, endpoint in
                 if command.contains("/proc/stat") {
                     // 与生产一致：按命令实际取的段回数据（详情段看 os-release、进程段看 ps）。

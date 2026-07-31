@@ -9,6 +9,12 @@ struct ProcessListView: View {
     let viewModel: HostOverviewViewModel
 
     enum SortKey { case cpu, mem }
+    private enum LoadState {
+        case loading
+        case failed(String)
+        case ready
+    }
+
     @State private var sortKey: SortKey = .cpu
     @State private var ascending = false
     @State private var searchText = ""
@@ -16,6 +22,33 @@ struct ProcessListView: View {
     @State private var resultMessage: String?
 
     var body: some View {
+        Group {
+            switch loadState {
+            case .loading:
+                ProgressView(L("采集中…"))
+                    .font(.connFootnote).foregroundStyle(.connMuted)
+                    .frame(maxWidth: .infinity).padding(.vertical, ConnSpacing.xxl)
+            case let .failed(message):
+                VStack(spacing: ConnSpacing.sm) {
+                    ConnBanner(message, systemImage: "exclamationmark.triangle")
+                    Button(L("重试")) {
+                        Task { await viewModel.retryProcesses() }
+                    }
+                    .font(.connBody).foregroundStyle(.connAccent)
+                }
+                .padding(.vertical, ConnSpacing.md)
+            case .ready:
+                processList
+            }
+        }
+        .modifier(KillProcessAlert(viewModel: viewModel, target: $killTarget, result: $resultMessage))
+        // 进程段从加载到失败期间仍须保持 `ps` 采集开启；否则首次结果永远不会到达，
+        // 失败后的后台轮询也无法自行恢复。
+        .onAppear { viewModel.setProcessSegmentActive(true) }
+        .onDisappear { viewModel.setProcessSegmentActive(false) }
+    }
+
+    private var processList: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: ConnSpacing.xs) {
                 searchField
@@ -37,10 +70,16 @@ struct ProcessListView: View {
         }
         .scrollBounceBehavior(.basedOnSize)
         .scrollIndicators(.hidden)
-        .modifier(KillProcessAlert(viewModel: viewModel, target: $killTarget, result: $resultMessage))
-        // 仅在「进程」段可见时才让采集脚本带 ps——概览等不采进程，省流量。
-        .onAppear { viewModel.setProcessSegmentActive(true) }
-        .onDisappear { viewModel.setProcessSegmentActive(false) }
+    }
+
+    private var loadState: LoadState {
+        if let error = viewModel.errorText, viewModel.latest == nil {
+            return .failed(error)
+        }
+        if viewModel.processesLoading || viewModel.latest == nil {
+            return .loading
+        }
+        return .ready
     }
 
     /// 过滤（名称 / PID / 用户 / 命令行）+ 按当前排序键与方向排序后的进程。
@@ -158,8 +197,6 @@ struct ProcessListView: View {
 
     private var emptyMessage: String {
         if !searchText.trimmingCharacters(in: .whitespaces).isEmpty { return L("无匹配的进程") }
-        // 进程段激活后是按需拉取，未到手前显示「采集中」而非「暂无数据」。
-        if viewModel.processesLoading || viewModel.latest == nil { return L("采集中…") }
         return L("暂无进程数据")
     }
 }
