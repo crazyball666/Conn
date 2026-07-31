@@ -24,16 +24,31 @@ struct TerminalLayoutTests {
         #expect(view.getTerminal().cols < unpaddedColumns)
     }
 
-    @Test("键盘底部 inset 不把终端内容强制滚进下方空白")
-    func keyboardInsetPreservesCurrentVerticalScrollPosition() {
+    @Test("终端纵向不注入额外 inset，键盘避让交给真实可见视口")
+    func verticalInsetsStayEmpty() {
         let view = KeybarTerminalView(frame: CGRect(x: 0, y: 0, width: 320, height: 480))
-        view.contentSize = CGSize(width: 320, height: 960)
-        view.contentOffset = CGPoint(x: 0, y: 120)
 
-        view.setKeyboardInset(300)
+        view.configureContentPadding(horizontal: 12)
 
-        #expect(view.contentInset.bottom == 300)
-        #expect(view.verticalScrollIndicatorInsets.bottom == 300)
-        #expect(view.contentOffset.y == 120)
+        #expect(view.contentInset.top == 0)
+        #expect(view.contentInset.bottom == 0)
+        #expect(view.verticalScrollIndicatorInsets.top == 0)
+        #expect(view.verticalScrollIndicatorInsets.bottom == 0)
+    }
+
+    @Test("新输出自动跟随底部，用户上翻后保留阅读位置")
+    func outputFollowsBottomUnlessUserScrolledBack() {
+        let view = KeybarTerminalView(frame: CGRect(x: 0, y: 0, width: 320, height: 120))
+        view.resize(cols: 40, rows: 4)
+
+        view.feedFollowingLiveOutput(
+            byteArray: ArraySlice("1\r\n2\r\n3\r\n4\r\n5\r\n6\r\n7\r\n8\r\n".utf8)
+        )
+        #expect(view.scrollPosition == 1)
+
+        view.scroll(toPosition: 0)
+        view.feedFollowingLiveOutput(byteArray: ArraySlice("9\r\n10\r\n".utf8))
+
+        #expect(view.scrollPosition < 1)
     }
 }

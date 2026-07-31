@@ -69,13 +69,10 @@ struct TerminalScreen: View {
                 connecting
             case let .ready(session):
                 TerminalHostingView(session: session, configuration: configuration)
-                    // 连键盘安全区一起忽略：默认的键盘避让会把终端高度压掉近一半，
-                    // SwiftTerm 随即重算行数并触发 `sizeChanged` → `session.resize`，
-                    // 也就是真的给远端发一次 SIGWINCH，收键盘时再发一次。对 vim /
-                    // tmux 这类全屏程序，这两次尺寸变化会直接打乱它们的布局。
-                    // 改为终端保持全高、键盘盖住下半部分——远端全程无感（键盘挡住的部分
-                    // 靠 `KeybarTerminalView` 自己加的 `contentInset` 补偿，见该文件）。
-                    .ignoresSafeArea([.container, .keyboard], edges: .bottom)
+                    // 只延伸到设备底边，保留键盘安全区。键盘出现时终端视口真实缩小，
+                    // SwiftTerm 会同步 PTY 行数并把当前提示符留在键盘上方；不再通过
+                    // contentInset 伪造一段可滚动空白。
+                    .ignoresSafeArea(.container, edges: .bottom)
             case let .failed(message):
                 failure(message)
             }

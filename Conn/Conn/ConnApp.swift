@@ -64,7 +64,7 @@ struct ConnApp: App {
                     connectionManager: ConnectionManager(
                         transport: dependencies.diagnosticsTransport
                     ) { _ in .password("conntest123") },
-                    autoCommand: "echo '中文渲染测试 你好世界 café 日本語 🚀 制表符'; ls /"
+                    autoCommand: smokeTerminalCommand()
                 )
             } else if ProcessInfo.processInfo.environment["CONN_SMOKE_DETAIL"] != nil,
                       let host = smokeDetailHost() {
@@ -125,6 +125,16 @@ struct ConnApp: App {
             case "processes": .processes
             default: .overview
             }
+        }
+
+        /// 终端冒烟可切换成长输出，用同一个入口验证键盘可见区与自动跟随。
+        private func smokeTerminalCommand() -> String {
+            guard ProcessInfo.processInfo.environment["CONN_SMOKE_TERMINAL_LONG_OUTPUT"] != nil else {
+                return "echo '中文渲染测试 你好世界 café 日本語 🚀 制表符'; ls /"
+            }
+            return (1 ... 120)
+                .map { String(format: "terminal output line %03d", $0) }
+                .joined(separator: "\r\n")
         }
     #endif
 }
