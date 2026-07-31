@@ -230,9 +230,10 @@ struct DockerRunFormView: View {
                         }
                     }
                     .labelsHidden()
-                    Button { remove(port.id, from: &state.ports) } label: { Image(systemName: "minus.circle") }
-                        .buttonStyle(.borderless).foregroundStyle(.connCrit)
                 }
+            }
+            .onDelete { offsets in
+                state.ports.remove(atOffsets: offsets)
             }
             Button { state.ports.append(DockerPortRow()) } label: { Label(L("添加端口"), systemImage: "plus") }
         }
@@ -245,9 +246,10 @@ struct DockerRunFormView: View {
                 HStack {
                     TextField(L("名称"), text: $entry.key).textInputAutocapitalization(.characters)
                     SecureField(L("值"), text: $entry.value)
-                    Button { remove(entry.id, from: &state.environment) } label: { Image(systemName: "minus.circle") }
-                        .buttonStyle(.borderless).foregroundStyle(.connCrit)
                 }
+            }
+            .onDelete { offsets in
+                state.environment.remove(atOffsets: offsets)
             }
             Button { state.environment.append(DockerEnvironmentRow()) } label: { Label(L("添加环境变量"), systemImage: "plus") }
         }
@@ -258,12 +260,8 @@ struct DockerRunFormView: View {
         Section(L("挂载")) {
             ForEach($state.mounts) { $mount in
                 VStack(alignment: .leading, spacing: ConnSpacing.xs) {
-                    HStack {
-                        Picker(L("类型"), selection: $mount.sourceKind) {
-                            ForEach(DockerMountSourceKind.allCases) { Text($0.title).tag($0) }
-                        }
-                        Button { remove(mount.id, from: &state.mounts) } label: { Image(systemName: "minus.circle") }
-                            .buttonStyle(.borderless).foregroundStyle(.connCrit)
+                    Picker(L("类型"), selection: $mount.sourceKind) {
+                        ForEach(DockerMountSourceKind.allCases) { Text($0.title).tag($0) }
                     }
                     if mount.sourceKind == .namedVolume {
                         Picker(L("卷"), selection: $mount.source) {
@@ -277,6 +275,9 @@ struct DockerRunFormView: View {
                     Toggle(L("只读"), isOn: $mount.readOnly)
                 }
             }
+            .onDelete { offsets in
+                state.mounts.remove(atOffsets: offsets)
+            }
             Button { state.mounts.append(DockerMountRow()) } label: { Label(L("添加挂载"), systemImage: "plus") }
         }
         .listRowBackground(Color.connSurface)
@@ -285,11 +286,10 @@ struct DockerRunFormView: View {
     private var advancedSection: some View {
         Section(L("高级选项")) {
             ForEach($state.otherOptions) { $token in
-                HStack {
-                    TextField(L("选项"), text: $token.value).textInputAutocapitalization(.never).autocorrectionDisabled()
-                    Button { remove(token.id, from: &state.otherOptions) } label: { Image(systemName: "minus.circle") }
-                        .buttonStyle(.borderless).foregroundStyle(.connCrit)
-                }
+                TextField(L("选项"), text: $token.value).textInputAutocapitalization(.never).autocorrectionDisabled()
+            }
+            .onDelete { offsets in
+                state.otherOptions.remove(atOffsets: offsets)
             }
             Button { state.otherOptions.append(DockerTokenRow()) } label: { Label(L("添加选项"), systemImage: "plus") }
         }
@@ -299,11 +299,10 @@ struct DockerRunFormView: View {
     private var commandSection: some View {
         Section(L("启动命令")) {
             ForEach($state.command) { $token in
-                HStack {
-                    TextField(L("参数"), text: $token.value).textInputAutocapitalization(.never).autocorrectionDisabled()
-                    Button { remove(token.id, from: &state.command) } label: { Image(systemName: "minus.circle") }
-                        .buttonStyle(.borderless).foregroundStyle(.connCrit)
-                }
+                TextField(L("参数"), text: $token.value).textInputAutocapitalization(.never).autocorrectionDisabled()
+            }
+            .onDelete { offsets in
+                state.command.remove(atOffsets: offsets)
             }
             Button { state.command.append(DockerTokenRow()) } label: { Label(L("添加参数"), systemImage: "plus") }
         }
@@ -319,9 +318,6 @@ struct DockerRunFormView: View {
         }
     }
 
-    private func remove<Row: Identifiable>(_ id: Row.ID, from rows: inout [Row]) {
-        rows.removeAll { $0.id == id }
-    }
 }
 
 private struct DockerRunReviewView: View {

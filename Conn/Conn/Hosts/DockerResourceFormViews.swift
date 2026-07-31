@@ -111,11 +111,10 @@ struct DockerNetworkFormView: View {
 private func tokenSection(rows: Binding<[DockerTokenRow]>) -> some View {
     Section(L("高级选项")) {
         ForEach(rows) { $token in
-            HStack {
-                TextField(L("选项"), text: $token.value).textInputAutocapitalization(.never).autocorrectionDisabled()
-                Button { rows.wrappedValue.removeAll { $0.id == token.id } } label: { Image(systemName: "minus.circle") }
-                    .buttonStyle(.borderless).foregroundStyle(.connCrit)
-            }
+            TextField(L("选项"), text: $token.value).textInputAutocapitalization(.never).autocorrectionDisabled()
+        }
+        .onDelete { offsets in
+            rows.wrappedValue.remove(atOffsets: offsets)
         }
         Button { rows.wrappedValue.append(DockerTokenRow()) } label: { Label(L("添加选项"), systemImage: "plus") }
     }
