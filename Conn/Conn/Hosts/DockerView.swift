@@ -104,7 +104,7 @@ struct DockerView: View {
         case let .unavailable(availability):
             unavailableView(availability)
         case let .failed(message):
-            VStack(spacing: ConnSpacing.sm) {
+            VStack(spacing: ConnSpacing.xs) {
                 ConnBanner(message, systemImage: "exclamationmark.triangle")
                 Button(L("重试")) { Task { await viewModel.load() } }.font(.connBody).foregroundStyle(.connAccent)
             }
@@ -224,15 +224,16 @@ extension DockerView {
 
     private var containerList: some View {
         VStack(spacing: ConnSpacing.sm) {
-            DockerDetail.listHeader(
+            DockerDetail.listControls(
                 count: String(format: L("共 %d 个"), filteredContainers.count) + L("容器"),
-                isMenuEnabled: viewModel.canWrite
+                isMenuEnabled: viewModel.canWrite,
+                searchPrompt: L("搜索容器"),
+                search: $search
             ) {
                 Button { operationSheet = .runContainer } label: {
                     Label(L("创建容器"), systemImage: "plus")
                 }
             }
-            ConnSearchField(L("搜索容器"), text: $search)
             if sortedContainers.isEmpty {
                 // 搜索词非空但无匹配时不能说「没有容器」——主机上可能明明有 20 个，
                 // 只是用户搜错了一个字母，那是对服务器状态的事实性错误陈述。
@@ -262,9 +263,11 @@ extension DockerView {
 
     private var imageSection: some View {
         VStack(spacing: ConnSpacing.sm) {
-            DockerDetail.listHeader(
+            DockerDetail.listControls(
                 count: String(format: L("共 %d 个镜像"), filteredImages.count),
-                isMenuEnabled: viewModel.canWrite
+                isMenuEnabled: viewModel.canWrite,
+                searchPrompt: L("搜索镜像"),
+                search: $search
             ) {
                 Button { operationSheet = .pullImage } label: {
                     Label(L("拉取镜像"), systemImage: "arrow.down.circle")
@@ -280,7 +283,6 @@ extension DockerView {
                     Label(L("清理 Docker 资源"), systemImage: "trash.slash")
                 }
             }
-            ConnSearchField(L("搜索镜像"), text: $search)
             DockerDetail.listBody(
                 items: filteredImages,
                 state: imagesListState,
@@ -334,15 +336,16 @@ extension DockerView {
 
     private var volumeSection: some View {
         VStack(spacing: ConnSpacing.sm) {
-            DockerDetail.listHeader(
+            DockerDetail.listControls(
                 count: String(format: L("共 %d 个卷"), filteredVolumes.count),
-                isMenuEnabled: viewModel.canWrite
+                isMenuEnabled: viewModel.canWrite,
+                searchPrompt: L("搜索卷"),
+                search: $search
             ) {
                 Button { operationSheet = .createVolume } label: {
                     Label(L("创建卷"), systemImage: "plus")
                 }
             }
-            ConnSearchField(L("搜索卷"), text: $search)
             DockerDetail.listBody(
                 items: filteredVolumes,
                 state: volumesListState,
@@ -376,15 +379,16 @@ extension DockerView {
 
     private var networkSection: some View {
         VStack(spacing: ConnSpacing.sm) {
-            DockerDetail.listHeader(
+            DockerDetail.listControls(
                 count: String(format: L("共 %d 个网络"), filteredNetworks.count),
-                isMenuEnabled: viewModel.canWrite
+                isMenuEnabled: viewModel.canWrite,
+                searchPrompt: L("搜索网络"),
+                search: $search
             ) {
                 Button { operationSheet = .createNetwork } label: {
                     Label(L("创建网络"), systemImage: "plus")
                 }
             }
-            ConnSearchField(L("搜索网络"), text: $search)
             DockerDetail.listBody(
                 items: filteredNetworks,
                 state: networksListState,

@@ -13,15 +13,16 @@ struct DockerComposeListView: View {
 
     var body: some View {
         VStack(spacing: ConnSpacing.sm) {
-            DockerDetail.listHeader(
+            DockerDetail.listControls(
                 count: String(format: L("共 %d 个项目"), filteredProjects.count),
-                isMenuEnabled: canWrite && model.dialect != nil
+                isMenuEnabled: canWrite && model.dialect != nil,
+                searchPrompt: L("搜索 Compose 项目"),
+                search: $search
             ) {
                 Button(action: addManual) {
                     Label(L("手动添加项目"), systemImage: "plus")
                 }
             }
-            ConnSearchField(L("搜索 Compose 项目"), text: $search)
             if let error = model.errorMessage {
                 VStack(spacing: ConnSpacing.sm) {
                     ConnBanner(error, systemImage: "exclamationmark.triangle")

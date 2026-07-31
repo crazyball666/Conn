@@ -63,9 +63,13 @@ public enum ConnSize {
     ///
     /// **必须显式钉住，不能让它由 `TextField` 的固有高度决定**：`TextField` 在
     /// 「首次成为第一响应者」前后走两套测量路径（之前 SwiftUI 自己量，之后交给
-    /// UIKit 的 `UITextField`），真机实测首次聚焦会从 38pt 掉到 32pt，且收起键盘
+    /// UIKit 的 `UITextField`），真机实测首次聚焦会发生高度变化，且收起键盘
     /// 也不回弹——用户看到的是点一下输入框、框子突然矮一截。
-    public static let searchFieldHeight: CGFloat = 38
+    public static let searchFieldHeight: CGFloat = 44
+
+    /// 列表标题行内的紧凑操作按钮边长。
+    /// 用于资源数量旁的省略号菜单；它直接参与布局，不再用负 padding 压缩高度。
+    public static let inlineActionButton: CGFloat = 24
 
     /// 主按钮高度。
     public static let buttonHeight: CGFloat = 44

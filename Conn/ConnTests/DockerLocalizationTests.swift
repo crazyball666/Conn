@@ -390,11 +390,12 @@ extension DockerLocalizationTests {
         let dockerView = try source(named: "Conn/Hosts/DockerView.swift")
         let routing = try source(named: "Conn/Hosts/DockerOperationRouting.swift")
         let runForm = try source(named: "Conn/Hosts/DockerRunFormView.swift")
+        let runReview = try source(named: "Conn/Hosts/DockerRunReviewView.swift")
         let composeViews = try source(named: "Conn/Hosts/DockerComposeViews.swift")
         let detailBuilding = try source(named: "Conn/Hosts/DockerDetailBuilding.swift")
 
-        #expect(dockerView.components(separatedBy: "DockerDetail.listHeader").count - 1 == 4)
-        #expect(composeViews.components(separatedBy: "DockerDetail.listHeader").count - 1 == 1)
+        #expect(dockerView.components(separatedBy: "DockerDetail.listControls").count - 1 == 4)
+        #expect(composeViews.components(separatedBy: "DockerDetail.listControls").count - 1 == 1)
         #expect(!routing.contains("operationToolbar"))
         #expect(dockerView.contains("L(\"共 %d 个\")"))
         #expect(!dockerView.contains("L(\"%@容器\")"))
@@ -406,14 +407,17 @@ extension DockerLocalizationTests {
         #expect(composeViews.contains("Label(L(\"手动添加项目\"), systemImage: \"plus\")"))
         #expect(composeViews.contains(".composeDown(project: project, dialect: dialect)"))
         #expect(composeViews.contains("kind: .compose(project: project, dialect: dialect, service: service)"))
-        #expect(runForm.contains("DockerCommand.run(draft, sudo: false)"))
+        #expect(runForm.contains("DockerRunReviewView(draft: state.draft, operations: operations)"))
+        #expect(runReview.contains("DockerCommand.run(draft, sudo: false)"))
+        #expect(runReview.contains("operations.runContainer(draft)"))
         #expect(!runForm.contains("maskedArguments"))
         #expect(
             detailBuilding.contains(
-                ".frame(width: ConnSize.minTouchTarget, height: ConnSize.minTouchTarget)"
+                ".frame(width: ConnSize.inlineActionButton, height: ConnSize.inlineActionButton)"
             )
         )
-        #expect(detailBuilding.contains(".padding(.vertical, -ConnSpacing.xs)"))
+        #expect(!detailBuilding.contains("hitExpansion"))
+        #expect(!detailBuilding.contains(".padding(.vertical, -ConnSpacing.xs)"))
     }
 
     @Test("容器与 Compose 详情共用同一操作卡片样式")

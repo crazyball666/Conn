@@ -177,14 +177,31 @@ enum DockerDetail {
                 Image(systemName: "ellipsis.circle")
                     .font(.system(size: 18))
                     .foregroundStyle(.connAccent)
-                    .frame(width: ConnSize.minTouchTarget, height: ConnSize.minTouchTarget)
+                    .frame(width: ConnSize.inlineActionButton, height: ConnSize.inlineActionButton)
                     .contentShape(Rectangle())
             }
             .disabled(!isMenuEnabled)
         }
-        // 视觉上只占 28pt 高，但更多按钮仍保留 44×44pt 热区；与上下内容各留
-        // 4pt 实际间隔，既紧凑，也不会让按钮变得难点。
-        .padding(.vertical, -ConnSpacing.xs)
+        .frame(height: ConnSize.inlineActionButton)
+    }
+
+    /// Docker 五类列表共用的顶部控件：紧凑数量/菜单行 + 通用搜索框。
+    /// 这里统一控制两者间距，避免各分段单独微调后再次产生视觉漂移。
+    static func listControls<MenuContent: View>(
+        count: String,
+        isMenuEnabled: Bool,
+        searchPrompt: String,
+        search: Binding<String>,
+        @ViewBuilder menuContent: @escaping () -> MenuContent
+    ) -> some View {
+        VStack(spacing: ConnSpacing.xxs) {
+            listHeader(
+                count: count,
+                isMenuEnabled: isMenuEnabled,
+                menuContent: menuContent
+            )
+            ConnSearchField(searchPrompt, text: search)
+        }
     }
 
     /// `listBody` 的加载状态：错误 / 加载中 / 空态文案。打包成具名类型而非元组——
