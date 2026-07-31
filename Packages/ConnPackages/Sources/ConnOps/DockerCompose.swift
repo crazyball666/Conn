@@ -65,6 +65,7 @@ public struct DockerComposeService: Identifiable, Sendable, Equatable, Hashable 
     public let runningContainerCount: Int
     public let status: String
     public let ports: String
+    public let containers: [ContainerInfo]
 
     public var id: String { name }
 
@@ -75,7 +76,8 @@ public struct DockerComposeService: Identifiable, Sendable, Equatable, Hashable 
         containerCount: Int,
         runningContainerCount: Int,
         status: String,
-        ports: String
+        ports: String,
+        containers: [ContainerInfo] = []
     ) {
         self.name = name
         self.image = image
@@ -84,6 +86,7 @@ public struct DockerComposeService: Identifiable, Sendable, Equatable, Hashable 
         self.runningContainerCount = runningContainerCount
         self.status = status
         self.ports = ports
+        self.containers = containers
     }
 }
 

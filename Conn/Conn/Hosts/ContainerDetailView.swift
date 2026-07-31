@@ -116,37 +116,42 @@ struct ContainerDetailView: View {
     private var actionBar: some View {
         HStack(spacing: ConnSpacing.sm) {
             if isActive {
-                actionButton(L("停止"), "stop.circle", disabled: !viewModel.canWrite) { perform(.stop) }
-                actionButton(L("重启"), "arrow.clockwise.circle", disabled: !viewModel.canWrite) { perform(.restart) }
+                DockerDetail.actionButton(
+                    L("停止"),
+                    systemImage: "stop.circle",
+                    disabled: !viewModel.canWrite
+                ) { perform(.stop) }
+                DockerDetail.actionButton(
+                    L("重启"),
+                    systemImage: "arrow.clockwise.circle",
+                    disabled: !viewModel.canWrite
+                ) { perform(.restart) }
                 if isRunning {
-                    actionButton(L("控制台"), "terminal") { showConsole = true }
+                    DockerDetail.actionButton(
+                        L("控制台"),
+                        systemImage: "terminal"
+                    ) { showConsole = true }
                 }
             } else {
-                actionButton(L("启动"), "play.circle", disabled: !viewModel.canWrite) { perform(.start) }
+                DockerDetail.actionButton(
+                    L("启动"),
+                    systemImage: "play.circle",
+                    disabled: !viewModel.canWrite
+                ) { perform(.start) }
             }
-            actionButton(L("日志"), "doc.text.magnifyingglass") { route = .logs }
-            actionButton(L("删除"), "trash", tint: .connCrit, disabled: !viewModel.canWrite) {
+            DockerDetail.actionButton(
+                L("日志"),
+                systemImage: "doc.text.magnifyingglass"
+            ) { route = .logs }
+            DockerDetail.actionButton(
+                L("删除"),
+                systemImage: "trash",
+                tint: .connCrit,
+                disabled: !viewModel.canWrite
+            ) {
                 viewModel.containers.requestRemoval(container)
             }
         }
-    }
-
-    private func actionButton(
-        _ label: String, _ icon: String, tint: Color = .connAccent, disabled: Bool = false,
-        action: @escaping () -> Void
-    ) -> some View {
-        Button(action: action) {
-            VStack(spacing: 4) {
-                Image(systemName: icon).font(.system(size: 18))
-                Text(label).font(.connData(.caption2)).lineLimit(1).minimumScaleFactor(0.7)
-            }
-            .foregroundStyle(tint)
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, ConnSpacing.sm)
-            .connSurface(cornerRadius: ConnRadius.card)
-        }
-        .buttonStyle(.plain)
-        .disabled(disabled)
     }
 
     // MARK: - 概要

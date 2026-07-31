@@ -116,6 +116,8 @@ struct DockerComposeProjectDetailView: View {
     @State private var loading = true
     @State private var errorMessage: String?
     @State private var logSource: LogSource?
+    @State private var openedContainer: ContainerInfo?
+    @State private var openedService: DockerComposeService?
     @State private var showRemoveManualConfirmation = false
 
     var body: some View {
@@ -147,6 +149,22 @@ struct DockerComposeProjectDetailView: View {
                 dependencies: dependencies,
                 source: source,
                 sudo: viewModel.usesSudo
+            )
+        }
+        .navigationDestination(item: $openedContainer) { container in
+            ContainerDetailView(
+                host: host,
+                dependencies: dependencies,
+                container: container,
+                viewModel: viewModel
+            )
+        }
+        .navigationDestination(item: $openedService) { service in
+            DockerComposeServiceContainersView(
+                service: service,
+                viewModel: viewModel,
+                host: host,
+                dependencies: dependencies
             )
         }
         .alert(L("移除手动项目？"), isPresented: $showRemoveManualConfirmation) {
@@ -184,22 +202,39 @@ struct DockerComposeProjectDetailView: View {
     }
 
     private var actions: some View {
-        DockerDetail.section(L("操作")) {
+        VStack(alignment: .leading, spacing: ConnSpacing.xs) {
+            Text(L("操作"))
+                .font(.connCaption)
+                .foregroundStyle(.connMuted)
+                .connEyebrowTracking()
             HStack(spacing: ConnSpacing.xs) {
-                PillButton(L("启动"), semantic: .accent) {
+                DockerDetail.actionButton(
+                    L("启动"),
+                    systemImage: "play.circle"
+                ) {
                     perform { dialect in
                         await viewModel.operations.composeUp(project, dialect: dialect)
                     }
                 }
-                PillButton(L("重启"), semantic: .info) {
+                DockerDetail.actionButton(
+                    L("重启"),
+                    systemImage: "arrow.clockwise.circle"
+                ) {
                     perform { dialect in
                         await viewModel.operations.composeRestart(project, dialect: dialect)
                     }
                 }
-                PillButton(L("日志"), semantic: .info) {
+                DockerDetail.actionButton(
+                    L("日志"),
+                    systemImage: "doc.text.magnifyingglass"
+                ) {
                     openLogs(service: nil)
                 }
-                PillButton(L("停止并移除"), semantic: .crit) {
+                DockerDetail.actionButton(
+                    L("停止并移除"),
+                    systemImage: "trash",
+                    tint: .connCrit
+                ) {
                     guard let dialect = viewModel.compose.dialect else { return }
                     viewModel.operations.requestDestructiveAction(
                         .composeDown(project: project, dialect: dialect)
@@ -208,13 +243,14 @@ struct DockerComposeProjectDetailView: View {
             }
             .disabled(!viewModel.canWrite || viewModel.compose.dialect == nil)
             if project.source == .manual {
-                Rectangle().fill(Color.connLine).frame(height: 0.5)
                 Button(role: .destructive) {
                     showRemoveManualConfirmation = true
                 } label: {
                     Label(L("从列表移除此手动项目"), systemImage: "minus.circle")
                         .font(.connSubheadline)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, ConnSpacing.cardPadding)
+                        .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                        .connSurface(cornerRadius: ConnRadius.card)
                 }
                 .buttonStyle(.plain)
             }
@@ -256,21 +292,19 @@ struct DockerComposeProjectDetailView: View {
 
     private func serviceRow(_ service: DockerComposeService) -> some View {
         HStack(spacing: ConnSpacing.sm) {
-            Image(systemName: "shippingbox")
-                .font(.system(size: 12))
-                .foregroundStyle(.connMuted)
-                .frame(width: 18)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(service.name)
-                    .font(.connData(.footnote))
-                    .foregroundStyle(.connInk)
-                Text(serviceSubtitle(service))
-                    .font(.connData(.caption2))
-                    .foregroundStyle(.connMuted)
-                    .lineLimit(1)
+            if service.containers.isEmpty {
+                serviceNavigationLabel(service)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            } else {
+                Button {
+                    open(service)
+                } label: {
+                    serviceNavigationLabel(service)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .frame(maxWidth: .infinity)
             }
-            Spacer(minLength: ConnSpacing.xs)
-            StatusPill(stateTitle(service.state), semantic: stateSemantic(service.state))
             Menu {
                 Button {
                     perform { dialect in
@@ -300,6 +334,39 @@ struct DockerComposeProjectDetailView: View {
         .padding(.vertical, ConnSpacing.xs)
     }
 
+    private func serviceNavigationLabel(_ service: DockerComposeService) -> some View {
+        HStack(spacing: ConnSpacing.sm) {
+            Image(systemName: "shippingbox")
+                .font(.system(size: 12))
+                .foregroundStyle(.connMuted)
+                .frame(width: 18)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(service.name)
+                    .font(.connData(.footnote))
+                    .foregroundStyle(.connInk)
+                Text(serviceSubtitle(service))
+                    .font(.connData(.caption2))
+                    .foregroundStyle(.connMuted)
+                    .lineLimit(1)
+            }
+            Spacer(minLength: ConnSpacing.xs)
+            StatusPill(stateTitle(service.state), semantic: stateSemantic(service.state))
+            if !service.containers.isEmpty {
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 10))
+                    .foregroundStyle(.connMuted)
+            }
+        }
+    }
+
+    private func open(_ service: DockerComposeService) {
+        if service.containers.count == 1 {
+            openedContainer = service.containers[0]
+        } else if !service.containers.isEmpty {
+            openedService = service
+        }
+    }
+
     private func serviceSubtitle(_ service: DockerComposeService) -> String {
         let image = service.image ?? L("无镜像")
         let containers = String(
@@ -318,6 +385,12 @@ struct DockerComposeProjectDetailView: View {
         errorMessage = nil
         do {
             services = try await viewModel.compose.services(for: project)
+            #if DEBUG
+                if ProcessInfo.processInfo.environment["CONN_SMOKE_COMPOSE_CONTAINER_ROUTE"] != nil,
+                   let service = services.first(where: { $0.name == "api" }) {
+                    open(service)
+                }
+            #endif
         } catch {
             errorMessage = error.friendlyDiagnosis
         }
@@ -342,6 +415,49 @@ struct DockerComposeProjectDetailView: View {
             subtitle: service == nil ? L("Compose 项目日志") : L("Compose 服务日志"),
             kind: .compose(project: project, dialect: dialect, service: service)
         )
+    }
+}
+
+private struct DockerComposeServiceContainersView: View {
+    let service: DockerComposeService
+    let viewModel: DockerViewModel
+    let host: Host
+    let dependencies: AppDependencies
+
+    @State private var openedContainer: ContainerInfo?
+
+    var body: some View {
+        ScrollView {
+            DockerDetail.section(L("容器")) {
+                VStack(spacing: 0) {
+                    ForEach(Array(service.containers.enumerated()), id: \.element.id) { index, container in
+                        if index > 0 {
+                            Rectangle().fill(Color.connLine).frame(height: 0.5)
+                        }
+                        DockerDetail.containerRow(
+                            name: container.name,
+                            subtitle: "\(container.image) · \(container.status)"
+                        ) {
+                            openedContainer = container
+                        }
+                    }
+                }
+            }
+            .padding(.horizontal, ConnSpacing.page)
+            .padding(.vertical, ConnSpacing.md)
+        }
+        .scrollIndicators(.hidden)
+        .background(Color.connBg.ignoresSafeArea())
+        .navigationTitle(service.name)
+        .navigationBarTitleDisplayMode(.inline)
+        .navigationDestination(item: $openedContainer) { container in
+            ContainerDetailView(
+                host: host,
+                dependencies: dependencies,
+                container: container,
+                viewModel: viewModel
+            )
+        }
     }
 }
 

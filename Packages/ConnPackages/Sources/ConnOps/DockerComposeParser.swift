@@ -56,6 +56,20 @@ public enum DockerComposeParser {
             let images = rows.map(\.image).filter { !$0.isEmpty }
             let statuses = rows.map(\.status).filter { !$0.isEmpty }
             let ports = rows.map(\.ports).filter { !$0.isEmpty }
+            let serviceContainers = rows.map { row in
+                ContainerInfo(
+                    id: row.id,
+                    name: row.name,
+                    image: row.image,
+                    state: ContainerInfo.State(rawValue: normalizedState(row.state)) ?? .unknown,
+                    status: row.status,
+                    ports: row.ports
+                )
+            }
+            .sorted {
+                if $0.name == $1.name { return $0.id < $1.id }
+                return $0.name < $1.name
+            }
             return DockerComposeService(
                 name: name,
                 image: images.first,
@@ -63,7 +77,8 @@ public enum DockerComposeParser {
                 containerCount: rows.count,
                 runningContainerCount: rows.count { normalizedState($0.state) == "running" },
                 status: statuses.isEmpty ? "—" : statuses.joined(separator: " · "),
-                ports: ports.joined(separator: " · ")
+                ports: ports.joined(separator: " · "),
+                containers: serviceContainers
             )
         }
         .sorted { $0.name < $1.name }
@@ -127,6 +142,8 @@ public enum DockerComposeParser {
                 "com.docker.compose.project.config_files", in: row.labels
             ).map(splitConfigFiles) ?? []
             return ContainerRow(
+                id: row.id,
+                name: row.name,
                 image: row.image,
                 state: row.state,
                 status: row.status,
@@ -205,6 +222,8 @@ private struct ProjectRow: Decodable {
 }
 
 private struct ContainerJSONRow: Decodable {
+    let id: String
+    let name: String
     let image: String
     let state: String
     let status: String
@@ -212,6 +231,8 @@ private struct ContainerJSONRow: Decodable {
     let labels: String
 
     enum CodingKeys: String, CodingKey {
+        case id = "ID"
+        case name = "Names"
         case image = "Image"
         case state = "State"
         case status = "Status"
@@ -221,6 +242,8 @@ private struct ContainerJSONRow: Decodable {
 }
 
 private struct ContainerRow {
+    let id: String
+    let name: String
     let image: String
     let state: String
     let status: String

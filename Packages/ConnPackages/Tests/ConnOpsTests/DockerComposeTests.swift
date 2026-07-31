@@ -114,10 +114,14 @@ struct DockerComposeTests {
 
     @Test("服务按标签聚合且配置中无容器的服务显示已停止")
     func aggregatesServicesAndKeepsDeclaredZeroContainerServices() {
+        // Docker 的 JSON Lines 每个对象必须保持单行，测试数据无法按 Swift 代码宽度拆行。
+        // swiftlint:disable line_length
         let output = """
         {"ID":"c1","Image":"api:1","Names":"web-api-1","State":"running","Status":"Up 2 hours","Ports":"0.0.0.0:8080->8080/tcp","Labels":"com.docker.compose.project=web,com.docker.compose.service=api"}
+        {"ID":"c3","Image":"api:1","Names":"web-api-2","State":"running","Status":"Up 1 hour","Ports":"","Labels":"com.docker.compose.project=web,com.docker.compose.service=api"}
         {"ID":"c2","Image":"worker:1","Names":"web-worker-1","State":"exited","Status":"Exited (0) 1 hour ago","Ports":"","Labels":"com.docker.compose.project=web,com.docker.compose.service=worker"}
         """
+        // swiftlint:enable line_length
 
         let services = DockerComposeParser.parseServices(
             containerOutput: output,
@@ -126,9 +130,15 @@ struct DockerComposeTests {
 
         #expect(services.map(\.name) == ["api", "cron", "worker"])
         #expect(services.first(where: { $0.name == "api" })?.state == .running)
-        #expect(services.first(where: { $0.name == "api" })?.runningContainerCount == 1)
+        #expect(services.first(where: { $0.name == "api" })?.runningContainerCount == 2)
+        #expect(services.first(where: { $0.name == "api" })?.containers.map(\.id) == ["c1", "c3"])
+        #expect(
+            services.first(where: { $0.name == "api" })?.containers.map(\.name)
+                == ["web-api-1", "web-api-2"]
+        )
         #expect(services.first(where: { $0.name == "cron" })?.state == .stopped)
         #expect(services.first(where: { $0.name == "cron" })?.containerCount == 0)
+        #expect(services.first(where: { $0.name == "cron" })?.containers.isEmpty == true)
         #expect(services.first(where: { $0.name == "worker" })?.state == .stopped)
     }
 

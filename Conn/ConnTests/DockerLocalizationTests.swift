@@ -391,6 +391,7 @@ extension DockerLocalizationTests {
         let routing = try source(named: "Conn/Hosts/DockerOperationRouting.swift")
         let runForm = try source(named: "Conn/Hosts/DockerRunFormView.swift")
         let composeViews = try source(named: "Conn/Hosts/DockerComposeViews.swift")
+        let detailBuilding = try source(named: "Conn/Hosts/DockerDetailBuilding.swift")
 
         #expect(dockerView.components(separatedBy: "DockerDetail.listHeader").count - 1 == 4)
         #expect(composeViews.components(separatedBy: "DockerDetail.listHeader").count - 1 == 1)
@@ -407,6 +408,37 @@ extension DockerLocalizationTests {
         #expect(composeViews.contains("kind: .compose(project: project, dialect: dialect, service: service)"))
         #expect(runForm.contains("DockerCommand.run(draft, sudo: false)"))
         #expect(!runForm.contains("maskedArguments"))
+        #expect(
+            detailBuilding.contains(
+                ".frame(width: ConnSize.minTouchTarget, height: ConnSize.minTouchTarget)"
+            )
+        )
+        #expect(detailBuilding.contains(".padding(.vertical, -ConnSpacing.xs)"))
+    }
+
+    @Test("容器与 Compose 详情共用同一操作卡片样式")
+    func dockerDetailsUseSharedActionButtons() throws {
+        let containerDetail = try source(named: "Conn/Hosts/ContainerDetailView.swift")
+        let composeViews = try source(named: "Conn/Hosts/DockerComposeViews.swift")
+        let detailBuilding = try source(named: "Conn/Hosts/DockerDetailBuilding.swift")
+
+        #expect(detailBuilding.contains("static func actionButton("))
+        #expect(containerDetail.contains("DockerDetail.actionButton("))
+        #expect(
+            composeViews.components(separatedBy: "DockerDetail.actionButton(").count - 1 == 4
+        )
+        #expect(!composeViews.contains("PillButton(L(\"启动\")"))
+    }
+
+    @Test("Compose 服务行可进入其容器详情且多副本不被随意选中")
+    func composeServiceRowsNavigateToContainers() throws {
+        let composeViews = try source(named: "Conn/Hosts/DockerComposeViews.swift")
+
+        #expect(composeViews.contains("@State private var openedContainer: ContainerInfo?"))
+        #expect(composeViews.contains("@State private var openedService: DockerComposeService?"))
+        #expect(composeViews.contains("service.containers.count == 1"))
+        #expect(composeViews.contains("ContainerDetailView("))
+        #expect(composeViews.contains("DockerComposeServiceContainersView("))
     }
 
     private func source(named relativePath: String) throws -> String {

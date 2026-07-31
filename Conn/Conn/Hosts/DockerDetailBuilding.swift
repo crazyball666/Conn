@@ -35,6 +35,33 @@ enum DockerDetail {
         }
     }
 
+    /// Docker 详情页统一操作卡片：容器与 Compose 共用同一图标、字号、触控区和表面样式。
+    static func actionButton(
+        _ label: String,
+        systemImage: String,
+        tint: Color = .connAccent,
+        disabled: Bool = false,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            VStack(spacing: 4) {
+                Image(systemName: systemImage)
+                    .font(.system(size: 18))
+                Text(label)
+                    .font(.connData(.caption2))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+            }
+            .foregroundStyle(tint)
+            .frame(maxWidth: .infinity, minHeight: 44)
+            .padding(.vertical, ConnSpacing.sm)
+            .connSurface(cornerRadius: ConnRadius.card)
+        }
+        .buttonStyle(.plain)
+        .disabled(disabled)
+        .accessibilityLabel(label)
+    }
+
     /// 带眉标的分组卡片。
     @ViewBuilder
     static func section(_ title: String, @ViewBuilder content: () -> some View) -> some View {
@@ -150,11 +177,14 @@ enum DockerDetail {
                 Image(systemName: "ellipsis.circle")
                     .font(.system(size: 18))
                     .foregroundStyle(.connAccent)
-                    .frame(width: 44, height: 44)
+                    .frame(width: ConnSize.minTouchTarget, height: ConnSize.minTouchTarget)
                     .contentShape(Rectangle())
             }
             .disabled(!isMenuEnabled)
         }
+        // 视觉上只占 28pt 高，但更多按钮仍保留 44×44pt 热区；与上下内容各留
+        // 4pt 实际间隔，既紧凑，也不会让按钮变得难点。
+        .padding(.vertical, -ConnSpacing.xs)
     }
 
     /// `listBody` 的加载状态：错误 / 加载中 / 空态文案。打包成具名类型而非元组——
