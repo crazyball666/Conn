@@ -2,6 +2,15 @@ import Foundation
 
 /// 进程列表解析：GNU `ps` 优先，回退 BusyBox `top`（跨发行版兼容，方案 §4.3）。
 enum ProcessParser {
+    /// 解析进程专用采集命令的完整输出。GNU `ps` 有结果时优先使用，否则回退 BusyBox `top`。
+    static func parse(_ output: String) -> [RemoteProcess] {
+        let sections = splitSections(output)
+        return parse(
+            psSection: sections[ProcessCollectionScript.Sentinel.ps] ?? "",
+            topSection: sections[ProcessCollectionScript.Sentinel.top] ?? ""
+        )
+    }
+
     /// - Parameters:
     ///   - psSection: `ps -eo pid,ppid,user,pcpu,pmem,rss,nlwp,stat,etimes,args` 输出（GNU）。
     ///   - topSection: `top -bn1` 的输出（BusyBox/Alpine 回退）。
@@ -61,6 +70,35 @@ enum ProcessParser {
                 fullCommand: command, state: String(cols[3])
             ))
         }
+        return result
+    }
+
+    private static func splitSections(_ output: String) -> [String: String] {
+        let sentinels = [
+            ProcessCollectionScript.Sentinel.ps,
+            ProcessCollectionScript.Sentinel.top,
+            ProcessCollectionScript.Sentinel.end
+        ]
+        var result: [String: String] = [:]
+        var current: String?
+        var lines: [String] = []
+
+        func flush() {
+            guard let current else { return }
+            result[current] = lines.joined(separator: "\n")
+        }
+
+        for line in output.components(separatedBy: .newlines) {
+            let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+            if sentinels.contains(trimmed) {
+                flush()
+                current = trimmed
+                lines = []
+            } else if current != nil {
+                lines.append(line)
+            }
+        }
+        flush()
         return result
     }
 

@@ -9,13 +9,7 @@ import SwiftUI
 /// 完全一致（图标 + 名称/副标题 + 尾部徽标 + chevron），只有图标与徽标判据不同。
 enum DockerDetail {
     static func errorRecovery(_ message: String, retry: @escaping () -> Void) -> some View {
-        VStack(alignment: .leading, spacing: ConnSpacing.sm) {
-            ConnBanner(message, systemImage: "exclamationmark.triangle")
-            Button(L("重试"), action: retry)
-                .font(.connBody)
-                .foregroundStyle(.connAccent)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
+        ConnRetryState(message, retryTitle: L("重试"), action: retry)
     }
 
     @ViewBuilder
@@ -164,44 +158,12 @@ enum DockerDetail {
         .buttonStyle(.plain)
     }
 
-    /// 列表头：所有 Docker 资源都在这里呈现数量与当前资源的更多操作。
-    /// 刷新仍由下拉手势承担，避免每个分段出现不同的右侧入口。
-    static func listHeader<MenuContent: View>(
-        count: String, isMenuEnabled: Bool,
-        @ViewBuilder menuContent: @escaping () -> MenuContent
-    ) -> some View {
-        HStack {
-            Text(count).font(.connData(.caption2)).foregroundStyle(.connDim)
-            Spacer()
-            Menu(content: menuContent) {
-                Image(systemName: "ellipsis.circle")
-                    .font(.system(size: 18))
-                    .foregroundStyle(.connAccent)
-                    .frame(width: ConnSize.inlineActionButton, height: ConnSize.inlineActionButton)
-                    .contentShape(Rectangle())
-            }
-            .disabled(!isMenuEnabled)
-        }
-        .frame(height: ConnSize.inlineActionButton)
-    }
-
-    /// Docker 五类列表共用的顶部控件：紧凑数量/菜单行 + 通用搜索框。
-    /// 这里统一控制两者间距，避免各分段单独微调后再次产生视觉漂移。
-    static func listControls<MenuContent: View>(
-        count: String,
-        isMenuEnabled: Bool,
-        searchPrompt: String,
-        search: Binding<String>,
-        @ViewBuilder menuContent: @escaping () -> MenuContent
-    ) -> some View {
-        VStack(spacing: ConnSpacing.xxs) {
-            listHeader(
-                count: count,
-                isMenuEnabled: isMenuEnabled,
-                menuContent: menuContent
-            )
-            ConnSearchField(searchPrompt, text: search)
-        }
+    /// 列表头只说明当前结果数量；当前资源操作已统一放进导航栏右侧菜单。
+    static func listHeader(count: String) -> some View {
+        Text(count)
+            .font(.connData(.caption2))
+            .foregroundStyle(.connDim)
+            .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     /// `listBody` 的加载状态：错误 / 加载中 / 空态文案。打包成具名类型而非元组——

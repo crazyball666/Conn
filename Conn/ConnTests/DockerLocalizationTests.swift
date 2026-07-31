@@ -90,6 +90,7 @@ struct DockerLocalizationTests {
         "%@ 成功",
         "%@ 结果未知",
         "%@容器",
+        "Docker",
         "Docker Socket",
         "Docker 停止容器",
         "Docker 创建卷",
@@ -225,6 +226,7 @@ struct DockerLocalizationTests {
         "搜索容器",
         "搜索网络",
         "搜索镜像",
+        "更多操作",
         "摘要",
         "日志",
         "是",
@@ -261,7 +263,6 @@ struct DockerLocalizationTests {
         "%@ · %d 个服务 · %d/%d 个容器运行",
         "%d/%d 个容器运行",
         "Compose",
-        "Compose 服务日志",
         "Compose 项目日志",
         "Compose 项目配置无效",
         "Docker Compose 停止项目",
@@ -299,8 +300,6 @@ struct DockerLocalizationTests {
         "配置文件绝对路径",
         "重启 Compose 服务",
         "重启 Compose 项目",
-        "重启服务",
-        "查看日志",
         "项目名称",
         "项目名称（可选）",
         "项目目录",
@@ -385,8 +384,8 @@ struct DockerLocalizationTests {
 }
 
 extension DockerLocalizationTests {
-    @Test("五类 Docker 资源通过统一列表标题进入操作，顶部不再放添加入口")
-    func resourceOperationsUseSharedListHeaders() throws {
+    @Test("五类 Docker 资源共用导航栏操作菜单，内容区只保留数量与列表")
+    func resourceOperationsUseNavigationMenu() throws {
         let dockerView = try source(named: "Conn/Hosts/DockerView.swift")
         let routing = try source(named: "Conn/Hosts/DockerOperationRouting.swift")
         let runForm = try source(named: "Conn/Hosts/DockerRunFormView.swift")
@@ -394,9 +393,11 @@ extension DockerLocalizationTests {
         let composeViews = try source(named: "Conn/Hosts/DockerComposeViews.swift")
         let detailBuilding = try source(named: "Conn/Hosts/DockerDetailBuilding.swift")
 
-        #expect(dockerView.components(separatedBy: "DockerDetail.listControls").count - 1 == 4)
-        #expect(composeViews.components(separatedBy: "DockerDetail.listControls").count - 1 == 1)
+        #expect(dockerView.components(separatedBy: "DockerDetail.listHeader").count - 1 == 4)
+        #expect(composeViews.components(separatedBy: "DockerDetail.listHeader").count - 1 == 1)
         #expect(!routing.contains("operationToolbar"))
+        #expect(dockerView.contains("private var resourceOperationMenu"))
+        #expect(dockerView.contains(".toolbar { resourceNavigationToolbar }"))
         #expect(dockerView.contains("L(\"共 %d 个\")"))
         #expect(!dockerView.contains("L(\"%@容器\")"))
         #expect(dockerView.contains("operationSheet = .runContainer"))
@@ -404,20 +405,37 @@ extension DockerLocalizationTests {
         #expect(dockerView.contains("operationSheet = .createVolume"))
         #expect(dockerView.contains("operationSheet = .createNetwork"))
         #expect(dockerView.contains("operationSheet = .addComposeProject"))
-        #expect(composeViews.contains("Label(L(\"手动添加项目\"), systemImage: \"plus\")"))
+        #expect(dockerView.contains("Label(L(\"手动添加项目\"), systemImage: \"plus\")"))
+        #expect(!composeViews.contains("addManual"))
         #expect(composeViews.contains(".composeDown(project: project, dialect: dialect)"))
-        #expect(composeViews.contains("kind: .compose(project: project, dialect: dialect, service: service)"))
+        #expect(composeViews.contains("kind: .compose(project: project, dialect: dialect, service: nil)"))
         #expect(runForm.contains("DockerRunReviewView(draft: state.draft, operations: operations)"))
         #expect(runReview.contains("DockerCommand.run(draft, sudo: false)"))
         #expect(runReview.contains("operations.runContainer(draft)"))
         #expect(!runForm.contains("maskedArguments"))
-        #expect(
-            detailBuilding.contains(
-                ".frame(width: ConnSize.inlineActionButton, height: ConnSize.inlineActionButton)"
-            )
-        )
+        #expect(!detailBuilding.contains("inlineActionButton"))
+        #expect(!detailBuilding.contains("isMenuEnabled"))
         #expect(!detailBuilding.contains("hitExpansion"))
         #expect(!detailBuilding.contains(".padding(.vertical, -ConnSpacing.xs)"))
+    }
+
+    @Test("Docker 五类资源统一使用导航栏下方的系统搜索栏")
+    func dockerResourcesUsePersistentSystemSearch() throws {
+        let dockerView = try source(named: "Conn/Hosts/DockerView.swift")
+        let composeViews = try source(named: "Conn/Hosts/DockerComposeViews.swift")
+        let detailBuilding = try source(named: "Conn/Hosts/DockerDetailBuilding.swift")
+
+        #expect(dockerView.contains("placement: .navigationBarDrawer(displayMode: .always)"))
+        #expect(dockerView.contains("prompt: searchPrompt"))
+        #expect(dockerView.contains("private var searchPrompt: String"))
+        #expect(dockerView.contains("case .containers: L(\"搜索容器\")"))
+        #expect(dockerView.contains("case .images: L(\"搜索镜像\")"))
+        #expect(dockerView.contains("case .volumes: L(\"搜索卷\")"))
+        #expect(dockerView.contains("case .networks: L(\"搜索网络\")"))
+        #expect(dockerView.contains("case .compose: L(\"搜索 Compose 项目\")"))
+        #expect(!detailBuilding.contains("static func listControls("))
+        #expect(!detailBuilding.contains("ConnSearchField("))
+        #expect(!composeViews.contains("searchPrompt:"))
     }
 
     @Test("容器与 Compose 详情共用同一操作卡片样式")
@@ -431,18 +449,50 @@ extension DockerLocalizationTests {
         #expect(
             composeViews.components(separatedBy: "DockerDetail.actionButton(").count - 1 == 4
         )
+        #expect(composeViews.contains("actions\n                summary\n                servicesSection"))
         #expect(!composeViews.contains("PillButton(L(\"启动\")"))
     }
 
-    @Test("Compose 服务行可进入其容器详情且多副本不被随意选中")
-    func composeServiceRowsNavigateToContainers() throws {
+    @Test("Compose 单容器服务直达详情且多副本在项目页就地展开")
+    func composeServiceRowsNavigateOrExpandContainers() throws {
         let composeViews = try source(named: "Conn/Hosts/DockerComposeViews.swift")
 
         #expect(composeViews.contains("@State private var openedContainer: ContainerInfo?"))
-        #expect(composeViews.contains("@State private var openedService: DockerComposeService?"))
+        #expect(composeViews.contains("@State private var expandedServiceIDs: Set<String>"))
         #expect(composeViews.contains("service.containers.count == 1"))
+        #expect(composeViews.contains("toggleServiceExpansion(service)"))
+        #expect(composeViews.contains("expandedContainers(for: service)"))
         #expect(composeViews.contains("ContainerDetailView("))
-        #expect(composeViews.contains("DockerComposeServiceContainersView("))
+        #expect(composeViews.contains("Button { open(service) }"))
+        #expect(!composeViews.contains("serviceMenu("))
+        #expect(!composeViews.contains("ConnMoreActionsIcon()"))
+        #expect(!composeViews.contains("DockerComposeServiceContainersView"))
+        #expect(!composeViews.contains("openedService"))
+    }
+
+    @Test("Compose 详情仅首次进入加载服务，返回时复用现有列表")
+    func composeDetailLoadsServicesOnlyOnce() throws {
+        let composeViews = try source(named: "Conn/Hosts/DockerComposeViews.swift")
+
+        #expect(composeViews.contains("@State private var hasLoadedServices = false"))
+        #expect(composeViews.contains(".task { await loadServicesIfNeeded() }"))
+        #expect(composeViews.contains("guard !hasLoadedServices else { return }"))
+        #expect(composeViews.contains("hasLoadedServices = true"))
+        #expect(!composeViews.contains(".task { await loadServices() }"))
+    }
+
+    @Test("Docker 资源通过标题菜单切换并分别保存搜索词")
+    func dockerResourcesUseTitleMenuAndIndependentSearches() throws {
+        let dockerView = try source(named: "Conn/Hosts/DockerView.swift")
+
+        #expect(!dockerView.contains("Picker(L(\"段\"), selection: $tab)"))
+        #expect(dockerView.contains("private var resourceTitleMenu"))
+        #expect(dockerView.contains("Label(L(target.rawValue), systemImage:"))
+        #expect(!dockerView.contains("resourceMenuLabel"))
+        #expect(!dockerView.contains("resourceCount"))
+        #expect(dockerView.contains("@State private var searches: [Tab: String] = [:]"))
+        #expect(dockerView.contains("private var searchBinding: Binding<String>"))
+        #expect(!dockerView.contains("search = \"\""))
     }
 
     private func source(named relativePath: String) throws -> String {

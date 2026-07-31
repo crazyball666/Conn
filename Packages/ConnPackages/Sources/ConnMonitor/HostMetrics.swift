@@ -53,7 +53,6 @@ public struct HostMetrics: Sendable, Equatable {
     /// 磁盘 IO 读/写速率（字节/秒）。
     public let ioReadRate: Double?
     public let ioWriteRate: Double?
-    public let processes: [RemoteProcess]
     public let uptimeSeconds: Double?
     public let severity: MetricSeverity
 
@@ -86,7 +85,6 @@ public struct HostMetrics: Sendable, Equatable {
         ioWriteBytes: Int64? = nil,
         ioReadRate: Double? = nil,
         ioWriteRate: Double? = nil,
-        processes: [RemoteProcess],
         uptimeSeconds: Double?,
         severity: MetricSeverity
     ) {
@@ -118,17 +116,14 @@ public struct HostMetrics: Sendable, Equatable {
         self.ioWriteBytes = ioWriteBytes
         self.ioReadRate = ioReadRate
         self.ioWriteRate = ioWriteRate
-        self.processes = processes
         self.uptimeSeconds = uptimeSeconds
         self.severity = severity
     }
 
-    /// 本轮未采的段用上一份快照补齐——切走概览/进程段后仍以核心段轮询（顶部状态胶囊），
-    /// 但让「系统名/CPU 型号/网卡/TCP」「进程列表」保留上次值，切回来时不闪空/不重载。
+    /// 本轮未采概览详情段时用上一份快照补齐，让系统名/CPU 型号/网卡/TCP 不闪空。
     /// - `keepExtended`: 本轮**未采**概览详情段（沿用上次的 cpuModel/osName/interfaces/tcp）。
-    /// - `keepProcesses`: 本轮**未采**进程段（沿用上次的 processes）。
-    public func carryingOver(_ previous: HostMetrics?, keepExtended: Bool, keepProcesses: Bool) -> HostMetrics {
-        guard let previous, keepExtended || keepProcesses else { return self }
+    public func carryingOver(_ previous: HostMetrics?, keepExtended: Bool) -> HostMetrics {
+        guard let previous, keepExtended else { return self }
         return HostMetrics(
             hostID: hostID, cpu: cpu, cpuCores: cpuCores, cpuPerCore: cpuPerCore, cpuBreakdown: cpuBreakdown,
             cpuModel: keepExtended ? previous.cpuModel : cpuModel,
@@ -141,7 +136,6 @@ public struct HostMetrics: Sendable, Equatable {
             interfaces: keepExtended ? previous.interfaces : interfaces,
             tcp: keepExtended ? previous.tcp : tcp,
             ioReadBytes: ioReadBytes, ioWriteBytes: ioWriteBytes, ioReadRate: ioReadRate, ioWriteRate: ioWriteRate,
-            processes: keepProcesses ? previous.processes : processes,
             uptimeSeconds: uptimeSeconds, severity: severity
         )
     }

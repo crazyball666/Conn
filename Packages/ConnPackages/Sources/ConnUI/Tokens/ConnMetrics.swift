@@ -67,10 +67,6 @@ public enum ConnSize {
     /// 也不回弹——用户看到的是点一下输入框、框子突然矮一截。
     public static let searchFieldHeight: CGFloat = 44
 
-    /// 列表标题行内的紧凑操作按钮边长。
-    /// 用于资源数量旁的省略号菜单；它直接参与布局，不再用负 padding 压缩高度。
-    public static let inlineActionButton: CGFloat = 24
-
     /// 主按钮高度。
     public static let buttonHeight: CGFloat = 44
     /// 大号 CTA（Paywall、首启主按钮）。

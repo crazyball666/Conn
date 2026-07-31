@@ -35,6 +35,7 @@ final class FileEditorViewModel {
     }
 
     func load() async {
+        loadState = .loading
         if entry.size > maxEditBytes {
             loadState = .readOnly(L("文件超过 1MB，暂不支持在线编辑。请下载后查看。"))
             return
@@ -52,6 +53,7 @@ final class FileEditorViewModel {
             content = text
             loadState = .editing
         } catch {
+            cachedFileSystem = nil
             loadState = .failed(error.friendlyDiagnosis)
         }
     }
@@ -133,7 +135,11 @@ struct FileEditorView: View {
         case let .readOnly(message):
             infoState(icon: "doc.plaintext", message: message)
         case let .failed(message):
-            infoState(icon: "exclamationmark.triangle", message: message)
+            ConnRetryState(message, retryTitle: L("重试")) {
+                Task { await viewModel.load() }
+            }
+            .padding(.horizontal, ConnSpacing.page)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         }
     }
 

@@ -3,10 +3,9 @@ import ConnMonitor
 import ConnUI
 import SwiftUI
 
-/// 进程段：全量进程 + 可排序表头（CPU / 内存，升降序）+ 长按操作栏（结束进程）
-/// + 点击进详情。结束进程的二次确认与结果提示集中在父级 `HostDetailView`。
+/// 进程页：全量进程 + 可排序表头（CPU / 内存，升降序）+ 长按结束进程 + 点击进详情。
 struct ProcessListView: View {
-    let viewModel: HostOverviewViewModel
+    let viewModel: ProcessListViewModel
 
     enum SortKey { case cpu, mem }
     private enum LoadState {
@@ -29,29 +28,26 @@ struct ProcessListView: View {
                     .font(.connFootnote).foregroundStyle(.connMuted)
                     .frame(maxWidth: .infinity).padding(.vertical, ConnSpacing.xxl)
             case let .failed(message):
-                VStack(spacing: ConnSpacing.sm) {
-                    ConnBanner(message, systemImage: "exclamationmark.triangle")
-                    Button(L("重试")) {
-                        Task { await viewModel.retryProcesses() }
-                    }
-                    .font(.connBody).foregroundStyle(.connAccent)
+                ConnRetryState(message, retryTitle: L("重试")) {
+                    Task { await viewModel.retryProcesses() }
                 }
-                .padding(.vertical, ConnSpacing.md)
             case .ready:
                 processList
             }
         }
+        .searchable(
+            text: $searchText,
+            placement: .navigationBarDrawer(displayMode: .always),
+            prompt: L("搜索进程 / PID / 用户")
+        )
         .modifier(KillProcessAlert(viewModel: viewModel, target: $killTarget, result: $resultMessage))
-        // 进程段从加载到失败期间仍须保持 `ps` 采集开启；否则首次结果永远不会到达，
-        // 失败后的后台轮询也无法自行恢复。
-        .onAppear { viewModel.setProcessSegmentActive(true) }
-        .onDisappear { viewModel.setProcessSegmentActive(false) }
+        .onAppear { viewModel.appear() }
+        .onDisappear { viewModel.disappear() }
     }
 
     private var processList: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: ConnSpacing.xs) {
-                searchField
                 eyebrow
                 if displayedProcesses.isEmpty {
                     emptyState
@@ -73,10 +69,10 @@ struct ProcessListView: View {
     }
 
     private var loadState: LoadState {
-        if let error = viewModel.errorText, viewModel.latest == nil {
+        if let error = viewModel.errorText, viewModel.processes.isEmpty {
             return .failed(error)
         }
-        if viewModel.processesLoading || viewModel.latest == nil {
+        if viewModel.isLoading && viewModel.processes.isEmpty {
             return .loading
         }
         return .ready
@@ -97,10 +93,6 @@ struct ProcessListView: View {
     }
 
     // MARK: - 头部
-
-    private var searchField: some View {
-        ConnSearchField(L("搜索进程 / PID / 用户"), text: $searchText)
-    }
 
     private var eyebrow: some View {
         HStack {

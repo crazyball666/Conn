@@ -28,12 +28,14 @@ enum DemoData {
                 : nil,
             dynamicResponder: { command, endpoint in
                 if command.contains("/proc/stat") {
-                    // 与生产一致：按命令实际取的段回数据（详情段看 os-release、进程段看 ps）。
+                    // 与生产一致：基础指标与进程使用两条独立命令。
                     return .init(stdout: metrics.metricOutput(
                         for: endpoint,
-                        includeExtended: command.contains("os-release"),
-                        includeProcesses: command.contains("ps -eo")
+                        includeExtended: command.contains("os-release")
                     ))
+                }
+                if command.contains("ps -eo") {
+                    return .init(stdout: metrics.processOutput(for: endpoint))
                 }
                 return DemoOps.response(command: command, endpoint: endpoint)
             },

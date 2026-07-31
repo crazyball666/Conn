@@ -51,6 +51,11 @@ final class LogStreamViewModel {
         task = nil
     }
 
+    func retry() {
+        stop()
+        start()
+    }
+
     func clear() {
         lines.removeAll()
     }

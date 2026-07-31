@@ -5,12 +5,19 @@ import SwiftUI
 
 /// 单机概览：分块（系统 / 负载 / CPU / 内存 / 磁盘 / 网络 / 进程）。
 /// CPU 显示各核折线、内存显示三段堆叠占比、磁盘与磁盘 IO 合并一块。
-struct HostOverviewView: View {
+struct HostOverviewView<Header: View>: View {
     let viewModel: HostOverviewViewModel
+    private let header: Header
+
+    init(viewModel: HostOverviewViewModel, @ViewBuilder header: () -> Header) {
+        self.viewModel = viewModel
+        self.header = header()
+    }
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: ConnSpacing.md) {
+                header
                 if let error = viewModel.errorText, viewModel.latest == nil {
                     ConnBanner(error, systemImage: "wifi.slash")
                 }
@@ -25,7 +32,7 @@ struct HostOverviewView: View {
         .scrollBounceBehavior(.basedOnSize)
         .scrollIndicators(.hidden)
         .onChange(of: viewModel.latest) { _, _ in viewModel.record() }
-        // 仅「概览」段可见时才让脚本带详情段（系统名/CPU 型号/TCP 重传/网卡）——其它段不采。
+        // 仅概览页可见时才让脚本带详情段（系统名/CPU 型号/TCP 重传/网卡）——其它页面不采。
         .onAppear { viewModel.setOverviewSegmentActive(true) }
         .onDisappear { viewModel.setOverviewSegmentActive(false) }
     }

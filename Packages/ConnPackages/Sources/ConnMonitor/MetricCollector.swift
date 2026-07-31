@@ -39,14 +39,13 @@ public actor MetricCollector {
     public init() {}
 
     /// 采一次。首次调用某主机时 CPU/速率为 nil（无可差分的上次快照），下次起有值。
-    /// `includeExtended`/`includeProcesses` 决定脚本取哪些段——按调用界面所需裁剪，省无用查询。
+    /// `includeExtended` 决定是否附带概览详情段；进程数据由独立采集器负责。
     public func collect(
         host: ConnKit.Host,
         session: any SSHSession,
-        includeExtended: Bool = true,
-        includeProcesses: Bool = true
+        includeExtended: Bool = true
     ) async throws -> HostMetrics {
-        let command = CollectionScript.command(includeExtended: includeExtended, includeProcesses: includeProcesses)
+        let command = CollectionScript.command(includeExtended: includeExtended)
         let result = try await session.exec(command)
         let parsed = MetricParser.parse(result.stdoutText)
 
@@ -101,7 +100,6 @@ public actor MetricCollector {
             ioWriteBytes: parsed.ioWriteBytes,
             ioReadRate: rates.ioRead,
             ioWriteRate: rates.ioWrite,
-            processes: parsed.processes,
             uptimeSeconds: parsed.uptimeSeconds,
             severity: HealthEvaluator.severity(cpu: cpuUsage, mem: parsed.memPercent, disk: diskPercent)
         )

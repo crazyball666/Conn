@@ -34,8 +34,6 @@ public final class MonitorScheduler {
     public private(set) var lastScanAt: Date?
     /// 详情轮询是否附带概览详情段（系统名/CPU 型号/TCP 重传/网卡）——仅「概览」段激活时置真。
     public var wantsExtended = false
-    /// 详情轮询是否附带进程列表——仅「进程」段激活时置真（VM 控制）。概览/仪表盘不采进程。
-    public var wantsProcesses = false
 
     private let connectionManager: ConnectionManager
     private let collector: MetricCollector
@@ -170,7 +168,7 @@ public final class MonitorScheduler {
         }
     }
 
-    /// 单机详情模式：只高频轮询这一台。每轮按 `wantsProcesses` 决定是否附带进程列表。
+    /// 单机详情模式：只高频轮询这一台。进程列表由独立的 `ProcessMonitor` 调度。
     public func startDetail(host: ConnKit.Host, interval: Duration = .seconds(3)) {
         stop()
         let scanGeneration = generation
@@ -181,7 +179,7 @@ public final class MonitorScheduler {
             while self.isCurrent(scanGeneration) && !Task.isCancelled {
                 await self.collectOne(
                     host, generation: scanGeneration,
-                    includeExtended: self.wantsExtended, includeProcesses: self.wantsProcesses
+                    includeExtended: self.wantsExtended
                 )
                 guard self.isCurrent(scanGeneration) else { return }
                 self.lastScanAt = self.now()
@@ -190,12 +188,12 @@ public final class MonitorScheduler {
         }
     }
 
-    /// 立刻补采一次当前详情主机（切到概览/进程段时用——别等下一个轮询间隔才出详情/进程）。
+    /// 立刻补采一次当前详情主机（概览页出现时用，避免等下一个轮询间隔才出详情段）。
     public func refreshDetail(host: ConnKit.Host) async {
         let scanGeneration = generation
         await collectOne(
             host, generation: scanGeneration,
-            includeExtended: wantsExtended, includeProcesses: wantsProcesses
+            includeExtended: wantsExtended
         )
         guard isCurrent(scanGeneration) else { return }
         lastScanAt = now()
@@ -309,7 +307,7 @@ public final class MonitorScheduler {
     /// 此刻是什么状态，卡片继续转圈是诚实的。收圈交给孤儿完成时做。
     private func collectOne(
         _ host: ConnKit.Host, generation scanGeneration: Int,
-        includeExtended: Bool = false, includeProcesses: Bool = false
+        includeExtended: Bool = false
     ) async {
         // 作废的旧轮直接不跑；同一主机已有一轮在飞行中也让位（详见 `generation`/`inFlight`）。
         // 注意这里**不再** `defer { inFlight.remove(host.id) }`——移除是孤儿自己的责任，
@@ -347,7 +345,7 @@ public final class MonitorScheduler {
             Task { @MainActor in
                 await self.performCollect(
                     host, generation: scanGeneration,
-                    includeExtended: includeExtended, includeProcesses: includeProcesses
+                    includeExtended: includeExtended
                 )
                 timer.cancel()          // 采完了就别让计时器白占着一个 Task
                 latch.workDidFinish()
@@ -392,10 +390,10 @@ public final class MonitorScheduler {
     /// idle timeout 或系统回收）第一次使用必然失败，那不是故障，不该打扰用户。
     /// 重试期间 `phases` 为 `.reconnecting`，UI 显示「重连中」；重试仍失败才如实转红。
     ///
-    /// 仪表盘轮询默认只取核心段；详情轮询按 `wantsExtended`/`wantsProcesses` 传入。
+    /// 仪表盘轮询默认只取核心段；详情轮询按 `wantsExtended` 传入。
     private func performCollect(
         _ host: ConnKit.Host, generation scanGeneration: Int,
-        includeExtended: Bool, includeProcesses: Bool
+        includeExtended: Bool
     ) async {
         // **无条件移除，不能挡在 `guard isCurrent` 后面**：代次一变（切走再回来、
         // 回前台重启）这台主机就会永久留在 `inFlight` 里，此后每一轮都对它让位，
@@ -408,13 +406,13 @@ public final class MonitorScheduler {
 
         if let error = await attempt(
             host, generation: scanGeneration,
-            includeExtended: includeExtended, includeProcesses: includeProcesses
+            includeExtended: includeExtended
         ) {
             guard isCurrent(scanGeneration) else { return }
             if allowsRetry {
                 if let retryError = await attempt(
                     host, generation: scanGeneration,
-                    includeExtended: includeExtended, includeProcesses: includeProcesses
+                    includeExtended: includeExtended
                 ) {
                     guard isCurrent(scanGeneration) else { return }
                     record(retryError, for: host)
@@ -435,7 +433,7 @@ public final class MonitorScheduler {
     /// 再返回错误，但**不写 `errors`**——是否把它呈现为故障由 `collectOne` 决定。
     private func attempt(
         _ host: ConnKit.Host, generation scanGeneration: Int,
-        includeExtended: Bool, includeProcesses: Bool
+        includeExtended: Bool
     ) async -> Error? {
         // 池里没有会话 = 本次要握手。首采（无读数）仍走骨架态，不算重连。
         let needsHandshake = await !connectionManager.hasPooledSession(for: host)
@@ -446,13 +444,12 @@ public final class MonitorScheduler {
         do {
             let session = try await connectionManager.session(for: host)
             let result = try await collector.collect(
-                host: host, session: session,
-                includeExtended: includeExtended, includeProcesses: includeProcesses
+                host: host, session: session, includeExtended: includeExtended
             )
             guard isCurrent(scanGeneration) else { return nil }
-            // 本轮没采的段（切走的概览/进程段）沿用上次值，切回来不闪空/不重载。
+            // 本轮没采概览详情段时沿用上次值，切回来不闪空。
             metrics[host.id] = result.carryingOver(
-                metrics[host.id], keepExtended: !includeExtended, keepProcesses: !includeProcesses
+                metrics[host.id], keepExtended: !includeExtended
             )
             errors[host.id] = nil
             return nil

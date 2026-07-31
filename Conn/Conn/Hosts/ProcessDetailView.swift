@@ -8,7 +8,7 @@ import UIKit
 /// + 结束进程。值随采集实时刷新（按 PID 从最新快照回读），进程退出后回落为入场快照。
 struct ProcessDetailView: View {
     let process: RemoteProcess
-    let viewModel: HostOverviewViewModel
+    let viewModel: ProcessListViewModel
 
     @State private var commandExpanded = false
     @State private var killTarget: RemoteProcess?
@@ -30,6 +30,8 @@ struct ProcessDetailView: View {
         .navigationTitle(live.command)
         .navigationBarTitleDisplayMode(.inline)
         .modifier(KillProcessAlert(viewModel: viewModel, target: $killTarget, result: $resultMessage))
+        .onAppear { viewModel.appear() }
+        .onDisappear { viewModel.disappear() }
     }
 
     /// 最新快照里的同 PID 进程；已退出则回落入场快照。

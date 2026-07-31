@@ -22,8 +22,8 @@ struct RootTabView: View {
     /// （大标题 + 系统搜索 `.searchable` + 右上角 toolbar 图标）；这些修饰只有挂在各自栈内的
     /// 内容上才会生效，`TabView` 嵌在单一外层栈里时不会冒泡。
     ///
-    /// push 详情页时**底栏常驻**（系统 App 标准做法：App Store / 音乐 / 播客 皆如此）——
-    /// 底栏不移动，故返回无延迟。系统原生底栏：iOS 26 液态玻璃、深浅色随系统。
+    /// 根列表使用系统原生底栏；进入主机工作区等沉浸式详情后由目的页面隐藏底栏，
+    /// 避免“App 导航 + 工作区导航”同时占据屏幕。
     var body: some View {
         TabView(selection: $selection) {
             tab(.servers) {

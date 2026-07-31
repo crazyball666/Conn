@@ -43,13 +43,14 @@ struct MetricParserTests {
     ID=ubuntu
     __CONN_CPUINFO__
     model name	: Intel(R) Xeon(R) CPU E5-2698 v4 @ 2.20GHz
-    __CONN_PS__
+    __CONN_END__
+    __CONN_PROCESS_PS__
       PID  PPID USER      %CPU %MEM   RSS NLWP STAT ELAPSED COMMAND
         1     0 root       0.0  0.1  8500    1 Ss   864000 /sbin/init
       234     1 www-data  12.5  4.2 120000    4 S    8130 nginx: worker process
       567     1 mysql      8.1  2.0 512000   30 Sl   432000 /usr/sbin/mysqld
-    __CONN_TOP__
-    __CONN_END__
+    __CONN_PROCESS_TOP__
+    __CONN_PROCESS_END__
     """
 
     @Test("GNU：CPU jiffies 快照")
@@ -132,9 +133,9 @@ struct MetricParserTests {
 
     @Test("GNU：进程按 ps 解析（含属主 / RSS / 状态 / 线程 / 运行时长）")
     func gnuProcesses() {
-        let parsed = MetricParser.parse(gnuOutput)
-        #expect(parsed.processes.count == 3)
-        let first = parsed.processes.first
+        let processes = ProcessParser.parse(gnuOutput)
+        #expect(processes.count == 3)
+        let first = processes.first
         #expect(first?.pid == 1)
         #expect(first?.ppid == 0)
         #expect(first?.command == "init") // /sbin/init → basename
@@ -143,10 +144,10 @@ struct MetricParserTests {
         #expect(first?.threads == 1)
         #expect(first?.memBytes == Int64(8500 * 1024))
         #expect(first?.elapsedSeconds == Int64(864_000))
-        #expect(parsed.processes[1].cpu == 12.5)
-        #expect(parsed.processes[1].command == "nginx") // "nginx: worker process" → 短名
-        #expect(parsed.processes[1].fullCommand == "nginx: worker process")
-        #expect(parsed.processes[2].command == "mysqld")
+        #expect(processes[1].cpu == 12.5)
+        #expect(processes[1].command == "nginx") // "nginx: worker process" → 短名
+        #expect(processes[1].fullCommand == "nginx: worker process")
+        #expect(processes[2].command == "mysqld")
     }
 
     // MARK: - BusyBox（Alpine 典型：ps -eo 无输出，回退 top）
@@ -171,15 +172,16 @@ struct MetricParserTests {
       eth0:  900000     800    0    0    0     0          0         0   700000     600    0    0    0     0       0          0
     __CONN_UPTIME__
     54321.00 65432.10
-    __CONN_PS__
-    __CONN_TOP__
+    __CONN_END__
+    __CONN_PROCESS_PS__
+    __CONN_PROCESS_TOP__
     Mem: 384000K used, 128000K free, 0K shrd, 10000K buff, 64000K cached
     CPU:   5% usr   2% sys   0% nic  90% idle   0% io   0% irq   1% sirq
     Load average: 0.05 0.10 0.08 1/50 999
       PID  PPID USER     STAT   VSZ %VSZ %CPU COMMAND
         1     0 root     S     2000   1%   3% init
       456     1 root     S     8000   4%  10% nginx
-    __CONN_END__
+    __CONN_PROCESS_END__
     """
 
     @Test("BusyBox：内存无 MemAvailable，回退 Free+Buffers+Cached")
@@ -192,16 +194,16 @@ struct MetricParserTests {
 
     @Test("BusyBox：进程回退 top 解析")
     func busyboxProcesses() {
-        let parsed = MetricParser.parse(busyboxOutput)
-        #expect(parsed.processes.count == 2)
-        #expect(parsed.processes.first?.pid == 1)
-        #expect(parsed.processes.first?.command == "init")
-        #expect(parsed.processes.first?.cpu == 3) // %CPU 列
-        #expect(parsed.processes.first?.mem == 1) // %VSZ 列作近似
-        #expect(parsed.processes.first?.user == "root") // USER 列
-        #expect(parsed.processes.first?.state == "S") // STAT 列
-        #expect(parsed.processes[1].command == "nginx")
-        #expect(parsed.processes[1].cpu == 10)
+        let processes = ProcessParser.parse(busyboxOutput)
+        #expect(processes.count == 2)
+        #expect(processes.first?.pid == 1)
+        #expect(processes.first?.command == "init")
+        #expect(processes.first?.cpu == 3) // %CPU 列
+        #expect(processes.first?.mem == 1) // %VSZ 列作近似
+        #expect(processes.first?.user == "root") // USER 列
+        #expect(processes.first?.state == "S") // STAT 列
+        #expect(processes[1].command == "nginx")
+        #expect(processes[1].cpu == 10)
     }
 
     @Test("BusyBox：overlay 作根盘（无 /dev/vda 时取 / 挂载点）")
@@ -219,7 +221,7 @@ struct MetricParserTests {
         #expect(parsed.cpu == nil)
         #expect(parsed.memPercent == nil)
         #expect(parsed.diskPercent == nil)
-        #expect(parsed.processes.isEmpty)
+        #expect(ProcessParser.parse("").isEmpty)
     }
 
     @Test("只有磁盘段、无根挂载点时取容量最大者")

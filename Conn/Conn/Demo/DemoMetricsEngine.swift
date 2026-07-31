@@ -24,7 +24,7 @@ final class DemoMetricsEngine: @unchecked Sendable {
     private var states: [String: State] = [:]
 
     /// 生成一台主机一次采集的 sentinel 分段输出。
-    func metricOutput(for endpoint: SSHEndpoint, includeExtended: Bool = true, includeProcesses: Bool = true) -> String {
+    func metricOutput(for endpoint: SSHEndpoint, includeExtended: Bool = true) -> String {
         lock.lock()
         defer { lock.unlock() }
 
@@ -50,13 +50,38 @@ final class DemoMetricsEngine: @unchecked Sendable {
 
         return render(
             state: state, cpu: cpu, mem: mem, disk: disk,
-            flags: RenderFlags(extended: includeExtended, processes: includeProcesses)
+            includeExtended: includeExtended
         )
+    }
+
+    /// 生成进程专用采集命令的输出，不推进基础指标的差分状态。
+    func processOutput(for endpoint: SSHEndpoint) -> String {
+        lock.lock()
+        defer { lock.unlock() }
+
+        let fault = endpoint.host == DemoData.faultHostAddress
+        let state = states[endpoint.host]
+            ?? State(total: 400_000, idle: 300_000, rx: 5_000_000, tx: 3_000_000,
+                     ioRead: 40_000_000, ioWrite: 22_000_000, tick: 0)
+        let phase = Double(abs(endpoint.host.hashValue) % 360)
+        let cpu = fault ? 0.94 : clamp(0.32 + 0.22 * sin(Double(state.tick) / 6 + phase), 0.04, 0.9)
+        let mem = fault ? 0.92 : clamp(0.45 + 0.18 * sin(Double(state.tick) / 9 + phase + 1), 0.2, 0.88)
+        let sentinel = ProcessCollectionScript.Sentinel.self
+        return [
+            sentinel.ps, psLines(cpu: cpu, mem: mem),
+            sentinel.top, "", sentinel.end
+        ].joined(separator: "\n")
     }
 
     // MARK: - 渲染各段
 
-    private func render(state: State, cpu: Double, mem: Double, disk: Double, flags: RenderFlags) -> String {
+    private func render(
+        state: State,
+        cpu: Double,
+        mem: Double,
+        disk: Double,
+        includeExtended: Bool
+    ) -> String {
         let sentinel = CollectionScript.Sentinel.self
         let load1 = cpu * 4
         var lines = [
@@ -69,7 +94,7 @@ final class DemoMetricsEngine: @unchecked Sendable {
             // uptime 随 tick 递增(≈3s/次),让相邻样本可差分出网络/IO 速率。
             sentinel.uptime, String(format: "%.2f 3456789.10", 864_000 + Double(state.tick) * 3)
         ]
-        if flags.extended {
+        if includeExtended {
             lines += [
                 sentinel.snmp, snmpLines,
                 sentinel.ipaddr, ipLines,
@@ -77,16 +102,8 @@ final class DemoMetricsEngine: @unchecked Sendable {
                 sentinel.cpuinfo, "model name\t: Intel(R) Xeon(R) CPU E5-2680 v4 @ 2.40GHz"
             ]
         }
-        if flags.processes {
-            lines += [sentinel.ps, psLines(cpu: cpu, mem: mem), sentinel.top, ""]
-        }
         lines.append(sentinel.end)
         return lines.joined(separator: "\n")
-    }
-
-    private struct RenderFlags {
-        let extended: Bool
-        let processes: Bool
     }
 
     private func statLine(total: Int64, idle: Int64, cpu: Double) -> String {

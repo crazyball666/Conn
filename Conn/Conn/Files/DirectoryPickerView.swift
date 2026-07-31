@@ -110,16 +110,13 @@ struct DirectoryPickerView: View {
                 .foregroundStyle(.connMuted)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         case .failed:
-            VStack(spacing: ConnSpacing.sm) {
-                if let errorText {
-                    ConnBanner(errorText, systemImage: "exclamationmark.triangle")
+            if let errorText {
+                ConnRetryState(errorText, retryTitle: L("重试")) {
+                    Task { await load(path: currentPath) }
                 }
-                Button(L("重试")) { Task { await load(path: currentPath) } }
-                    .font(.connBody)
-                    .foregroundStyle(.connAccent)
+                .padding(.horizontal, ConnSpacing.page)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
-            .padding(ConnSpacing.page)
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
         case .ready:
             if entries.isEmpty {
                 Text(L("空目录"))
@@ -183,6 +180,7 @@ struct DirectoryPickerView: View {
             currentPath = path
             loadState = .ready
         } catch {
+            fileSystem = nil
             errorText = error.friendlyDiagnosis
             loadState = .failed
         }

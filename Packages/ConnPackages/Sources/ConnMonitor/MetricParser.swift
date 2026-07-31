@@ -30,7 +30,6 @@ public struct ParsedMetrics: Sendable, Equatable {
     public var ioReadBytes: Int64?
     public var ioWriteBytes: Int64?
     public var uptimeSeconds: Double?
-    public var processes: [RemoteProcess]
 
     public init(
         cpu: CPUJiffies? = nil,
@@ -56,8 +55,7 @@ public struct ParsedMetrics: Sendable, Equatable {
         tcp: TCPStats? = nil,
         ioReadBytes: Int64? = nil,
         ioWriteBytes: Int64? = nil,
-        uptimeSeconds: Double? = nil,
-        processes: [RemoteProcess] = []
+        uptimeSeconds: Double? = nil
     ) {
         self.cpu = cpu
         self.cpuTimes = cpuTimes
@@ -83,7 +81,6 @@ public struct ParsedMetrics: Sendable, Equatable {
         self.ioReadBytes = ioReadBytes
         self.ioWriteBytes = ioWriteBytes
         self.uptimeSeconds = uptimeSeconds
-        self.processes = processes
     }
 
     /// 磁盘使用率 0–100。总量缺失或为 0 时返回 nil。
@@ -131,11 +128,7 @@ public enum MetricParser {
             tcp: ProcParsers.parseTCPStats(section(CollectionScript.Sentinel.snmp)),
             ioReadBytes: io?.read,
             ioWriteBytes: io?.write,
-            uptimeSeconds: ProcParsers.parseUptime(section(CollectionScript.Sentinel.uptime)),
-            processes: ProcessParser.parse(
-                psSection: section(CollectionScript.Sentinel.ps),
-                topSection: section(CollectionScript.Sentinel.top)
-            )
+            uptimeSeconds: ProcParsers.parseUptime(section(CollectionScript.Sentinel.uptime))
         )
     }
 
@@ -148,7 +141,6 @@ public enum MetricParser {
             CollectionScript.Sentinel.ipaddr, CollectionScript.Sentinel.io,
             CollectionScript.Sentinel.uptime,
             CollectionScript.Sentinel.os, CollectionScript.Sentinel.cpuinfo,
-            CollectionScript.Sentinel.ps, CollectionScript.Sentinel.top,
             CollectionScript.Sentinel.end
         ]
         var result: [String: String] = [:]

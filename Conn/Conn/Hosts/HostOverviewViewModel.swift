@@ -1,6 +1,5 @@
 import ConnKit
 import ConnMonitor
-import ConnSSH
 import Foundation
 import Observation
 
@@ -15,8 +14,6 @@ final class HostOverviewViewModel {
     let monitor: MonitorScheduler
 
     private let host: Host
-    private let connectionManager: ConnectionManager
-
     /// 折线图用的滚动历史（每 3s 一点，保留最近 `maxPoints` 个）。
     private(set) var cpuHistory: [Double] = []
     /// 各逻辑核使用率历史，`coreHistories[核序]` = 该核的时间序列。
@@ -40,7 +37,6 @@ final class HostOverviewViewModel {
 
     init(host: Host, dependencies: AppDependencies) {
         self.host = host
-        connectionManager = dependencies.connectionManager
         monitor = MonitorScheduler(connectionManager: dependencies.connectionManager)
     }
 
@@ -98,21 +94,10 @@ final class HostOverviewViewModel {
         }
     }
 
-    /// 全量进程（排序/筛选交给进程段 UI）。仅「进程」段激活时才有值（见 `setProcessSegmentActive`）。
-    var processes: [RemoteProcess] {
-        latest?.processes ?? []
-    }
-
-    /// 进程段已激活但进程尚未到手（首次加载中）。活机总有进程，故「激活且空」即视为加载中。
-    var processesLoading: Bool {
-        monitor.wantsProcesses && processes.isEmpty
-    }
-
     func appear() { monitor.startDetail(host: host) }
     func disappear() { monitor.stop() }
 
-    /// 进入/离开「概览」段：开关采集脚本里的详情段（系统名/CPU 型号/TCP 重传/网卡）。
-    /// 其它段（进程/文件/Docker/日志）只需核心指标撑起顶部状态胶囊，不采这些。
+    /// 概览可见时附带系统名/CPU 型号/TCP 重传/网卡，并立即补采一次。
     func setOverviewSegmentActive(_ active: Bool) {
         monitor.wantsExtended = active
         if active {
@@ -120,32 +105,4 @@ final class HostOverviewViewModel {
         }
     }
 
-    /// 进入/离开「进程」段：开关采集脚本里的 `ps`——概览不采进程以省流量。
-    /// 激活时立刻补采一次，别等下一个 3s 轮询才出进程。
-    func setProcessSegmentActive(_ active: Bool) {
-        monitor.wantsProcesses = active
-        if active {
-            Task { await monitor.refreshDetail(host: host) }
-        }
-    }
-
-    /// 进程页失败后的显式重试：确保采集脚本携带 `ps`，成功后 monitor 会清掉错误。
-    func retryProcesses() async {
-        monitor.wantsProcesses = true
-        await monitor.refreshDetail(host: host)
-    }
-
-    /// 向进程发 SIGTERM，返回结果文案。二次确认与结果提示由各视图自持有本地状态呈现
-    /// ——详情页是列表推入的子层，集中在祖先视图的对话框在被覆盖时呈现不可靠。
-    func performKill(_ process: RemoteProcess) async -> String {
-        do {
-            let session = try await connectionManager.session(for: host)
-            let result = try await ProcessControl.kill(pid: process.pid, on: session)
-            return result.isSuccess
-                ? String(format: L("已向 %@（PID %d）发送结束信号"), process.command, process.pid)
-                : String(format: L("结束 %@ 失败：%@"), process.command, result.stderrText)
-        } catch {
-            return String(format: L("结束进程失败：%@"), error.friendlyDiagnosis)
-        }
-    }
 }

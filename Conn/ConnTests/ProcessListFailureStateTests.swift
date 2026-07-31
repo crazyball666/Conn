@@ -4,14 +4,29 @@ import Testing
 
 @Suite("进程列表失败状态")
 struct ProcessListFailureStateTests {
-    @Test("连接失败时显示错误横幅与重试按钮")
+    @Test("连接失败时显示统一错误状态与重试按钮")
     func connectionFailureShowsBannerAndRetry() throws {
         let source = try source(named: "Conn/Hosts/ProcessListView.swift")
 
         #expect(source.contains("case let .failed(message):"))
-        #expect(source.contains("ConnBanner(message, systemImage: \"exclamationmark.triangle\")"))
-        #expect(source.contains("Button(L(\"重试\"))"))
+        #expect(source.contains("ConnRetryState(message, retryTitle: L(\"重试\"))"))
         #expect(source.contains("await viewModel.retryProcesses()"))
+    }
+
+    @Test("进程页使用独立 ViewModel 并由工作台持有")
+    func processPageUsesIndependentViewModel() throws {
+        let listSource = try source(named: "Conn/Hosts/ProcessListView.swift")
+        let detailSource = try source(named: "Conn/Hosts/ProcessDetailView.swift")
+        let hostSource = try source(named: "Conn/Hosts/HostDetailView.swift")
+        let overviewSource = try source(named: "Conn/Hosts/HostOverviewViewModel.swift")
+
+        #expect(listSource.contains("let viewModel: ProcessListViewModel"))
+        #expect(hostSource.contains("@State private var processVM: ProcessListViewModel"))
+        #expect(hostSource.contains("ProcessListView(viewModel: processVM)"))
+        #expect(detailSource.contains(".onAppear { viewModel.appear() }"))
+        #expect(detailSource.contains(".onDisappear { viewModel.disappear() }"))
+        #expect(!overviewSource.contains("setProcessSegmentActive"))
+        #expect(!overviewSource.contains("retryProcesses"))
     }
 
     private func source(named relativePath: String) throws -> String {

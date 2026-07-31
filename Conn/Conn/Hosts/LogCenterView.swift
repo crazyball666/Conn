@@ -81,11 +81,9 @@ struct LogCenterView: View {
             ProgressView(L("探测日志源…")).font(.connFootnote).foregroundStyle(.connMuted)
                 .frame(maxWidth: .infinity).padding(.vertical, ConnSpacing.xxl)
         case let .failed(message):
-            VStack(spacing: ConnSpacing.sm) {
-                ConnBanner(message, systemImage: "exclamationmark.triangle")
-                Button(L("重试")) { Task { await viewModel.load() } }.font(.connBody).foregroundStyle(.connAccent)
+            ConnRetryState(message, retryTitle: L("重试")) {
+                Task { await viewModel.load() }
             }
-            .padding(.vertical, ConnSpacing.md)
         case .ready:
             sourceList
         }

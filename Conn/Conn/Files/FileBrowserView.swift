@@ -65,7 +65,6 @@ struct FileBrowserView: View {
     var body: some View {
         VStack(spacing: ConnSpacing.sm) {
             header
-            searchField
             if let transfer = viewModel.transfer { transferBar(transfer) }
             if let url = viewModel.downloadedURL { downloadedBar(url) }
             content
@@ -87,6 +86,12 @@ struct FileBrowserView: View {
         .navigationDestination(item: $logSource) { source in
             LogStreamView(host: host, dependencies: dependencies, source: source)
         }
+        .searchable(
+            text: $searchText,
+            placement: .navigationBarDrawer(displayMode: .always),
+            prompt: L("搜索当前目录")
+        )
+        .toolbar { fileActionsToolbar }
         .sheet(item: $directoryPicker) { request in
             DirectoryPickerView(
                 title: request.isMove ? L("移动到") : L("复制到"),
@@ -122,22 +127,27 @@ struct FileBrowserView: View {
         }
     }
 
-    // MARK: - 顶部：面包屑 + 菜单
+    // MARK: - 顶部：面包屑 + 导航栏菜单
 
     private var header: some View {
-        HStack(spacing: ConnSpacing.sm) {
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 3) { breadcrumbItems }
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 3) { breadcrumbItems }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    @ToolbarContentBuilder
+    private var fileActionsToolbar: some ToolbarContent {
+        ToolbarItem(placement: .topBarTrailing) {
             Menu {
                 menuContent
             } label: {
-                Image(systemName: "ellipsis.circle").font(.system(size: 18, weight: .regular))
-                    .foregroundStyle(.connAccent)
+                Image(systemName: "ellipsis.circle")
+                    .font(.system(size: 18, weight: .regular))
             }
             .accessibilityLabel(L("更多操作"))
-        }    }
+        }
+    }
 
     @ViewBuilder
     private var breadcrumbItems: some View {
@@ -196,10 +206,6 @@ struct FileBrowserView: View {
         }
     }
 
-    private var searchField: some View {
-        ConnSearchField(L("搜索当前目录"), text: $searchText)
-    }
-
     // MARK: - 传输条
 
     private func transferBar(_ transfer: FileTransferState) -> some View {
@@ -234,10 +240,9 @@ struct FileBrowserView: View {
             ProgressView(L("读取目录…")).font(.connFootnote).foregroundStyle(.connMuted)
                 .frame(maxWidth: .infinity).padding(.vertical, ConnSpacing.xxl)
         case let .failed(message):
-            VStack(spacing: ConnSpacing.sm) {
-                ConnBanner(message, systemImage: "exclamationmark.triangle")
-                Button(L("重试")) { Task { await viewModel.refresh() } }.font(.connBody).foregroundStyle(.connAccent)
-            }.padding(.vertical, ConnSpacing.md)
+            ConnRetryState(message, retryTitle: L("重试")) {
+                Task { await viewModel.load() }
+            }
         case .ready:
             fileList
         }
@@ -443,7 +448,7 @@ private extension FileBrowserView {
         if entry.isDirectory {
             return entry.modifiedAt.map { Self.dateFormatter.string(from: $0) } ?? entry.permissionString
         }
-        var parts = [ByteCountFormatter.string(fromByteCount: Int64(entry.size), countStyle: .binary)]
+        var parts = [MetricFormat.bytes(Double(entry.size))]
         if let date = entry.modifiedAt { parts.append(Self.dateFormatter.string(from: date)) }
         return parts.joined(separator: " · ")
     }

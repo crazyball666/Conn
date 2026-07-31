@@ -67,7 +67,6 @@ struct ServersView: View {
                 .accessibilityLabel(L("新增"))
             }
         }
-        .refreshable { await viewModel.refresh() }
         .onAppear { viewModel.appear(interval: settings.refreshInterval.duration) }
         .onDisappear { viewModel.disappear() }
         .sheet(item: $formRequest) { request in
@@ -118,13 +117,14 @@ struct ServersView: View {
 
     // MARK: - 区块
 
-    /// 无主机 → 空态垂直居中填满可视区；有主机 → 列表滚动。
-    @ViewBuilder
+    /// 始终保留同一个可回弹滚动容器，短列表与空列表也能下拉刷新。
     private var hostsContent: some View {
-        if viewModel.hosts.isEmpty {
-            emptyState.frame(maxWidth: .infinity, maxHeight: .infinity)
-        } else {
-            ScrollView {
+        ScrollView {
+            if viewModel.hosts.isEmpty {
+                emptyState
+                    .frame(maxWidth: .infinity)
+                    .containerRelativeFrame(.vertical)
+            } else {
                 VStack(alignment: .leading, spacing: 0) {
                     // 一个分组都没有时整行不渲染。
                     if !viewModel.groups.isEmpty {
@@ -133,8 +133,9 @@ struct ServersView: View {
                     cards
                 }
             }
-            .scrollBounceBehavior(.basedOnSize)
         }
+        .scrollBounceBehavior(.always, axes: .vertical)
+        .refreshable { await viewModel.refresh() }
     }
 
     private var groupFilter: some View {

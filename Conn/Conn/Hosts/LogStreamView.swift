@@ -54,8 +54,10 @@ struct LogStreamView: View {
         ScrollViewReader { proxy in
             ScrollView {
                 if let error = viewModel.errorText {
-                    ConnBanner(error, systemImage: "exclamationmark.triangle")
-                        .padding(ConnSpacing.page)
+                    ConnRetryState(error, retryTitle: L("重试")) {
+                        viewModel.retry()
+                    }
+                    .padding(ConnSpacing.page)
                 } else if viewModel.isConnecting {
                     ProgressView(L("连接中…"))
                         .font(.connFootnote)

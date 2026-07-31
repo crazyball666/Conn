@@ -5,7 +5,7 @@ import SwiftUI
 
 /// Docker 管理（Phase 8+）：容器（列表 / 详情 / 启停重启 / 日志 / 控制台 / 删除）
 /// + 镜像（列表 / 删除 / 清理悬空）+ 卷 / 网络（列表 / 详情，均只读）。
-/// 五项分段切换，写操作走各列表右上角的更多菜单。
+/// 五类资源通过导航标题菜单切换，写操作走各列表右上角的更多菜单。
 struct DockerView: View {
     let viewModel: DockerViewModel
     @Environment(SettingsStore.self) private var settings
@@ -15,9 +15,8 @@ struct DockerView: View {
     /// 控制台单独拆出来走 `.fullScreenCover`——`route` 剩下的几个目的地
     /// （容器/卷/网络/镜像详情）仍是 push，两种呈现方式不能共用同一个 optional。
     @State private var consoleContainer: ContainerInfo?
-    /// 五个分段共用一个搜索词——切分段时清空（见下方 `.onChange`），
-    /// 否则上一分段的过滤条件会悄悄套在新分段上。
-    @State private var search = ""
+    /// 每类资源各自保存搜索词；切换资源再返回时恢复原过滤条件。
+    @State private var searches: [Tab: String] = [:]
     private let host: Host
     private let dependencies: AppDependencies
 
@@ -48,6 +47,13 @@ struct DockerView: View {
                     autoCommand: viewModel.containers.consoleCommand(for: container)
                 )
             }
+            .navigationBarTitleDisplayMode(.inline)
+            .searchable(
+                text: searchBinding,
+                placement: .navigationBarDrawer(displayMode: .always),
+                prompt: searchPrompt
+            )
+            .toolbar { resourceNavigationToolbar }
     }
 
     // 这一层只管「从 DockerView 直接推一层」——卷/网络/镜像详情页各自往下再推容器详情
@@ -104,22 +110,14 @@ struct DockerView: View {
         case let .unavailable(availability):
             unavailableView(availability)
         case let .failed(message):
-            VStack(spacing: ConnSpacing.xs) {
-                ConnBanner(message, systemImage: "exclamationmark.triangle")
-                Button(L("重试")) { Task { await viewModel.load() } }.font(.connBody).foregroundStyle(.connAccent)
+            ConnRetryState(message, retryTitle: L("重试")) {
+                Task { await viewModel.load() }
             }
-            .padding(.vertical, ConnSpacing.md)
         case .ready:
             VStack(spacing: ConnSpacing.sm) {
                 DockerDetail.operationActivity(
                     viewModel.operations.activeOperationDescription
                 )
-                Picker(L("段"), selection: $tab) {
-                    ForEach(Tab.allCases) { Text(L($0.rawValue)).tag($0) }
-                }
-                .pickerStyle(.segmented)
-                // 切分段时清空搜索词，避免上一分段的过滤条件悄悄套在新分段上
-                .onChange(of: tab) { _, _ in search = "" }
                 ScrollView {
                     switch tab {
                     case .containers: containerList
@@ -129,9 +127,7 @@ struct DockerView: View {
                     case .compose:
                         DockerComposeListView(
                             model: viewModel.compose,
-                            canWrite: viewModel.canWrite,
-                            search: $search,
-                            addManual: { operationSheet = .addComposeProject },
+                            search: searchBinding,
                             open: { route = .composeDetail($0) }
                         )
                     }
@@ -214,6 +210,102 @@ struct DockerView: View {
         let elapsed = clock.now - start
         if elapsed < minimum { try? await Task.sleep(for: minimum - elapsed) }
     }
+
+    @ToolbarContentBuilder
+    private var resourceNavigationToolbar: some ToolbarContent {
+        resourceTitleMenu
+        resourceOperationMenu
+    }
+
+    /// 当前资源成为导航标题，点击标题菜单切换五类资源；不再在内容区堆第二排分段控件。
+    @ToolbarContentBuilder
+    private var resourceTitleMenu: some ToolbarContent {
+        ToolbarItem(placement: .principal) {
+            Menu {
+                ForEach(Tab.allCases) { target in
+                    Button { tab = target } label: {
+                        Label(L(target.rawValue), systemImage: target == tab ? "checkmark" : target.systemImage)
+                    }
+                }
+            } label: {
+                VStack(spacing: 1) {
+                    HStack(spacing: 3) {
+                        Text(L(tab.rawValue))
+                            .font(.headline)
+                        Image(systemName: "chevron.down")
+                            .font(.system(size: 8, weight: .bold))
+                    }
+                    .foregroundStyle(.connInk)
+                    Text("\(L("Docker")) · \(hostTitle)")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.connMuted)
+                        .lineLimit(1)
+                }
+            }
+            .accessibilityLabel("\(L("Docker"))，\(L(tab.rawValue))")
+        }
+    }
+
+    /// 进入 Docker 后，右上角只承载当前资源操作；主机终端留在上一层工作台。
+    @ToolbarContentBuilder
+    private var resourceOperationMenu: some ToolbarContent {
+        ToolbarItem(placement: .topBarTrailing) {
+            Menu {
+                resourceOperationButtons
+            } label: {
+                Image(systemName: "ellipsis.circle")
+                    .font(.system(size: 18, weight: .regular))
+            }
+            .disabled(!resourceOperationsEnabled)
+            .accessibilityLabel(L("更多操作"))
+        }
+    }
+
+    @ViewBuilder
+    private var resourceOperationButtons: some View {
+        switch tab {
+        case .containers:
+            Button { operationSheet = .runContainer } label: {
+                Label(L("创建容器"), systemImage: "plus")
+            }
+        case .images:
+            Button { operationSheet = .pullImage } label: {
+                Label(L("拉取镜像"), systemImage: "arrow.down.circle")
+            }
+            Button(role: .destructive) { Task { await viewModel.images.prune() } } label: {
+                Label(L("清理悬空镜像"), systemImage: "trash")
+            }
+            Button(role: .destructive) {
+                viewModel.operations.requestDestructiveAction(
+                    .systemPrune(DockerSystemPruneOptions())
+                )
+            } label: {
+                Label(L("清理 Docker 资源"), systemImage: "trash.slash")
+            }
+        case .volumes:
+            Button { operationSheet = .createVolume } label: {
+                Label(L("创建卷"), systemImage: "plus")
+            }
+        case .networks:
+            Button { operationSheet = .createNetwork } label: {
+                Label(L("创建网络"), systemImage: "plus")
+            }
+        case .compose:
+            Button { operationSheet = .addComposeProject } label: {
+                Label(L("手动添加项目"), systemImage: "plus")
+            }
+        }
+    }
+
+    private var resourceOperationsEnabled: Bool {
+        viewModel.canWrite && (tab != .compose || viewModel.compose.dialect != nil)
+    }
+
+    private var hostTitle: String {
+        if let note = host.note, !note.trimmingCharacters(in: .whitespaces).isEmpty { return note }
+        return host.name
+    }
+
 }
 
 // MARK: - 资源列表
@@ -224,16 +316,9 @@ extension DockerView {
 
     private var containerList: some View {
         VStack(spacing: ConnSpacing.sm) {
-            DockerDetail.listControls(
-                count: String(format: L("共 %d 个"), filteredContainers.count) + L("容器"),
-                isMenuEnabled: viewModel.canWrite,
-                searchPrompt: L("搜索容器"),
-                search: $search
-            ) {
-                Button { operationSheet = .runContainer } label: {
-                    Label(L("创建容器"), systemImage: "plus")
-                }
-            }
+            DockerDetail.listHeader(
+                count: String(format: L("共 %d 个"), filteredContainers.count) + L("容器")
+            )
             if sortedContainers.isEmpty {
                 // 搜索词非空但无匹配时不能说「没有容器」——主机上可能明明有 20 个，
                 // 只是用户搜错了一个字母，那是对服务器状态的事实性错误陈述。
@@ -263,26 +348,9 @@ extension DockerView {
 
     private var imageSection: some View {
         VStack(spacing: ConnSpacing.sm) {
-            DockerDetail.listControls(
-                count: String(format: L("共 %d 个镜像"), filteredImages.count),
-                isMenuEnabled: viewModel.canWrite,
-                searchPrompt: L("搜索镜像"),
-                search: $search
-            ) {
-                Button { operationSheet = .pullImage } label: {
-                    Label(L("拉取镜像"), systemImage: "arrow.down.circle")
-                }
-                Button(role: .destructive) { Task { await viewModel.images.prune() } } label: {
-                    Label(L("清理悬空镜像"), systemImage: "trash")
-                }
-                Button(role: .destructive) {
-                    viewModel.operations.requestDestructiveAction(
-                        .systemPrune(DockerSystemPruneOptions())
-                    )
-                } label: {
-                    Label(L("清理 Docker 资源"), systemImage: "trash.slash")
-                }
-            }
+            DockerDetail.listHeader(
+                count: String(format: L("共 %d 个镜像"), filteredImages.count)
+            )
             DockerDetail.listBody(
                 items: filteredImages,
                 state: imagesListState,
@@ -336,16 +404,9 @@ extension DockerView {
 
     private var volumeSection: some View {
         VStack(spacing: ConnSpacing.sm) {
-            DockerDetail.listControls(
-                count: String(format: L("共 %d 个卷"), filteredVolumes.count),
-                isMenuEnabled: viewModel.canWrite,
-                searchPrompt: L("搜索卷"),
-                search: $search
-            ) {
-                Button { operationSheet = .createVolume } label: {
-                    Label(L("创建卷"), systemImage: "plus")
-                }
-            }
+            DockerDetail.listHeader(
+                count: String(format: L("共 %d 个卷"), filteredVolumes.count)
+            )
             DockerDetail.listBody(
                 items: filteredVolumes,
                 state: volumesListState,
@@ -379,16 +440,9 @@ extension DockerView {
 
     private var networkSection: some View {
         VStack(spacing: ConnSpacing.sm) {
-            DockerDetail.listControls(
-                count: String(format: L("共 %d 个网络"), filteredNetworks.count),
-                isMenuEnabled: viewModel.canWrite,
-                searchPrompt: L("搜索网络"),
-                search: $search
-            ) {
-                Button { operationSheet = .createNetwork } label: {
-                    Label(L("创建网络"), systemImage: "plus")
-                }
-            }
+            DockerDetail.listHeader(
+                count: String(format: L("共 %d 个网络"), filteredNetworks.count)
+            )
             DockerDetail.listBody(
                 items: filteredNetworks,
                 state: networksListState,
@@ -438,8 +492,9 @@ extension DockerView {
         }
         return VStack(spacing: ConnSpacing.sm) {
             Image(systemName: "shippingbox").font(.system(size: 40, weight: .light)).foregroundStyle(.connMuted)
-            Text(text).font(.connSubheadline).foregroundStyle(.connMuted).multilineTextAlignment(.center)
-            Button(L("重试")) { Task { await viewModel.load() } }.font(.connBody).foregroundStyle(.connAccent)
+            ConnRetryState(text, retryTitle: L("重试")) {
+                Task { await viewModel.load() }
+            }
         }
         .frame(maxWidth: .infinity).padding(.vertical, ConnSpacing.xl).padding(.horizontal, ConnSpacing.page)
     }
@@ -458,6 +513,16 @@ extension DockerView {
         case networks = "网络"
         case compose = "Compose"
         var id: String { rawValue }
+
+        var systemImage: String {
+            switch self {
+            case .containers: "shippingbox"
+            case .images: "shippingbox.fill"
+            case .volumes: "externaldrive.fill"
+            case .networks: "point.3.connected.trianglepath.dotted"
+            case .compose: "square.stack.3d.up.fill"
+            }
+        }
     }
 
     enum Route: Hashable, Identifiable {
@@ -488,6 +553,25 @@ extension DockerView {
 // 同样拆到同文件 extension：四条过滤规则本身不长，但塞进主体会跟 Tab/Route 一样
 // 把 DockerView 顶过 type_body_length 阈值。过滤是纯本地字符串匹配，不触发任何命令。
 extension DockerView {
+    private var search: String { searches[tab] ?? "" }
+
+    private var searchPrompt: String {
+        switch tab {
+        case .containers: L("搜索容器")
+        case .images: L("搜索镜像")
+        case .volumes: L("搜索卷")
+        case .networks: L("搜索网络")
+        case .compose: L("搜索 Compose 项目")
+        }
+    }
+
+    private var searchBinding: Binding<String> {
+        Binding(
+            get: { searches[tab] ?? "" },
+            set: { searches[tab] = $0 }
+        )
+    }
+
     private var filteredContainers: [ContainerInfo] {
         guard !search.isEmpty else { return viewModel.containers.items }
         return viewModel.containers.items.filter {

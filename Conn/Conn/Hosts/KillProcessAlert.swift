@@ -8,7 +8,7 @@ import SwiftUI
 /// 子层，把对话框集中到祖先视图时，祖先被覆盖会导致对话框不呈现；故每个触发点
 /// 就地呈现最稳。确认后调用 `viewModel.performKill` 并把结果落到 `result` 弹提示。
 struct KillProcessAlert: ViewModifier {
-    let viewModel: HostOverviewViewModel
+    let viewModel: ProcessListViewModel
     @Binding var target: RemoteProcess?
     @Binding var result: String?
 

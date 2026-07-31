@@ -6,29 +6,17 @@ import SwiftUI
 
 struct DockerComposeListView: View {
     let model: DockerComposeModel
-    let canWrite: Bool
     @Binding var search: String
-    let addManual: () -> Void
     let open: (DockerComposeProject) -> Void
 
     var body: some View {
         VStack(spacing: ConnSpacing.sm) {
-            DockerDetail.listControls(
-                count: String(format: L("共 %d 个项目"), filteredProjects.count),
-                isMenuEnabled: canWrite && model.dialect != nil,
-                searchPrompt: L("搜索 Compose 项目"),
-                search: $search
-            ) {
-                Button(action: addManual) {
-                    Label(L("手动添加项目"), systemImage: "plus")
-                }
-            }
+            DockerDetail.listHeader(
+                count: String(format: L("共 %d 个项目"), filteredProjects.count)
+            )
             if let error = model.errorMessage {
-                VStack(spacing: ConnSpacing.sm) {
-                    ConnBanner(error, systemImage: "exclamationmark.triangle")
-                    Button(L("重试")) { Task { await model.load() } }
-                        .font(.connBody)
-                        .foregroundStyle(.connAccent)
+                ConnRetryState(error, retryTitle: L("重试")) {
+                    Task { await model.load() }
                 }
             }
             if !model.isLoaded {
@@ -115,10 +103,11 @@ struct DockerComposeProjectDetailView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var services: [DockerComposeService] = []
     @State private var loading = true
+    @State private var hasLoadedServices = false
     @State private var errorMessage: String?
     @State private var logSource: LogSource?
     @State private var openedContainer: ContainerInfo?
-    @State private var openedService: DockerComposeService?
+    @State private var expandedServiceIDs: Set<String> = []
     @State private var showRemoveManualConfirmation = false
 
     var body: some View {
@@ -127,8 +116,8 @@ struct DockerComposeProjectDetailView: View {
                 DockerDetail.operationActivity(
                     viewModel.operations.activeOperationDescription
                 )
-                summary
                 actions
+                summary
                 servicesSection
             }
             .padding(.horizontal, ConnSpacing.page)
@@ -138,7 +127,7 @@ struct DockerComposeProjectDetailView: View {
         .background(Color.connBg.ignoresSafeArea())
         .navigationTitle(project.name)
         .navigationBarTitleDisplayMode(.inline)
-        .task { await loadServices() }
+        .task { await loadServicesIfNeeded() }
         .onChange(of: viewModel.operations.activeOperationDescription) { previous, current in
             if previous != nil, current == nil {
                 Task { await loadServices() }
@@ -158,14 +147,6 @@ struct DockerComposeProjectDetailView: View {
                 dependencies: dependencies,
                 container: container,
                 viewModel: viewModel
-            )
-        }
-        .navigationDestination(item: $openedService) { service in
-            DockerComposeServiceContainersView(
-                service: service,
-                viewModel: viewModel,
-                host: host,
-                dependencies: dependencies
             )
         }
         .alert(L("移除手动项目？"), isPresented: $showRemoveManualConfirmation) {
@@ -229,7 +210,7 @@ struct DockerComposeProjectDetailView: View {
                     L("日志"),
                     systemImage: "doc.text.magnifyingglass"
                 ) {
-                    openLogs(service: nil)
+                    openProjectLogs()
                 }
                 DockerDetail.actionButton(
                     L("停止并移除"),
@@ -262,11 +243,8 @@ struct DockerComposeProjectDetailView: View {
     private var servicesSection: some View {
         DockerDetail.section(L("服务")) {
             if let errorMessage {
-                VStack(spacing: ConnSpacing.sm) {
-                    ConnBanner(errorMessage, systemImage: "exclamationmark.triangle")
-                    Button(L("重试")) { Task { await loadServices() } }
-                        .font(.connBody)
-                        .foregroundStyle(.connAccent)
+                ConnRetryState(errorMessage, retryTitle: L("重试")) {
+                    Task { await loadServices() }
                 }
             } else if loading {
                 ProgressView(L("读取服务…"))
@@ -292,47 +270,25 @@ struct DockerComposeProjectDetailView: View {
     }
 
     private func serviceRow(_ service: DockerComposeService) -> some View {
-        HStack(spacing: ConnSpacing.sm) {
+        VStack(spacing: 0) {
             if service.containers.isEmpty {
                 serviceNavigationLabel(service)
                     .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.vertical, ConnSpacing.xs)
             } else {
-                Button {
-                    open(service)
-                } label: {
+                Button { open(service) } label: {
                     serviceNavigationLabel(service)
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
                 .frame(maxWidth: .infinity)
+                .padding(.vertical, ConnSpacing.xs)
             }
-            Menu {
-                Button {
-                    perform { dialect in
-                        await viewModel.operations.composeRestart(
-                            project,
-                            service: service.name,
-                            dialect: dialect
-                        )
-                    }
-                } label: {
-                    Label(L("重启服务"), systemImage: "arrow.clockwise")
-                }
-                Button {
-                    openLogs(service: service.name)
-                } label: {
-                    Label(L("查看日志"), systemImage: "doc.text")
-                }
-            } label: {
-                Image(systemName: "ellipsis.circle")
-                    .font(.system(size: 18))
-                    .foregroundStyle(.connAccent)
-                    .frame(width: 44, height: 44)
-                    .contentShape(Rectangle())
+
+            if service.containers.count > 1, expandedServiceIDs.contains(service.id) {
+                expandedContainers(for: service)
             }
-            .disabled(viewModel.compose.dialect == nil)
         }
-        .padding(.vertical, ConnSpacing.xs)
     }
 
     private func serviceNavigationLabel(_ service: DockerComposeService) -> some View {
@@ -352,7 +308,11 @@ struct DockerComposeProjectDetailView: View {
             }
             Spacer(minLength: ConnSpacing.xs)
             StatusPill(stateTitle(service.state), semantic: stateSemantic(service.state))
-            if !service.containers.isEmpty {
+            if service.containers.count > 1 {
+                Image(systemName: expandedServiceIDs.contains(service.id) ? "chevron.up" : "chevron.down")
+                    .font(.system(size: 10))
+                    .foregroundStyle(.connMuted)
+            } else if service.containers.count == 1 {
                 Image(systemName: "chevron.right")
                     .font(.system(size: 10))
                     .foregroundStyle(.connMuted)
@@ -363,9 +323,38 @@ struct DockerComposeProjectDetailView: View {
     private func open(_ service: DockerComposeService) {
         if service.containers.count == 1 {
             openedContainer = service.containers[0]
-        } else if !service.containers.isEmpty {
-            openedService = service
+        } else if service.containers.count > 1 {
+            toggleServiceExpansion(service)
         }
+    }
+
+    private func toggleServiceExpansion(_ service: DockerComposeService) {
+        if expandedServiceIDs.contains(service.id) {
+            expandedServiceIDs.remove(service.id)
+        } else {
+            expandedServiceIDs.insert(service.id)
+        }
+    }
+
+    private func expandedContainers(for service: DockerComposeService) -> some View {
+        VStack(spacing: 0) {
+            ForEach(Array(service.containers.enumerated()), id: \.element.id) { index, container in
+                if index > 0 {
+                    Rectangle().fill(Color.connLine).frame(height: 0.5)
+                }
+                DockerDetail.containerRow(
+                    name: container.name,
+                    subtitle: "\(container.image) · \(container.status)"
+                ) {
+                    openedContainer = container
+                }
+            }
+        }
+        .padding(.horizontal, ConnSpacing.sm)
+        .background(Color.connBg.opacity(0.65))
+        .clipShape(RoundedRectangle(cornerRadius: ConnRadius.control, style: .continuous))
+        .padding(.leading, 30)
+        .padding(.bottom, ConnSpacing.xs)
     }
 
     private func serviceSubtitle(_ service: DockerComposeService) -> String {
@@ -379,6 +368,15 @@ struct DockerComposeProjectDetailView: View {
             return "\(image) · \(containers)"
         }
         return "\(image) · \(containers) · \(service.ports)"
+    }
+
+    /// 详情页从容器详情返回时会再次触发 `.task`；已有结果时直接复用，
+    /// 只有首次进入才查询远端。重试和操作完成后的刷新仍直接调用 `loadServices()`。
+    private func loadServicesIfNeeded() async {
+        guard !hasLoadedServices else { return }
+        hasLoadedServices = true
+        await loadServices()
+        if Task.isCancelled { hasLoadedServices = false }
     }
 
     private func loadServices() async {
@@ -407,58 +405,14 @@ struct DockerComposeProjectDetailView: View {
         }
     }
 
-    private func openLogs(service: String?) {
+    private func openProjectLogs() {
         guard let dialect = viewModel.compose.dialect else { return }
-        let target = service ?? project.name
         logSource = LogSource(
-            id: "compose-\(project.name)-\(service ?? "project")",
-            title: target,
-            subtitle: service == nil ? L("Compose 项目日志") : L("Compose 服务日志"),
-            kind: .compose(project: project, dialect: dialect, service: service)
+            id: "compose-\(project.name)-project",
+            title: project.name,
+            subtitle: L("Compose 项目日志"),
+            kind: .compose(project: project, dialect: dialect, service: nil)
         )
-    }
-}
-
-private struct DockerComposeServiceContainersView: View {
-    let service: DockerComposeService
-    let viewModel: DockerViewModel
-    let host: Host
-    let dependencies: AppDependencies
-
-    @State private var openedContainer: ContainerInfo?
-
-    var body: some View {
-        ScrollView {
-            DockerDetail.section(L("容器")) {
-                VStack(spacing: 0) {
-                    ForEach(Array(service.containers.enumerated()), id: \.element.id) { index, container in
-                        if index > 0 {
-                            Rectangle().fill(Color.connLine).frame(height: 0.5)
-                        }
-                        DockerDetail.containerRow(
-                            name: container.name,
-                            subtitle: "\(container.image) · \(container.status)"
-                        ) {
-                            openedContainer = container
-                        }
-                    }
-                }
-            }
-            .padding(.horizontal, ConnSpacing.page)
-            .padding(.vertical, ConnSpacing.md)
-        }
-        .scrollIndicators(.hidden)
-        .background(Color.connBg.ignoresSafeArea())
-        .navigationTitle(service.name)
-        .navigationBarTitleDisplayMode(.inline)
-        .navigationDestination(item: $openedContainer) { container in
-            ContainerDetailView(
-                host: host,
-                dependencies: dependencies,
-                container: container,
-                viewModel: viewModel
-            )
-        }
     }
 }
 

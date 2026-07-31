@@ -2,16 +2,18 @@ import Foundation
 
 /// 指标展示格式化——首页健康卡与单机详情共用，保证口径一致。
 ///
-/// 缺失值一律返回「—」（不拿 0 冒充真实读数）。字节用二进制单位（KiB/MiB/GiB）。
+/// 缺失值一律返回「—」（不拿 0 冒充真实读数）。字节统一使用 B/K/M/G 等紧凑缩写。
 enum MetricFormat {
     /// 字节（Double）。
     static func bytes(_ value: Double?) -> String {
-        value.map(byteString) ?? "—"
+        guard let value else { return "—" }
+        return byteString(value)
     }
 
     /// 字节（Int64 累计计数）。
     static func bytes(_ value: Int64?) -> String {
-        value.map { byteString(Double($0)) } ?? "—"
+        guard let value else { return "—" }
+        return byteString(Double(value))
     }
 
     /// 速率：字节/秒 → 「x/s」。
@@ -96,8 +98,6 @@ enum MetricFormat {
     }
 
     private static func byteString(_ bytes: Double) -> String {
-        let formatter = ByteCountFormatter()
-        formatter.countStyle = .binary
-        return formatter.string(fromByteCount: Int64(max(0, bytes)))
+        compactBytes(max(0, bytes))
     }
 }
