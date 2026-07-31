@@ -30,6 +30,7 @@ struct TerminalLayoutTests {
 
         view.configureContentPadding(horizontal: 12)
 
+        #expect(view.contentInsetAdjustmentBehavior == .never)
         #expect(view.contentInset.top == 0)
         #expect(view.contentInset.bottom == 0)
         #expect(view.verticalScrollIndicatorInsets.top == 0)

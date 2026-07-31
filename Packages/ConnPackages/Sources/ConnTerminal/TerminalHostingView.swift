@@ -24,6 +24,7 @@
 
         public func makeUIView(context: Context) -> KeybarTerminalView {
             let terminalView = KeybarTerminalView(frame: .zero)
+            terminalView.accessibilityIdentifier = "terminal.viewport"
             terminalView.terminalDelegate = context.coordinator
             terminalView.configureKeybar(
                 enabled: configuration.showsKeybar,
@@ -172,6 +173,23 @@
         private var horizontalContentPadding: CGFloat = 0
         fileprivate var configuredCursorShape: TerminalCursorShape?
         fileprivate var configuredCursorBlinking: Bool?
+
+        override public init(frame: CGRect) {
+            super.init(frame: frame)
+            configureViewportInsets()
+        }
+
+        required init?(coder: NSCoder) {
+            super.init(coder: coder)
+            configureViewportInsets()
+        }
+
+        /// SwiftUI 通过键盘安全区直接改变终端的真实高度，SwiftTerm 再据此重算行数。
+        /// 禁止 `UIScrollView` 同时按安全区自动追加 adjusted inset，否则在
+        /// 收起—再次弹出键盘后会对底部高度重复补偿，留下可滚动空白。
+        private func configureViewportInsets() {
+            contentInsetAdjustmentBehavior = .never
+        }
 
         /// SwiftTerm 将选择浮标画在文字坐标边缘。终端自身全宽、文字内容内移后，
         /// 浮标仍处于控件可绘制范围内，不会被左右边界裁切。
