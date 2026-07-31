@@ -15,6 +15,13 @@ struct DockerDestructiveConfirmationView: View {
             Form {
                 if let action = operations.pendingDestructiveAction {
                     Section(L("确认 Docker 操作")) {
+                        if let impactMessage = action.impactMessage {
+                            ConnBanner(
+                                impactMessage,
+                                systemImage: "exclamationmark.triangle",
+                                kind: .warn
+                            )
+                        }
                         Text(action.confirmationMessage).foregroundStyle(.connMuted)
                         TextField(L("确认词"), text: $confirmation)
                             .textInputAutocapitalization(.never)

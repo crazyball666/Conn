@@ -36,6 +36,8 @@ struct DockerVolumeFormView: View {
     let operations: DockerOperationsModel
     @Environment(\.dismiss) private var dismiss
     @State private var state = DockerVolumeFormState()
+    @State private var isSubmitting = false
+    @State private var errorMessage: String?
 
     var body: some View {
         NavigationStack {
@@ -46,22 +48,56 @@ struct DockerVolumeFormView: View {
                 }
                 .listRowBackground(Color.connSurface)
                 tokenSection(rows: $state.otherOptions)
+                if let errorMessage {
+                    Section {
+                        ConnBanner(errorMessage, systemImage: "exclamationmark.triangle")
+                    }
+                    .listRowBackground(Color.connSurface)
+                } else if !state.isValid {
+                    Section {
+                        ConnBanner(
+                            L("卷配置无效，未执行 Docker 操作"),
+                            systemImage: "exclamationmark.triangle"
+                        )
+                    }
+                    .listRowBackground(Color.connSurface)
+                }
             }
             .scrollContentBackground(.hidden)
             .background(Color.connBg.ignoresSafeArea())
             .navigationTitle(L("创建卷"))
             .navigationBarTitleDisplayMode(.inline)
+            .interactiveDismissDisabled(isSubmitting)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button(L("取消")) { dismiss() } }
+                ToolbarItem(placement: .cancellationAction) {
+                    Button(L("取消")) { dismiss() }
+                        .disabled(isSubmitting)
+                }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button(L("创建")) {
+                    Button {
+                        isSubmitting = true
+                        errorMessage = nil
                         Task {
-                            await operations.createVolume(state.draft)
-                            dismiss()
+                            let outcome = await operations.createVolume(state.draft)
+                            isSubmitting = false
+                            if outcome.isSuccess {
+                                dismiss()
+                            } else {
+                                errorMessage = DockerOperationFeedback.message(
+                                    for: outcome,
+                                    label: L("创建卷")
+                                )
+                            }
+                        }
+                    } label: {
+                        if isSubmitting {
+                            ProgressView()
+                        } else {
+                            Text(L("创建"))
                         }
                     }
                     .fontWeight(.semibold)
-                    .disabled(!state.isValid || !operations.isWriteAvailable)
+                    .disabled(!state.isValid || !operations.isWriteAvailable || isSubmitting)
                 }
             }
         }
@@ -73,6 +109,8 @@ struct DockerNetworkFormView: View {
     let operations: DockerOperationsModel
     @Environment(\.dismiss) private var dismiss
     @State private var state = DockerNetworkFormState()
+    @State private var isSubmitting = false
+    @State private var errorMessage: String?
 
     var body: some View {
         NavigationStack {
@@ -85,22 +123,56 @@ struct DockerNetworkFormView: View {
                 }
                 .listRowBackground(Color.connSurface)
                 tokenSection(rows: $state.otherOptions)
+                if let errorMessage {
+                    Section {
+                        ConnBanner(errorMessage, systemImage: "exclamationmark.triangle")
+                    }
+                    .listRowBackground(Color.connSurface)
+                } else if !state.isValid {
+                    Section {
+                        ConnBanner(
+                            L("网络配置无效，未执行 Docker 操作"),
+                            systemImage: "exclamationmark.triangle"
+                        )
+                    }
+                    .listRowBackground(Color.connSurface)
+                }
             }
             .scrollContentBackground(.hidden)
             .background(Color.connBg.ignoresSafeArea())
             .navigationTitle(L("创建网络"))
             .navigationBarTitleDisplayMode(.inline)
+            .interactiveDismissDisabled(isSubmitting)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button(L("取消")) { dismiss() } }
+                ToolbarItem(placement: .cancellationAction) {
+                    Button(L("取消")) { dismiss() }
+                        .disabled(isSubmitting)
+                }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button(L("创建")) {
+                    Button {
+                        isSubmitting = true
+                        errorMessage = nil
                         Task {
-                            await operations.createNetwork(state.draft)
-                            dismiss()
+                            let outcome = await operations.createNetwork(state.draft)
+                            isSubmitting = false
+                            if outcome.isSuccess {
+                                dismiss()
+                            } else {
+                                errorMessage = DockerOperationFeedback.message(
+                                    for: outcome,
+                                    label: L("创建网络")
+                                )
+                            }
+                        }
+                    } label: {
+                        if isSubmitting {
+                            ProgressView()
+                        } else {
+                            Text(L("创建"))
                         }
                     }
                     .fontWeight(.semibold)
-                    .disabled(!state.isValid || !operations.isWriteAvailable)
+                    .disabled(!state.isValid || !operations.isWriteAvailable || isSubmitting)
                 }
             }
         }

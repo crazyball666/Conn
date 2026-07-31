@@ -1,6 +1,22 @@
 {
   "sourceLanguage" : "zh-Hans",
   "strings" : {
+    "Docker 命令失败（退出码 %d）" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Docker command failed (exit code %d)" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "Docker コマンドに失敗しました（終了コード %d）" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "Docker 명령 실패(종료 코드 %d)" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "Docker 指令失敗（結束代碼 %d）" } }
+      }
+    },
+    "Docker 返回的详情无法解析，请重试" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Docker returned an unreadable detail response. Please try again." } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "Docker が返した詳細を解析できません。もう一度お試しください。" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "Docker가 반환한 세부 정보를 해석할 수 없습니다. 다시 시도해 주세요." } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "無法解析 Docker 傳回的詳細資料，請重試" } }
+      }
+    },
     "Docker Compose 命令失败（退出码 %d）" : {
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Docker Compose command failed (exit code %d)" } },

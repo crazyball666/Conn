@@ -74,9 +74,10 @@ public enum DockerService {
 
     /// 列容器：并行拉 ps 与 stats 后合并。
     public static func list(on session: any SSHSession, sudo: Bool) async throws -> [ContainerInfo] {
-        async let ps = session.exec(DockerCommand.list(sudo: sudo))
-        async let stats = session.exec(DockerCommand.stats(sudo: sudo))
-        let (psResult, statsResult) = try await (ps, stats)
+        async let containerList = session.exec(DockerCommand.list(sudo: sudo))
+        async let containerStats = session.exec(DockerCommand.stats(sudo: sudo))
+        let (psResult, statsResult) = try await (containerList, containerStats)
+        try requireQuerySuccess(psResult)
         return DockerParser.parse(psOutput: psResult.stdoutText, statsOutput: statsResult.stdoutText)
     }
 
@@ -96,12 +97,12 @@ public enum DockerService {
         on session: any SSHSession,
         sudo: Bool
     ) async throws -> DockerComposeDialect? {
-        let v2 = try await session.exec(DockerCommand.composeVersion(.v2, sudo: sudo))
-        if v2.exitCode == 0 {
+        let composeV2Result = try await session.exec(DockerCommand.composeVersion(.v2, sudo: sudo))
+        if composeV2Result.exitCode == 0 {
             return .v2
         }
-        let v1 = try await session.exec(DockerCommand.composeVersion(.v1, sudo: sudo))
-        return v1.exitCode == 0 ? .v1 : nil
+        let composeV1Result = try await session.exec(DockerCommand.composeVersion(.v1, sudo: sudo))
+        return composeV1Result.exitCode == 0 ? .v1 : nil
     }
 
     public static func listComposeProjects(
@@ -250,15 +251,10 @@ public enum DockerService {
         try await session.exec(DockerCommand.systemPrune(options, sudo: sudo), timeout: pruneTimeout)
     }
 
-    /// 容器详情（inspect）。解析失败返回 nil。
-    public static func inspect(id: String, on session: any SSHSession, sudo: Bool) async throws -> ContainerDetail? {
-        let result = try await session.exec(DockerCommand.inspect(id: id, sudo: sudo))
-        return DockerParser.parseInspect(result.stdoutText)
-    }
-
     /// 列镜像。
     public static func listImages(on session: any SSHSession, sudo: Bool) async throws -> [ImageInfo] {
         let result = try await session.exec(DockerCommand.images(sudo: sudo))
+        try requireQuerySuccess(result)
         return DockerParser.parseImages(result.stdoutText)
     }
 
@@ -278,19 +274,14 @@ public enum DockerService {
 
     public static func listVolumes(on session: any SSHSession, sudo: Bool) async throws -> [VolumeInfo] {
         let result = try await session.exec(DockerCommand.volumes(sudo: sudo))
+        try requireQuerySuccess(result)
         return DockerParser.parseVolumes(result.stdoutText)
     }
 
     public static func danglingVolumeNames(on session: any SSHSession, sudo: Bool) async throws -> Set<String> {
         let result = try await session.exec(DockerCommand.danglingVolumes(sudo: sudo))
+        try requireQuerySuccess(result)
         return DockerParser.parseNameList(result.stdoutText)
-    }
-
-    public static func volumeDetail(
-        name: String, on session: any SSHSession, sudo: Bool
-    ) async throws -> VolumeDetail? {
-        let result = try await session.exec(DockerCommand.volumeInspect(name: name, sudo: sudo))
-        return DockerParser.parseVolumeInspect(result.stdoutText)
     }
 
     /// 引用某卷的容器。含已停止的——它引用着就删不掉该卷。
@@ -298,6 +289,7 @@ public enum DockerService {
         name: String, on session: any SSHSession, sudo: Bool
     ) async throws -> [ContainerInfo] {
         let result = try await session.exec(DockerCommand.containersUsingVolume(name: name, sudo: sudo))
+        try requireQuerySuccess(result)
         return DockerParser.parsePS(result.stdoutText)
     }
 
@@ -305,34 +297,23 @@ public enum DockerService {
 
     public static func listNetworks(on session: any SSHSession, sudo: Bool) async throws -> [NetworkInfo] {
         let result = try await session.exec(DockerCommand.networks(sudo: sudo))
+        try requireQuerySuccess(result)
         return DockerParser.parseNetworks(result.stdoutText)
     }
 
     public static func danglingNetworkNames(on session: any SSHSession, sudo: Bool) async throws -> Set<String> {
         let result = try await session.exec(DockerCommand.danglingNetworks(sudo: sudo))
+        try requireQuerySuccess(result)
         return DockerParser.parseNameList(result.stdoutText)
     }
 
-    public static func networkDetail(
-        name: String, on session: any SSHSession, sudo: Bool
-    ) async throws -> NetworkDetail? {
-        let result = try await session.exec(DockerCommand.networkInspect(name: name, sudo: sudo))
-        return DockerParser.parseNetworkInspect(result.stdoutText)
-    }
-
     // MARK: - 镜像详情
-
-    public static func imageDetail(
-        reference: String, on session: any SSHSession, sudo: Bool
-    ) async throws -> ImageDetail? {
-        let result = try await session.exec(DockerCommand.imageInspect(reference: reference, sudo: sudo))
-        return DockerParser.parseImageInspect(result.stdoutText)
-    }
 
     public static func imageHistory(
         reference: String, on session: any SSHSession, sudo: Bool
     ) async throws -> [ImageLayer] {
         let result = try await session.exec(DockerCommand.imageHistory(reference: reference, sudo: sudo))
+        try requireQuerySuccess(result)
         return DockerParser.parseImageHistory(result.stdoutText)
     }
 
@@ -342,6 +323,7 @@ public enum DockerService {
     /// 抛错会让调用方以为整页坏了。
     public static func diskUsage(on session: any SSHSession, sudo: Bool) async throws -> DockerDiskUsage? {
         let result = try await session.exec(DockerCommand.diskUsage(sudo: sudo), timeout: .seconds(30))
+        try requireQuerySuccess(result)
         return DockerParser.parseDiskUsage(result.stdoutText)
     }
 
@@ -363,4 +345,5 @@ public enum DockerService {
             )
         }
     }
+
 }

@@ -77,14 +77,10 @@ final class DockerContainersModel {
     }
 
     /// 容器详情（inspect）——供详情页加载。
-    func detail(for container: ContainerInfo) async -> ContainerDetail? {
-        do {
-            return try await DockerService.inspect(
-                id: container.id, on: context.session(), sudo: context.sudo
-            )
-        } catch {
-            return nil
-        }
+    func detail(for container: ContainerInfo) async throws -> ContainerDetail {
+        try await DockerService.inspect(
+            id: container.id, on: context.session(), sudo: context.sudo
+        )
     }
 
     /// 进入容器控制台的命令（PTY 里 exec）。

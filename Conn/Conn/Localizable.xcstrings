@@ -1,6 +1,78 @@
 {
   "sourceLanguage": "zh-Hans",
   "strings": {
+    "这是生产环境主机。该操作会影响正在运行的服务，请核对目标后再继续。": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "This is a production host. This action can affect running services. Verify the target before continuing." } },
+        "ja": { "stringUnit": { "state": "translated", "value": "これは本番環境のホストです。この操作は実行中のサービスに影響します。続行する前に対象を確認してください。" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "프로덕션 호스트입니다. 이 작업은 실행 중인 서비스에 영향을 줄 수 있습니다. 계속하기 전에 대상을 확인하세요." } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "這是正式環境主機。此操作會影響執行中的服務，請核對目標後再繼續。" } }
+      }
+    },
+    "Docker Compose 停止并移除项目": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Docker Compose stop and remove project" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "Docker Compose プロジェクトを停止して削除" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "Docker Compose 프로젝트 중지 및 제거" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "Docker Compose 停止並移除專案" } }
+      }
+    },
+    "从列表移除此手动项目": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Remove this manual project from the list" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "この手動プロジェクトをリストから削除" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "목록에서 이 수동 프로젝트 제거" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "從列表移除此手動專案" } }
+      }
+    },
+    "停止并移除": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Stop & Remove" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "停止して削除" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "중지 및 제거" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "停止並移除" } }
+      }
+    },
+    "停止并移除 Compose 项目": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Stop and remove Compose project" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "Compose プロジェクトを停止して削除" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "Compose 프로젝트 중지 및 제거" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "停止並移除 Compose 專案" } }
+      }
+    },
+    "只会从当前会话的项目列表移除，不会停止或删除服务器上的 Docker 资源。": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "This only removes the project from the current session's list. It will not stop or delete Docker resources on the server." } },
+        "ja": { "stringUnit": { "state": "translated", "value": "現在のセッションのプロジェクト一覧からのみ削除します。サーバー上の Docker リソースは停止も削除もされません。" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "현재 세션의 프로젝트 목록에서만 제거합니다. 서버의 Docker 리소스는 중지하거나 삭제하지 않습니다." } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "只會從目前工作階段的專案列表移除，不會停止或刪除伺服器上的 Docker 資源。" } }
+      }
+    },
+    "将移除该项目的容器和网络，但不会删除卷。项目配置会保留，之后可以再次启动。": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "This removes the project's containers and networks, but not its volumes. The project configuration is kept so you can start it again later." } },
+        "ja": { "stringUnit": { "state": "translated", "value": "プロジェクトのコンテナとネットワークを削除しますが、ボリュームは削除しません。設定は保持され、後で再起動できます。" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "프로젝트의 컨테이너와 네트워크를 제거하지만 볼륨은 삭제하지 않습니다. 프로젝트 설정은 유지되어 나중에 다시 시작할 수 있습니다." } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "將移除該專案的容器和網路，但不會刪除卷宗。專案設定會保留，之後可以再次啟動。" } }
+      }
+    },
+    "移除": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Remove" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "削除" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "제거" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "移除" } }
+      }
+    },
+    "移除手动项目？": {
+      "localizations": {
+        "en": { "stringUnit": { "state": "translated", "value": "Remove manual project?" } },
+        "ja": { "stringUnit": { "state": "translated", "value": "手動プロジェクトを削除しますか？" } },
+        "ko": { "stringUnit": { "state": "translated", "value": "수동 프로젝트를 제거할까요?" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "移除手動專案？" } }
+      }
+    },
     "%@ · %d 个服务 · %d/%d 个容器运行": {
       "localizations": {
         "en": { "stringUnit": { "state": "translated", "value": "%@ · %d services · %d/%d containers running" } },

@@ -111,6 +111,9 @@ struct DockerView: View {
             .padding(.vertical, ConnSpacing.md)
         case .ready:
             VStack(spacing: ConnSpacing.sm) {
+                DockerDetail.operationActivity(
+                    viewModel.operations.activeOperationDescription
+                )
                 Picker(L("段"), selection: $tab) {
                     ForEach(Tab.allCases) { Text(L($0.rawValue)).tag($0) }
                 }
@@ -269,9 +272,21 @@ extension DockerView {
                 Button(role: .destructive) { Task { await viewModel.images.prune() } } label: {
                     Label(L("清理悬空镜像"), systemImage: "trash")
                 }
+                Button(role: .destructive) {
+                    viewModel.operations.requestDestructiveAction(
+                        .systemPrune(DockerSystemPruneOptions())
+                    )
+                } label: {
+                    Label(L("清理 Docker 资源"), systemImage: "trash.slash")
+                }
             }
             ConnSearchField(L("搜索镜像"), text: $search)
-            DockerDetail.listBody(items: filteredImages, state: imagesListState) { image in imageRow(image) }
+            DockerDetail.listBody(
+                items: filteredImages,
+                state: imagesListState,
+                retry: { Task { await refreshImages() } },
+                row: imageRow
+            )
         }
         .padding(.bottom, ConnSpacing.lg)
         .task { await viewModel.loadImagesWithUsage() }
@@ -328,7 +343,12 @@ extension DockerView {
                 }
             }
             ConnSearchField(L("搜索卷"), text: $search)
-            DockerDetail.listBody(items: filteredVolumes, state: volumesListState) { volume in volumeRow(volume) }
+            DockerDetail.listBody(
+                items: filteredVolumes,
+                state: volumesListState,
+                retry: { Task { await viewModel.volumes.load() } },
+                row: volumeRow
+            )
         }
         .padding(.bottom, ConnSpacing.lg)
         .task { await viewModel.volumes.loadIfNeeded() }
@@ -365,7 +385,12 @@ extension DockerView {
                 }
             }
             ConnSearchField(L("搜索网络"), text: $search)
-            DockerDetail.listBody(items: filteredNetworks, state: networksListState) { network in networkRow(network) }
+            DockerDetail.listBody(
+                items: filteredNetworks,
+                state: networksListState,
+                retry: { Task { await viewModel.networks.load() } },
+                row: networkRow
+            )
         }
         .padding(.bottom, ConnSpacing.lg)
         .task { await viewModel.networks.loadIfNeeded() }

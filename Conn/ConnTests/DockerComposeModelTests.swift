@@ -16,7 +16,7 @@ struct DockerComposeModelTests {
         let session = try await mockSession(responses: [
             DockerCommand.composeVersion(.v2, sudo: false): .init(stdout: "Docker Compose version v2.0"),
             DockerCommand.composeProjects(sudo: false): .init(stdout: automaticJSON),
-            DockerCommand.composeContainers(sudo: false): .init(stdout: ""),
+            DockerCommand.composeContainers(sudo: false): .init(stdout: "")
         ])
         let registry = DockerComposeRegistry()
         let manual = try #require(
@@ -44,7 +44,7 @@ struct DockerComposeModelTests {
                 name: "last-known", state: .running,
                 configFiles: ["/srv/app/compose.yml"], projectDirectory: "/srv/app",
                 source: .automatic
-            ),
+            )
         ])
         let session = try await mockSession(responses: [
             DockerCommand.composeVersion(.v2, sudo: false): .init(stdout: "v2"),
@@ -53,7 +53,7 @@ struct DockerComposeModelTests {
             ),
             DockerCommand.composeContainers(sudo: false): .init(
                 stderr: "daemon unavailable", exitCode: 1
-            ),
+            )
         ])
         let model = DockerComposeModel(
             context: makeContext(session: session),
@@ -79,7 +79,7 @@ struct DockerComposeModelTests {
             DockerCommand.composeProjects(sudo: false): .init(stdout: "[]"),
             DockerCommand.composeContainers(sudo: false): .init(stdout: ""),
             DockerCommand.composeConfigServices(project, dialect: .v2, sudo: false): .init(stdout: "api\nworker\n"),
-            DockerCommand.composeContainers(projectName: "manual", sudo: false): .init(stdout: ""),
+            DockerCommand.composeContainers(projectName: "manual", sudo: false): .init(stdout: "")
         ])
         let registry = DockerComposeRegistry()
         let model = DockerComposeModel(
@@ -95,6 +95,33 @@ struct DockerComposeModelTests {
         #expect(model.items[0].name == "manual")
         #expect(model.items[0].serviceCount == 2)
         #expect(model.items[0].source == .manual)
+    }
+
+    @Test("Compose down 后保留项目配置供再次启动")
+    func retainedProjectSurvivesDiscoveryDisappearance() throws {
+        let registry = DockerComposeRegistry()
+        let automatic = DockerComposeProject(
+            name: "web",
+            state: .running,
+            configFiles: ["/srv/web/compose.yml"],
+            projectDirectory: "/srv/web",
+            source: .automatic,
+            serviceCount: 2,
+            containerCount: 2,
+            runningContainerCount: 2
+        )
+        registry.replaceDiscovered([automatic])
+
+        registry.preserveForRestart(automatic)
+        registry.replaceDiscovered([])
+
+        let retained = try #require(registry.projects.first)
+        #expect(retained.name == "web")
+        #expect(retained.configFiles == ["/srv/web/compose.yml"])
+        #expect(retained.source == .manual)
+        #expect(retained.state == .stopped)
+        #expect(retained.containerCount == 0)
+        #expect(retained.runningContainerCount == 0)
     }
 
     private func makeContext(session: any SSHSession) -> DockerContext {

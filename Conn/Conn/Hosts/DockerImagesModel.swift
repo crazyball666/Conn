@@ -60,16 +60,16 @@ final class DockerImagesModel {
         unusedIDs = ImageUsage.unusedImageIDs(images: items, containers: containers)
     }
 
-    func detail(for image: ImageInfo) async -> ImageDetail? {
-        try? await DockerService.imageDetail(
+    func detail(for image: ImageInfo) async throws -> ImageDetail {
+        try await DockerService.imageDetail(
             reference: image.reference, on: context.session(), sudo: context.sudo
         )
     }
 
-    func history(for image: ImageInfo) async -> [ImageLayer] {
-        (try? await DockerService.imageHistory(
+    func history(for image: ImageInfo) async throws -> [ImageLayer] {
+        try await DockerService.imageHistory(
             reference: image.reference, on: context.session(), sudo: context.sudo
-        )) ?? []
+        )
     }
 
     func requestRemoval(_ image: ImageInfo) {

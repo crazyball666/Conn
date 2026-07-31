@@ -1,5 +1,6 @@
 import ConnKit
 import ConnOps
+import ConnSSH
 import ConnUI
 import SwiftUI
 
@@ -19,11 +20,15 @@ struct NetworkDetailView: View {
 
     @State private var detail: NetworkDetail?
     @State private var loading = true
+    @State private var errorMessage: String?
     @State private var openedContainer: ContainerInfo?
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: ConnSpacing.md) {
+                DockerDetail.operationActivity(
+                    viewModel.operations.activeOperationDescription
+                )
                 if network.isPredefined {
                     HStack(spacing: ConnSpacing.xs) {
                         StatusPill(L("预置"), semantic: .info)
@@ -33,9 +38,18 @@ struct NetworkDetailView: View {
                 if loading {
                     ProgressView(L("读取详情…")).font(.connFootnote).foregroundStyle(.connMuted)
                         .frame(maxWidth: .infinity).padding(.vertical, ConnSpacing.xl)
-                } else {
-                    summary
-                    attachedSection
+                } else if let detail {
+                    if let errorMessage {
+                        DockerDetail.errorRecovery(errorMessage) {
+                            Task { await load() }
+                        }
+                    }
+                    summary(detail)
+                    attachedSection(detail)
+                } else if let errorMessage {
+                    DockerDetail.errorRecovery(errorMessage) {
+                        Task { await load() }
+                    }
                 }
             }
             .padding(.horizontal, ConnSpacing.page)
@@ -55,31 +69,21 @@ struct NetworkDetailView: View {
                 }
             }
         }
-        .task {
-            let loadedDetail = await viewModel.networks.detail(for: network)
-            detail = loadedDetail
-            loading = false
-            #if DEBUG
-                if ProcessInfo.processInfo.environment["CONN_SMOKE_NETWORK_CONTAINER_ROUTE"] != nil,
-                   let attached = loadedDetail?.attachedContainers.first {
-                    open(attached)
-                }
-            #endif
-        }
+        .task { await load() }
         .navigationDestination(item: $openedContainer) { container in
             ContainerDetailView(host: host, dependencies: dependencies, container: container, viewModel: viewModel)
         }
     }
 
-    private var summary: some View {
+    private func summary(_ detail: NetworkDetail) -> some View {
         DockerDetail.section(L("概要")) {
             DockerDetail.infoRows([
                 (L("网络 ID"), String(network.id.prefix(12))),
                 (L("驱动"), network.driver),
                 (L("作用域"), network.scope),
-                (L("子网"), detail?.subnet ?? "—"),
-                (L("网关"), detail?.gateway ?? "—"),
-                (L("内部网络"), (detail?.isInternal ?? false) ? L("是") : L("否"))
+                (L("子网"), detail.subnet ?? "—"),
+                (L("网关"), detail.gateway ?? "—"),
+                (L("内部网络"), detail.isInternal ? L("是") : L("否"))
             ])
         }
     }
@@ -93,9 +97,9 @@ struct NetworkDetailView: View {
     }
 
     @ViewBuilder
-    private var attachedSection: some View {
+    private func attachedSection(_ detail: NetworkDetail) -> some View {
         DockerDetail.section(L("接入容器")) {
-            let containers = detail?.attachedContainers ?? []
+            let containers = detail.attachedContainers
             if containers.isEmpty {
                 // 预置网络（bridge/host/none）不打「未使用」胶囊——本页顶部已经显示
                 // 「预置，不可删除」，两个胶囊同屏出现会自相矛盾（详见 unusedNotice 注释）。
@@ -115,6 +119,24 @@ struct NetworkDetailView: View {
                 }
             }
         }
+    }
+
+    private func load() async {
+        loading = detail == nil
+        do {
+            let loadedDetail = try await viewModel.networks.detail(for: network)
+            detail = loadedDetail
+            errorMessage = nil
+            #if DEBUG
+                if ProcessInfo.processInfo.environment["CONN_SMOKE_NETWORK_CONTAINER_ROUTE"] != nil,
+                   let attached = loadedDetail.attachedContainers.first {
+                    open(attached)
+                }
+            #endif
+        } catch {
+            errorMessage = error.friendlyDiagnosis
+        }
+        loading = false
     }
 }
 

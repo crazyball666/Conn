@@ -76,7 +76,7 @@ enum DockerAuditOperation: Sendable, Equatable {
         case .removeNetwork: L("Docker 删除网络")
         case .systemPrune: L("Docker 系统清理")
         case .composeUp: L("Docker Compose 启动项目")
-        case .composeDown: L("Docker Compose 停止项目")
+        case .composeDown: L("Docker Compose 停止并移除项目")
         case .composeRestartProject: L("Docker Compose 重启项目")
         case .composeRestartService: L("Docker Compose 重启服务")
         }
@@ -193,35 +193,60 @@ struct DockerPullPresentation: Identifiable, Equatable {
     }
 }
 
-/// 需要用户输入确认词的破坏性动作。Task 5 的表单只需持有这个强类型值，不能把
-/// 任意字符串再解释成命令。
+/// 需要用户输入确认词的破坏性或生产环境敏感动作。确认页只持有这个强类型值，
+/// 不能把任意字符串再解释成命令。
 enum DockerPendingAction: Sendable, Equatable {
+    case container(action: ContainerAction, container: ContainerInfo)
     case removeContainer(ContainerInfo)
     case removeImage(ImageInfo)
     case removeVolume(VolumeInfo)
     case removeNetwork(NetworkInfo)
     case pruneImages
     case systemPrune(DockerSystemPruneOptions)
+    case composeUp(project: DockerComposeProject, dialect: DockerComposeDialect)
     case composeDown(project: DockerComposeProject, dialect: DockerComposeDialect)
+    case composeRestart(
+        project: DockerComposeProject,
+        service: String?,
+        dialect: DockerComposeDialect
+    )
 
     /// 删除必须逐字输入资源名；清理类操作固定输入 PRUNE。资源名而非通用 DELETE
     /// 让用户在确认时再看一眼目标，且不同 prune 选项替换 pending action 时 UI 会重置输入。
     var confirmationWord: String {
         switch self {
+        case let .container(_, container): container.name
         case let .removeContainer(container): container.name
         case let .removeImage(image): image.displayName
         case let .removeVolume(volume): volume.name
         case let .removeNetwork(network): network.name
         case .pruneImages, .systemPrune: "PRUNE"
+        case let .composeUp(project, _): project.name
         case let .composeDown(project, _): project.name
+        case let .composeRestart(project, service, _):
+            service.map { "\(project.name)/\($0)" } ?? project.name
         }
     }
 
     var confirmationButtonTitle: String {
         switch self {
+        case let .container(action, _): action.label
         case .removeContainer, .removeImage, .removeVolume, .removeNetwork: L("删除")
         case .pruneImages, .systemPrune: L("清理")
-        case .composeDown: L("停止")
+        case .composeUp: L("启动")
+        case .composeDown: L("停止并移除")
+        case .composeRestart: L("重启")
+        }
+    }
+
+    var impactMessage: String? {
+        switch self {
+        case .container, .composeUp, .composeRestart:
+            L("这是生产环境主机。该操作会影响正在运行的服务，请核对目标后再继续。")
+        case .composeDown:
+            L("将移除该项目的容器和网络，但不会删除卷。项目配置会保留，之后可以再次启动。")
+        default:
+            nil
         }
     }
 

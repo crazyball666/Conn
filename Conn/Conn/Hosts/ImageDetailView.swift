@@ -1,5 +1,6 @@
 import ConnKit
 import ConnOps
+import ConnSSH
 import ConnUI
 import SwiftUI
 
@@ -22,22 +23,33 @@ struct ImageDetailView: View {
     @State private var detail: ImageDetail?
     @State private var layers: [ImageLayer] = []
     @State private var loading = true
+    @State private var errorMessage: String?
     @State private var openedContainer: ContainerInfo?
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: ConnSpacing.md) {
+                DockerDetail.operationActivity(
+                    viewModel.operations.activeOperationDescription
+                )
                 if loading {
                     ProgressView(L("读取详情…")).font(.connFootnote).foregroundStyle(.connMuted)
                         .frame(maxWidth: .infinity).padding(.vertical, ConnSpacing.xl)
                 } else {
-                    summary
-                    usersSection
-                    layersSection
-                    if let detail {
-                        commandSection(detail)
-                        listSection(L("环境变量"), detail.env)
-                        listSection(L("标签"), detail.labels)
+                    if let errorMessage {
+                        DockerDetail.errorRecovery(errorMessage) {
+                            Task { await load() }
+                        }
+                    }
+                    if detail != nil {
+                        summary
+                        usersSection
+                        layersSection
+                        if let detail {
+                            commandSection(detail)
+                            listSection(L("环境变量"), detail.env)
+                            listSection(L("标签"), detail.labels)
+                        }
                     }
                 }
             }
@@ -155,10 +167,17 @@ struct ImageDetailView: View {
 
     private func load() async {
         // 两条并行：详情与层历史互不依赖
-        async let detailTask = viewModel.images.detail(for: image)
-        async let layersTask = viewModel.images.history(for: image)
-        detail = await detailTask
-        layers = await layersTask
+        loading = detail == nil
+        do {
+            async let detailTask = viewModel.images.detail(for: image)
+            async let layersTask = viewModel.images.history(for: image)
+            let result = try await (detailTask, layersTask)
+            detail = result.0
+            layers = result.1
+            errorMessage = nil
+        } catch {
+            errorMessage = error.friendlyDiagnosis
+        }
         loading = false
     }
 }
@@ -171,7 +190,13 @@ struct ImageDetailView: View {
     let host = Host(name: "web-01", address: "10.20.0.11", username: "root")
     NavigationStack {
         ImageDetailView(
-            image: ImageInfo(imageID: "a1b2c3d4e5f6", repository: "nginx", tag: "1.25", size: "142MB", created: "9 days ago"),
+            image: ImageInfo(
+                imageID: "a1b2c3d4e5f6",
+                repository: "nginx",
+                tag: "1.25",
+                size: "142MB",
+                created: "9 days ago"
+            ),
             viewModel: DockerViewModel(host: host, dependencies: .demo()),
             users: [
                 ContainerInfo(

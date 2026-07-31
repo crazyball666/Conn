@@ -48,8 +48,8 @@ final class DockerNetworksModel {
     }
 
     /// 网络详情。接入容器由 inspect 直接给出，无需额外命令。
-    func detail(for network: NetworkInfo) async -> NetworkDetail? {
-        try? await DockerService.networkDetail(
+    func detail(for network: NetworkInfo) async throws -> NetworkDetail {
+        try await DockerService.networkDetail(
             name: network.name, on: context.session(), sudo: context.sudo
         )
     }

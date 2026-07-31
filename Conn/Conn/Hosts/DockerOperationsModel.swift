@@ -14,17 +14,26 @@ final class DockerOperationsModel {
     private(set) var pullPresentation: DockerPullPresentation?
 
     private let context: DockerContext
-    private let hostUUID: String
-    private let runHistory: any RunHistoryRepository
+    private let audit: DockerAuditWriter
+    private let isProduction: Bool
 
-    init(context: DockerContext, hostUUID: String, runHistory: any RunHistoryRepository) {
+    init(
+        context: DockerContext,
+        hostUUID: String,
+        runHistory: any RunHistoryRepository,
+        isProduction: Bool = false
+    ) {
         self.context = context
-        self.hostUUID = hostUUID
-        self.runHistory = runHistory
+        audit = DockerAuditWriter(hostUUID: hostUUID, repository: runHistory)
+        self.isProduction = isProduction
     }
 
     var isBusy: Bool { activeOperation != nil }
     var isWriteAvailable: Bool { context.isUsable && !isBusy }
+    var activeOperationDescription: String? {
+        guard let activeOperation else { return nil }
+        return "\(activeOperation.auditOperation.historyLabel) · \(L("执行中…"))"
+    }
     var activeContainerID: String? { activeOperation?.activeContainerID }
     var activeImageID: String? { activeOperation?.activeImageID }
     var isPullActive: Bool {
@@ -35,28 +44,36 @@ final class DockerOperationsModel {
 
     // MARK: - Existing write entry points
 
-    func perform(_ action: ContainerAction, on container: ContainerInfo) async {
+    @discardableResult
+    func perform(_ action: ContainerAction, on container: ContainerInfo) async -> DockerOperationOutcome? {
         guard !action.isDestructive else {
             requestDestructiveAction(.removeContainer(container))
-            return
+            return nil
         }
-        await performConfirmed(action, on: container)
+        if isProduction, action == .stop || action == .restart {
+            requestDestructiveAction(.container(action: action, container: container))
+            return nil
+        }
+        return await performConfirmed(action, on: container)
     }
 
-    private func performConfirmed(_ action: ContainerAction, on container: ContainerInfo) async {
+    private func performConfirmed(
+        _ action: ContainerAction,
+        on container: ContainerInfo
+    ) async -> DockerOperationOutcome {
         let operation = DockerOperation.container(action: action, targetID: container.id)
-        await execute(operation, label: String(format: L("%@容器"), action.label)) { session, sudo in
+        return await execute(operation, label: String(format: L("%@容器"), action.label)) { session, sudo in
             try await DockerService.perform(action, id: container.id, on: session, sudo: sudo)
         }
     }
 
-    private func removeImageConfirmed(_ image: ImageInfo) async {
+    private func removeImageConfirmed(_ image: ImageInfo) async -> DockerOperationOutcome {
         await execute(.removeImage(targetID: image.id), label: L("删除镜像")) { session, sudo in
             try await DockerService.removeImage(reference: image.reference, on: session, sudo: sudo)
         }
     }
 
-    private func pruneImagesConfirmed() async {
+    private func pruneImagesConfirmed() async -> DockerOperationOutcome {
         await execute(.pruneImages, label: L("清理悬空镜像")) { session, sudo in
             try await DockerService.pruneImages(on: session, sudo: sudo)
         }
@@ -64,49 +81,55 @@ final class DockerOperationsModel {
 
     // MARK: - Phase 2 write entry points
 
-    func runContainer(_ draft: DockerRunDraft) async {
+    @discardableResult
+    func runContainer(_ draft: DockerRunDraft) async -> DockerOperationOutcome {
         guard draft.validate().isEmpty else {
-            context.report(L("容器配置无效，未执行 Docker 操作"))
-            return
+            let message = L("容器配置无效，未执行 Docker 操作")
+            context.report(message)
+            return .rejected(message: message)
         }
-        await execute(.runContainer, label: L("创建容器")) { session, sudo in
+        return await execute(.runContainer, label: L("创建容器")) { session, sudo in
             try await DockerService.runContainer(draft, on: session, sudo: sudo)
         }
     }
 
-    func createVolume(_ draft: DockerVolumeDraft) async {
+    @discardableResult
+    func createVolume(_ draft: DockerVolumeDraft) async -> DockerOperationOutcome {
         guard draft.validate().isEmpty else {
-            context.report(L("卷配置无效，未执行 Docker 操作"))
-            return
+            let message = L("卷配置无效，未执行 Docker 操作")
+            context.report(message)
+            return .rejected(message: message)
         }
-        await execute(.createVolume, label: L("创建卷")) { session, sudo in
+        return await execute(.createVolume, label: L("创建卷")) { session, sudo in
             try await DockerService.createVolume(draft, on: session, sudo: sudo)
         }
     }
 
-    private func removeVolumeConfirmed(name: String) async {
+    private func removeVolumeConfirmed(name: String) async -> DockerOperationOutcome {
         await execute(.removeVolume, label: L("删除卷")) { session, sudo in
             try await DockerService.removeVolume(name: name, on: session, sudo: sudo)
         }
     }
 
-    func createNetwork(_ draft: DockerNetworkDraft) async {
+    @discardableResult
+    func createNetwork(_ draft: DockerNetworkDraft) async -> DockerOperationOutcome {
         guard draft.validate().isEmpty else {
-            context.report(L("网络配置无效，未执行 Docker 操作"))
-            return
+            let message = L("网络配置无效，未执行 Docker 操作")
+            context.report(message)
+            return .rejected(message: message)
         }
-        await execute(.createNetwork, label: L("创建网络")) { session, sudo in
+        return await execute(.createNetwork, label: L("创建网络")) { session, sudo in
             try await DockerService.createNetwork(draft, on: session, sudo: sudo)
         }
     }
 
-    private func removeNetworkConfirmed(name: String) async {
+    private func removeNetworkConfirmed(name: String) async -> DockerOperationOutcome {
         await execute(.removeNetwork, label: L("删除网络")) { session, sudo in
             try await DockerService.removeNetwork(name: name, on: session, sudo: sudo)
         }
     }
 
-    private func systemPruneConfirmed(_ options: DockerSystemPruneOptions) async {
+    private func systemPruneConfirmed(_ options: DockerSystemPruneOptions) async -> DockerOperationOutcome {
         await execute(.systemPrune, label: L("清理 Docker 资源")) { session, sudo in
             try await DockerService.systemPrune(options, on: session, sudo: sudo)
         }
@@ -114,23 +137,53 @@ final class DockerOperationsModel {
 
     // MARK: - Phase 3 Compose write entry points
 
+    @discardableResult
     func composeUp(
         _ project: DockerComposeProject,
         dialect: DockerComposeDialect
-    ) async {
-        await execute(.composeUp(projectName: project.name), label: L("启动 Compose 项目")) {
-            session, sudo in
+    ) async -> DockerOperationOutcome {
+        if isProduction {
+            requestDestructiveAction(.composeUp(project: project, dialect: dialect))
+            return .rejected(message: L("确认 Docker 操作"))
+        }
+        return await composeUpConfirmed(project, dialect: dialect)
+    }
+
+    private func composeUpConfirmed(
+        _ project: DockerComposeProject,
+        dialect: DockerComposeDialect
+    ) async -> DockerOperationOutcome {
+        await execute(.composeUp(projectName: project.name), label: L("启动 Compose 项目")) { session, sudo in
             try await DockerService.composeUp(
                 project, dialect: dialect, on: session, sudo: sudo
             )
         }
     }
 
+    @discardableResult
     func composeRestart(
         _ project: DockerComposeProject,
         service: String? = nil,
         dialect: DockerComposeDialect
-    ) async {
+    ) async -> DockerOperationOutcome {
+        if isProduction {
+            requestDestructiveAction(
+                .composeRestart(project: project, service: service, dialect: dialect)
+            )
+            return .rejected(message: L("确认 Docker 操作"))
+        }
+        return await composeRestartConfirmed(
+            project,
+            service: service,
+            dialect: dialect
+        )
+    }
+
+    private func composeRestartConfirmed(
+        _ project: DockerComposeProject,
+        service: String? = nil,
+        dialect: DockerComposeDialect
+    ) async -> DockerOperationOutcome {
         await execute(
             .composeRestart(projectName: project.name, serviceName: service),
             label: service == nil ? L("重启 Compose 项目") : L("重启 Compose 服务")
@@ -144,10 +197,13 @@ final class DockerOperationsModel {
     private func composeDownConfirmed(
         _ project: DockerComposeProject,
         dialect: DockerComposeDialect
-    ) async {
-        await execute(.composeDown(projectName: project.name), label: L("停止 Compose 项目")) {
-            session, sudo in
-            try await DockerService.composeDown(
+    ) async -> DockerOperationOutcome {
+        await execute(
+            .composeDown(projectName: project.name),
+            label: L("停止并移除 Compose 项目")
+        ) { session, sudo in
+            context.preserveComposeProject(project)
+            return try await DockerService.composeDown(
                 project, dialect: dialect, on: session, sudo: sudo
             )
         }
@@ -162,7 +218,7 @@ final class DockerOperationsModel {
             context.report(L("镜像引用不能为空"))
             return
         }
-        guard begin(.pullImage) else { return }
+        guard begin(.pullImage) == nil else { return }
         pullPresentation = DockerPullPresentation()
         Task { [weak self] in
             await self?.performPull(reference: reference, onChunk: { _ in })
@@ -171,7 +227,7 @@ final class DockerOperationsModel {
 
     /// 测试和非 UI 调用使用的 await 入口；和 `startPull` 复用同一终态与审计语义。
     func pullImage(reference: String, onChunk: @escaping (String) -> Void) async {
-        guard begin(.pullImage) else { return }
+        guard begin(.pullImage) == nil else { return }
         pullPresentation = DockerPullPresentation()
         await performPull(reference: reference, onChunk: onChunk)
     }
@@ -187,20 +243,7 @@ final class DockerOperationsModel {
         let operation = DockerOperation.pullImage
         defer { activeOperation = nil }
 
-        let pending = DockerAuditSummary(operation: operation.auditOperation, state: .unknown)
-            .historyEntry(hostUUID: hostUUID)
-        let pendingEntry = RunHistoryEntry(
-            id: pending.id,
-            hostUUID: pending.hostUUID,
-            command: pending.command,
-            exitCode: nil,
-            outputHead: nil,
-            state: .pending,
-            ranAt: pending.ranAt
-        )
-        do {
-            try runHistory.record(pendingEntry)
-        } catch {
+        guard let pendingEntry = audit.recordPending(for: operation) else {
             context.report(L("无法保存拉取审计，未开始拉取"))
             setPullResult(.unknown)
             return
@@ -224,18 +267,30 @@ final class DockerOperationsModel {
             }
             let result = try await stream.result()
             let state = DockerOperationResultState.known(exitCode: result.exitCode)
-            let finalEntry = DockerAuditSummary(operation: operation.auditOperation, state: state, ranAt: pending.ranAt)
-                .historyEntry(hostUUID: hostUUID, id: pendingEntry.id)
-            let auditSaved = update(finalEntry)
-            reportKnown(label: L("拉取镜像"), state: state, auditSaved: auditSaved)
+            let outcome = DockerOperationOutcome(result: result)
+            let finalEntry = DockerAuditSummary(
+                operation: operation.auditOperation,
+                state: state,
+                ranAt: pendingEntry.ranAt
+            ).historyEntry(hostUUID: audit.hostUUID, id: pendingEntry.id)
+            let auditSaved = audit.update(finalEntry)
+            context.report(DockerOperationFeedback.message(
+                for: outcome, label: L("拉取镜像"), auditSaved: auditSaved
+            ))
             setPullResult(state)
             await context.refresh(operation.refreshScope)
         } catch {
             let finalEntry = DockerAuditSummary(
-                operation: operation.auditOperation, state: .unknown, ranAt: pending.ranAt
-            ).historyEntry(hostUUID: hostUUID, id: pendingEntry.id)
-            let auditSaved = update(finalEntry)
-            reportUnknown(label: L("拉取镜像"), auditSaved: auditSaved)
+                operation: operation.auditOperation,
+                state: .unknown,
+                ranAt: pendingEntry.ranAt
+            ).historyEntry(hostUUID: audit.hostUUID, id: pendingEntry.id)
+            let auditSaved = audit.update(finalEntry)
+            context.report(DockerOperationFeedback.message(
+                for: .unknown(remoteMessage: error.friendlyDiagnosis),
+                label: L("拉取镜像"),
+                auditSaved: auditSaved
+            ))
             setPullResult(.unknown)
         }
     }
@@ -256,7 +311,7 @@ final class DockerOperationsModel {
     }
 
     @discardableResult
-    func confirmPendingAction(confirmation: String) async -> Bool {
+    func confirmPendingAction(confirmation: String) async -> Bool { // swiftlint:disable:this cyclomatic_complexity
         guard let action = pendingDestructiveAction else { return false }
         guard action.accepts(confirmation: confirmation) else {
             context.report(L("确认词不匹配，未执行 Docker 操作"))
@@ -264,14 +319,26 @@ final class DockerOperationsModel {
         }
         pendingDestructiveAction = nil
         switch action {
-        case let .removeContainer(container): await performConfirmed(.remove, on: container)
-        case let .removeImage(image): await removeImageConfirmed(image)
-        case let .removeVolume(volume): await removeVolumeConfirmed(name: volume.name)
-        case let .removeNetwork(network): await removeNetworkConfirmed(name: network.name)
-        case .pruneImages: await pruneImagesConfirmed()
-        case let .systemPrune(options): await systemPruneConfirmed(options)
+        case let .container(action, container):
+            _ = await performConfirmed(action, on: container)
+        case let .removeContainer(container):
+            _ = await performConfirmed(.remove, on: container)
+        case let .removeImage(image):
+            _ = await removeImageConfirmed(image)
+        case let .removeVolume(volume):
+            _ = await removeVolumeConfirmed(name: volume.name)
+        case let .removeNetwork(network):
+            _ = await removeNetworkConfirmed(name: network.name)
+        case .pruneImages:
+            _ = await pruneImagesConfirmed()
+        case let .systemPrune(options):
+            _ = await systemPruneConfirmed(options)
+        case let .composeUp(project, dialect):
+            _ = await composeUpConfirmed(project, dialect: dialect)
         case let .composeDown(project, dialect):
-            await composeDownConfirmed(project, dialect: dialect)
+            _ = await composeDownConfirmed(project, dialect: dialect)
+        case let .composeRestart(project, service, dialect):
+            _ = await composeRestartConfirmed(project, service: service, dialect: dialect)
         }
         return true
     }
@@ -282,35 +349,49 @@ final class DockerOperationsModel {
         _ operation: DockerOperation,
         label: String,
         remote: (any SSHSession, Bool) async throws -> ExecResult
-    ) async {
-        guard begin(operation) else { return }
+    ) async -> DockerOperationOutcome {
+        if let rejection = begin(operation) { return rejection }
         defer { activeOperation = nil }
         do {
             let session = try await context.session()
             let result = try await remote(session, context.sudo)
             let state = DockerOperationResultState.known(exitCode: result.exitCode)
-            let auditSaved = record(DockerAuditSummary(operation: operation.auditOperation, state: state))
-            reportKnown(label: label, state: state, auditSaved: auditSaved)
+            let outcome = DockerOperationOutcome(result: result)
+            let auditSaved = audit.record(
+                DockerAuditSummary(operation: operation.auditOperation, state: state)
+            )
+            context.report(DockerOperationFeedback.message(
+                for: outcome, label: label, auditSaved: auditSaved
+            ))
             // 非零退出码仍是一个已知终态；Docker 可能已部分完成，刷新才不会留旧列表。
             await context.refresh(operation.refreshScope)
+            return outcome
         } catch {
-            let auditSaved = record(DockerAuditSummary(operation: operation.auditOperation, state: .unknown))
+            let auditSaved = audit.record(
+                DockerAuditSummary(operation: operation.auditOperation, state: .unknown)
+            )
             // 连接中断、超时或 stream 没有终态时，远端实际状态无法推断，不能刷新覆盖当前视图。
-            reportUnknown(label: label, auditSaved: auditSaved)
+            let outcome = DockerOperationOutcome.unknown(remoteMessage: error.friendlyDiagnosis)
+            context.report(DockerOperationFeedback.message(
+                for: outcome, label: label, auditSaved: auditSaved
+            ))
+            return outcome
         }
     }
 
-    private func begin(_ operation: DockerOperation) -> Bool {
+    private func begin(_ operation: DockerOperation) -> DockerOperationOutcome? {
         guard context.isUsable else {
-            context.report(L("Docker 当前不可用"))
-            return false
+            let message = L("Docker 当前不可用")
+            context.report(message)
+            return .rejected(message: message)
         }
         guard activeOperation == nil else {
-            context.report(L("另一个 Docker 操作正在进行"))
-            return false
+            let message = L("另一个 Docker 操作正在进行")
+            context.report(message)
+            return .rejected(message: message)
         }
         activeOperation = operation
-        return true
+        return nil
     }
 
     private func appendPullLog(_ text: String) {
@@ -325,38 +406,4 @@ final class DockerOperationsModel {
         pullPresentation = presentation
     }
 
-    private func record(_ summary: DockerAuditSummary) -> Bool {
-        do {
-            try runHistory.record(summary.historyEntry(hostUUID: hostUUID))
-            return true
-        } catch {
-            return false
-        }
-    }
-
-    private func update(_ entry: RunHistoryEntry) -> Bool {
-        do {
-            try runHistory.update(entry)
-            return true
-        } catch {
-            return false
-        }
-    }
-
-    private func reportKnown(label: String, state: DockerOperationResultState, auditSaved: Bool) {
-        let resultText: String
-        if state.isSuccess {
-            resultText = String(format: L("%@ 成功"), label)
-        } else if let exitCode = state.exitCode {
-            resultText = String(format: L("%@ 失败（退出码 %d）"), label, exitCode)
-        } else {
-            resultText = String(format: L("%@ 结果未知"), label)
-        }
-        context.report(auditSaved ? resultText : resultText + L("；审计未保存"))
-    }
-
-    private func reportUnknown(label: String, auditSaved: Bool) {
-        let resultText = String(format: L("%@ 结果未知"), label)
-        context.report(auditSaved ? resultText : resultText + L("；审计未保存"))
-    }
 }

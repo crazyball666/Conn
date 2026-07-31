@@ -111,14 +111,19 @@ struct DockerComposeProjectDetailView: View {
     let host: Host
     let dependencies: AppDependencies
 
+    @Environment(\.dismiss) private var dismiss
     @State private var services: [DockerComposeService] = []
     @State private var loading = true
     @State private var errorMessage: String?
     @State private var logSource: LogSource?
+    @State private var showRemoveManualConfirmation = false
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: ConnSpacing.md) {
+                DockerDetail.operationActivity(
+                    viewModel.operations.activeOperationDescription
+                )
                 summary
                 actions
                 servicesSection
@@ -131,6 +136,11 @@ struct DockerComposeProjectDetailView: View {
         .navigationTitle(project.name)
         .navigationBarTitleDisplayMode(.inline)
         .task { await loadServices() }
+        .onChange(of: viewModel.operations.activeOperationDescription) { previous, current in
+            if previous != nil, current == nil {
+                Task { await loadServices() }
+            }
+        }
         .navigationDestination(item: $logSource) { source in
             LogStreamView(
                 host: host,
@@ -138,6 +148,15 @@ struct DockerComposeProjectDetailView: View {
                 source: source,
                 sudo: viewModel.usesSudo
             )
+        }
+        .alert(L("移除手动项目？"), isPresented: $showRemoveManualConfirmation) {
+            Button(L("取消"), role: .cancel) {}
+            Button(L("移除"), role: .destructive) {
+                viewModel.compose.removeManualProject(project)
+                dismiss()
+            }
+        } message: {
+            Text(L("只会从当前会话的项目列表移除，不会停止或删除服务器上的 Docker 资源。"))
         }
     }
 
@@ -180,7 +199,7 @@ struct DockerComposeProjectDetailView: View {
                 PillButton(L("日志"), semantic: .info) {
                     openLogs(service: nil)
                 }
-                PillButton(L("停止"), semantic: .crit) {
+                PillButton(L("停止并移除"), semantic: .crit) {
                     guard let dialect = viewModel.compose.dialect else { return }
                     viewModel.operations.requestDestructiveAction(
                         .composeDown(project: project, dialect: dialect)
@@ -188,6 +207,17 @@ struct DockerComposeProjectDetailView: View {
                 }
             }
             .disabled(!viewModel.canWrite || viewModel.compose.dialect == nil)
+            if project.source == .manual {
+                Rectangle().fill(Color.connLine).frame(height: 0.5)
+                Button(role: .destructive) {
+                    showRemoveManualConfirmation = true
+                } label: {
+                    Label(L("从列表移除此手动项目"), systemImage: "minus.circle")
+                        .font(.connSubheadline)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .buttonStyle(.plain)
+            }
         }
     }
 
@@ -300,7 +330,6 @@ struct DockerComposeProjectDetailView: View {
         guard let dialect = viewModel.compose.dialect else { return }
         Task {
             await action(dialect)
-            await loadServices()
         }
     }
 
@@ -312,81 +341,6 @@ struct DockerComposeProjectDetailView: View {
             title: target,
             subtitle: service == nil ? L("Compose 项目日志") : L("Compose 服务日志"),
             kind: .compose(project: project, dialect: dialect, service: service)
-        )
-    }
-}
-
-struct DockerComposeManualFormView: View {
-    let model: DockerComposeModel
-    @Environment(\.dismiss) private var dismiss
-    @State private var configFile = ""
-    @State private var projectDirectory = ""
-    @State private var projectName = ""
-    @State private var isSubmitting = false
-
-    var body: some View {
-        NavigationStack {
-            Form {
-                Section {
-                    TextField(L("配置文件绝对路径"), text: $configFile)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
-                    TextField(L("项目目录（可选）"), text: $projectDirectory)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
-                    TextField(L("项目名称（可选）"), text: $projectName)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
-                } header: {
-                    Text(L("项目配置"))
-                } footer: {
-                    if let project = draft.project {
-                        Text(String(format: L("将使用项目名称：%@"), project.name))
-                    } else {
-                        Text(L("配置文件必须使用服务器上的绝对路径。"))
-                    }
-                }
-                .listRowBackground(Color.connSurface)
-                if let error = model.errorMessage {
-                    Section {
-                        ConnBanner(error, systemImage: "exclamationmark.triangle")
-                    }
-                    .listRowBackground(Color.connSurface)
-                }
-            }
-            .scrollContentBackground(.hidden)
-            .background(Color.connBg.ignoresSafeArea())
-            .navigationTitle(L("手动添加 Compose 项目"))
-            .navigationBarTitleDisplayMode(.inline)
-            .interactiveDismissDisabled(isSubmitting)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button(L("取消")) { dismiss() }
-                        .disabled(isSubmitting)
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button(L("添加")) {
-                        isSubmitting = true
-                        Task {
-                            if await model.addManualProject(draft) {
-                                dismiss()
-                            } else {
-                                isSubmitting = false
-                            }
-                        }
-                    }
-                    .fontWeight(.semibold)
-                    .disabled(!draft.validate().isEmpty || isSubmitting)
-                }
-            }
-        }
-    }
-
-    private var draft: DockerComposeManualDraft {
-        DockerComposeManualDraft(
-            configFile: configFile,
-            projectDirectory: projectDirectory,
-            projectName: projectName
         )
     }
 }

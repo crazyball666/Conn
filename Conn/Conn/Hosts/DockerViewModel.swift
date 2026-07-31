@@ -59,6 +59,7 @@ final class DockerViewModel {
         runHistory = dependencies.runHistory
         let manager = dependencies.connectionManager
         let currentHost = host
+        let registry = composeRegistry
         context = DockerContext(
             session: { try await manager.session(for: currentHost) },
             sudo: false,
@@ -71,10 +72,16 @@ final class DockerViewModel {
             reprobe: { [weak self] in
                 guard let self, !self.operations.isBusy else { return }
                 await self.load()
+            },
+            preserveComposeProject: { project in
+                registry.preserveForRestart(project)
             }
         )
         operations = DockerOperationsModel(
-            context: context, hostUUID: host.id, runHistory: runHistory
+            context: context,
+            hostUUID: host.id,
+            runHistory: runHistory,
+            isProduction: host.isProduction
         )
         containers = DockerContainersModel(context: context, operations: operations)
         images = DockerImagesModel(context: context, operations: operations)
@@ -169,7 +176,10 @@ final class DockerViewModel {
         context.sudo = probe.sudo
         context.isUsable = probe.isUsable
         operations = DockerOperationsModel(
-            context: context, hostUUID: host.id, runHistory: runHistory
+            context: context,
+            hostUUID: host.id,
+            runHistory: runHistory,
+            isProduction: host.isProduction
         )
         containers = DockerContainersModel(context: context, operations: operations)
         images = DockerImagesModel(context: context, operations: operations)

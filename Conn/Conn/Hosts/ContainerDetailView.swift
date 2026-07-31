@@ -1,5 +1,6 @@
 import ConnKit
 import ConnOps
+import ConnSSH
 import ConnUI
 import SwiftUI
 
@@ -12,6 +13,7 @@ struct ContainerDetailView: View {
 
     @State private var detail: ContainerDetail?
     @State private var loading = true
+    @State private var errorMessage: String?
     @State private var route: Route?
     /// 控制台单独拆出来走 `.fullScreenCover`——不需要额外数据（host/container 本页
     /// 自己就有），一个 Bool 比再造一个 Identifiable 包装类型更直接。
@@ -40,17 +42,27 @@ struct ContainerDetailView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: ConnSpacing.md) {
+                DockerDetail.operationActivity(
+                    viewModel.operations.activeOperationDescription
+                )
                 actionBar
                 if loading {
                     ProgressView(L("读取详情…")).font(.connFootnote).foregroundStyle(.connMuted)
                         .frame(maxWidth: .infinity).padding(.vertical, ConnSpacing.xl)
-                } else if let detail {
-                    summarySection(detail)
-                    listSection(L("端口"), detail.ports, icon: "network")
-                    mountsSection(detail)
-                    networksSection(detail)
-                    listSection(L("环境变量"), detail.env, icon: "leaf")
-                    commandSection(detail)
+                } else {
+                    if let errorMessage {
+                        DockerDetail.errorRecovery(errorMessage) {
+                            Task { await loadDetail() }
+                        }
+                    }
+                    if let detail {
+                        summarySection(detail)
+                        listSection(L("端口"), detail.ports, icon: "network")
+                        mountsSection(detail)
+                        networksSection(detail)
+                        listSection(L("环境变量"), detail.env, icon: "leaf")
+                        commandSection(detail)
+                    }
                 }
             }
             .padding(.horizontal, ConnSpacing.page)
@@ -61,6 +73,11 @@ struct ContainerDetailView: View {
         .navigationTitle(container.name)
         .navigationBarTitleDisplayMode(.inline)
         .task { await loadDetail() }
+        .onChange(of: viewModel.operations.activeOperationDescription) { previous, current in
+            if previous != nil, current == nil {
+                Task { await loadDetail() }
+            }
+        }
         // 挂载/网络行要按名字反查 `viewModel.volumes/networks.items`——这两个模型只在
         // 各自分段出现过一次才会有数据。用户可能没点过「卷」「网络」分段就直接从
         // 容器列表点进详情，届时两个列表仍是空的，挂载/网络行会因为查无匹配而
@@ -274,25 +291,31 @@ struct ContainerDetailView: View {
         }
     }
 
-    // MARK: - 逻辑
+}
 
-    private func loadDetail() async {
+private extension ContainerDetailView {
+    func loadDetail() async {
         loading = detail == nil
-        detail = await viewModel.containers.detail(for: container)
+        do {
+            detail = try await viewModel.containers.detail(for: container)
+            errorMessage = nil
+        } catch {
+            errorMessage = error.friendlyDiagnosis
+        }
         loading = false
     }
 
-    private func perform(_ action: ContainerAction) {
+    func perform(_ action: ContainerAction) {
         Task {
             await viewModel.containers.perform(action, on: container)
-            await loadDetail()
         }
     }
 
-    // MARK: - 通用块
-
-    private var messageBinding: Binding<Bool> {
-        Binding(get: { viewModel.actionMessage != nil }, set: { if !$0 { viewModel.actionMessage = nil } })
+    var messageBinding: Binding<Bool> {
+        Binding(
+            get: { viewModel.actionMessage != nil },
+            set: { if !$0 { viewModel.actionMessage = nil } }
+        )
     }
 }
 

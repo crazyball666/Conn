@@ -1,5 +1,6 @@
 import ConnKit
 import ConnOps
+import ConnSSH
 import ConnUI
 import SwiftUI
 
@@ -23,17 +24,31 @@ struct VolumeDetailView: View {
     @State private var detail: VolumeDetail?
     @State private var users: [ContainerInfo] = []
     @State private var loading = true
+    @State private var errorMessage: String?
+    @State private var usersLoaded = false
     @State private var openedContainer: ContainerInfo?
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: ConnSpacing.md) {
+                DockerDetail.operationActivity(
+                    viewModel.operations.activeOperationDescription
+                )
                 if loading {
                     ProgressView(L("读取详情…")).font(.connFootnote).foregroundStyle(.connMuted)
                         .frame(maxWidth: .infinity).padding(.vertical, ConnSpacing.xl)
                 } else {
-                    summary
-                    usersSection
+                    if let errorMessage {
+                        DockerDetail.errorRecovery(errorMessage) {
+                            Task { await load() }
+                        }
+                    }
+                    if detail != nil {
+                        summary
+                    }
+                    if usersLoaded {
+                        usersSection
+                    }
                     if let detail, !detail.labels.isEmpty {
                         DockerDetail.section(L("标签")) { keyValues(detail.labels) }
                     }
@@ -107,10 +122,18 @@ struct VolumeDetailView: View {
 
     private func load() async {
         // 两条并行：详情与引用查询互不依赖
-        async let detailTask = viewModel.volumes.detail(for: volume)
-        async let usersTask = viewModel.volumes.containersUsing(volume)
-        detail = await detailTask
-        users = await usersTask
+        loading = detail == nil && !usersLoaded
+        do {
+            async let detailTask = viewModel.volumes.detail(for: volume)
+            async let usersTask = viewModel.volumes.containersUsing(volume)
+            let result = try await (detailTask, usersTask)
+            detail = result.0
+            users = result.1
+            usersLoaded = true
+            errorMessage = nil
+        } catch {
+            errorMessage = error.friendlyDiagnosis
+        }
         loading = false
     }
 }

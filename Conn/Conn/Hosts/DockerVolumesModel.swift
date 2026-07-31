@@ -45,17 +45,17 @@ final class DockerVolumesModel {
         loaded = true
     }
 
-    func detail(for volume: VolumeInfo) async -> VolumeDetail? {
-        try? await DockerService.volumeDetail(
+    func detail(for volume: VolumeInfo) async throws -> VolumeDetail {
+        try await DockerService.volumeDetail(
             name: volume.name, on: context.session(), sudo: context.sudo
         )
     }
 
     /// 引用该卷的容器。只在打开详情页时才跑。
-    func containersUsing(_ volume: VolumeInfo) async -> [ContainerInfo] {
-        (try? await DockerService.containersUsingVolume(
+    func containersUsing(_ volume: VolumeInfo) async throws -> [ContainerInfo] {
+        try await DockerService.containersUsingVolume(
             name: volume.name, on: context.session(), sudo: context.sudo
-        )) ?? []
+        )
     }
 
     /// 只有 Docker 明确标记为 dangling 的卷才提供删除入口；详情页与列表共用这条判断。

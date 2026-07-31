@@ -30,7 +30,7 @@ struct DockerOperationsModelTests {
         #expect(operations.activeOperation != nil)
 
         await gate.allow()
-        await first.value
+        _ = await first.value
         await second.value
 
         let finalCommandCount = await gate.commandCount
@@ -59,6 +59,36 @@ struct DockerOperationsModelTests {
         #expect(entry?.exitCode == 1)
         #expect(entry?.outputHead == nil)
         #expect(entry?.command.contains("private-token") == false)
+    }
+
+    @Test("已知失败向用户展示远端 stderr 而不是只有退出码")
+    func knownFailureReportsRemoteStderr() async {
+        let session = OperationSession(result: ExecResult(
+            exitCode: 1,
+            stdout: Data("private stdout".utf8),
+            stderr: Data("volume name already in use".utf8)
+        ))
+        var reports: [String] = []
+        let operations = DockerOperationsModel(
+            context: makeContext(
+                session: { session },
+                report: { reports.append($0) }
+            ),
+            hostUUID: "host-1",
+            runHistory: RecordingHistory()
+        )
+
+        await operations.createVolume(DockerVolumeDraft(name: "cache"))
+
+        #expect(
+            reports.last
+                == String(
+                    format: L("%@ 失败：%@"),
+                    L("创建卷"),
+                    "volume name already in use"
+                )
+        )
+        #expect(reports.last?.contains("private stdout") == false)
     }
 
     @Test("没有最终结果的写操作记录未知且不自动刷新")
@@ -130,6 +160,76 @@ struct DockerOperationsModelTests {
         #expect(DockerPendingAction.pruneImages.confirmationWord == "PRUNE")
     }
 
+    @Test("生产环境停止容器必须输入容器名后执行")
+    func productionContainerStopRequiresExactName() async {
+        let session = OperationSession()
+        let operations = DockerOperationsModel(
+            context: makeContext(session: { session }),
+            hostUUID: "host-1",
+            runHistory: RecordingHistory(),
+            isProduction: true
+        )
+        let container = ContainerInfo(
+            id: "c1",
+            name: "api",
+            image: "app:1",
+            state: .running,
+            status: "Up",
+            ports: ""
+        )
+
+        await operations.perform(.stop, on: container)
+
+        #expect(
+            operations.pendingDestructiveAction
+                == .container(action: .stop, container: container)
+        )
+        #expect(session.executionCount == 0)
+        #expect(await operations.confirmPendingAction(confirmation: "api"))
+        #expect(session.lastCommand == DockerCommand.action(.stop, id: "c1", sudo: false))
+    }
+
+    @Test("生产环境重启 Compose 服务必须输入项目和服务名")
+    func productionComposeServiceRestartRequiresExactTarget() async {
+        let session = OperationSession()
+        let operations = DockerOperationsModel(
+            context: makeContext(session: { session }),
+            hostUUID: "host-1",
+            runHistory: RecordingHistory(),
+            isProduction: true
+        )
+        let project = DockerComposeProject(
+            name: "web",
+            state: .running,
+            configFiles: ["/srv/web/compose.yml"],
+            projectDirectory: "/srv/web",
+            source: .manual
+        )
+
+        await operations.composeRestart(
+            project,
+            service: "api",
+            dialect: .v2
+        )
+
+        #expect(
+            operations.pendingDestructiveAction
+                == .composeRestart(project: project, service: "api", dialect: .v2)
+        )
+        #expect(session.executionCount == 0)
+        #expect(!operations.canConfirmPendingAction(input: "web"))
+        #expect(await operations.confirmPendingAction(confirmation: "web/api"))
+        #expect(
+            session.lastCommand
+                == DockerCommand.composeRestart(
+                    project,
+                    service: "api",
+                    dialect: .v2,
+                    sudo: false
+                )
+        )
+    }
+
     @Test("Compose down 必须输入项目名并经共享操作模型执行")
     func composeDownRequiresExactProjectNameAndUsesSharedOperations() async {
         let session = OperationSession()
@@ -155,7 +255,7 @@ struct DockerOperationsModelTests {
         #expect(confirmed)
         #expect(session.lastCommand == DockerCommand.composeDown(project, dialect: .v2, sudo: false))
         #expect(refreshes == [.all])
-        #expect(history.entries.first?.command == L("Docker Compose 停止项目"))
+        #expect(history.entries.first?.command == L("Docker Compose 停止并移除项目"))
         #expect(history.entries.first?.command.contains("/srv/web") == false)
     }
 
@@ -188,7 +288,7 @@ struct DockerOperationsModelTests {
         #expect(await gate.commandCount == 1)
 
         await gate.allow()
-        await first.value
+        _ = await first.value
         await second.value
         #expect(await gate.commandCount == 1)
     }
@@ -350,7 +450,11 @@ struct DockerOperationsModelTests {
             DockerMountRow(sourceKind: .namedVolume, source: "data", target: "/var/lib/api"),
             DockerMountRow(sourceKind: .bind, source: "/srv/config", target: "/etc/api", readOnly: true)
         ]
-        state.otherOptions = [DockerTokenRow(value: "--cpus=1"), DockerTokenRow(value: "--add-host"), DockerTokenRow(value: "db:10.0.0.2")]
+        state.otherOptions = [
+            DockerTokenRow(value: "--cpus=1"),
+            DockerTokenRow(value: "--add-host"),
+            DockerTokenRow(value: "db:10.0.0.2")
+        ]
         state.command = [DockerTokenRow(value: "serve"), DockerTokenRow(value: "--foreground")]
 
         #expect(state.isValid)
@@ -467,11 +571,12 @@ struct DockerOperationsModelTests {
 
     private func makeContext(
         session: @escaping () async throws -> any SSHSession,
-        refresh: @escaping (DockerRefreshScope) async -> Void = { _ in }
+        refresh: @escaping (DockerRefreshScope) async -> Void = { _ in },
+        report: @escaping (String) -> Void = { _ in }
     ) -> DockerContext {
         DockerContext(
             session: session, sudo: false, isUsable: true,
-            report: { _ in }, refresh: refresh, reprobe: {}
+            report: report, refresh: refresh, reprobe: {}
         )
     }
 }

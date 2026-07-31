@@ -8,6 +8,33 @@ import SwiftUI
 /// 各自漂移的重复。`resourceRow` 是卷、网络两个列表分段共用的行样式，二者结构
 /// 完全一致（图标 + 名称/副标题 + 尾部徽标 + chevron），只有图标与徽标判据不同。
 enum DockerDetail {
+    static func errorRecovery(_ message: String, retry: @escaping () -> Void) -> some View {
+        VStack(alignment: .leading, spacing: ConnSpacing.sm) {
+            ConnBanner(message, systemImage: "exclamationmark.triangle")
+            Button(L("重试"), action: retry)
+                .font(.connBody)
+                .foregroundStyle(.connAccent)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    @ViewBuilder
+    static func operationActivity(_ description: String?) -> some View {
+        if let description {
+            HStack(spacing: ConnSpacing.sm) {
+                ProgressView().controlSize(.small)
+                Text(description)
+                    .font(.connFootnote)
+                    .foregroundStyle(.connInk)
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, ConnSpacing.sm)
+            .frame(minHeight: 44)
+            .background(Color.connInfoFill, in: RoundedRectangle(cornerRadius: ConnRadius.card))
+            .accessibilityElement(children: .combine)
+        }
+    }
+
     /// 带眉标的分组卡片。
     @ViewBuilder
     static func section(_ title: String, @ViewBuilder content: () -> some View) -> some View {
@@ -154,10 +181,11 @@ enum DockerDetail {
     static func listBody<Item: Identifiable>(
         items: [Item],
         state: ListState,
+        retry: @escaping () -> Void,
         @ViewBuilder row: @escaping (Item) -> some View
     ) -> some View {
         if let error = state.error {
-            ConnBanner(error, systemImage: "exclamationmark.triangle")
+            errorRecovery(error, retry: retry)
         } else if !state.loaded {
             ProgressView(state.loadingText).font(.connFootnote).foregroundStyle(.connMuted)
                 .frame(maxWidth: .infinity).padding(.vertical, ConnSpacing.xl)

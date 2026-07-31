@@ -23,6 +23,15 @@ final class DockerComposeRegistry {
         manualByName[project.name] = project
     }
 
+    func preserveForRestart(_ project: DockerComposeProject) {
+        var retained = project
+        retained.source = .manual
+        retained.state = .stopped
+        retained.containerCount = 0
+        retained.runningContainerCount = 0
+        manualByName[retained.name] = retained
+    }
+
     func removeManual(named name: String) {
         manualByName.removeValue(forKey: name)
     }

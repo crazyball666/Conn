@@ -174,6 +174,15 @@ struct DockerRunFormView: View {
                 mountsSection
                 advancedSection
                 commandSection
+                if !state.isValid {
+                    Section {
+                        ConnBanner(
+                            L("容器配置无效，未执行 Docker 操作"),
+                            systemImage: "exclamationmark.triangle"
+                        )
+                    }
+                    .listRowBackground(Color.connSurface)
+                }
             }
             .scrollContentBackground(.hidden)
             .background(Color.connBg.ignoresSafeArea())
@@ -251,7 +260,9 @@ struct DockerRunFormView: View {
             .onDelete { offsets in
                 state.environment.remove(atOffsets: offsets)
             }
-            Button { state.environment.append(DockerEnvironmentRow()) } label: { Label(L("添加环境变量"), systemImage: "plus") }
+            Button { state.environment.append(DockerEnvironmentRow()) } label: {
+                Label(L("添加环境变量"), systemImage: "plus")
+            }
         }
         .listRowBackground(Color.connSurface)
     }
@@ -318,52 +329,4 @@ struct DockerRunFormView: View {
         }
     }
 
-}
-
-private struct DockerRunReviewView: View {
-    let draft: DockerRunDraft
-    let operations: DockerOperationsModel
-    let completed: () -> Void
-    @Environment(\.dismiss) private var dismiss
-
-    var body: some View {
-        List {
-            if !risks.isEmpty {
-                Section(L("高风险配置")) {
-                    ForEach(risks, id: \.self) { risk in
-                        Label(risk.title, systemImage: "exclamationmark.triangle.fill").foregroundStyle(.connWarn)
-                    }
-                }
-            }
-            Section(L("有效配置")) {
-                Text(command)
-                    .font(.connData(.footnote))
-                    .textSelection(.enabled)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-        }
-        .scrollContentBackground(.hidden)
-        .background(Color.connBg.ignoresSafeArea())
-        .navigationTitle(L("复核配置"))
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            ToolbarItem(placement: .cancellationAction) { Button(L("返回")) { dismiss() } }
-            ToolbarItem(placement: .confirmationAction) {
-                Button(L("创建容器")) {
-                    Task {
-                        await operations.runContainer(draft)
-                        completed()
-                    }
-                }
-                .fontWeight(.semibold)
-                .disabled(!operations.isWriteAvailable)
-            }
-        }
-    }
-
-    private var risks: [DockerRunRisk] { DockerRunRiskDetector.detect(draft) }
-
-    /// 复核的是即将交给 SSH 的 docker argv（不含是否走 sudo 的环境差异），
-    /// 因此必须复用真正的命令构造器，不能单独拼一个只用于显示的近似版本。
-    private var command: String { DockerCommand.run(draft, sudo: false) }
 }

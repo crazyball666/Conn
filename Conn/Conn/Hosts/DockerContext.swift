@@ -22,4 +22,25 @@ struct DockerContext {
     /// 重新探测并加载（外壳的 `load()`）。容器刷新在发现 Docker 已不可用时要回到
     /// 这里，把界面翻到「不可用」引导页——这是重构前的既有行为。
     let reprobe: () async -> Void
+    /// Compose down 会让 Docker 的自动发现结果消失；执行前保留配置上下文，
+    /// 这样成功后仍能从 App 里再次启动同一项目。
+    let preserveComposeProject: (DockerComposeProject) -> Void
+
+    init(
+        session: @escaping () async throws -> any SSHSession,
+        sudo: Bool,
+        isUsable: Bool,
+        report: @escaping (String) -> Void,
+        refresh: @escaping (DockerRefreshScope) async -> Void,
+        reprobe: @escaping () async -> Void,
+        preserveComposeProject: @escaping (DockerComposeProject) -> Void = { _ in }
+    ) {
+        self.session = session
+        self.sudo = sudo
+        self.isUsable = isUsable
+        self.report = report
+        self.refresh = refresh
+        self.reprobe = reprobe
+        self.preserveComposeProject = preserveComposeProject
+    }
 }
