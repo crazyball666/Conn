@@ -8,7 +8,6 @@ enum ConnAppearance {
         guard !configured else { return }
         configured = true
         configureSegmentedControl()
-        configureSearchField()
     }
 
     /// SwiftUI 的 `.pickerStyle(.segmented)` 底层是原生 `UISegmentedControl`（iOS 26 液态玻璃）。
@@ -20,17 +19,5 @@ enum ConnAppearance {
         let appearance = UISegmentedControl.appearance()
         appearance.setTitleTextAttributes(attributes, for: .normal)
         appearance.setTitleTextAttributes(attributes, for: .selected)
-    }
-
-    /// `.searchable` 的搜索框默认是浅灰填充，聚焦后又变白——切换很突兀。
-    /// 直接把未聚焦态也设为「聚焦色」（浅色=白，深色=次级背景），聚焦时不再跳色。
-    /// 两条 appearance 路径都设（UISearchTextField 直接 + UISearchBar 内含的 UITextField），
-    /// 提高在不同 iOS/设备上的命中率。
-    private static func configureSearchField() {
-        let focused = UIColor { traits in
-            traits.userInterfaceStyle == .dark ? .secondarySystemBackground : .white
-        }
-        UISearchTextField.appearance().backgroundColor = focused
-        UITextField.appearance(whenContainedInInstancesOf: [UISearchBar.self]).backgroundColor = focused
     }
 }

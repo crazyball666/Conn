@@ -6,6 +6,8 @@
 //
 
 import XCTest
+import UIKit
+import Vision
 
 final class ConnUITests: XCTestCase {
 
@@ -117,7 +119,8 @@ final class ConnUITests: XCTestCase {
         XCTAssertLessThan(terminal.frame.height, compactViewport.height)
         XCTAssertLessThanOrEqual(terminal.frame.maxY, keybar.frame.minY + 1)
 
-        let attachment = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+        let screenshot = XCUIScreen.main.screenshot()
+        let attachment = XCTAttachment(screenshot: screenshot)
         attachment.name = "Terminal expanded keybar"
         attachment.lifetime = .keepAlways
         add(attachment)
@@ -131,6 +134,63 @@ final class ConnUITests: XCTestCase {
         XCTAssertEqual(XCTWaiter.wait(for: [restored], timeout: 5), .completed)
         XCTAssertEqual(terminal.frame.height, compactViewport.height, accuracy: 1)
         XCTAssertLessThanOrEqual(terminal.frame.maxY, keybar.frame.minY + 1)
+    }
+
+    @MainActor
+    func testTerminalCommandPickerKeepsSearchAboveEmptyState() throws {
+        let app = XCUIApplication()
+        app.launchEnvironment["CONN_DEMO"] = "1"
+        app.launchEnvironment["CONN_SMOKE_TERMINAL"] = "1"
+        app.launchArguments += ["-conn.settings.terminalCursorBlinking", "NO"]
+        app.launch()
+
+        let commandButton = app.buttons["terminal.keybar.commands"]
+        XCTAssertTrue(commandButton.waitForExistence(timeout: 10))
+        commandButton.tap()
+
+        let searchField = app.searchFields["搜索命令"]
+        let emptyTitle = app.staticTexts["还没有命令"]
+        XCTAssertTrue(searchField.waitForExistence(timeout: 5))
+        XCTAssertTrue(emptyTitle.waitForExistence(timeout: 5))
+
+        let attachment = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+        attachment.name = "Terminal command picker empty state"
+        attachment.lifetime = .keepAlways
+        add(attachment)
+
+        XCTAssertLessThan(searchField.frame.midY, emptyTitle.frame.minY)
+    }
+
+    @MainActor
+    func testTerminalPasteButtonWritesClipboardText() throws {
+        let app = XCUIApplication()
+        let marker = "PasteMarkerEightFourTwo"
+        app.launchEnvironment["CONN_DEMO"] = "1"
+        app.launchEnvironment["CONN_SMOKE_TERMINAL"] = "1"
+        app.launchEnvironment["CONN_SMOKE_PASTE_TEXT"] = marker
+        app.launchArguments += ["-conn.settings.terminalCursorBlinking", "NO"]
+        app.launch()
+
+        let pasteButton = app.buttons["terminal.keybar.paste"]
+        XCTAssertTrue(pasteButton.waitForExistence(timeout: 10))
+        pasteButton.tap()
+        Thread.sleep(forTimeInterval: 1)
+
+        let screenshot = XCUIScreen.main.screenshot()
+        let attachment = XCTAttachment(screenshot: screenshot)
+        attachment.name = "Terminal paste result"
+        attachment.lifetime = .keepAlways
+        add(attachment)
+
+        XCTAssertTrue(try recognizedText(in: screenshot).contains(marker))
+    }
+
+    private func recognizedText(in screenshot: XCUIScreenshot) throws -> String {
+        let image = try XCTUnwrap(screenshot.image.cgImage)
+        let request = VNRecognizeTextRequest()
+        request.recognitionLevel = .accurate
+        try VNImageRequestHandler(cgImage: image).perform([request])
+        return (request.results ?? []).compactMap { $0.topCandidates(1).first?.string }.joined(separator: "\n")
     }
 
     @MainActor

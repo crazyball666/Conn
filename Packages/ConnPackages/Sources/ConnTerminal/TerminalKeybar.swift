@@ -1,6 +1,7 @@
 #if canImport(UIKit)
     import ConnUI
     import SwiftUI
+    import UIKit
 
     public enum TerminalKeybarMetrics {
         public static let compactHeight: CGFloat = 92
@@ -168,33 +169,27 @@
             .accessibilityLabel(key.label)
         }
 
-        /// `PasteButton` 由系统代取剪贴板，避免直接读取 `UIPasteboard` 触发不必要的
-        /// 隐私授权弹窗。图标态与其它工具按钮保持一致。
+        /// 粘贴使用完整的普通按钮命中区；`PasteButton` 的透明覆盖层在终端键盘中
+        /// 会吞掉点击，导致回调不触发。读取发生在用户明确点击后，符合系统剪贴板语义。
         private var pasteCap: some View {
-            ZStack {
-                RoundedRectangle(cornerRadius: ConnRadius.key, style: .continuous)
-                    .fill(Color.connKey)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: ConnRadius.key, style: .continuous)
-                            .strokeBorder(Color.connKeyline, lineWidth: 1)
-                    )
-                    .accessibilityHidden(true)
+            Button {
+                guard let text = UIPasteboard.general.string, !text.isEmpty else { return }
+                pressCount &+= 1
+                onPaste(text)
+            } label: {
                 Image(systemName: "doc.on.clipboard")
                     .font(.system(size: 16, weight: .medium))
                     .foregroundStyle(Color.connInk)
-                    .accessibilityHidden(true)
-                // 系统按钮保留完整命中区与安全粘贴语义，视觉层由上面的统一键帽绘制。
-                PasteButton(payloadType: String.self) { values in
-                    guard !values.isEmpty else { return }
-                    pressCount &+= 1
-                    onPaste(values.joined())
-                }
-                .labelStyle(.iconOnly)
-                .opacity(0.02)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .accessibilityLabel(Text("粘贴"))
-                .accessibilityIdentifier("terminal.keybar.paste")
+                .background(Color.connKey, in: .rect(cornerRadius: ConnRadius.key, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: ConnRadius.key, style: .continuous)
+                        .strokeBorder(Color.connKeyline, lineWidth: 1)
+                )
             }
+            .buttonStyle(.plain)
+            .accessibilityLabel(Text("粘贴"))
+            .accessibilityIdentifier("terminal.keybar.paste")
             .frame(maxWidth: .infinity)
             .frame(height: 34)
         }

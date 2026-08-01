@@ -7,6 +7,9 @@ import ConnSSH
 import ConnSSHCitadel
 import ConnStore
 import SwiftUI
+#if canImport(UIKit)
+    import UIKit
+#endif
 
 /// App 组装根：依赖注入、路由、场景生命周期（技术实现方案 §5）。
 @main
@@ -19,6 +22,13 @@ struct ConnApp: App {
         // 在任何视图（含 .searchable 搜索框）创建前配置 UIKit 外观——appearance 只对
         // 之后创建的实例生效，放到 onAppear 里会与首个搜索框的创建竞态导致背景色不生效。
         ConnAppearance.configureIfNeeded()
+        #if DEBUG
+            // 终端粘贴的 UI 冒烟由 App 自己预置文本，避免 UI Test Runner 作为跨 App
+            // 剪贴板来源触发系统权限弹窗；发布包不会执行这段。
+            if let smokePasteText = ProcessInfo.processInfo.environment["CONN_SMOKE_PASTE_TEXT"] {
+                UIPasteboard.general.string = smokePasteText
+            }
+        #endif
     }
 
     /// 依赖选择：DEBUG 下 `CONN_DEMO=1` 走演示模式（Mock 引擎 + 假数据），

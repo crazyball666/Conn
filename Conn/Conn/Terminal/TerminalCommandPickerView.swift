@@ -24,64 +24,57 @@ struct TerminalCommandPickerView: View {
 
     var body: some View {
         NavigationStack {
-            Group {
-                if let error = viewModel.errorMessage {
-                    ConnRetryState(error, retryTitle: L("重试")) { viewModel.load() }
-                } else if snippets.isEmpty {
-                    EmptyState(
-                        systemName: viewModel.searchText.isEmpty ? "command" : "magnifyingglass",
-                        title: viewModel.searchText.isEmpty ? L("还没有命令") : L("没有匹配的命令"),
-                        message: viewModel.searchText.isEmpty
-                            ? L("先在「命令」页面添加常用命令")
-                            : L("换个关键词试试")
-                    )
-                } else {
-                    List(snippets) { snippet in
-                        Button { choose(snippet) } label: {
-                            HStack(spacing: ConnSpacing.sm) {
-                                Image(systemName: snippet.pinned ? "star.fill" : "command")
-                                    .font(.system(size: 15, weight: .medium))
-                                    .foregroundStyle(snippet.pinned ? Color.connWarn : .connAccent)
-                                    .frame(width: 24)
-                                VStack(alignment: .leading, spacing: 3) {
-                                    HStack(spacing: ConnSpacing.xs) {
-                                        Text(snippet.title)
-                                            .font(.connSubheadline)
-                                            .foregroundStyle(.connInk)
-                                        if snippet.danger {
-                                            Image(systemName: "exclamationmark.triangle.fill")
-                                                .font(.caption2)
-                                                .foregroundStyle(.connCrit)
-                                        }
-                                        if !snippet.variables.isEmpty {
-                                            Text(String(format: L("%d 变量"), snippet.variables.count))
-                                                .font(.connData(.caption2))
-                                                .foregroundStyle(.connAccent)
-                                        }
-                                    }
-                                    Text(snippet.command)
-                                        .font(.system(size: 11.5, design: .monospaced))
-                                        .foregroundStyle(.connMuted)
-                                        .lineLimit(1)
+            List(snippets) { snippet in
+                Button { choose(snippet) } label: {
+                    HStack(spacing: ConnSpacing.sm) {
+                        Image(systemName: snippet.pinned ? "star.fill" : "command")
+                            .font(.system(size: 15, weight: .medium))
+                            .foregroundStyle(snippet.pinned ? Color.connWarn : .connAccent)
+                            .frame(width: 24)
+                        VStack(alignment: .leading, spacing: 3) {
+                            HStack(spacing: ConnSpacing.xs) {
+                                Text(snippet.title)
+                                    .font(.connSubheadline)
+                                    .foregroundStyle(.connInk)
+                                if snippet.danger {
+                                    Image(systemName: "exclamationmark.triangle.fill")
+                                        .font(.caption2)
+                                        .foregroundStyle(.connCrit)
                                 }
-                                Spacer(minLength: 0)
-                                Image(systemName: "chevron.right")
-                                    .font(.caption)
-                                    .foregroundStyle(.connMuted)
+                                if !snippet.variables.isEmpty {
+                                    Text(String(format: L("%d 变量"), snippet.variables.count))
+                                        .font(.connData(.caption2))
+                                        .foregroundStyle(.connAccent)
+                                }
                             }
-                            .contentShape(.rect)
+                            Text(snippet.command)
+                                .font(.system(size: 11.5, design: .monospaced))
+                                .foregroundStyle(.connMuted)
+                                .lineLimit(1)
                         }
-                        .buttonStyle(.plain)
-                        .listRowBackground(Color.connSurface)
+                        Spacer(minLength: 0)
+                        Image(systemName: "chevron.right")
+                            .font(.caption)
+                            .foregroundStyle(.connMuted)
                     }
-                    .listStyle(.plain)
-                    .scrollContentBackground(.hidden)
+                    .contentShape(.rect)
                 }
+                .buttonStyle(.plain)
+                .listRowBackground(Color.connSurface)
             }
+            .listStyle(.plain)
+            .scrollContentBackground(.hidden)
             .background(Color.connBg.ignoresSafeArea())
+            .overlay {
+                pickerStateOverlay
+            }
             .navigationTitle(L("选择本地命令"))
             .navigationBarTitleDisplayMode(.inline)
-            .searchable(text: $viewModel.searchText, prompt: L("搜索命令"))
+            .searchable(
+                text: $viewModel.searchText,
+                placement: .navigationBarDrawer(displayMode: .always),
+                prompt: L("搜索命令")
+            )
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button(L("取消")) { dismiss() }
@@ -101,6 +94,23 @@ struct TerminalCommandPickerView: View {
 
     private var snippets: [Snippet] {
         viewModel.snippets(for: .all)
+    }
+
+    @ViewBuilder
+    private var pickerStateOverlay: some View {
+        if let error = viewModel.errorMessage {
+            ConnRetryState(error, retryTitle: L("重试")) { viewModel.load() }
+                .padding(.horizontal, ConnSpacing.lg)
+        } else if snippets.isEmpty {
+            EmptyState(
+                systemName: viewModel.searchText.isEmpty ? "command" : "magnifyingglass",
+                title: viewModel.searchText.isEmpty ? L("还没有命令") : L("没有匹配的命令"),
+                message: viewModel.searchText.isEmpty
+                    ? L("先在「命令」页面添加常用命令")
+                    : L("换个关键词试试")
+            )
+            .padding(.horizontal, ConnSpacing.lg)
+        }
     }
 
     private func choose(_ snippet: Snippet) {
