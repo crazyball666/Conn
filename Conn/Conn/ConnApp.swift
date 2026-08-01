@@ -64,7 +64,9 @@ struct ConnApp: App {
                     connectionManager: ConnectionManager(
                         transport: dependencies.diagnosticsTransport
                     ) { _ in .password("conntest123") },
-                    autoCommand: smokeTerminalCommand()
+                    autoCommand: smokeTerminalCommand(),
+                    snippetRepository: dependencies.snippetRepository,
+                    snippetGroupRepository: dependencies.snippetGroupRepository
                 )
             } else if ProcessInfo.processInfo.environment["CONN_SMOKE_DETAIL"] != nil,
                       let host = smokeDetailHost() {

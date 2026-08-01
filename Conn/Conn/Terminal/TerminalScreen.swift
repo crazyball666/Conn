@@ -10,24 +10,50 @@ import SwiftUI
 struct TerminalScreen: View {
     let host: Host
     let connectionManager: ConnectionManager
-    /// 连接就绪后自动发送的命令（仅 DEBUG 冒烟用，验证中文渲染）。
+    private let snippetRepository: (any SnippetRepository)?
+    private let snippetGroupRepository: (any SnippetGroupRepository)?
+    /// 首次连接就绪后自动发送的命令（Docker 控制台 / 命令片段 / DEBUG 冒烟）。
     let autoCommand: String?
+    /// Docker 控制台重开 shell 后需要重新进入容器；普通命令片段不能因重连被重复执行。
+    private let replaysAutoCommandOnReconnect: Bool
 
     @State private var phase: Phase = .connecting
+    @State private var isOpeningTerminal = false
+    @State private var isCommandPickerPresented = false
+    @State private var hasSentAutoCommand = false
+    @State private var hasPendingAutoCommandReplay = false
     @Environment(SettingsStore.self) private var settings
     /// fullScreenCover 没有下滑手势也没有返回键，关闭按钮是唯一出口。
     @Environment(\.dismiss) private var dismiss
 
-    init(host: Host, connectionManager: ConnectionManager, autoCommand: String? = nil) {
+    init(
+        host: Host,
+        connectionManager: ConnectionManager,
+        autoCommand: String? = nil,
+        replaysAutoCommandOnReconnect: Bool = false,
+        snippetRepository: (any SnippetRepository)? = nil,
+        snippetGroupRepository: (any SnippetGroupRepository)? = nil
+    ) {
         self.host = host
         self.connectionManager = connectionManager
         self.autoCommand = autoCommand
+        self.replaysAutoCommandOnReconnect = replaysAutoCommandOnReconnect
+        self.snippetRepository = snippetRepository
+        self.snippetGroupRepository = snippetGroupRepository
     }
 
-    init(host: Host, dependencies: AppDependencies) {
+    init(
+        host: Host,
+        dependencies: AppDependencies,
+        autoCommand: String? = nil,
+        replaysAutoCommandOnReconnect: Bool = false
+    ) {
         self.host = host
         connectionManager = dependencies.connectionManager
-        autoCommand = nil
+        self.autoCommand = autoCommand
+        self.replaysAutoCommandOnReconnect = replaysAutoCommandOnReconnect
+        snippetRepository = dependencies.snippetRepository
+        snippetGroupRepository = dependencies.snippetGroupRepository
     }
 
     enum Phase {
@@ -58,6 +84,16 @@ struct TerminalScreen: View {
         // 深色终端上几乎看不见。全部 8 个终端主题背景都是深色（#07090F～#2E3440），
         // 所以这里无条件强制深色是安全的。
         .preferredColorScheme(.dark)
+        .sheet(isPresented: $isCommandPickerPresented) {
+            if let snippetRepository, let snippetGroupRepository {
+                TerminalCommandPickerView(
+                    repository: snippetRepository,
+                    groupRepository: snippetGroupRepository,
+                    onSelect: insertCommand
+                )
+                .presentationDragIndicator(.visible)
+            }
+        }
     }
 
     private var terminalContent: some View {
@@ -68,7 +104,12 @@ struct TerminalScreen: View {
             case .connecting:
                 connecting
             case let .ready(session):
-                TerminalHostingView(session: session, configuration: configuration)
+                TerminalHostingView(
+                    session: session,
+                    configuration: configuration,
+                    onChooseCommand: showCommandPicker,
+                    onReconnect: { reopen(session) }
+                )
                     // 只延伸到设备底边，保留键盘安全区。键盘出现时终端视口真实缩小，
                     // SwiftTerm 会同步 PTY 行数并把当前提示符留在键盘上方；不再通过
                     // contentInset 伪造一段可滚动空白。
@@ -114,17 +155,26 @@ struct TerminalScreen: View {
                 .foregroundStyle(.connMuted)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, ConnSpacing.xl)
+            ConnButton(L("重试"), kind: .ghost) {
+                phase = .connecting
+                Task { await connect() }
+            }
         }
     }
 
     private func connect() async {
+        guard !isOpeningTerminal else { return }
+        isOpeningTerminal = true
+        defer { isOpeningTerminal = false }
         do {
             let session = try await connectionManager.session(for: host)
             let channel = try await session.openShell(term: TermSize(cols: 80, rows: 24))
             let terminalSession = TerminalSession(channel: channel)
             phase = .ready(terminalSession)
 
-            if let autoCommand {
+            if let autoCommand, !hasSentAutoCommand || hasPendingAutoCommandReplay {
+                hasSentAutoCommand = true
+                hasPendingAutoCommandReplay = false
                 // 等 shell 就绪后自动发一条命令（冒烟：验证中文渲染）
                 Task {
                     try? await Task.sleep(for: .milliseconds(800))
@@ -136,5 +186,29 @@ struct TerminalScreen: View {
         } catch {
             phase = .failed(String(format: L("连接失败：%@"), error.friendlyDiagnosis))
         }
+    }
+
+    /// 只关闭当前 PTY shell，再从连接池打开一个新 shell；不驱逐共享 SSH 连接，
+    /// 避免打断同一主机正在采集的指标、文件传输或日志流。
+    private func reopen(_ current: TerminalSession) {
+        guard !isOpeningTerminal else { return }
+        hasPendingAutoCommandReplay = replaysAutoCommandOnReconnect
+        phase = .connecting
+        Task {
+            await current.close()
+            await connect()
+        }
+    }
+
+    private func showCommandPicker() {
+        guard snippetRepository != nil, snippetGroupRepository != nil else { return }
+        isCommandPickerPresented = true
+    }
+
+    /// 本地命令只写进当前 PTY，不追加换行；用户仍需在终端里确认后手动执行。
+    private func insertCommand(_ command: String) {
+        guard case let .ready(session) = phase else { return }
+        isCommandPickerPresented = false
+        Task { await session.send(Array(command.utf8)) }
     }
 }

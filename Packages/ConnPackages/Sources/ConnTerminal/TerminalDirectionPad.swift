@@ -85,22 +85,38 @@ enum TerminalDirectionResolver {
 
         /// 四个方向的箭头，当前方向高亮。
         private var arrows: some View {
-            VStack(spacing: 0) {
-                arrow(.up)
-                HStack(spacing: 0) {
-                    arrow(.left)
-                    Spacer(minLength: 0)
-                    arrow(.right)
-                }
-                arrow(.down)
+            GeometryReader { geometry in
+                let center = CGPoint(x: geometry.size.width / 2, y: geometry.size.height / 2)
+                let edge: CGFloat = 13
+
+                arrow(.up).position(x: center.x, y: edge)
+                arrow(.down).position(x: center.x, y: geometry.size.height - edge)
+                arrow(.left).position(x: edge, y: center.y)
+                arrow(.right).position(x: geometry.size.width - edge, y: center.y)
+
+                Circle()
+                    .fill(Color.connLine)
+                    .frame(width: 5, height: 5)
+                    .position(center)
             }
-            .padding(4)
+            .padding(5)
         }
 
         private func arrow(_ key: TerminalKey) -> some View {
-            Text(key.label)
-                .font(.connData(.footnote))
+            Image(systemName: symbolName(for: key))
+                .font(.system(size: 19, weight: .semibold))
                 .foregroundStyle(active == key ? Color.connAccent : .connMuted)
+                .frame(width: 28, height: 28)
+        }
+
+        private func symbolName(for key: TerminalKey) -> String {
+            switch key {
+            case .up: "chevron.up"
+            case .down: "chevron.down"
+            case .left: "chevron.left"
+            case .right: "chevron.right"
+            default: "circle"
+            }
         }
 
         private func gesture(in size: CGSize) -> some Gesture {

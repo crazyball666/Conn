@@ -9,9 +9,12 @@ public enum TerminalKey: String, CaseIterable, Identifiable, Sendable {
     /// 四个方向不再各占一个键帽，改由摇杆（`TerminalDirectionPad`）发出，
     /// 但字节定义仍在这里——摇杆只是换了触发方式，序列没变。
     case up, down, left, right
-    case ctrlC
-    case slash, pipe, tilde
-    case home, end
+    case ctrlC, ctrlD, ctrlZ
+    case home, end, insert
+    case clearLine, clearScreen, deleteForward, deleteWord
+    case lineStart, lineEnd, reverseSearch, historyPrevious, historyNext
+    case pageUp, pageDown, backTab
+    case f1, f2, f3, f4, f5, f6, f7, f8, f9, f10, f11, f12
 
     public var id: String { rawValue }
 
@@ -26,11 +29,35 @@ public enum TerminalKey: String, CaseIterable, Identifiable, Sendable {
         case .left: "←"
         case .right: "→"
         case .ctrlC: "^C"
-        case .slash: "/"
-        case .pipe: "|"
-        case .tilde: "~"
+        case .ctrlD: "^D"
+        case .ctrlZ: "^Z"
         case .home: "Home"
         case .end: "End"
+        case .insert: "Ins"
+        case .clearLine: "Clear"
+        case .clearScreen: "^L"
+        case .deleteForward: "Del"
+        case .deleteWord: "^W"
+        case .lineStart: "^A"
+        case .lineEnd: "^E"
+        case .reverseSearch: "^R"
+        case .historyPrevious: "^P"
+        case .historyNext: "^N"
+        case .pageUp: "PgUp"
+        case .pageDown: "PgDn"
+        case .backTab: "⇧Tab"
+        case .f1: "F1"
+        case .f2: "F2"
+        case .f3: "F3"
+        case .f4: "F4"
+        case .f5: "F5"
+        case .f6: "F6"
+        case .f7: "F7"
+        case .f8: "F8"
+        case .f9: "F9"
+        case .f10: "F10"
+        case .f11: "F11"
+        case .f12: "F12"
         }
     }
 
@@ -51,14 +78,57 @@ public enum TerminalKey: String, CaseIterable, Identifiable, Sendable {
         // 中断。直接发控制码而不是走 Ctrl 粘滞——中断是终端里最高频的操作，
         // 不该要求「先点 Ctrl 再点 C」两次点击。
         case .ctrlC: [0x03]
-        case .slash: Array("/".utf8)
-        case .pipe: Array("|".utf8)
-        case .tilde: Array("~".utf8)
+        case .ctrlD: [0x04]
+        case .ctrlZ: [0x1A]
         // 行首 / 行尾：ESC [ H 与 ESC [ F。TERM 是 xterm-256color，认这两条。
         case .home: [0x1B, 0x5B, 0x48]
         case .end: [0x1B, 0x5B, 0x46]
+        case .insert: [0x1B, 0x5B, 0x32, 0x7E]
+        // Readline / shell 常用控制组合。
+        case .clearLine: [0x15]
+        case .clearScreen: [0x0C]
+        case .deleteForward: [0x1B, 0x5B, 0x33, 0x7E]
+        case .deleteWord: [0x17]
+        case .lineStart: [0x01]
+        case .lineEnd: [0x05]
+        case .reverseSearch: [0x12]
+        case .historyPrevious: [0x10]
+        case .historyNext: [0x0E]
+        case .pageUp: [0x1B, 0x5B, 0x35, 0x7E]
+        case .pageDown: [0x1B, 0x5B, 0x36, 0x7E]
+        case .backTab: [0x1B, 0x5B, 0x5A]
+        // xterm F1-F4 使用 SS3，F5-F12 使用 CSI ~ 序列。
+        case .f1: [0x1B, 0x4F, 0x50]
+        case .f2: [0x1B, 0x4F, 0x51]
+        case .f3: [0x1B, 0x4F, 0x52]
+        case .f4: [0x1B, 0x4F, 0x53]
+        case .f5: [0x1B, 0x5B, 0x31, 0x35, 0x7E]
+        case .f6: [0x1B, 0x5B, 0x31, 0x37, 0x7E]
+        case .f7: [0x1B, 0x5B, 0x31, 0x38, 0x7E]
+        case .f8: [0x1B, 0x5B, 0x31, 0x39, 0x7E]
+        case .f9: [0x1B, 0x5B, 0x32, 0x30, 0x7E]
+        case .f10: [0x1B, 0x5B, 0x32, 0x31, 0x7E]
+        case .f11: [0x1B, 0x5B, 0x32, 0x33, 0x7E]
+        case .f12: [0x1B, 0x5B, 0x32, 0x34, 0x7E]
         }
     }
+}
+
+/// 移动端快捷栏只保留系统键盘缺失或需要多步组合的控制键。
+/// 普通字符（如 `/`、`|`、`~`）由系统键盘输入，不重复占用有限空间。
+enum TerminalKeybarLayout {
+    static let compactRows: [[TerminalKey]] = [
+        [.esc, .tab, .ctrl, .ctrlC, .clearLine]
+    ]
+
+    /// 展开态按「导航编辑 → shell 控制 → 功能键」排列，普通可打印字符不重复出现。
+    static let expandedKeys: [TerminalKey] = [
+        .esc, .tab, .backTab, .up, .down, .left, .right,
+        .home, .end, .insert, .deleteForward, .pageUp, .pageDown,
+        .ctrlC, .ctrlD, .ctrlZ, .clearLine, .clearScreen,
+        .lineStart, .lineEnd, .deleteWord, .reverseSearch, .historyPrevious, .historyNext,
+        .f1, .f2, .f3, .f4, .f5, .f6, .f7, .f8, .f9, .f10, .f11, .f12
+    ]
 }
 
 /// Ctrl 粘滞态的输入编码器。

@@ -78,4 +78,18 @@ struct MockSSHTransportTests {
         let result = try await session.exec("hostname")
         #expect(result.stdoutText == "my-mock-host")
     }
+
+    @Test("Mock Shell 按真实终端语义处理 Ctrl+U 清空当前输入")
+    func shellClearsCurrentInput() async throws {
+        let channel = MockShellChannel()
+        var output = channel.output.makeAsyncIterator()
+        _ = try await output.next()
+
+        try await channel.write(Data("temporary command".utf8))
+        _ = try await output.next()
+        try await channel.write(Data([0x15]))
+
+        let cleared = try #require(await output.next())
+        #expect(String(decoding: cleared, as: UTF8.self) == "\r\u{1B}[2Kdemo-host:~$ ")
+    }
 }

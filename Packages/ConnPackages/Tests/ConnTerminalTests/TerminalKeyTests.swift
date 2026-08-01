@@ -41,11 +41,50 @@ struct TerminalKeyTests {
         #expect(TerminalKey.end.bytes == [0x1B, 0x5B, 0x46])
     }
 
-    @Test("字符键发对应 ASCII")
-    func charKeys() {
-        #expect(TerminalKey.pipe.bytes == [0x7C]) // |
-        #expect(TerminalKey.tilde.bytes == [0x7E]) // ~
-        #expect(TerminalKey.slash.bytes == [0x2F]) // /
+    @Test("移动键盘缺失的编辑与翻页键发送标准终端序列")
+    func mobileEditingKeys() {
+        #expect(TerminalKey.clearLine.bytes == [0x15])
+        #expect(TerminalKey.deleteForward.bytes == [0x1B, 0x5B, 0x33, 0x7E])
+        #expect(TerminalKey.pageUp.bytes == [0x1B, 0x5B, 0x35, 0x7E])
+        #expect(TerminalKey.pageDown.bytes == [0x1B, 0x5B, 0x36, 0x7E])
+    }
+
+    @Test("扩展面板控制组合发送对应控制码")
+    func extendedControlKeys() {
+        #expect(TerminalKey.backTab.bytes == [0x1B, 0x5B, 0x5A])
+        #expect(TerminalKey.ctrlD.bytes == [0x04])
+        #expect(TerminalKey.ctrlZ.bytes == [0x1A])
+        #expect(TerminalKey.clearScreen.bytes == [0x0C])
+        #expect(TerminalKey.lineStart.bytes == [0x01])
+        #expect(TerminalKey.lineEnd.bytes == [0x05])
+        #expect(TerminalKey.deleteWord.bytes == [0x17])
+        #expect(TerminalKey.reverseSearch.bytes == [0x12])
+        #expect(TerminalKey.historyPrevious.bytes == [0x10])
+        #expect(TerminalKey.historyNext.bytes == [0x0E])
+    }
+
+    @Test("Insert 与 F1-F12 使用 xterm 标准序列")
+    func functionKeys() {
+        #expect(TerminalKey.insert.bytes == [0x1B, 0x5B, 0x32, 0x7E])
+        #expect(TerminalKey.f1.bytes == [0x1B, 0x4F, 0x50])
+        #expect(TerminalKey.f4.bytes == [0x1B, 0x4F, 0x53])
+        #expect(TerminalKey.f5.bytes == [0x1B, 0x5B, 0x31, 0x35, 0x7E])
+        #expect(TerminalKey.f10.bytes == [0x1B, 0x5B, 0x32, 0x31, 0x7E])
+        #expect(TerminalKey.f12.bytes == [0x1B, 0x5B, 0x32, 0x34, 0x7E])
+    }
+
+    @Test("快捷栏只保留手机难以输入的控制键")
+    func mobileControlKeyLayout() {
+        #expect(TerminalKeybarLayout.compactRows == [
+            [.esc, .tab, .ctrl, .ctrlC, .clearLine]
+        ])
+        #expect(TerminalKeybarLayout.expandedKeys.contains(.backTab))
+        #expect(TerminalKeybarLayout.expandedKeys.contains(.pageUp))
+        #expect(TerminalKeybarLayout.expandedKeys.contains(.pageDown))
+        #expect(TerminalKeybarLayout.expandedKeys.contains(.reverseSearch))
+        #expect(TerminalKeybarLayout.expandedKeys.contains(.f1))
+        #expect(TerminalKeybarLayout.expandedKeys.contains(.f12))
+        #expect(Set(TerminalKeybarLayout.expandedKeys).count == TerminalKeybarLayout.expandedKeys.count)
     }
 }
 

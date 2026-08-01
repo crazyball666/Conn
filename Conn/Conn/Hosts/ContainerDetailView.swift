@@ -88,8 +88,9 @@ struct ContainerDetailView: View {
         .navigationDestination(item: $route, destination: routeDestination)
         .fullScreenCover(isPresented: $showConsole) {
             TerminalScreen(
-                host: host, connectionManager: dependencies.connectionManager,
-                autoCommand: viewModel.containers.consoleCommand(for: container)
+                host: host, dependencies: dependencies,
+                autoCommand: viewModel.containers.consoleCommand(for: container),
+                replaysAutoCommandOnReconnect: true
             )
         }
         .alert(L("Docker 操作"), isPresented: messageBinding) {

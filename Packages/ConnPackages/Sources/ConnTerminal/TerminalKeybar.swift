@@ -2,19 +2,24 @@
     import ConnUI
     import SwiftUI
 
+    public enum TerminalKeybarMetrics {
+        public static let compactHeight: CGFloat = 92
+        public static let expandedHeight: CGFloat = 220
+    }
+
     /// 终端加速键条（原型 S4 / 技术方案 §4.2）。
     ///
-    /// 两行键，挂在系统键盘上方（`inputAccessoryView`）。Ctrl 为粘滞键，点亮后
-    /// 下一击组合。设计规范 §6：键盘触发动作**不动画**（高频）。
+    /// 与终端视口同层、排列在其下方，系统键盘再排列在快捷键栏下方。
+    /// Ctrl 为粘滞键，点亮后下一击组合。设计规范 §6：键盘触发动作**不动画**（高频）。
     struct TerminalKeybar: View {
         let ctrlActive: Bool
+        let isExpanded: Bool
         let onKey: (TerminalKey) -> Void
-
-        /// 键位取舍：`sudo` / `!!` / `-` 移除——它们只是省几个字符，而系统键盘上本来就有；
-        /// 换成 `^C`（终端最高频操作，原先要「Ctrl 再 C」两次点击）、`/`（路径分隔，
-        /// iOS 键盘上要切符号面）、`Home` / `End`（系统键盘根本没有）。
-        private let row1: [TerminalKey] = [.esc, .tab, .ctrl, .ctrlC, .slash]
-        private let row2: [TerminalKey] = [.pipe, .tilde, .home, .end]
+        let onPaste: (String) -> Void
+        let onChooseCommand: () -> Void
+        let onReconnect: () -> Void
+        let onDismissKeyboard: () -> Void
+        let onExpansionChange: (Bool) -> Void
 
         /// 触感的触发源。每次按键自增一次，`sensoryFeedback` 只认「值变了」。
         ///
@@ -25,15 +30,12 @@
         private static let padSide: CGFloat = 34 * 2 + 6
 
         var body: some View {
-            // 摇杆放右侧：原先四个方向键就在右边，右手拇指够得到；
-            // 它跨两行做成方块，拖动行程比单行键帽充裕得多。
-            HStack(spacing: 6) {
-                VStack(spacing: 6) {
-                    keyRow(row1)
-                    keyRow(row2)
+            Group {
+                if isExpanded {
+                    expandedPanel
+                } else {
+                    compactPanel
                 }
-                TerminalDirectionPad(onKey: onKey)
-                    .frame(width: Self.padSide, height: Self.padSide)
             }
             .padding(.horizontal, 8)
             .padding(.vertical, 6)
@@ -46,6 +48,92 @@
             // 不用 UIImpactFeedbackGenerator：那是 UIKit-only，而本文件虽在
             // `#if canImport(UIKit)` 内，声明式写法与仓库其它处（GroupFilterBar）一致。
             .sensoryFeedback(.impact(weight: .light), trigger: pressCount)
+        }
+
+        /// 日常输入保持两行：右侧摇杆不变，把低频翻页键移进展开面板，
+        /// 腾出「安全粘贴」与「展开」两个高频入口。
+        private var compactPanel: some View {
+            HStack(spacing: 6) {
+                VStack(spacing: 6) {
+                    keyRow(TerminalKeybarLayout.compactRows[0])
+                    HStack(spacing: 6) {
+                        actionCap(
+                            systemName: "keyboard.chevron.compact.down",
+                            accessibilityLabel: "收起键盘",
+                            identifier: "terminal.keybar.dismissKeyboard",
+                            action: onDismissKeyboard
+                        )
+                        actionCap(
+                            systemName: "arrow.clockwise",
+                            accessibilityLabel: "重新打开终端",
+                            identifier: "terminal.keybar.reconnect",
+                            action: onReconnect
+                        )
+                        actionCap(
+                            systemName: "command",
+                            accessibilityLabel: "选择本地命令",
+                            identifier: "terminal.keybar.commands",
+                            action: onChooseCommand
+                        )
+                        pasteCap
+                        actionCap(
+                            systemName: "chevron.up",
+                            accessibilityLabel: "展开快捷键",
+                            identifier: "terminal.keybar.expand"
+                        ) {
+                            onExpansionChange(true)
+                        }
+                    }
+                }
+                TerminalDirectionPad(onKey: onKey)
+                    .frame(width: Self.padSide, height: Self.padSide)
+            }
+        }
+
+        /// 完整面板使用固定高度，按键区内部滚动，所以 F1-F12 等低频键再多也不会
+        /// 无限挤压终端视口。
+        private var expandedPanel: some View {
+            VStack(spacing: 6) {
+                HStack(spacing: 6) {
+                    actionCap(
+                        systemName: "chevron.down",
+                        accessibilityLabel: "收起快捷键",
+                        identifier: "terminal.keybar.collapse"
+                    ) {
+                        onExpansionChange(false)
+                    }
+                    pasteCap
+                    actionCap(
+                        systemName: "command",
+                        accessibilityLabel: "选择本地命令",
+                        identifier: "terminal.keybar.commands",
+                        action: onChooseCommand
+                    )
+                    actionCap(
+                        systemName: "arrow.clockwise",
+                        accessibilityLabel: "重新打开终端",
+                        identifier: "terminal.keybar.reconnect",
+                        action: onReconnect
+                    )
+                    actionCap(
+                        systemName: "keyboard.chevron.compact.down",
+                        accessibilityLabel: "收起键盘",
+                        identifier: "terminal.keybar.dismissKeyboard",
+                        action: onDismissKeyboard
+                    )
+                }
+                ScrollView(.vertical) {
+                    LazyVGrid(
+                        columns: Array(repeating: GridItem(.flexible(), spacing: 6), count: 6),
+                        spacing: 6
+                    ) {
+                        ForEach(TerminalKeybarLayout.expandedKeys) { key in
+                            keyCap(key)
+                        }
+                    }
+                }
+                .scrollIndicators(.visible)
+            }
         }
 
         private func keyRow(_ keys: [TerminalKey]) -> some View {
@@ -77,6 +165,64 @@
                     )
             }
             .buttonStyle(.plain)
+            .accessibilityLabel(key.label)
+        }
+
+        /// `PasteButton` 由系统代取剪贴板，避免直接读取 `UIPasteboard` 触发不必要的
+        /// 隐私授权弹窗。图标态与其它工具按钮保持一致。
+        private var pasteCap: some View {
+            ZStack {
+                RoundedRectangle(cornerRadius: ConnRadius.key, style: .continuous)
+                    .fill(Color.connKey)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: ConnRadius.key, style: .continuous)
+                            .strokeBorder(Color.connKeyline, lineWidth: 1)
+                    )
+                    .accessibilityHidden(true)
+                Image(systemName: "doc.on.clipboard")
+                    .font(.system(size: 16, weight: .medium))
+                    .foregroundStyle(Color.connInk)
+                    .accessibilityHidden(true)
+                // 系统按钮保留完整命中区与安全粘贴语义，视觉层由上面的统一键帽绘制。
+                PasteButton(payloadType: String.self) { values in
+                    guard !values.isEmpty else { return }
+                    pressCount &+= 1
+                    onPaste(values.joined())
+                }
+                .labelStyle(.iconOnly)
+                .opacity(0.02)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .accessibilityLabel(Text("粘贴"))
+                .accessibilityIdentifier("terminal.keybar.paste")
+            }
+            .frame(maxWidth: .infinity)
+            .frame(height: 34)
+        }
+
+        private func actionCap(
+            systemName: String,
+            accessibilityLabel: LocalizedStringKey,
+            identifier: String,
+            action: @escaping () -> Void
+        ) -> some View {
+            Button {
+                pressCount &+= 1
+                action()
+            } label: {
+                Image(systemName: systemName)
+                    .font(.system(size: 16, weight: .medium))
+                    .foregroundStyle(Color.connInk)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 34)
+                    .background(Color.connKey, in: .rect(cornerRadius: ConnRadius.key, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: ConnRadius.key, style: .continuous)
+                            .strokeBorder(Color.connKeyline, lineWidth: 1)
+                    )
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(Text(accessibilityLabel))
+            .accessibilityIdentifier(identifier)
         }
     }
 #endif

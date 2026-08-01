@@ -43,8 +43,9 @@ struct DockerView: View {
             }
             .fullScreenCover(item: $consoleContainer) { container in
                 TerminalScreen(
-                    host: host, connectionManager: dependencies.connectionManager,
-                    autoCommand: viewModel.containers.consoleCommand(for: container)
+                    host: host, dependencies: dependencies,
+                    autoCommand: viewModel.containers.consoleCommand(for: container),
+                    replaysAutoCommandOnReconnect: true
                 )
             }
             .navigationBarTitleDisplayMode(.inline)

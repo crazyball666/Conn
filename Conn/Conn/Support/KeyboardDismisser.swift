@@ -1,3 +1,4 @@
+import ConnTerminal
 import UIKit
 
 /// 全局「点击空白处收起键盘」。
@@ -72,9 +73,28 @@ final class KeyboardDismisser: NSObject, UIGestureRecognizerDelegate {
             return false
         }
 
+        // 快捷键栏现在与终端视口同层，位于终端 bounds 的正下方。SwiftUI 的实际
+        // touch.view 不一定保留 accessibilityIdentifier，因此同时按当前终端坐标
+        // 保护这块区域，覆盖紧凑和展开两种高度。
+        if let activeInputView,
+           activeInputView.accessibilityIdentifier == "terminal.viewport",
+           let point = touchLocationInActiveInput,
+           activeInputView.bounds.minX ... activeInputView.bounds.maxX ~= point.x,
+           activeInputView.bounds.minY ... (
+               activeInputView.bounds.maxY + TerminalKeybarMetrics.expandedHeight
+           ) ~= point.y {
+            return false
+        }
+
         var view = touchedView
         while let node = view {
             if node is any UIKeyInput { return false }
+            // 终端快捷键栏是终端视口下面的独立 SwiftUI 区域，不属于 UIKeyInput。
+            // 它的按钮必须保持当前终端为第一响应者，否则全局空白点击手势会先
+            // 收起键盘，再让展开/方向/Ctrl 等快捷操作失效。
+            if node.accessibilityIdentifier?.hasPrefix("terminal.keybar") == true {
+                return false
+            }
             view = node.superview
         }
         return true

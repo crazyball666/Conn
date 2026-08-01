@@ -51,4 +51,27 @@ struct KeyboardDismisserTests {
 
         #expect(!KeyboardDismisser.shouldDismissKeyboard(for: child))
     }
+
+    @Test("点击终端快捷键栏不会触发全局收键盘")
+    func terminalKeybarTapDoesNotDismissKeyboard() {
+        let keybar = UIView()
+        keybar.accessibilityIdentifier = "terminal.keybar"
+        let buttonContent = UIView()
+        keybar.addSubview(buttonContent)
+
+        #expect(!KeyboardDismisser.shouldDismissKeyboard(for: buttonContent))
+    }
+
+    @Test("SwiftUI 触点视图无法识别时，终端下方快捷键区域仍不收键盘")
+    func terminalKeybarCoordinatesDoNotDismissKeyboard() {
+        let terminal = KeybarTerminalView(frame: CGRect(x: 0, y: 0, width: 320, height: 480))
+        terminal.accessibilityIdentifier = "terminal.viewport"
+        let swiftUIRenderView = UIView()
+
+        #expect(!KeyboardDismisser.shouldDismissKeyboard(
+            for: swiftUIRenderView,
+            activeInputView: terminal,
+            touchLocationInActiveInput: CGPoint(x: 160, y: 526)
+        ))
+    }
 }

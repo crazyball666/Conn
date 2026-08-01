@@ -5,57 +5,119 @@
     import SwiftUI
     import UIKit
 
-    /// SwiftUI 包装 SwiftTerm 的 `TerminalView`。
+    /// SwiftUI 终端容器。
     ///
-    /// SwiftTerm 无可用的官方 SwiftUI wrapper（库内的是 DEBUG-only internal），故自写。
-    /// 数据面：`TerminalSession(actor)` 桥接 PTY；UI 面此视图。
-    /// - session 输出 → `terminalView.feed`（session 已做 16ms 合帧）
-    /// - 用户输入（delegate.send）→ 经 Ctrl 粘滞编码 → `session.send`
-    /// - 尺寸变化（delegate.sizeChanged）→ `session.resize`（SIGWINCH）
-    /// - 加速键条挂在 `inputAccessoryView`
-    public struct TerminalHostingView: UIViewRepresentable {
+    /// 终端视口与快捷键栏是同一个 `VStack` 里的相邻区域；系统键盘位于两者下方。
+    /// 快捷键栏展开时会真实压缩终端视口，不再通过 `inputAccessoryView` 悬浮覆盖内容。
+    public struct TerminalHostingView: View {
         private let session: TerminalSession
         private let configuration: TerminalConfiguration
+        private let onChooseCommand: () -> Void
+        private let onReconnect: () -> Void
 
-        public init(session: TerminalSession, configuration: TerminalConfiguration = .init()) {
+        public init(
+            session: TerminalSession,
+            configuration: TerminalConfiguration = .init(),
+            onChooseCommand: @escaping () -> Void = {},
+            onReconnect: @escaping () -> Void = {}
+        ) {
             self.session = session
             self.configuration = configuration
+            self.onChooseCommand = onChooseCommand
+            self.onReconnect = onReconnect
         }
 
-        public func makeUIView(context: Context) -> KeybarTerminalView {
-            let terminalView = KeybarTerminalView(frame: .zero)
-            terminalView.accessibilityIdentifier = "terminal.viewport"
-            terminalView.terminalDelegate = context.coordinator
-            terminalView.configureKeybar(
-                enabled: configuration.showsKeybar,
-                coordinator: context.coordinator
+        public var body: some View {
+            TerminalHostContent(
+                session: session,
+                configuration: configuration,
+                onChooseCommand: onChooseCommand,
+                onReconnect: onReconnect
             )
-            applyConfiguration(to: terminalView)
-            terminalView.configureContentPadding(horizontal: ConnSpacing.sm)
+            // 重连会换一个 TerminalSession；显式换身份，避免 @StateObject 继续持有旧会话。
+            .id(ObjectIdentifier(session))
+        }
+    }
 
-            let coordinator = context.coordinator
-            coordinator.terminalView = terminalView
-            Task {
-                await session.start { bytes in
-                    Task { @MainActor in
-                        coordinator.terminalView?.feedFollowingLiveOutput(byteArray: bytes[...])
-                    }
+    private struct TerminalHostContent: View {
+        @StateObject private var controller: TerminalInputController
+        @State private var isKeybarExpanded = false
+
+        private let configuration: TerminalConfiguration
+        private let onChooseCommand: () -> Void
+        private let onReconnect: () -> Void
+
+        init(
+            session: TerminalSession,
+            configuration: TerminalConfiguration,
+            onChooseCommand: @escaping () -> Void,
+            onReconnect: @escaping () -> Void
+        ) {
+            _controller = StateObject(wrappedValue: TerminalInputController(session: session))
+            self.configuration = configuration
+            self.onChooseCommand = onChooseCommand
+            self.onReconnect = onReconnect
+        }
+
+        var body: some View {
+            VStack(spacing: 0) {
+                TerminalViewportRepresentable(
+                    configuration: configuration,
+                    controller: controller
+                )
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+                if configuration.showsKeybar, controller.isTerminalFocused {
+                    TerminalKeybar(
+                        ctrlActive: controller.ctrlActive,
+                        isExpanded: isKeybarExpanded,
+                        onKey: controller.handleKey,
+                        onPaste: controller.handlePaste,
+                        onChooseCommand: onChooseCommand,
+                        onReconnect: onReconnect,
+                        onDismissKeyboard: controller.dismissKeyboard,
+                        onExpansionChange: { isKeybarExpanded = $0 }
+                    )
+                    .frame(
+                        height: isKeybarExpanded
+                            ? TerminalKeybarMetrics.expandedHeight
+                            : TerminalKeybarMetrics.compactHeight
+                    )
+                    .accessibilityElement(children: .contain)
+                    .accessibilityIdentifier("terminal.keybar")
                 }
             }
+            .onChange(of: controller.isTerminalFocused) { _, isFocused in
+                if !isFocused {
+                    isKeybarExpanded = false
+                }
+            }
+        }
+    }
+
+    /// 只包装 SwiftTerm 视口；快捷键栏由上层 SwiftUI 布局负责。
+    private struct TerminalViewportRepresentable: UIViewRepresentable {
+        let configuration: TerminalConfiguration
+        let controller: TerminalInputController
+
+        func makeUIView(context: Context) -> KeybarTerminalView {
+            let terminalView = KeybarTerminalView(frame: .zero)
+            terminalView.accessibilityIdentifier = "terminal.viewport"
+            terminalView.terminalDelegate = controller
+            terminalView.onFirstResponderChange = controller.setTerminalFocused
+            applyConfiguration(to: terminalView)
+            terminalView.configureContentPadding(horizontal: ConnSpacing.sm)
+            controller.attach(terminalView)
             return terminalView
         }
 
-        public func updateUIView(_ terminalView: KeybarTerminalView, context: Context) {
-            terminalView.configureKeybar(
-                enabled: configuration.showsKeybar,
-                coordinator: context.coordinator
-            )
+        func updateUIView(_ terminalView: KeybarTerminalView, context: Context) {
             applyConfiguration(to: terminalView)
             terminalView.configureContentPadding(horizontal: ConnSpacing.sm)
         }
 
-        public func makeCoordinator() -> Coordinator {
-            Coordinator(session: session)
+        static func dismantleUIView(_ terminalView: KeybarTerminalView, coordinator: Void) {
+            terminalView.onFirstResponderChange = nil
         }
 
         private func applyConfiguration(to terminalView: KeybarTerminalView) {
@@ -110,66 +172,82 @@
             )
         }
 
-        /// 桥接 SwiftTerm delegate → TerminalSession，并维护 Ctrl 粘滞态。
-        public final class Coordinator: NSObject, TerminalViewDelegate, ObservableObject {
-            private let session: TerminalSession
-            weak var terminalView: KeybarTerminalView?
-            /// Ctrl 粘滞态。改变时刷新键条高亮。
-            @Published var ctrlActive = false
-
-            init(session: TerminalSession) {
-                self.session = session
-            }
-
-            /// 必实现：用户按键 → 经 Ctrl 粘滞编码 → 会话
-            public func send(source: TerminalView, data: ArraySlice<UInt8>) {
-                let (encoded, stillActive) = TerminalKeyEncoder.encode([UInt8](data), ctrlActive: ctrlActive)
-                if ctrlActive != stillActive {
-                    ctrlActive = stillActive
-                    terminalView?.refreshKeybar()
-                }
-                Task { await session.send(encoded) }
-            }
-
-            /// 必实现：终端尺寸变化 → PTY resize
-            public func sizeChanged(source: TerminalView, newCols: Int, newRows: Int) {
-                Task { await session.resize(cols: newCols, rows: newRows) }
-            }
-
-            /// 键条按键处理。
-            func handleKey(_ key: TerminalKey) {
-                if key.isSticky {
-                    ctrlActive.toggle()
-                    terminalView?.refreshKeybar()
-                    return
-                }
-                let (encoded, stillActive) = TerminalKeyEncoder.encode(key.bytes, ctrlActive: ctrlActive)
-                if ctrlActive != stillActive {
-                    ctrlActive = stillActive
-                    terminalView?.refreshKeybar()
-                }
-                Task { await session.send(encoded) }
-            }
-
-            public func setTerminalTitle(source: TerminalView, title: String) {}
-            public func hostCurrentDirectoryUpdate(source: TerminalView, directory: String?) {}
-            public func scrolled(source: TerminalView, position: Double) {}
-            public func requestOpenLink(source: TerminalView, link: String, params: [String: String]) {}
-            public func bell(source: TerminalView) {}
-            public func clipboardCopy(source: TerminalView, content: Data) {}
-            public func rangeChanged(source: TerminalView, startY: Int, endY: Int) {}
-        }
     }
 
-    /// 带加速键条的 `TerminalView` 子类。
-    ///
-    /// SwiftTerm 的 `TerminalView` 暴露了**可写**的 `inputAccessoryView`，直接赋值
-    /// 挂上键条即可（无需覆盖）。
+    /// SwiftTerm delegate、会话输入和 SwiftUI 键条共享的单一状态源。
+    private final class TerminalInputController: NSObject, TerminalViewDelegate, ObservableObject {
+        private let session: TerminalSession
+        private var didStartSession = false
+        weak var terminalView: KeybarTerminalView?
+
+        @Published var ctrlActive = false
+        @Published private(set) var isTerminalFocused = false
+
+        init(session: TerminalSession) {
+            self.session = session
+        }
+
+        func attach(_ terminalView: KeybarTerminalView) {
+            self.terminalView = terminalView
+            guard !didStartSession else { return }
+            didStartSession = true
+            Task { [weak self] in
+                guard let self else { return }
+                await session.start { [weak self] bytes in
+                    Task { @MainActor [weak self] in
+                        self?.terminalView?.feedFollowingLiveOutput(byteArray: bytes[...])
+                    }
+                }
+            }
+        }
+
+        func setTerminalFocused(_ isFocused: Bool) {
+            guard isTerminalFocused != isFocused else { return }
+            isTerminalFocused = isFocused
+        }
+
+        /// 用户按键 → 经 Ctrl 粘滞编码 → 会话。
+        func send(source: TerminalView, data: ArraySlice<UInt8>) {
+            let (encoded, stillActive) = TerminalKeyEncoder.encode([UInt8](data), ctrlActive: ctrlActive)
+            ctrlActive = stillActive
+            Task { await session.send(encoded) }
+        }
+
+        /// 终端尺寸变化 → PTY resize。
+        func sizeChanged(source: TerminalView, newCols: Int, newRows: Int) {
+            Task { await session.resize(cols: newCols, rows: newRows) }
+        }
+
+        func handleKey(_ key: TerminalKey) {
+            if key.isSticky {
+                ctrlActive.toggle()
+                return
+            }
+            let (encoded, stillActive) = TerminalKeyEncoder.encode(key.bytes, ctrlActive: ctrlActive)
+            ctrlActive = stillActive
+            Task { await session.send(encoded) }
+        }
+
+        func handlePaste(_ text: String) {
+            Task { await session.send(Array(text.utf8)) }
+        }
+
+        func dismissKeyboard() {
+            _ = terminalView?.resignFirstResponder()
+        }
+
+        func setTerminalTitle(source: TerminalView, title: String) {}
+        func hostCurrentDirectoryUpdate(source: TerminalView, directory: String?) {}
+        func scrolled(source: TerminalView, position: Double) {}
+        func requestOpenLink(source: TerminalView, link: String, params: [String: String]) {}
+        func bell(source: TerminalView) {}
+        func clipboardCopy(source: TerminalView, content: Data) {}
+        func rangeChanged(source: TerminalView, startY: Int, endY: Int) {}
+    }
+
+    /// 负责终端绘制、滚动与焦点通知的 `TerminalView` 子类。
     public final class KeybarTerminalView: TerminalView {
-        private weak var coordinator: TerminalHostingView.Coordinator?
-        private var isKeybarEnabled = false
-        /// 键条的宿主控制器。**必须强持有**——`inputAccessoryView` 只留住它的 `view`。
-        private var keybarHost: UIHostingController<TerminalKeybar>?
+        var onFirstResponderChange: ((Bool) -> Void)?
         private var horizontalContentPadding: CGFloat = 0
         fileprivate var configuredCursorShape: TerminalCursorShape?
         fileprivate var configuredCursorBlinking: Bool?
@@ -189,6 +267,9 @@
         /// 收起—再次弹出键盘后会对底部高度重复补偿，留下可滚动空白。
         private func configureViewportInsets() {
             contentInsetAdjustmentBehavior = .never
+            // SwiftTerm 默认会创建一排 Esc/Ctrl/方向键等输入附件。Conn 已有与终端
+            // 同层的自定义快捷键栏，必须显式关闭默认附件，否则键盘上方会出现重复栏。
+            inputAccessoryView = nil
         }
 
         /// SwiftTerm 将选择浮标画在文字坐标边缘。终端自身全宽、文字内容内移后，
@@ -238,7 +319,25 @@
                 DispatchQueue.main.async { [weak self] in
                     _ = self?.becomeFirstResponder()
                 }
+            } else {
+                onFirstResponderChange?(false)
             }
+        }
+
+        override public func becomeFirstResponder() -> Bool {
+            let didBecome = super.becomeFirstResponder()
+            if didBecome {
+                onFirstResponderChange?(true)
+            }
+            return didBecome
+        }
+
+        override public func resignFirstResponder() -> Bool {
+            let didResign = super.resignFirstResponder()
+            if didResign {
+                onFirstResponderChange?(false)
+            }
+            return didResign
         }
 
         /// 输出流到达时保持“跟随实时输出”的语义。
@@ -277,51 +376,5 @@
             }
         }
 
-        func configureKeybar(enabled: Bool, coordinator: TerminalHostingView.Coordinator) {
-            let needsRebuild = self.coordinator !== coordinator
-                || isKeybarEnabled != enabled
-                || (enabled && inputAccessoryView == nil)
-            self.coordinator = coordinator
-            isKeybarEnabled = enabled
-            if needsRebuild {
-                rebuildKeybar()
-            }
-        }
-
-        func refreshKeybar() {
-            guard isKeybarEnabled else { return }
-            rebuildKeybar()
-        }
-
-        private func rebuildKeybar() {
-            guard isKeybarEnabled, let coordinator else {
-                keybarHost = nil
-                inputAccessoryView = nil
-                reloadInputViews()
-                return
-            }
-            let keybar = TerminalKeybar(ctrlActive: coordinator.ctrlActive) { [weak coordinator] key in
-                coordinator?.handleKey(key)
-            }
-            // **复用同一个 host，只换 rootView**，不要每次新建。
-            //
-            // 两个理由。其一，摇杆的长按连发与拖动手势活在这棵 SwiftUI 树的 @State 上：
-            // Ctrl 亮着时拖方向键会消耗掉 Ctrl → ctrlActive 变化 → 走到这里，若整棵树
-            // 被换掉，正在进行的连发会当场断掉。其二，原来的写法只把 `host.view` 挂给
-            // `inputAccessoryView`，`UIHostingController` 本身没有任何强引用，创建完即
-            // 失去持有者——SwiftUI 的生命周期就此悬空。
-            if let host = keybarHost {
-                host.rootView = keybar
-                return
-            }
-            let host = UIHostingController(rootView: keybar)
-            host.view.backgroundColor = .clear
-            // 两行键 + 内边距，约 92pt 高
-            host.view.frame = CGRect(x: 0, y: 0, width: bounds.width, height: 92)
-            host.view.autoresizingMask = [.flexibleWidth]
-            keybarHost = host
-            inputAccessoryView = host.view
-            reloadInputViews()
-        }
     }
 #endif

@@ -36,6 +36,7 @@ final class ConnUITests: XCTestCase {
         let app = XCUIApplication()
         app.launchEnvironment["CONN_DEMO"] = "1"
         app.launchEnvironment["CONN_SMOKE_TERMINAL"] = "1"
+        app.launchArguments += ["-conn.settings.terminalCursorBlinking", "NO"]
         app.launch()
 
         let keybarButton = app.buttons["Esc"]
@@ -63,6 +64,7 @@ final class ConnUITests: XCTestCase {
         let app = XCUIApplication()
         app.launchEnvironment["CONN_DEMO"] = "1"
         app.launchEnvironment["CONN_SMOKE_TERMINAL"] = "1"
+        app.launchArguments += ["-conn.settings.terminalCursorBlinking", "NO"]
         app.launch()
 
         let keybarButton = app.buttons["Esc"]
@@ -77,6 +79,58 @@ final class ConnUITests: XCTestCase {
         XCTAssertTrue(keybarButton.exists)
         XCTAssertEqual(terminal.frame.minY, viewportBeforeTap.minY, accuracy: 1)
         XCTAssertEqual(terminal.frame.height, viewportBeforeTap.height, accuracy: 1)
+    }
+
+    @MainActor
+    func testTerminalKeybarExpandsAboveKeyboardAndRestoresViewport() throws {
+        let app = XCUIApplication()
+        app.launchEnvironment["CONN_DEMO"] = "1"
+        app.launchEnvironment["CONN_SMOKE_TERMINAL"] = "1"
+        app.launchArguments += ["-conn.settings.terminalCursorBlinking", "NO"]
+        app.launch()
+
+        let terminal = app.descendants(matching: .any)["terminal.viewport"].firstMatch
+        let keybar = app.descendants(matching: .any)["terminal.keybar"].firstMatch
+        let expand = app.buttons["terminal.keybar.expand"]
+        XCTAssertTrue(terminal.waitForExistence(timeout: 10))
+        XCTAssertTrue(keybar.waitForExistence(timeout: 10))
+        XCTAssertTrue(expand.waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons["terminal.keybar.dismissKeyboard"].exists)
+        XCTAssertTrue(app.buttons["terminal.keybar.reconnect"].exists)
+        XCTAssertTrue(app.buttons["terminal.keybar.commands"].exists)
+        let compactViewport = terminal.frame
+        XCTAssertLessThanOrEqual(terminal.frame.maxY, keybar.frame.minY + 1)
+
+        expand.tap()
+
+        XCTAssertTrue(app.buttons["terminal.keybar.collapse"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["terminal.keybar.paste"].exists)
+        XCTAssertTrue(app.buttons["terminal.keybar.commands"].exists)
+        XCTAssertTrue(app.buttons["terminal.keybar.reconnect"].exists)
+        XCTAssertTrue(app.buttons["terminal.keybar.dismissKeyboard"].exists)
+        XCTAssertTrue(app.buttons["⇧Tab"].exists)
+        let shrunk = XCTNSPredicateExpectation(
+            predicate: NSPredicate { _, _ in terminal.frame.height < compactViewport.height },
+            object: terminal
+        )
+        XCTAssertEqual(XCTWaiter.wait(for: [shrunk], timeout: 5), .completed)
+        XCTAssertLessThan(terminal.frame.height, compactViewport.height)
+        XCTAssertLessThanOrEqual(terminal.frame.maxY, keybar.frame.minY + 1)
+
+        let attachment = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+        attachment.name = "Terminal expanded keybar"
+        attachment.lifetime = .keepAlways
+        add(attachment)
+
+        app.buttons["terminal.keybar.collapse"].tap()
+        XCTAssertTrue(expand.waitForExistence(timeout: 5))
+        let restored = XCTNSPredicateExpectation(
+            predicate: NSPredicate { _, _ in abs(terminal.frame.height - compactViewport.height) <= 1 },
+            object: terminal
+        )
+        XCTAssertEqual(XCTWaiter.wait(for: [restored], timeout: 5), .completed)
+        XCTAssertEqual(terminal.frame.height, compactViewport.height, accuracy: 1)
+        XCTAssertLessThanOrEqual(terminal.frame.maxY, keybar.frame.minY + 1)
     }
 
     @MainActor

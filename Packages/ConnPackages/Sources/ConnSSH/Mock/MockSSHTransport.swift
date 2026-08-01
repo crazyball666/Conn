@@ -335,6 +335,12 @@ final class MockShellChannel: ShellChannel {
     }
 
     func write(_ bytes: Data) async throws {
+        // 真实 PTY 中 Ctrl+U 由 shell 行编辑器处理：清空当前输入并重绘提示符。
+        // Mock Shell 也模拟这一语义，避免演示/UI 验收时把控制码原样回显成“无反应”。
+        if bytes == Data([0x15]) {
+            continuation.yield(Data("\r\u{1B}[2Kdemo-host:~$ ".utf8))
+            return
+        }
         // 回显演示：把输入原样吐回
         continuation.yield(bytes)
     }

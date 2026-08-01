@@ -51,7 +51,7 @@ struct SnippetRunView: View {
             .fullScreenCover(item: $terminalRoute) { route in
                 TerminalScreen(
                     host: route.host,
-                    connectionManager: dependencies.connectionManager,
+                    dependencies: dependencies,
                     autoCommand: route.command
                 )
             }
