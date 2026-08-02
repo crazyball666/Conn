@@ -81,7 +81,7 @@ struct MeView: View {
                     Label(L("版本"), systemImage: "info.circle")
                 }
             } footer: {
-                Text(L("数据仅存本机与你自己的 iCloud · 无账号 · 零上传"))
+                Text(L("数据仅存本机 · 无账号 · 不上传"))
                     .frame(maxWidth: .infinity)
                     .multilineTextAlignment(.center)
             }

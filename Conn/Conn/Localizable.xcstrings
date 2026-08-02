@@ -9629,31 +9629,30 @@
         }
       }
     },
-    "数据仅存本机与你自己的 iCloud · 无账号 · 零上传" : {
-      "extractionState" : "stale",
+    "数据仅存本机 · 无账号 · 不上传" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Data stays on this device and your own iCloud · No account · Zero upload"
+            "value" : "Data stays on this device · No account · No upload"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "データは本端末とあなた自身の iCloud にのみ保存 · アカウント不要 · アップロードなし"
+            "value" : "データは本端末のみに保存 · アカウント不要 · アップロードなし"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "데이터는 이 기기와 본인 iCloud에만 저장 · 계정 없음 · 업로드 없음"
+            "value" : "데이터는 이 기기에만 저장 · 계정 없음 · 업로드 없음"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "資料僅存本機與你自己的 iCloud · 無帳號 · 零上傳"
+            "value" : "資料僅存本機 · 無帳號 · 不上傳"
           }
         }
       }
@@ -17841,6 +17840,90 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "預設會移除已停止容器、未使用網路、懸空映像檔和建置快取。"
+          }
+        }
+      }
+    },
+    "无法打开本地数据" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unable to open local data"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ローカルデータを開けません"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "로컬 데이터를 열 수 없습니다"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法開啟本機資料"
+          }
+        }
+      }
+    },
+    "应用暂时无法读取本地配置，请重试。你的数据不会上传。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The app cannot read local configuration right now. Please try again. Your data is not uploaded."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ローカル設定を読み込めません。もう一度お試しください。データはアップロードされません。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "로컬 구성을 읽을 수 없습니다. 다시 시도해 주세요. 데이터는 업로드되지 않습니다."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "目前無法讀取本機設定，請重試。你的資料不會上傳。"
+          }
+        }
+      }
+    },
+    "错误详情" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Error details"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "エラーの詳細"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "오류 세부사항"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "錯誤詳情"
           }
         }
       }

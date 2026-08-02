@@ -15,12 +15,13 @@ import SwiftUI
 /// App 组装根：依赖注入、路由、场景生命周期（技术实现方案 §5）。
 @main
 struct ConnApp: App {
-    private let dependencies = ConnApp.makeDependencies()
+    @State private var bootstrap: BootstrapState
     @State private var localization = LocalizationManager()
     @State private var settings = SettingsStore()
     @State private var toastCenter = ConnToastCenter()
 
     init() {
+        _bootstrap = State(initialValue: Self.makeDependencies())
         // 在任何视图（含 .searchable 搜索框）创建前配置 UIKit 外观——appearance 只对
         // 之后创建的实例生效，放到 onAppear 里会与首个搜索框的创建竞态导致背景色不生效。
         ConnAppearance.configureIfNeeded()
@@ -35,21 +36,35 @@ struct ConnApp: App {
 
     /// 依赖选择：DEBUG 下 `CONN_DEMO=1` 走演示模式（Mock 引擎 + 假数据），
     /// 否则走生产（Citadel + GRDB 落盘）。Phase 10 会把演示开关搬到设置页。
-    private static func makeDependencies() -> AppDependencies {
+    private static func makeDependencies() -> BootstrapState {
         #if DEBUG
             if ProcessInfo.processInfo.environment["CONN_DEMO"] != nil {
-                return AppDependencies.demo()
+                return .ready(AppDependencies.demo())
             }
         #endif
-        return AppDependencies.live()
+        do {
+            return .ready(try AppDependencies.live())
+        } catch {
+            return .failed(String(describing: error))
+        }
     }
 
     var body: some Scene {
         WindowGroup {
-            AppLockGate(lock: dependencies.appLock) {
-                // 切换语言 / 主题色即 bump id → 整树重建：语言令各包 L() 重取，
-                // 主题色令 40+ 处 connAccent 重读 ConnTheme（见 SettingsStore）。
-                rootView.id("\(localization.language.rawValue)-\(settings.accent.rawValue)")
+            Group {
+                switch bootstrap {
+                case .ready(let dependencies):
+                    AppLockGate(lock: dependencies.appLock) {
+                        // 切换语言 / 主题色即 bump id → 整树重建：语言令各包 L() 重取，
+                        // 主题色令 40+ 处 connAccent 重读 ConnTheme（见 SettingsStore）。
+                        rootView(dependencies: dependencies)
+                            .id("\(localization.language.rawValue)-\(settings.accent.rawValue)")
+                    }
+                case .failed(let message):
+                    DatabaseInitializationFailureView(message: message) {
+                        bootstrap = Self.makeDependencies()
+                    }
+                }
             }
             .environment(localization)
             .environment(settings)
@@ -66,7 +81,7 @@ struct ConnApp: App {
     }
 
     @ViewBuilder
-    private var rootView: some View {
+    private func rootView(dependencies: AppDependencies) -> some View {
         #if DEBUG
             if ProcessInfo.processInfo.environment["CONN_SMOKE_DIAGNOSTICS"] != nil {
                 DiagnosticsSmokeView(transport: dependencies.diagnosticsTransport)
@@ -84,12 +99,12 @@ struct ConnApp: App {
                     snippetGroupRepository: dependencies.snippetGroupRepository
                 )
             } else if ProcessInfo.processInfo.environment["CONN_SMOKE_DETAIL"] != nil,
-                      let host = smokeDetailHost() {
+                      let host = smokeDetailHost(dependencies: dependencies) {
                 NavigationStack {
                     HostDetailView(host: host, dependencies: dependencies, initialSegment: smokeSegment())
                 }
             } else if ProcessInfo.processInfo.environment["CONN_SMOKE_LOGSTREAM"] != nil,
-                      let host = smokeDetailHost() {
+                      let host = smokeDetailHost(dependencies: dependencies) {
                 NavigationStack {
                     LogStreamView(
                         host: host, dependencies: dependencies,
@@ -108,7 +123,7 @@ struct ConnApp: App {
                 CardStatesSmokeView()
             } else if ProcessInfo.processInfo.environment["CONN_SMOKE_ME"] != nil {
                 NavigationStack { MeView(dependencies: dependencies) }
-            } else if ProcessInfo.processInfo.environment["CONN_SMOKE_EDITOR"] != nil, let host = smokeDetailHost() {
+            } else if ProcessInfo.processInfo.environment["CONN_SMOKE_EDITOR"] != nil, let host = smokeDetailHost(dependencies: dependencies) {
                 NavigationStack {
                     FileEditorView(
                         host: host, dependencies: dependencies,
@@ -128,7 +143,7 @@ struct ConnApp: App {
 
     #if DEBUG
         /// 冒烟：优先取演示故障机（有高负载 + 进程列表），否则第一台。
-        private func smokeDetailHost() -> Host? {
+        private func smokeDetailHost(dependencies: AppDependencies) -> Host? {
             let hosts = (try? dependencies.hostRepository.allHosts()) ?? []
             return hosts.first { $0.address == DemoData.faultHostAddress } ?? hosts.first
         }
@@ -154,6 +169,58 @@ struct ConnApp: App {
                 .joined(separator: "\r\n")
         }
     #endif
+}
+
+/// 生产依赖的启动状态。数据库初始化失败时保留在可恢复页面，避免 Release 直接崩溃。
+private enum BootstrapState {
+    case ready(AppDependencies)
+    case failed(String)
+}
+
+/// 本地数据无法打开时的恢复页。
+private struct DatabaseInitializationFailureView: View {
+    let message: String
+    let retry: () -> Void
+    @State private var isShowingDetails = false
+
+    var body: some View {
+        ScrollView {
+            VStack(spacing: 24) {
+                Image(systemName: "externaldrive.badge.xmark")
+                    .font(.system(size: 54, weight: .medium))
+                    .foregroundStyle(.red)
+
+                VStack(spacing: 8) {
+                    Text(L("无法打开本地数据"))
+                        .font(.title2.weight(.semibold))
+                    Text(L("应用暂时无法读取本地配置，请重试。你的数据不会上传。"))
+                        .font(.body)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                }
+
+                Button(action: retry) {
+                    Label(L("重试"), systemImage: "arrow.clockwise")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
+
+                DisclosureGroup(L("错误详情"), isExpanded: $isShowingDetails) {
+                    Text(message)
+                        .font(.footnote.monospaced())
+                        .foregroundStyle(.secondary)
+                        .textSelection(.enabled)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.top, 8)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .padding(24)
+            .frame(maxWidth: 520)
+            .frame(maxWidth: .infinity, minHeight: 420)
+        }
+        .background(Color(uiColor: .systemGroupedBackground).ignoresSafeArea())
+    }
 }
 
 /// 依赖容器。
@@ -183,8 +250,7 @@ struct AppDependencies {
     let appLock: AppLockController
 
     /// 生产依赖：GRDB 落盘库 + Citadel 引擎 + 持久化 TOFU 指纹库。
-    static func live() -> AppDependencies {
-        do {
+    static func live() throws -> AppDependencies {
             let database = try AppDatabase.onDisk(at: databaseURL())
             let hostStore = HostStore(database: database)
             let groupStore = HostGroupStore(database: database)
@@ -252,11 +318,6 @@ struct AppDependencies {
                         || ProcessInfo.processInfo.environment["CONN_SMOKE_APPLOCK"] != nil
                 )
             )
-        } catch {
-            // 数据库开不了是不可恢复的：此时 App 无法承载任何功能。
-            // 与其静默降级成空界面，不如带着原因崩溃，便于用户导出诊断。
-            fatalError("数据库初始化失败：\(error)")
-        }
     }
 
     #if DEBUG
