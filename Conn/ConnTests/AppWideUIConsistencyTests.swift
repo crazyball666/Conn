@@ -118,6 +118,32 @@ struct AppWideUIConsistencyTests {
         #expect(!source.contains(".scrollBounceBehavior(.basedOnSize)"))
     }
 
+    @Test("服务器卡片的内存和磁盘显示已用与总量")
+    func serverCardsShowUsedAndTotalStorage() throws {
+        let source = try appSource("Servers/ServersViewModel.swift")
+        let healthCard = try packageSource("Sources/ConnUI/Components/HealthCard.swift")
+
+        #expect(source.contains("memTotalText: MetricFormat.compactPair(used: metrics?.memUsedBytes, total: metrics?.memTotalBytes)"))
+        #expect(source.contains("diskTotalText: MetricFormat.compactPair(used: metrics?.diskUsedBytes, total: metrics?.diskTotalBytes)"))
+        #expect(!source.contains("memTotalText: MetricFormat.pair(used: metrics?.memUsedBytes, total: metrics?.memTotalBytes)"))
+        #expect(!source.contains("diskTotalText: MetricFormat.pair(used: metrics?.diskUsedBytes, total: metrics?.diskTotalBytes)"))
+        #expect(healthCard.contains("VStack(alignment: .center, spacing: 3)"))
+        #expect(healthCard.contains(".frame(maxWidth: .infinity, alignment: .center)"))
+        #expect(healthCard.contains(".multilineTextAlignment(.center)"))
+    }
+
+    @Test("Swap 只显示用量摘要和进度条，不采集独立趋势")
+    func swapUsesCompactSummaryWithoutTrendChart() throws {
+        let view = try appSource("Hosts/HostOverviewView.swift")
+        let viewModel = try appSource("Hosts/HostOverviewViewModel.swift")
+
+        #expect(view.contains("private var swapSummary"))
+        #expect(view.contains("ConnLoadBar(percent: percent"))
+        #expect(!view.contains("viewModel.swapUsedHistory"))
+        #expect(!view.contains("hasSwapHistory"))
+        #expect(!viewModel.contains("swapUsedHistory"))
+    }
+
     @Test("文件管理页使用导航栏下方固定系统搜索")
     func fileBrowserUsesPersistentNavigationSearch() throws {
         let source = try appSource("Files/FileBrowserView.swift")
@@ -205,6 +231,17 @@ struct AppWideUIConsistencyTests {
             .deletingLastPathComponent()
         return try String(
             contentsOf: projectURL.appending(path: "Conn/\(relativePath)"),
+            encoding: .utf8
+        )
+    }
+
+    private func packageSource(_ relativePath: String) throws -> String {
+        let projectURL = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        return try String(
+            contentsOf: projectURL.appending(path: "Packages/ConnPackages/\(relativePath)"),
             encoding: .utf8
         )
     }

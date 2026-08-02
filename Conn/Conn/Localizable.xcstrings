@@ -359,6 +359,64 @@
         }
       }
     },
+    "%@，已显示" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@, visible"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@、表示中"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@, 표시됨"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@，已顯示"
+          }
+        }
+      }
+    },
+    "%@，已隐藏" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@, hidden"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@、非表示"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@, 숨김"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@，已隱藏"
+          }
+        }
+      }
+    },
     "%@（可手动填写）" : {
 
     },
@@ -1946,6 +2004,9 @@
     "exit %d" : {
 
     },
+    "hidden" : {
+
+    },
     "IO 写" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -2130,6 +2191,9 @@
 
     },
     "v" : {
+
+    },
+    "visible" : {
 
     },
     "一行一项 docker flag，可写 --flag=value 形式。空行与 # 开头行忽略；%@、%@、%@和%@也可在这里填写。" : {
@@ -5414,6 +5478,35 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "引數"
+          }
+        }
+      }
+    },
+    "双击切换图表折线" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Double-tap to toggle the chart line."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ダブルタップしてグラフの線を切り替えます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "두 번 탭하여 차트 선을 전환합니다."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "點兩下切換圖表折線。"
           }
         }
       }
@@ -14839,6 +14932,35 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "請輸入 %@ 以繼續。"
+          }
+        }
+      }
+    },
+    "请选择指标" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Select at least one metric"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "指標を選択してください"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "지표를 선택하세요"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "請選擇指標"
           }
         }
       }

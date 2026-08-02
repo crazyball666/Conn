@@ -17,6 +17,8 @@ public struct ParsedMetrics: Sendable, Equatable {
     public var memUsedBytes: Double?
     public var memBuffersCache: Double?
     public var memFree: Double?
+    public var swapTotalBytes: Double?
+    public var swapUsedBytes: Double?
     public var load1: Double?
     public var load5: Double?
     public var load15: Double?
@@ -43,6 +45,8 @@ public struct ParsedMetrics: Sendable, Equatable {
         memUsedBytes: Double? = nil,
         memBuffersCache: Double? = nil,
         memFree: Double? = nil,
+        swapTotalBytes: Double? = nil,
+        swapUsedBytes: Double? = nil,
         load1: Double? = nil,
         load5: Double? = nil,
         load15: Double? = nil,
@@ -68,6 +72,8 @@ public struct ParsedMetrics: Sendable, Equatable {
         self.memUsedBytes = memUsedBytes
         self.memBuffersCache = memBuffersCache
         self.memFree = memFree
+        self.swapTotalBytes = swapTotalBytes
+        self.swapUsedBytes = swapUsedBytes
         self.load1 = load1
         self.load5 = load5
         self.load15 = load15
@@ -116,6 +122,8 @@ public enum MetricParser {
             memUsedBytes: mem?.usedBytes,
             memBuffersCache: memDetail?.buffersCache,
             memFree: memDetail?.free,
+            swapTotalBytes: memDetail?.swapTotal,
+            swapUsedBytes: memDetail?.swapUsed,
             load1: load?.one,
             load5: load?.five,
             load15: load?.fifteen,

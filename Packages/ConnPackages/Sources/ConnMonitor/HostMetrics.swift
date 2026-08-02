@@ -31,6 +31,9 @@ public struct HostMetrics: Sendable, Equatable {
     /// 缓冲/缓存、空闲字节（内存明细）。
     public let memBuffersCache: Double?
     public let memFree: Double?
+    /// Swap 总量与已用字节；目标主机未提供 Swap 信息时为 nil。
+    public let swapTotalBytes: Double?
+    public let swapUsedBytes: Double?
     public let disk: Double?
     public let diskUsedBytes: Double?
     public let diskTotalBytes: Double?
@@ -69,6 +72,8 @@ public struct HostMetrics: Sendable, Equatable {
         memUsedBytes: Double? = nil,
         memBuffersCache: Double? = nil,
         memFree: Double? = nil,
+        swapTotalBytes: Double? = nil,
+        swapUsedBytes: Double? = nil,
         disk: Double?,
         diskUsedBytes: Double? = nil,
         diskTotalBytes: Double? = nil,
@@ -100,6 +105,8 @@ public struct HostMetrics: Sendable, Equatable {
         self.memUsedBytes = memUsedBytes
         self.memBuffersCache = memBuffersCache
         self.memFree = memFree
+        self.swapTotalBytes = swapTotalBytes
+        self.swapUsedBytes = swapUsedBytes
         self.disk = disk
         self.diskUsedBytes = diskUsedBytes
         self.diskTotalBytes = diskTotalBytes
@@ -130,6 +137,7 @@ public struct HostMetrics: Sendable, Equatable {
             osName: keepExtended ? previous.osName : osName,
             mem: mem, memTotalBytes: memTotalBytes, memUsedBytes: memUsedBytes,
             memBuffersCache: memBuffersCache, memFree: memFree,
+            swapTotalBytes: swapTotalBytes, swapUsedBytes: swapUsedBytes,
             disk: disk, diskUsedBytes: diskUsedBytes, diskTotalBytes: diskTotalBytes,
             load1: load1, load5: load5, load15: load15,
             netRx: netRx, netTx: netTx, netRxRate: netRxRate, netTxRate: netTxRate,

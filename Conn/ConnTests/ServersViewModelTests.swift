@@ -122,6 +122,38 @@ struct ServersViewModelTests {
         #expect(viewModel.cards.count == 1)
     }
 
+    @Test("页面运行中重新加载主机后会把新增主机交给监控调度")
+    func reloadWhileVisibleRefreshesDashboardTargets() async throws {
+        let existing = Host(name: "existing", address: "10.0.0.1", username: "root")
+        let added = Host(name: "added", address: "10.0.0.2", username: "root")
+        let hostStore = StubHostRepository(hosts: [existing])
+        let log = ExecLog()
+        let monitor = MonitorScheduler(
+            connectionManager: ConnectionManager(transport: GatedTransport(log: log))
+        )
+        let viewModel = ServersViewModel(
+            hostStore: hostStore,
+            groupStore: StubHostGroupRepository(),
+            monitor: monitor
+        )
+
+        viewModel.appear(interval: .seconds(600))
+        defer { viewModel.disappear() }
+        for _ in 0 ..< 100 where await log.execs < 1 {
+            try await Task.sleep(for: .milliseconds(5))
+        }
+        #expect(await log.execs == 1)
+
+        hostStore.hosts.append(added)
+        viewModel.load()
+
+        for _ in 0 ..< 100 where await log.execs < 2 {
+            try await Task.sleep(for: .milliseconds(5))
+        }
+        #expect(await log.execs >= 2)
+        #expect(viewModel.monitor.metrics[added.id] != nil)
+    }
+
     @Test("删除当前选中的分组后回到「全部」")
     func deletingSelectedGroupResetsSelection() {
         let prod = HostGroup(name: "生产")

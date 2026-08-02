@@ -305,24 +305,27 @@ public struct HealthCard: View {
     }
 
     private func flowColumn(_ label: String, _ flow: Flow?) -> some View {
-        VStack(alignment: .leading, spacing: 3) {
+        VStack(alignment: .center, spacing: 3) {
             Text(label).font(.connData(.caption2)).foregroundStyle(.connMuted)
             flowRow("arrow.up", rate: flow?.upRate, total: flow?.upTotal)
             flowRow("arrow.down", rate: flow?.downRate, total: flow?.downTotal)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(maxWidth: .infinity, alignment: .center)
     }
 
     private func flowRow(_ icon: String, rate: String?, total: String?) -> some View {
-        VStack(alignment: .leading, spacing: 0) {
+        VStack(alignment: .center, spacing: 0) {
             HStack(spacing: 2) {
                 Image(systemName: icon).font(.system(size: 8, weight: .bold)).foregroundStyle(.connMuted)
                 Text(rate ?? "—")
                     .font(.connData(.caption2)).connTabularNumbers().foregroundStyle(.connInk)
             }
+            .frame(maxWidth: .infinity, alignment: .center)
             Text(total ?? "—")
                 .font(.system(size: 9.5, design: .monospaced)).foregroundStyle(.connDim)
+                .multilineTextAlignment(.center)
         }
+        .frame(maxWidth: .infinity, alignment: .center)
         .lineLimit(1)
         .minimumScaleFactor(0.7)
     }

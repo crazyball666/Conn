@@ -11,4 +11,10 @@ struct MetricFormatTests {
         #expect(MetricFormat.compactBytes(Double(455)) == "455 B")
         #expect(!MetricFormat.bytes(Double(455)).contains("字节"))
     }
+
+    @Test("紧凑已用与总量不插入任何空格")
+    func compactPairOmitsSlashPadding() {
+        #expect(MetricFormat.compactPair(used: 1024, total: 2048) == "1.0K/2.0K")
+        #expect(MetricFormat.compactPair(used: nil, total: 2048) == "—")
+    }
 }

@@ -18,12 +18,8 @@ final class HostOverviewViewModel {
     private(set) var cpuHistory: [Double] = []
     /// 各逻辑核使用率历史，`coreHistories[核序]` = 该核的时间序列。
     private(set) var coreHistories: [[Double]] = []
-    /// CPU 各类占比历史（用户/系统/iowait/其他/空闲，% 堆叠到 100）。
-    private(set) var cpuUserHistory: [Double] = []
-    private(set) var cpuSystemHistory: [Double] = []
-    private(set) var cpuIowaitHistory: [Double] = []
-    private(set) var cpuOtherHistory: [Double] = []
-    private(set) var cpuIdleHistory: [Double] = []
+    /// CPU 八类时间占比历史，供指标独立显示/隐藏。
+    private(set) var cpuCategoryHistory = CPUCategoryHistory()
     private(set) var memHistory: [Double] = []
     /// 内存三段占比历史（已用 / 缓存 / 空闲，% of total，堆叠到 100）。
     private(set) var memUsedHistory: [Double] = []
@@ -60,11 +56,7 @@ final class HostOverviewViewModel {
 
     private func recordCPUBreakdown(_ breakdown: CPUBreakdown?) {
         guard let breakdown else { return }
-        append(&cpuUserHistory, breakdown.user)
-        append(&cpuSystemHistory, breakdown.system)
-        append(&cpuIowaitHistory, breakdown.iowait)
-        append(&cpuOtherHistory, breakdown.nice + breakdown.irq + breakdown.softirq + breakdown.steal)
-        append(&cpuIdleHistory, breakdown.idle)
+        cpuCategoryHistory.append(breakdown, limit: maxPoints)
     }
 
     private func recordPerCore(_ cores: [Double]?) {

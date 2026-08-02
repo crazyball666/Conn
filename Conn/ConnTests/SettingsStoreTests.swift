@@ -7,6 +7,18 @@ import Testing
 @Suite("SettingsStore — 设置持久化")
 @MainActor
 struct SettingsStoreTests {
+    @Test("首次启动默认使用深色模式和紫色主题")
+    func firstLaunchUsesDarkPurpleDefaults() {
+        let suiteName = "SettingsStoreTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let settings = SettingsStore(defaults: defaults)
+
+        #expect(settings.appearance == .dark)
+        #expect(settings.accent == .purple)
+    }
+
     @Test("终端设置写入 UserDefaults 并可恢复")
     func terminalSettingsPersist() {
         let suiteName = "SettingsStoreTests.\(UUID().uuidString)"

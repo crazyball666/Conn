@@ -27,6 +27,12 @@ enum MetricFormat {
         return "\(byteString(used)) / \(byteString(total))"
     }
 
+    /// 紧凑的「已用/总量」，供服务器卡片窄列使用。
+    static func compactPair(used: Double?, total: Double?) -> String {
+        guard let used, let total, total > 0 else { return "—" }
+        return "\(compactByteString(used))/\(compactByteString(total))"
+    }
+
     /// 「速率 · 总量」，供卡片紧凑单元。
     static func rateAndTotal(rate rateValue: Double?, total: Int64?) -> String {
         "\(rate(rateValue)) · \(bytes(total))"
@@ -99,5 +105,9 @@ enum MetricFormat {
 
     private static func byteString(_ bytes: Double) -> String {
         compactBytes(max(0, bytes))
+    }
+
+    private static func compactByteString(_ bytes: Double) -> String {
+        byteString(bytes).replacingOccurrences(of: " ", with: "")
     }
 }

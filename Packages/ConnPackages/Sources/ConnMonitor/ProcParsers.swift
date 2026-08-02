@@ -7,12 +7,14 @@ struct LoadAverages: Sendable, Equatable {
     let fifteen: Double
 }
 
-/// 内存明细（字节）：总量 / 已用 / 缓冲缓存 / 空闲。
+/// 内存明细（字节）：总量 / 已用 / 缓冲缓存 / 空闲，以及 Swap 总量 / 已用。
 struct MemoryBreakdown: Sendable, Equatable {
     let total: Double
     let used: Double
     let buffersCache: Double
     let free: Double
+    let swapTotal: Double?
+    let swapUsed: Double?
 }
 
 /// `/proc` 与 `df` 各段的解析。全部纯函数。
@@ -192,7 +194,18 @@ enum ProcParsers {
         let free = values["MemFree"] ?? 0
         let buffersCache = (values["Buffers"] ?? 0) + (values["Cached"] ?? 0)
         let used = max(0, total - free - buffersCache)
-        return MemoryBreakdown(total: total, used: used, buffersCache: buffersCache, free: free)
+        let swapTotal = values["SwapTotal"]
+        let swapFree = values["SwapFree"]
+        let swapUsed: Double?
+        if let swapTotal, let swapFree {
+            swapUsed = max(0, swapTotal - swapFree)
+        } else {
+            swapUsed = nil
+        }
+        return MemoryBreakdown(
+            total: total, used: used, buffersCache: buffersCache, free: free,
+            swapTotal: swapTotal, swapUsed: swapUsed
+        )
     }
 
     /// `df -P -k` → 根挂载点（`/`）的已用/总字节数。

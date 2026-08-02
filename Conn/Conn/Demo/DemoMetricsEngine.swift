@@ -143,6 +143,8 @@ final class DemoMetricsEngine: @unchecked Sendable {
         MemAvailable:    \(available) kB
         Buffers:         120000 kB
         Cached:          900000 kB
+        SwapTotal:       2000000 kB
+        SwapFree:        1500000 kB
         """
     }
 

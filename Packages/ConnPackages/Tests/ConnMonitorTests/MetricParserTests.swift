@@ -16,6 +16,8 @@ struct MetricParserTests {
     MemAvailable:    2048000 kB
     Buffers:          100000 kB
     Cached:           800000 kB
+    SwapTotal:        102400 kB
+    SwapFree:          51200 kB
     __CONN_LOAD__
     0.42 0.35 0.30 2/345 6789
     __CONN_DISK__
@@ -84,6 +86,8 @@ struct MetricParserTests {
         #expect(parsed.cpuCores == 1) // 仅 cpu0 一行
         #expect(parsed.memTotalBytes == 4_096_000 * 1024)
         #expect(parsed.memUsedBytes == 2_048_000 * 1024) // total - MemAvailable
+        #expect(parsed.swapTotalBytes == 102_400 * 1024)
+        #expect(parsed.swapUsedBytes == 51_200 * 1024)
         // sda 整盘扇区读/写 ×512；排除分区 sda1 与 dm-0
         #expect(parsed.ioReadBytes == Int64(200_000 * 512))
         #expect(parsed.ioWriteBytes == Int64(100_000 * 512))

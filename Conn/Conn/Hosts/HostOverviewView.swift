@@ -3,11 +3,33 @@ import ConnMonitor
 import ConnUI
 import SwiftUI
 
+/// 图表颜色是数据语义的一部分，固定后不会因主题或系统强调色变化而改变含义。
+private enum HostChartPalette {
+    static let cpuUser = Color(red: 0.145, green: 0.388, blue: 0.922)
+    static let cpuSystem = Color(red: 0.863, green: 0.149, blue: 0.149)
+    static let cpuWait = Color(red: 0.792, green: 0.541, blue: 0.016)
+    static let cpuIdle = Color(red: 0.486, green: 0.518, blue: 0.580)
+    static let cpuNice = Color(red: 0.086, green: 0.639, blue: 0.290)
+    static let cpuHardInterrupt = Color(red: 0.576, green: 0.200, blue: 0.918)
+    static let cpuSoftInterrupt = Color(red: 0.859, green: 0.153, blue: 0.467)
+    static let cpuSteal = Color(red: 0.051, green: 0.580, blue: 0.533)
+
+    static let memoryUsed = Color(red: 0.89, green: 0.35, blue: 0.39)
+    static let memoryCache = Color(red: 0.86, green: 0.60, blue: 0.08)
+    static let memoryFree = Color(red: 0.12, green: 0.64, blue: 0.34)
+    static let swap = Color(red: 0.57, green: 0.36, blue: 0.88)
+    static let diskRead = Color(red: 0.145, green: 0.388, blue: 0.922)
+    static let diskWrite = Color(red: 0.918, green: 0.345, blue: 0.047)
+    static let networkDown = Color(red: 0.05, green: 0.57, blue: 0.78)
+    static let networkUp = Color(red: 0.12, green: 0.64, blue: 0.34)
+}
+
 /// 单机概览：分块（系统 / 负载 / CPU / 内存 / 磁盘 / 网络 / 进程）。
-/// CPU 显示各核折线、内存显示三段堆叠占比、磁盘与磁盘 IO 合并一块。
+/// CPU 显示各核折线、内存显示 RAM 堆叠占比与 Swap 用量摘要、磁盘与磁盘 IO 合并一块。
 struct HostOverviewView<Header: View>: View {
     let viewModel: HostOverviewViewModel
     private let header: Header
+    @State private var cpuVisibility = CPUChartVisibility()
 
     init(viewModel: HostOverviewViewModel, @ViewBuilder header: () -> Header) {
         self.viewModel = viewModel
@@ -89,12 +111,12 @@ struct HostOverviewView<Header: View>: View {
             }
             percentHeader(latest?.cpu, detail: MetricFormat.cores(latest?.cpuCores))
             cpuBreakdownGrid
-            cpuCompositionChart
+            cpuUsageChart
             cpuPerCoreBars
         }
     }
 
-    // MARK: - 内存（三段堆叠占比 + 明细）
+    // MARK: - 内存（RAM 三段堆叠占比 + Swap 明细）
 
     private var memorySection: some View {
         section(L("内存")) {
@@ -104,19 +126,57 @@ struct HostOverviewView<Header: View>: View {
             )
             chartOrPlaceholder(memSeries, domain: 0 ... 100, yFormat: { "\(Int($0))" }, stacked: true)
             HStack(spacing: 0) {
-                breakdownColumn(L("已用"), MetricFormat.bytes(latest?.memUsedBytes), .connCrit)
-                breakdownColumn(L("缓存"), MetricFormat.bytes(latest?.memBuffersCache), .connWarn)
-                breakdownColumn(L("空闲"), MetricFormat.bytes(latest?.memFree), .connGood)
+                breakdownColumn(L("已用"), MetricFormat.bytes(latest?.memUsedBytes), HostChartPalette.memoryUsed)
+                breakdownColumn(L("缓存"), MetricFormat.bytes(latest?.memBuffersCache), HostChartPalette.memoryCache)
+                breakdownColumn(L("空闲"), MetricFormat.bytes(latest?.memFree), HostChartPalette.memoryFree)
             }
+            swapSummary
         }
     }
 
     private var memSeries: [TrendSeries] {
         [
-            TrendSeries(id: L("已用"), color: .connCrit, values: viewModel.memUsedHistory),
-            TrendSeries(id: L("缓存"), color: .connWarn, values: viewModel.memCacheHistory),
-            TrendSeries(id: L("空闲"), color: .connGood, values: viewModel.memFreeHistory)
+            TrendSeries(id: L("已用"), color: HostChartPalette.memoryUsed, values: viewModel.memUsedHistory),
+            TrendSeries(id: L("缓存"), color: HostChartPalette.memoryCache, values: viewModel.memCacheHistory),
+            TrendSeries(id: L("空闲"), color: HostChartPalette.memoryFree, values: viewModel.memFreeHistory)
         ]
+    }
+
+    private var swapSummary: some View {
+        VStack(alignment: .leading, spacing: ConnSpacing.xs) {
+            sectionDivider
+            HStack(alignment: .firstTextBaseline, spacing: ConnSpacing.sm) {
+                HStack(spacing: 4) {
+                    Circle().fill(HostChartPalette.swap).frame(width: 7, height: 7)
+                    Text(L("Swap")).font(.connData(.caption2)).foregroundStyle(.connMuted)
+                }
+                Spacer()
+                Text(swapDetail)
+                    .font(.connData(.caption2)).connTabularNumbers().foregroundStyle(.connMuted)
+                    .lineLimit(1).minimumScaleFactor(0.7)
+            }
+            if let percent = swapPercent {
+                HStack(spacing: ConnSpacing.sm) {
+                    ConnLoadBar(percent: percent, minWidth: 4)
+                        .frame(height: 6)
+                    Text("\(Int(percent))%")
+                        .font(.connData(.caption2)).connTabularNumbers().foregroundStyle(.connDim)
+                        .frame(width: 34, alignment: .trailing)
+                }
+            }
+        }
+    }
+
+    private var swapPercent: Double? {
+        guard let total = latest?.swapTotalBytes, total > 0,
+              let used = latest?.swapUsedBytes else { return nil }
+        return min(100, max(0, used / total * 100))
+    }
+
+    private var swapDetail: String {
+        guard let total = latest?.swapTotalBytes else { return "—" }
+        guard total > 0 else { return L("未启用") }
+        return MetricFormat.pair(used: latest?.swapUsedBytes, total: total)
     }
 
     private func breakdownColumn(_ label: String, _ value: String, _ dot: Color) -> some View {
@@ -143,12 +203,12 @@ struct HostOverviewView<Header: View>: View {
                 .frame(height: 8)
             Rectangle().fill(Color.connLine).frame(height: 0.5).padding(.vertical, 2)
             chartHeader(
-                legend: [(L("读"), .connDisk), (L("写"), .connWarn)],
+                legend: [(L("读"), HostChartPalette.diskRead), (L("写"), HostChartPalette.diskWrite)],
                 totals: "\(L("读")) \(MetricFormat.bytes(latest?.ioReadBytes))  \(L("写")) \(MetricFormat.bytes(latest?.ioWriteBytes))"
             )
             chartOrPlaceholder(rateSeries(
-                down: viewModel.ioReadHistory, downColor: .connDisk,
-                up: viewModel.ioWriteHistory, upColor: .connWarn
+                down: viewModel.ioReadHistory, downColor: HostChartPalette.diskRead,
+                up: viewModel.ioWriteHistory, upColor: HostChartPalette.diskWrite
             ))
         }
     }
@@ -158,12 +218,12 @@ struct HostOverviewView<Header: View>: View {
     private var networkSection: some View {
         section(L("网络")) {
             chartHeader(
-                legend: [(L("下行"), .connInfo), (L("上行"), .connGood)],
+                legend: [(L("下行"), HostChartPalette.networkDown), (L("上行"), HostChartPalette.networkUp)],
                 totals: "↓ \(MetricFormat.bytes(latest?.netRx))  ↑ \(MetricFormat.bytes(latest?.netTx))"
             )
             chartOrPlaceholder(rateSeries(
-                down: viewModel.netRxHistory, downColor: .connInfo,
-                up: viewModel.netTxHistory, upColor: .connGood
+                down: viewModel.netRxHistory, downColor: HostChartPalette.networkDown,
+                up: viewModel.netTxHistory, upColor: HostChartPalette.networkUp
             ))
             if let tcp = latest?.tcp {
                 sectionDivider
@@ -235,17 +295,26 @@ struct HostOverviewView<Header: View>: View {
         _ series: [TrendSeries],
         domain: ClosedRange<Double>? = nil,
         yFormat: @escaping (Double) -> String = { MetricFormat.compactBytes($0) + "/s" },
-        stacked: Bool = false
+        stacked: Bool = false,
+        fillsSingleSeries: Bool = true,
+        height: CGFloat = 132
     ) -> some View {
         let hasData = series.contains { $0.values.count >= 2 }
         let resolved = domain ?? autoDomain(series)
         return Group {
             if hasData {
-                MetricTrendChart(series: series, yDomain: resolved, yFormat: yFormat, stacked: stacked)
+                MetricTrendChart(
+                    series: series,
+                    yDomain: resolved,
+                    yFormat: yFormat,
+                    stacked: stacked,
+                    fillsSingleSeries: fillsSingleSeries,
+                    height: height
+                )
             } else {
                 Text(L("采集中…"))
                     .font(.connFootnote).foregroundStyle(.connMuted)
-                    .frame(maxWidth: .infinity).frame(height: 58)
+                    .frame(maxWidth: .infinity).frame(height: height)
             }
         }
     }
@@ -260,14 +329,15 @@ struct HostOverviewView<Header: View>: View {
     private var latest: HostMetrics? { viewModel.latest }
 }
 
-// MARK: - CPU 明细（各类占比网格 + 构成堆叠图 + 各核占用条）
+// MARK: - CPU 明细（各类占比网格 + 使用率趋势 + 各核占用条）
 
 /// CPU 各类时间占比的一格（标签 + 值 + 颜色）。
 private struct CPUStatItem: Identifiable {
+    let metric: CPUChartMetric
     let label: String
     let value: Double?
     let color: Color
-    var id: String { label }
+    var id: CPUChartMetric { metric }
 }
 
 private extension HostOverviewView {
@@ -277,43 +347,85 @@ private extension HostOverviewView {
             spacing: ConnSpacing.sm
         ) {
             ForEach(cpuBreakdownItems) { item in
-                VStack(alignment: .leading, spacing: 1) {
-                    HStack(spacing: 3) {
-                        Circle().fill(item.color).frame(width: 6, height: 6)
-                        Text(item.label).font(.connData(.caption2)).foregroundStyle(.connMuted)
-                            .lineLimit(1).minimumScaleFactor(0.7)
+                let visible = cpuVisibility.contains(item.metric)
+                Button {
+                    cpuVisibility.toggle(item.metric)
+                } label: {
+                    VStack(alignment: .leading, spacing: 1) {
+                        HStack(spacing: 3) {
+                            Circle()
+                                .fill(visible ? item.color : Color.connDim)
+                                .frame(width: 6, height: 6)
+                            Text(item.label)
+                                .font(.connData(.caption2))
+                                .foregroundStyle(visible ? item.color : Color.connDim)
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.7)
+                        }
+                        Text(item.value.map { String(format: "%.1f%%", $0) } ?? "—")
+                            .font(.connData(.footnote))
+                            .connTabularNumbers()
+                            .foregroundStyle(visible ? Color.connInk : Color.connDim)
                     }
-                    Text(item.value.map { String(format: "%.1f%%", $0) } ?? "—")
-                        .font(.connData(.footnote)).connTabularNumbers().foregroundStyle(.connInk)
+                    .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                    .contentShape(Rectangle())
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("cpu.metric.\(item.metric.rawValue)")
+                .accessibilityLabel(
+                    String(
+                        format: visible ? L("%@，已显示") : L("%@，已隐藏"),
+                        item.label
+                    )
+                )
+                .accessibilityValue(visible ? "visible" : "hidden")
+                .accessibilityHint(L("双击切换图表折线"))
             }
         }
+        .sensoryFeedback(.selection, trigger: cpuVisibility)
     }
 
     var cpuBreakdownItems: [CPUStatItem] {
         let breakdown = viewModel.latest?.cpuBreakdown
         return [
-            CPUStatItem(label: L("用户"), value: breakdown?.user, color: .connAccent),
-            CPUStatItem(label: L("系统"), value: breakdown?.system, color: .connInfo),
-            CPUStatItem(label: L("IO 等待"), value: breakdown?.iowait, color: .connWarn),
-            CPUStatItem(label: L("空闲"), value: breakdown?.idle, color: .connDim),
-            CPUStatItem(label: L("nice"), value: breakdown?.nice, color: .connGood),
-            CPUStatItem(label: L("硬中断"), value: breakdown?.irq, color: .connDisk),
-            CPUStatItem(label: L("软中断"), value: breakdown?.softirq, color: .connCrit),
-            CPUStatItem(label: L("抢占"), value: breakdown?.steal, color: .connMuted)
+            CPUStatItem(metric: .user, label: L("用户"), value: breakdown?.user, color: HostChartPalette.cpuUser),
+            CPUStatItem(metric: .system, label: L("系统"), value: breakdown?.system, color: HostChartPalette.cpuSystem),
+            CPUStatItem(metric: .iowait, label: L("IO 等待"), value: breakdown?.iowait, color: HostChartPalette.cpuWait),
+            CPUStatItem(metric: .idle, label: L("空闲"), value: breakdown?.idle, color: HostChartPalette.cpuIdle),
+            CPUStatItem(metric: .nice, label: L("nice"), value: breakdown?.nice, color: HostChartPalette.cpuNice),
+            CPUStatItem(metric: .irq, label: L("硬中断"), value: breakdown?.irq, color: HostChartPalette.cpuHardInterrupt),
+            CPUStatItem(metric: .softirq, label: L("软中断"), value: breakdown?.softirq, color: HostChartPalette.cpuSoftInterrupt),
+            CPUStatItem(metric: .steal, label: L("抢占"), value: breakdown?.steal, color: HostChartPalette.cpuSteal)
         ]
     }
 
-    /// CPU 构成堆叠面积图（用户/系统/iowait/其他/空闲，堆到 100%）。空闲呈主导灰。
-    var cpuCompositionChart: some View {
-        chartOrPlaceholder([
-            TrendSeries(id: L("用户"), color: .connAccent, values: viewModel.cpuUserHistory),
-            TrendSeries(id: L("系统"), color: .connInfo, values: viewModel.cpuSystemHistory),
-            TrendSeries(id: L("IO 等待"), color: .connWarn, values: viewModel.cpuIowaitHistory),
-            TrendSeries(id: L("其他"), color: .connGood, values: viewModel.cpuOtherHistory),
-            TrendSeries(id: L("空闲"), color: .connTrack, values: viewModel.cpuIdleHistory)
-        ], domain: 0 ... 100, yFormat: { "\(Int($0))" }, stacked: true)
+    /// CPU 八类时间占比趋势；上方指标格同时作为图例和显示开关。
+    var cpuUsageChart: some View {
+        let series = cpuBreakdownItems.compactMap { item -> TrendSeries? in
+            guard cpuVisibility.contains(item.metric) else { return nil }
+            return TrendSeries(
+                id: item.label,
+                color: item.color,
+                values: viewModel.cpuCategoryHistory[item.metric]
+            )
+        }
+        return Group {
+            if series.isEmpty {
+                Text(L("请选择指标"))
+                    .font(.connFootnote)
+                    .foregroundStyle(.connMuted)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 132)
+                    .accessibilityIdentifier("cpu.chart.empty")
+            } else {
+                chartOrPlaceholder(
+                    series,
+                    domain: 0 ... 100,
+                    yFormat: { "\(Int($0))%" },
+                    fillsSingleSeries: false
+                )
+            }
+        }
     }
 
     var cpuPerCoreBars: some View {

@@ -27,7 +27,7 @@ enum AppAppearance: String, CaseIterable, Identifiable {
     }
 }
 
-/// 主题色预设。`brand` = 设计令牌默认（品牌靛蓝，不覆盖）。
+/// 主题色预设。`brand` 使用设计令牌中的品牌暖珊瑚色。
 enum AppAccent: String, CaseIterable, Identifiable {
     case brand, blue, teal, green, orange, pink, purple
     var id: String { rawValue }
@@ -155,8 +155,9 @@ final class SettingsStore {
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
-        appearance = AppAppearance(rawValue: defaults.string(forKey: Key.appearance) ?? "") ?? .system
-        accent = AppAccent(rawValue: defaults.string(forKey: Key.accent) ?? "") ?? .brand
+        // 只在没有持久化值时使用默认值；已有用户偏好保持不变。
+        appearance = AppAppearance(rawValue: defaults.string(forKey: Key.appearance) ?? "") ?? .dark
+        accent = AppAccent(rawValue: defaults.string(forKey: Key.accent) ?? "") ?? .purple
         let storedInterval = defaults.object(forKey: Key.refresh) as? Int ?? RefreshInterval.normal.rawValue
         refreshInterval = RefreshInterval(rawValue: storedInterval) ?? .normal
         let storedDocker = defaults.object(forKey: Key.dockerRefresh) as? Int ?? RefreshInterval.normal.rawValue

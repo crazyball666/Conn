@@ -84,6 +84,8 @@ public actor MetricCollector {
             memUsedBytes: parsed.memUsedBytes,
             memBuffersCache: parsed.memBuffersCache,
             memFree: parsed.memFree,
+            swapTotalBytes: parsed.swapTotalBytes,
+            swapUsedBytes: parsed.swapUsedBytes,
             disk: diskPercent,
             diskUsedBytes: parsed.diskUsedBytes,
             diskTotalBytes: parsed.diskTotalBytes,

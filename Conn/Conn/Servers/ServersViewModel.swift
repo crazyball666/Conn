@@ -28,6 +28,11 @@ final class ServersViewModel {
     /// 采集调度。View 在 appear/disappear 控制生命周期。
     let monitor: MonitorScheduler
 
+    /// 当前页面可见时，重载主机列表需要用同一配置重建监控目标。
+    /// 仅保存 interval，不把调度器配置泄漏到 View 层。
+    private var dashboardInterval: Duration = .seconds(30)
+    private var isDashboardVisible = false
+
     init(
         hostStore: any HostRepository,
         groupStore: any HostGroupRepository,
@@ -42,26 +47,40 @@ final class ServersViewModel {
 
     /// 进入页面：读主机 + 启动轮询（间隔由设置页决定，默认 30s）。
     func appear(interval: Duration = .seconds(30)) {
+        dashboardInterval = interval
         load()
+        isDashboardVisible = true
         monitor.startDashboard(hosts: hosts, interval: interval)
     }
 
     /// 离开页面：停止轮询（页面不可见即停，方案 §4.3）。
     func disappear() {
+        isDashboardVisible = false
         monitor.stop()
     }
 
     func load() {
+        let previousHosts = hosts
         errorMessage = nil
         do {
-            hosts = try hostStore.allHosts()
+            let loadedHosts = try hostStore.allHosts()
+            hosts = loadedHosts
             groups = try groupStore.allGroups()
             errorMessage = nil
+            restartDashboardIfHostsChanged(from: previousHosts)
         } catch {
             errorMessage = String(format: L("读取主机失败：%@"), error.friendlyDiagnosis)
             hosts = []
             groups = []
+            restartDashboardIfHostsChanged(from: previousHosts)
         }
+    }
+
+    /// 表单保存/删除后 `load()` 会更新卡片，但调度器原本持有的是旧数组快照。
+    /// 页面可见时立即重建目标并强制采集，避免新卡片永远停留在「刷新中」。
+    private func restartDashboardIfHostsChanged(from previousHosts: [Host]) {
+        guard isDashboardVisible, previousHosts != hosts else { return }
+        monitor.startDashboard(hosts: hosts, interval: dashboardInterval, force: true)
     }
 
     /// 下拉刷新：重读主机 + 立即巡检一轮。
@@ -149,8 +168,8 @@ final class ServersViewModel {
             memory: metrics?.mem,
             disk: metrics?.disk,
             coresText: MetricFormat.cores(metrics?.cpuCores),
-            memTotalText: MetricFormat.compactBytes(metrics?.memTotalBytes),
-            diskTotalText: MetricFormat.compactBytes(metrics?.diskTotalBytes),
+            memTotalText: MetricFormat.compactPair(used: metrics?.memUsedBytes, total: metrics?.memTotalBytes),
+            diskTotalText: MetricFormat.compactPair(used: metrics?.diskUsedBytes, total: metrics?.diskTotalBytes),
             net: metrics.map { flow(upRate: $0.netTxRate, upTotal: $0.netTx, downRate: $0.netRxRate, downTotal: $0.netRx) },
             io: metrics.map { flow(upRate: $0.ioWriteRate, upTotal: $0.ioWriteBytes, downRate: $0.ioReadRate, downTotal: $0.ioReadBytes) },
             uptimeText: metrics?.uptimeSeconds.map { MetricFormat.compactUptime($0) },
