@@ -34,7 +34,7 @@ struct DockerAuditWriter {
         let entry = RunHistoryEntry(
             id: summary.id,
             hostUUID: summary.hostUUID,
-            command: summary.command,
+            script: summary.script,
             exitCode: nil,
             outputHead: nil,
             state: .pending,

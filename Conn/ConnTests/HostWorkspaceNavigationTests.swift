@@ -16,11 +16,12 @@ struct HostWorkspaceNavigationTests {
         #expect(source.contains(".navigationDestination(item: $route"))
     }
 
-    @Test("进入主机工作区后隐藏应用底栏")
-    func hostWorkspaceHidesRootTabBar() throws {
+    @Test("进入主机详情后保留应用底栏")
+    func hostWorkspaceKeepsRootTabBar() throws {
         let source = try hostDetailSource()
 
-        #expect(source.contains(".toolbar(.hidden, for: .tabBar)"))
+        #expect(!source.contains(".toolbar(.hidden, for: .tabBar)"))
+        #expect(source.contains(".toolbar(.visible, for: .tabBar)"))
         #expect(source.contains("modulePage(showsTerminal: false)"))
     }
 

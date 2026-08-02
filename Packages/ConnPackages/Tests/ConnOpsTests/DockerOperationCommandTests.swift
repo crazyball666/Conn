@@ -53,12 +53,16 @@ struct DockerOperationCommandTests {
         let draft = DockerRunDraft(
             image: "nginx",
             environment: [.init(key: "NOT-VALID", value: "value")],
-            mounts: [.init(source: .namedVolume("data"), target: "relative/path")]
+            mounts: [
+                .init(source: .namedVolume("data"), target: "relative/path"),
+                .init(source: .namedVolume(""), target: "/missing-source"),
+            ]
         )
 
         #expect(draft.validate() == [
             .invalidEnvironmentKey("NOT-VALID"),
             .mountTargetMustBeAbsolute("relative/path"),
+            .mountSourceRequired,
         ])
     }
 
@@ -140,6 +144,10 @@ struct DockerOperationCommandTests {
             environment: [.init(key: "APP_MODE", value: "prod;$(whoami)")],
             mounts: [.init(source: .namedVolume("data vol"), target: "/var/lib/app", readOnly: true)],
             restartPolicy: .unlessStopped,
+            hostname: "web-01",
+            user: "nginx",
+            workdir: "/app",
+            readOnlyRoot: true,
             otherOptionTokens: ["--cpus=1", "--add-host", "db:10.0.0.2"],
             commandTokens: ["nginx", "-g", "daemon off;"]
         )
@@ -154,7 +162,7 @@ struct DockerOperationCommandTests {
         #expect(DockerCommand.pull(reference: "repo;$(whoami)", sudo: false) == "docker pull 'repo;$(whoami)'")
         #expect(
             DockerCommand.run(run, sudo: true)
-                == "sudo -n docker run --name 'web app' --detach --network 'app net' --publish '8080:80/tcp' --env 'APP_MODE=prod;$(whoami)' --mount 'type=volume,src=data vol,dst=/var/lib/app,readonly' --restart 'unless-stopped' '--cpus=1' '--add-host' 'db:10.0.0.2' 'nginx:1.27' 'nginx' '-g' 'daemon off;'"
+                == "sudo -n docker run --name 'web app' --detach --network 'app net' --hostname 'web-01' --user 'nginx' --workdir '/app' --publish '8080:80/tcp' --env 'APP_MODE=prod;$(whoami)' --mount 'type=volume,src=data vol,dst=/var/lib/app,readonly' --restart 'unless-stopped' --read-only '--cpus=1' '--add-host' 'db:10.0.0.2' 'nginx:1.27' 'nginx' '-g' 'daemon off;'"
         )
         #expect(
             DockerCommand.createVolume(volume, sudo: false)
@@ -171,6 +179,21 @@ struct DockerOperationCommandTests {
                 == "sudo -n docker system prune -f -a --volumes"
         )
         #expect(DockerCommand.systemPrune(.init(), sudo: false) == "docker system prune -f")
+    }
+
+    @Test("空字符串的 hostname / user / workdir 等同于未设置")
+    func ignoresBlankIdentityFields() {
+        let draft = DockerRunDraft(
+            image: "nginx",
+            hostname: "",
+            user: "",
+            workdir: nil,
+            readOnlyRoot: false
+        )
+
+        #expect(
+            DockerCommand.run(draft, sudo: false) == "docker run 'nginx'"
+        )
     }
 
     @Test("构造 bind 挂载并保留只读语义")

@@ -9,8 +9,6 @@ public struct Host: Identifiable, Codable, Sendable, Equatable, Hashable {
     public enum AuthKind: String, Codable, Sendable, CaseIterable {
         case password
         case key
-        case keyPassphrase = "key_passphrase"
-        case agent
     }
 
     /// 主机健康状态。驱动仪表盘 HealthCard 的红黄绿三态。

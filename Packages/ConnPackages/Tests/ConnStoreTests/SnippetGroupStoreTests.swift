@@ -15,7 +15,7 @@ struct SnippetGroupStoreTests {
         let (snippets, groups) = try makeStores()
         var group = SnippetGroup(name: "旧名")
         try groups.save(group)
-        let snippet = Snippet(title: "ls", command: "ls", groupIDs: [group.id])
+        let snippet = Snippet(title: "ls", script: "ls", groupIDs: [group.id])
         try snippets.save(snippet)
 
         group.name = "新名"
@@ -30,7 +30,7 @@ struct SnippetGroupStoreTests {
         let (snippets, groups) = try makeStores()
         let group = SnippetGroup(name: "Docker")
         try groups.save(group)
-        let snippet = Snippet(title: "ps", command: "docker ps", groupIDs: [group.id])
+        let snippet = Snippet(title: "ps", script: "docker ps", groupIDs: [group.id])
         try snippets.save(snippet)
 
         try groups.delete(id: group.id)
@@ -44,7 +44,7 @@ struct SnippetGroupStoreTests {
         let (snippets, groups) = try makeStores()
         let group = SnippetGroup(name: "系统")
         try groups.save(group)
-        let snippet = Snippet(title: "df", command: "df -h", groupIDs: [group.id])
+        let snippet = Snippet(title: "df", script: "df -h", groupIDs: [group.id])
         try snippets.save(snippet)
 
         try snippets.delete(id: snippet.id)
@@ -58,7 +58,7 @@ struct SnippetGroupStoreTests {
         let (snippets, groups) = try makeStores()
         let group = SnippetGroup(name: "系统")
         try groups.save(group)
-        let snippet = Snippet(title: "df", command: "df -h", groupIDs: [group.id, "does-not-exist"])
+        let snippet = Snippet(title: "df", script: "df -h", groupIDs: [group.id, "does-not-exist"])
 
         try snippets.save(snippet)
 
@@ -72,7 +72,7 @@ struct SnippetGroupStoreTests {
         let earlier = SnippetGroup(name: "A", sortOrder: 1)
         try groups.save(later)
         try groups.save(earlier)
-        let snippet = Snippet(title: "ls", command: "ls", groupIDs: [later.id, earlier.id])
+        let snippet = Snippet(title: "ls", script: "ls", groupIDs: [later.id, earlier.id])
 
         try snippets.save(snippet)
 

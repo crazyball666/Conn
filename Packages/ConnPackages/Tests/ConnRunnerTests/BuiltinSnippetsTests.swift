@@ -33,15 +33,15 @@ private final class StubBuiltinGroupRepository: SnippetGroupRepository, @uncheck
 }
 
 struct BuiltinSnippetsTests {
-    @Test("内置库加载 ≥20 条")
+    @Test("内置库精简为 10 条")
     func loadsLibrary() {
         let snippets = BuiltinSnippets.load()
-        #expect(snippets.count >= 20)
+        #expect(snippets.count == 10)
     }
 
     @Test("内置 JSON 同时声明有序分组")
     func loadsOrderedGroupNames() {
-        #expect(BuiltinSnippets.loadGroupNames() == ["系统", "磁盘", "网络", "日志", "Docker", "服务"])
+        #expect(BuiltinSnippets.loadGroupNames() == ["系统", "磁盘", "网络", "日志", "Docker"])
     }
 
     /// 「是否需要导入」的判定已上移到调用方（`SettingsStore.builtinSnippetsImported`）——
@@ -74,14 +74,14 @@ struct BuiltinSnippetsTests {
     @Test("每条都有标题与命令，排序权重递增")
     func wellFormed() {
         let snippets = BuiltinSnippets.load()
-        #expect(snippets.allSatisfy { !$0.title.isEmpty && !$0.command.isEmpty })
+        #expect(snippets.allSatisfy { !$0.title.isEmpty && !$0.script.isEmpty })
         #expect(snippets.map(\.sortOrder) == Array(0 ..< snippets.count))
     }
 
-    @Test("含危险片段标记（清理类）")
-    func hasDangerFlagged() {
+    @Test("默认片段均为只读安全操作")
+    func builtinsAreSafe() {
         let snippets = BuiltinSnippets.load()
-        #expect(snippets.contains { $0.danger })
+        #expect(snippets.allSatisfy { !$0.danger })
     }
 
     @Test("含置顶片段")
@@ -92,16 +92,16 @@ struct BuiltinSnippetsTests {
     @Test("变量片段可被 ConnKit 解析")
     func variablesParse() {
         let snippets = BuiltinSnippets.load()
-        let portSnippet = snippets.first { $0.command.contains("{{port") }
-        #expect(portSnippet != nil)
-        #expect(portSnippet?.variables.contains { $0.name == "port" } == true)
+        let variableSnippet = snippets.first { $0.script.contains("{{host") }
+        #expect(variableSnippet != nil)
+        #expect(variableSnippet?.variables.contains { $0.name == "host" } == true)
     }
 
     @Test("Docker 片段不把 Go 模板误判为变量")
     func dockerTemplatesNotVariables() {
         // 内置 docker 片段用 `docker ps -a`（无 {{json .}}），确保无误判变量
         let snippets = BuiltinSnippets.load()
-        for snippet in snippets where snippet.command.hasPrefix("docker") {
+        for snippet in snippets where snippet.script.hasPrefix("docker") {
             #expect(snippet.variables.allSatisfy { !$0.name.contains(".") })
         }
     }

@@ -12,8 +12,8 @@ struct SnippetStoreTests {
     @Test("save 后 allSnippets 按排序权重读回")
     func savesAndOrders() throws {
         let store = try makeStore()
-        try store.save(Snippet(title: "普通", command: "ls", sortOrder: 1))
-        try store.save(Snippet(title: "置顶", command: "df", pinned: true, sortOrder: 2))
+        try store.save(Snippet(title: "普通", script: "ls", sortOrder: 1))
+        try store.save(Snippet(title: "置顶", script: "df", pinned: true, sortOrder: 2))
         let snippets = try store.allSnippets()
         #expect(snippets.map(\.title) == ["普通", "置顶"])
     }
@@ -22,15 +22,15 @@ struct SnippetStoreTests {
     func counts() throws {
         let store = try makeStore()
         #expect(try store.count() == 0)
-        try store.save(Snippet(title: "a", command: "a"))
-        try store.save(Snippet(title: "b", command: "b"))
+        try store.save(Snippet(title: "a", script: "a"))
+        try store.save(Snippet(title: "b", script: "b"))
         #expect(try store.count() == 2)
     }
 
     @Test("删除后不再出现")
     func deletes() throws {
         let store = try makeStore()
-        let snippet = Snippet(title: "临时", command: "echo hi")
+        let snippet = Snippet(title: "临时", script: "echo hi")
         try store.save(snippet)
         try store.delete(id: snippet.id)
         #expect(try store.allSnippets().isEmpty)
@@ -41,7 +41,7 @@ struct SnippetStoreTests {
     @Test("同 id 保存为覆盖")
     func overwrites() throws {
         let store = try makeStore()
-        let snippet = Snippet(title: "旧", command: "old")
+        let snippet = Snippet(title: "旧", script: "old")
         try store.save(snippet)
         var edited = snippet
         edited.title = "新"
@@ -59,7 +59,7 @@ struct SnippetStoreTests {
         let logs = SnippetGroup(name: "日志", sortOrder: 1)
         try groups.save(docker)
         try groups.save(logs)
-        var snippet = Snippet(title: "容器日志", command: "docker logs", groupIDs: [docker.id, logs.id])
+        var snippet = Snippet(title: "容器日志", script: "docker logs", groupIDs: [docker.id, logs.id])
         try store.save(snippet)
 
         #expect(try #require(store.snippet(id: snippet.id)).groupIDs == [docker.id, logs.id])
@@ -79,7 +79,7 @@ struct SnippetStoreTests {
         let logs = SnippetGroup(name: "日志", sortOrder: 1)
         try groups.save(docker)
         try groups.save(logs)
-        let snippet = Snippet(title: "容器日志", command: "docker logs", groupIDs: [docker.id, logs.id])
+        let snippet = Snippet(title: "容器日志", script: "docker logs", groupIDs: [docker.id, logs.id])
         try store.save(snippet)
 
         try groups.delete(id: docker.id)

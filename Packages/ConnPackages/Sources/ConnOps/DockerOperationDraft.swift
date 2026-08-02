@@ -122,6 +122,7 @@ public enum ValidationError: Equatable, Sendable {
     case invalidPort(PortBinding)
     case duplicateHostPort(hostPort: String, protocol: PortBinding.`Protocol`)
     case invalidEnvironmentKey(String)
+    case mountSourceRequired
     case mountTargetMustBeAbsolute(String)
     case emptyOtherOptionToken
     case conflictingOtherOptionToken(String)
@@ -138,6 +139,14 @@ public struct DockerRunDraft: Equatable, Sendable {
     public let environment: [EnvironmentEntry]
     public let mounts: [MountEntry]
     public let restartPolicy: RestartPolicy
+    /// 容器内主机名（`--hostname` / `-h`）。与 `name`（容器对外名）是两件事。
+    public let hostname: String?
+    /// 容器内运行用户（`--user` / `-u`）。生产几乎必设。
+    public let user: String?
+    /// 启动命令的工作目录（`--workdir` / `-w`）。
+    public let workdir: String?
+    /// 根文件系统只读（`--read-only`）。安全加固常用。
+    public let readOnlyRoot: Bool
     public let otherOptionTokens: [String]
     public let commandTokens: [String]
 
@@ -150,6 +159,10 @@ public struct DockerRunDraft: Equatable, Sendable {
         environment: [EnvironmentEntry] = [],
         mounts: [MountEntry] = [],
         restartPolicy: RestartPolicy = .no,
+        hostname: String? = nil,
+        user: String? = nil,
+        workdir: String? = nil,
+        readOnlyRoot: Bool = false,
         otherOptionTokens: [String] = [],
         commandTokens: [String] = []
     ) {
@@ -161,6 +174,10 @@ public struct DockerRunDraft: Equatable, Sendable {
         self.environment = environment
         self.mounts = mounts
         self.restartPolicy = restartPolicy
+        self.hostname = hostname
+        self.user = user
+        self.workdir = workdir
+        self.readOnlyRoot = readOnlyRoot
         self.otherOptionTokens = otherOptionTokens
         self.commandTokens = commandTokens
     }
@@ -177,6 +194,15 @@ public struct DockerRunDraft: Equatable, Sendable {
         if let network {
             arguments += ["--network", network]
         }
+        if let hostname, !hostname.isEmpty {
+            arguments += ["--hostname", hostname]
+        }
+        if let user, !user.isEmpty {
+            arguments += ["--user", user]
+        }
+        if let workdir, !workdir.isEmpty {
+            arguments += ["--workdir", workdir]
+        }
         for port in ports {
             arguments += ["--publish", port.dockerValue]
         }
@@ -188,6 +214,9 @@ public struct DockerRunDraft: Equatable, Sendable {
         }
         if restartPolicy != .no {
             arguments += ["--restart", restartPolicy.rawValue]
+        }
+        if readOnlyRoot {
+            arguments.append("--read-only")
         }
         arguments += otherOptionTokens
         arguments.append(image)
@@ -216,8 +245,16 @@ public struct DockerRunDraft: Equatable, Sendable {
         for entry in environment where !entry.hasValidKey {
             errors.append(.invalidEnvironmentKey(entry.key))
         }
-        for mount in mounts where !mount.target.hasPrefix("/") {
-            errors.append(.mountTargetMustBeAbsolute(mount.target))
+        for mount in mounts {
+            let source: String = switch mount.source {
+            case let .namedVolume(value), let .bind(value): value
+            }
+            if source.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                errors.append(.mountSourceRequired)
+            }
+            if !mount.target.hasPrefix("/") {
+                errors.append(.mountTargetMustBeAbsolute(mount.target))
+            }
         }
         for token in otherOptionTokens {
             if token.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
@@ -237,6 +274,9 @@ public struct DockerRunDraft: Equatable, Sendable {
         let structuredOptions = [
             "--name", "--network", "--net", "--restart", "--detach", "-d",
             "--publish", "-p", "--env", "-e", "--volume", "-v", "--mount",
+            // hostname / user / workdir / read-only are intentionally left to the
+            // manual advanced-options editor. They are valid Docker flags but too
+            // uncommon for the compact basic form.
         ]
         if structuredOptions.contains(where: { option in
             token == option || token.hasPrefix(option + "=")

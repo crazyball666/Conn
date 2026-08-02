@@ -254,6 +254,11 @@ final class MockSSHSession: SSHSession, @unchecked Sendable {
         if let custom = behavior.commandResponses[trimmed] {
             return custom
         }
+        // `SSHSession.execScript` 会把脚本包装成 `sh/bash/zsh -c '…'`。
+        // 演示模式仍应按脚本内容命中确定性假输出，而不是把解释器本身当成未知命令。
+        if let script = unwrapInterpreterInvocation(trimmed) {
+            return resolve(script)
+        }
         if let dynamic = behavior.dynamicResponder?(command, endpoint) {
             return dynamic
         }
@@ -265,6 +270,16 @@ final class MockSSHSession: SSHSession, @unchecked Sendable {
 
     private func firstWord(_ command: String) -> String {
         String(command.split(separator: " ").first ?? "")
+    }
+
+    private func unwrapInterpreterInvocation(_ command: String) -> String? {
+        let prefixes = ["sh -c '", "bash -c '", "zsh -c '"]
+        guard let prefix = prefixes.first(where: { command.hasPrefix($0) }), command.last == "'" else {
+            return nil
+        }
+        var script = String(command.dropFirst(prefix.count))
+        script.removeLast()
+        return script.replacingOccurrences(of: "'\\''", with: "'")
     }
 
     private static func lineChunks(_ output: String) -> [Data] {

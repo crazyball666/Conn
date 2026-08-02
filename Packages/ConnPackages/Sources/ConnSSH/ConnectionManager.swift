@@ -1,7 +1,7 @@
 import ConnKit
 import Foundation
 
-/// 为某主机解析认证材料（从 Keychain / Secure Enclave 取出）。
+/// 为某主机解析认证材料（从 Keychain 取出）。
 ///
 /// 用闭包而非协议，让 App 层可直接注入 Keychain 读取逻辑，测试可注入常量。
 /// 凭据只在此刻现取现用，不长驻内存（技术方案 §4.7）。

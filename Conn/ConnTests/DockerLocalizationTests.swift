@@ -106,11 +106,15 @@ struct DockerLocalizationTests {
         "Docker 清理悬空镜像",
         "Docker 系统清理",
         "Docker 重启容器",
+        "一行一项 docker flag，可写 --flag=value 形式。空行与 # 开头行忽略。",
         "不设置",
         "不重启",
+        "主机名",
         "主机端口",
         "主机网络",
         "主机路径",
+        "保存到本地命令",
+        "保存失败：%@",
         "值",
         "停止",
         "具名卷",
@@ -131,6 +135,7 @@ struct DockerLocalizationTests {
         "另一个 Docker 操作正在进行",
         "取消",
         "只读",
+        "只读根文件系统",
         "可附加",
         "名称",
         "后台运行",
@@ -165,6 +170,7 @@ struct DockerLocalizationTests {
         "默认将移除已停止容器、未使用网络、悬空镜像和构建缓存。",
         "特权容器",
         "环境变量",
+        "用户",
         "确认 Docker 操作",
         "确认词",
         "确认词不匹配，未执行 Docker 操作",
@@ -259,6 +265,7 @@ struct DockerLocalizationTests {
         "重启次数",
         "重试",
         "镜像 ID",
+        "预览命令",
         "预置",
         "%@ · %d 个服务 · %d/%d 个容器运行",
         "%d/%d 个容器运行",
@@ -276,6 +283,8 @@ struct DockerLocalizationTests {
         "共 %d 个项目",
         "启动 Compose 项目",
         "将使用项目名称：%@",
+        "工作目录",
+        "已保存：%@",
         "已停止",
         "手动",
         "手动添加 Compose 项目",
@@ -328,7 +337,6 @@ struct DockerLocalizationTests {
         "Conn/Hosts/DockerPullProgressView.swift",
         "Conn/Hosts/DockerResourceFormViews.swift",
         "Conn/Hosts/DockerRunFormView.swift",
-        "Conn/Hosts/DockerRunReviewView.swift",
         "Conn/Hosts/DockerView.swift",
         "Conn/Hosts/ImageDetailView.swift",
         "Conn/Hosts/NetworkDetailView.swift",
@@ -389,7 +397,6 @@ extension DockerLocalizationTests {
         let dockerView = try source(named: "Conn/Hosts/DockerView.swift")
         let routing = try source(named: "Conn/Hosts/DockerOperationRouting.swift")
         let runForm = try source(named: "Conn/Hosts/DockerRunFormView.swift")
-        let runReview = try source(named: "Conn/Hosts/DockerRunReviewView.swift")
         let composeViews = try source(named: "Conn/Hosts/DockerComposeViews.swift")
         let detailBuilding = try source(named: "Conn/Hosts/DockerDetailBuilding.swift")
 
@@ -409,9 +416,10 @@ extension DockerLocalizationTests {
         #expect(!composeViews.contains("addManual"))
         #expect(composeViews.contains(".composeDown(project: project, dialect: dialect)"))
         #expect(composeViews.contains("kind: .compose(project: project, dialect: dialect, service: nil)"))
-        #expect(runForm.contains("DockerRunReviewView(draft: state.draft, operations: operations)"))
-        #expect(runReview.contains("DockerCommand.run(draft, sudo: false)"))
-        #expect(runReview.contains("operations.runContainer(draft)"))
+        #expect(!runForm.contains("DockerRunReviewView"))
+        #expect(!runForm.contains("showsReview"))
+        #expect(runForm.contains("DockerCommand.run(state.draft, sudo: false)"))
+        #expect(runForm.contains("operations.runContainer(state.draft)"))
         #expect(!runForm.contains("maskedArguments"))
         #expect(!detailBuilding.contains("inlineActionButton"))
         #expect(!detailBuilding.contains("isMenuEnabled"))

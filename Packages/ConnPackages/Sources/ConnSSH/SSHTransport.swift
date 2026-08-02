@@ -1,3 +1,4 @@
+import ConnKit
 import Foundation
 
 /// 会话状态流的事件。
@@ -70,6 +71,18 @@ public extension SSHSession {
     /// **传低于 15 秒的值会让那层兜底失效**（详见 ConnSSHCitadel 的 `withTimeout` 说明）。
     func exec(_ command: String) async throws -> ExecResult {
         try await exec(command, timeout: .seconds(30))
+    }
+
+    /// 使用指定解释器执行完整 Shell 脚本。
+    ///
+    /// 通过 `-c` 将脚本作为一个整体交给解释器，避免多行脚本被 SSH 外层
+    /// 命令拆开执行。解释器由受限枚举提供，不接受任意字符串。
+    func execScript(
+        _ script: String,
+        interpreter: ShellInterpreter = .sh,
+        timeout: Duration
+    ) async throws -> ExecResult {
+        try await exec(interpreter.invocation(for: script), timeout: timeout)
     }
 }
 

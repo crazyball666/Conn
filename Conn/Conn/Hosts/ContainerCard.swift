@@ -28,6 +28,8 @@ struct ContainerCard: View {
     // MARK: - 头部
 
     private var header: some View {
+        // 启动时长（`container.status`，如 "Up 3 weeks" / "Exited (137) 3 weeks ago"）
+        // 放在右上角：与左上的状态点同一水平基线，长度不一时随卡片宽度自然截断。
         HStack(alignment: .top, spacing: ConnSpacing.sm) {
             ConnStatusDot(healthStatus).padding(.top, 4)
             VStack(alignment: .leading, spacing: 3) {
@@ -37,10 +39,12 @@ struct ContainerCard: View {
                 Text(container.image)
                     .font(.connData(.caption2)).foregroundStyle(.connMuted)
                     .lineLimit(1).truncationMode(.middle)
-                Text(container.status)
-                    .font(.connData(.caption2)).foregroundStyle(.connDim).lineLimit(1)
             }
             Spacer(minLength: 0)
+            Text(container.status)
+                .font(.connData(.caption2)).foregroundStyle(.connDim)
+                .lineLimit(1).truncationMode(.tail)
+                .padding(.top, 4)
         }
     }
 

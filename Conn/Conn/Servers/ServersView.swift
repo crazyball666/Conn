@@ -31,6 +31,7 @@ struct ServersView: View {
     @State private var groupDeleteRequest: GroupEditRequest?
     @State private var groupNameInput = ""
     @Environment(SettingsStore.self) private var settings
+    @Environment(\.connToastCenter) private var toastCenter
     private let dependencies: AppDependencies
 
     init(dependencies: AppDependencies) {
@@ -109,10 +110,9 @@ struct ServersView: View {
                 onDelete: { viewModel.deleteGroup(id: $0) }
             )
         )
-        .connToast(message: Binding(
-            get: { viewModel.errorMessage },
-            set: { if $0 == nil { viewModel.clearError() } }
-        ))
+        .onChange(of: viewModel.errorMessage) { _, message in
+            toastCenter.show(message)
+        }
     }
 
     // MARK: - 区块

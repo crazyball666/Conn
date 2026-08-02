@@ -2,9 +2,9 @@ import ConnKit
 import ConnUI
 import SwiftUI
 
-/// 从 App 的本地命令库选择一条命令并填入当前终端。
+/// 从 App 的本地脚本库选择一条脚本并填入当前终端。
 ///
-/// 这里只负责选取与变量替换，不执行命令、不追加换行；危险命令也必须回到终端由用户
+/// 这里只负责选取与变量替换，不执行脚本、不追加换行；危险脚本也必须回到终端由用户
 /// 手动确认执行，避免快捷面板上的一次误触直接改变服务器状态。
 struct TerminalCommandPickerView: View {
     @State private var viewModel: SnippetsViewModel
@@ -46,8 +46,11 @@ struct TerminalCommandPickerView: View {
                                         .font(.connData(.caption2))
                                         .foregroundStyle(.connAccent)
                                 }
+                                Text(snippet.interpreter.displayName)
+                                    .font(.connData(.caption2))
+                                    .foregroundStyle(.connMuted)
                             }
-                            Text(snippet.command)
+                            Text(snippet.script)
                                 .font(.system(size: 11.5, design: .monospaced))
                                 .foregroundStyle(.connMuted)
                                 .lineLimit(1)
@@ -68,12 +71,12 @@ struct TerminalCommandPickerView: View {
             .overlay {
                 pickerStateOverlay
             }
-            .navigationTitle(L("选择本地命令"))
+            .navigationTitle(L("选择本地脚本"))
             .navigationBarTitleDisplayMode(.inline)
             .searchable(
                 text: $viewModel.searchText,
                 placement: .navigationBarDrawer(displayMode: .always),
-                prompt: L("搜索命令")
+                prompt: L("搜索脚本")
             )
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
@@ -82,9 +85,9 @@ struct TerminalCommandPickerView: View {
             }
             .task { viewModel.load() }
             .sheet(item: $variableSnippet) { snippet in
-                TerminalCommandVariablesView(snippet: snippet) { command in
+                TerminalCommandVariablesView(snippet: snippet) { script in
                     variableSnippet = nil
-                    finish(command)
+                    finish(script)
                 }
                 .presentationDetents([.medium])
                 .presentationDragIndicator(.visible)
@@ -104,9 +107,9 @@ struct TerminalCommandPickerView: View {
         } else if snippets.isEmpty {
             EmptyState(
                 systemName: viewModel.searchText.isEmpty ? "command" : "magnifyingglass",
-                title: viewModel.searchText.isEmpty ? L("还没有命令") : L("没有匹配的命令"),
+                title: viewModel.searchText.isEmpty ? L("还没有脚本") : L("没有匹配的脚本"),
                 message: viewModel.searchText.isEmpty
-                    ? L("先在「命令」页面添加常用命令")
+                    ? L("先在「脚本」页面添加常用脚本")
                     : L("换个关键词试试")
             )
             .padding(.horizontal, ConnSpacing.lg)
@@ -115,14 +118,14 @@ struct TerminalCommandPickerView: View {
 
     private func choose(_ snippet: Snippet) {
         if snippet.variables.isEmpty {
-            finish(snippet.command)
+            finish(snippet.script)
         } else {
             variableSnippet = snippet
         }
     }
 
-    private func finish(_ command: String) {
-        onSelect(command)
+    private func finish(_ script: String) {
+        onSelect(script)
         dismiss()
     }
 }
@@ -155,7 +158,7 @@ private struct TerminalCommandVariablesView: View {
                 } header: {
                     Text(L("变量"))
                 } footer: {
-                    Text(L("命令只会填入终端，不会自动执行。"))
+                    Text(L("脚本只会填入终端，不会自动执行。"))
                 }
             }
             .navigationTitle(snippet.title)

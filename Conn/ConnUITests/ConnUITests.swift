@@ -162,6 +162,64 @@ final class ConnUITests: XCTestCase {
     }
 
     @MainActor
+    func testSnippetGroupCreateAlertIsPresentedOnGroupDestination() throws {
+        let app = XCUIApplication()
+        app.launchEnvironment["CONN_DEMO"] = "1"
+        app.launchEnvironment["CONN_SMOKE_SNIPPETS"] = "1"
+        app.launch()
+
+        let more = app.buttons["更多操作"]
+        XCTAssertTrue(more.waitForExistence(timeout: 10))
+        more.tap()
+        let manageGroups = app.buttons["管理分组"]
+        XCTAssertTrue(manageGroups.waitForExistence(timeout: 5))
+        manageGroups.tap()
+        XCTAssertTrue(app.navigationBars["分组"].waitForExistence(timeout: 5))
+
+        let addButton = app.navigationBars["分组"].buttons["新增分组"]
+        XCTAssertTrue(addButton.waitForExistence(timeout: 5))
+        addButton.tap()
+
+        XCTAssertTrue(app.alerts["新增分组"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.navigationBars["分组"].exists)
+        let attachment = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+        attachment.name = "Snippet group create alert on destination"
+        attachment.lifetime = .keepAlways
+        add(attachment)
+    }
+
+    @MainActor
+    func testHostFormGroupPickerStartsCollapsed() throws {
+        let app = XCUIApplication()
+        app.launchEnvironment["CONN_DEMO"] = "1"
+        app.launchEnvironment["CONN_SMOKE_HOSTFORM"] = "1"
+        app.launch()
+
+        XCTAssertTrue(app.navigationBars["添加主机"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["分组"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.staticTexts["生产"].exists)
+    }
+
+    @MainActor
+    func testSnippetFormGroupPickerStartsCollapsed() throws {
+        let app = XCUIApplication()
+        app.launchEnvironment["CONN_DEMO"] = "1"
+        app.launchEnvironment["CONN_SMOKE_SNIPPETS"] = "1"
+        app.launch()
+
+        let addButton = app.buttons["新增"]
+        XCTAssertTrue(addButton.waitForExistence(timeout: 10))
+        addButton.tap()
+        let newCommand = app.buttons["新增命令"].firstMatch
+        XCTAssertTrue(newCommand.waitForExistence(timeout: 5))
+        newCommand.tap()
+
+        XCTAssertTrue(app.navigationBars["新增命令"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["分组"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.staticTexts["还没有分组，先到分组管理中创建。"].exists)
+    }
+
+    @MainActor
     func testTerminalPasteButtonWritesClipboardText() throws {
         let app = XCUIApplication()
         let marker = "PasteMarkerEightFourTwo"

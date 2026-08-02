@@ -2,6 +2,24 @@ import ConnKit
 import ConnSSH
 import Foundation
 
+/// 一次脚本批量执行的单主机结果。
+public struct ScriptBatchResult: Identifiable, Sendable, Equatable {
+    public let hostID: String
+    public let hostName: String
+    public let outcome: RunOutcome?
+    public let errorMessage: String?
+
+    public var id: String { hostID }
+    public var isSuccess: Bool { outcome?.isSuccess == true && errorMessage == nil }
+
+    public init(hostID: String, hostName: String, outcome: RunOutcome? = nil, errorMessage: String? = nil) {
+        self.hostID = hostID
+        self.hostName = hostName
+        self.outcome = outcome
+        self.errorMessage = errorMessage
+    }
+}
+
 /// 片段执行管线（方案 §4.6）。
 ///
 /// 负责静默执行（exec，结果卡）与审计落库；危险判定复用 ConnSSH 的
@@ -17,8 +35,8 @@ public struct SnippetRunner {
     }
 
     /// 危险裁决。UI 据此决定是否二次确认（危险片段或生产敏感命令）。
-    public func evaluateDanger(command: String, isProduction: Bool) -> DangerVerdict {
-        DangerCommandRules.evaluate(command, isProduction: isProduction)
+    public func evaluateDanger(script: String, isProduction: Bool) -> DangerVerdict {
+        DangerCommandRules.evaluate(script, isProduction: isProduction)
     }
 
     /// 片段静默执行的超时。
@@ -31,22 +49,66 @@ public struct SnippetRunner {
     /// 上限只用来兜「会话已死、读取永不返回」，不用来限制命令本身该跑多久。
     private static let silentRunTimeout: Duration = .seconds(600)
 
-    /// 静默执行最终命令并写审计。命令应已由 `Snippet.render(values:)` 填充完变量。
-    public func runSilently(command: String, on host: ConnKit.Host) async throws -> RunOutcome {
+    /// 静默执行最终脚本并写审计。脚本应已由 `Snippet.render(values:)` 填充完变量。
+    public func runSilently(
+        script: String,
+        interpreter: ShellInterpreter = .sh,
+        on host: ConnKit.Host
+    ) async throws -> RunOutcome {
         let session = try await connectionManager.session(for: host)
-        let result = try await session.exec(command, timeout: Self.silentRunTimeout)
+        let result = try await session.execScript(
+            script,
+            interpreter: interpreter,
+            timeout: Self.silentRunTimeout
+        )
         let outcome = RunOutcome(
-            command: command,
+            script: script,
+            interpreter: interpreter,
             exitCode: result.exitCode,
             stdout: result.stdoutText,
             stderr: result.stderrText
         )
         try? runHistory.record(RunHistoryEntry(
             hostUUID: host.id,
-            command: command,
+            script: script,
+            interpreter: interpreter,
             exitCode: result.exitCode,
             outputHead: String(result.stdoutText.prefix(500))
         ))
         return outcome
+    }
+
+    /// 并发执行同一脚本到多台主机。单台失败不会阻塞其他主机，并为每台主机返回独立结果。
+    public func runBatchSilently(
+        script: String,
+        interpreter: ShellInterpreter = .sh,
+        on hosts: [ConnKit.Host]
+    ) async -> [ScriptBatchResult] {
+        await withTaskGroup(of: ScriptBatchResult.self, returning: [ScriptBatchResult].self) { group in
+            for host in hosts {
+                group.addTask { [self] in
+                    do {
+                        let outcome = try await runSilently(script: script, interpreter: interpreter, on: host)
+                        return ScriptBatchResult(hostID: host.id, hostName: host.name, outcome: outcome)
+                    } catch {
+                        return ScriptBatchResult(
+                            hostID: host.id,
+                            hostName: host.name,
+                            errorMessage: Self.errorMessage(for: error)
+                        )
+                    }
+                }
+            }
+            var results: [ScriptBatchResult] = []
+            for await result in group { results.append(result) }
+            return results.sorted { $0.hostName.localizedCaseInsensitiveCompare($1.hostName) == .orderedAscending }
+        }
+    }
+
+    private static func errorMessage(for error: Error) -> String {
+        if let sshError = error as? SSHError {
+            return sshError.diagnosis.split(separator: "\n").first.map(String.init) ?? L("执行失败")
+        }
+        return error.localizedDescription
     }
 }

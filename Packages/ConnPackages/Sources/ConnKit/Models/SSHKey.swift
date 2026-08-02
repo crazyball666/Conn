@@ -2,25 +2,31 @@ import Foundation
 
 /// 一把 SSH 密钥。
 ///
-/// **私钥绝不存在本类型中**——`privateRef` 是 Keychain / Secure Enclave 的
-/// 引用键。Secure Enclave 密钥（`.secureEnclaveP256`）的私钥物理上不可导出。
+/// **私钥绝不存在本类型中**——`privateRef` 是 Keychain 的引用键。
 public struct SSHKey: Identifiable, Codable, Sendable, Equatable {
     public enum Kind: String, Codable, Sendable, CaseIterable {
         case ed25519
         case rsa
-        case secureEnclaveP256 = "se_p256"
+        case ecdsaP256 = "ecdsa_p256"
 
         /// OpenSSH `authorized_keys` 中的算法前缀。
         public var opensshPrefix: String {
             switch self {
             case .ed25519: "ssh-ed25519"
             case .rsa: "ssh-rsa"
-            case .secureEnclaveP256: "ecdsa-sha2-nistp256"
+            case .ecdsaP256: "ecdsa-sha2-nistp256"
             }
         }
 
-        /// 私钥是否可导出。Secure Enclave 密钥永远不可导出。
-        public var isExportable: Bool { self != .secureEnclaveP256 }
+        public var displayName: String {
+            switch self {
+            case .ed25519: "Ed25519"
+            case .rsa: "RSA 4096"
+            case .ecdsaP256: "ECDSA P-256"
+            }
+        }
+
+        public var isExportable: Bool { true }
     }
 
     public let id: String
@@ -28,7 +34,7 @@ public struct SSHKey: Identifiable, Codable, Sendable, Equatable {
     public var kind: Kind
     /// OpenSSH 格式公钥（含算法前缀与 base64 主体）。
     public var publicKey: String
-    /// Keychain / Secure Enclave 引用键，非私钥本身。
+    /// Keychain 引用键，非私钥本身。
     public var privateRef: String?
     public let createdAt: Int64
     public var updatedAt: Int64
@@ -54,6 +60,4 @@ public struct SSHKey: Identifiable, Codable, Sendable, Equatable {
         self.syncDirty = syncDirty
     }
 
-    /// 是否存于 Secure Enclave。UI 上需展示专属徽章（原型 S9）。
-    public var isSecureEnclave: Bool { kind == .secureEnclaveP256 }
 }

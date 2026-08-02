@@ -1,4 +1,5 @@
 import Foundation
+import ConnKit
 
 /// 内存凭据存储（演示模式与测试用）。
 ///
@@ -6,7 +7,6 @@ import Foundation
 /// 写进真实 Keychain。
 public final class InMemoryCredentialStore: CredentialStore, @unchecked Sendable {
     private var passwords: [String: String] = [:]
-    private var passphrases: [String: String] = [:]
     private let lock = NSLock()
 
     public init() {}
@@ -19,18 +19,9 @@ public final class InMemoryCredentialStore: CredentialStore, @unchecked Sendable
         lock.withLock { passwords[hostID] }
     }
 
-    public func setPassphrase(_ passphrase: String?, forHost hostID: String) throws {
-        lock.withLock { passphrases[hostID] = passphrase }
-    }
-
-    public func passphrase(forHost hostID: String) throws -> String? {
-        lock.withLock { passphrases[hostID] }
-    }
-
     public func deleteAll(forHost hostID: String) throws {
         lock.withLock {
             passwords[hostID] = nil
-            passphrases[hostID] = nil
         }
     }
 
@@ -42,5 +33,20 @@ public final class InMemoryCredentialStore: CredentialStore, @unchecked Sendable
 
     public func privateKey(forKey keyID: String) throws -> String? {
         lock.withLock { privateKeys[keyID] }
+    }
+
+    private var keyMetadata: [String: SSHKey] = [:]
+
+    public func setKeyMetadata(_ key: SSHKey?, forKey keyID: String) throws {
+        lock.withLock { keyMetadata[keyID] = key }
+    }
+
+    public func allKeyMetadata() throws -> [SSHKey] {
+        lock.withLock {
+            keyMetadata.values.sorted {
+                if $0.createdAt != $1.createdAt { return $0.createdAt > $1.createdAt }
+                return $0.id < $1.id
+            }
+        }
     }
 }

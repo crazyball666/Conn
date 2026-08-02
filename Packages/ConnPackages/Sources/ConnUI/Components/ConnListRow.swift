@@ -14,7 +14,7 @@ public enum ConnRowEmphasis: Sendable {
     }
 }
 
-/// 列表行标题后的内联小标签，如 `prod`、`{{port}}`、`Secure Enclave`。
+/// 列表行标题后的内联小标签，如 `prod`、`{{port}}`、`RSA 4096`。
 public struct ConnRowTag: Identifiable, Sendable {
     public enum Kind: Sendable {
         case neutral, info, danger, accent, warning
@@ -221,7 +221,7 @@ public struct ConnStatusDot: View {
         ConnListRow(
             title: "id_ed25519_work",
             subtitle: "SHA256:abc123…",
-            tags: [.init("Secure Enclave", kind: .accent)],
+            tags: [.init("RSA 4096", kind: .accent)],
             emphasis: .selected,
             leading: { IconChip("key.fill", tint: .accent) },
             action: {}

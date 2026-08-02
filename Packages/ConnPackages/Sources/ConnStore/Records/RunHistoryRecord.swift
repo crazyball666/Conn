@@ -8,14 +8,15 @@ struct RunHistoryRecord: Codable, FetchableRecord, PersistableRecord, Sendable {
 
     var uuid: String
     var hostUUID: String
-    var command: String
+    var script: String
+    var interpreter: ShellInterpreter
     var exitCode: Int32?
     var outputHead: String?
     var state: RunHistoryState
     var ranAt: Int64
 
     enum CodingKeys: String, CodingKey {
-        case uuid, command
+        case uuid, script, interpreter
         case hostUUID = "host_uuid"
         case exitCode = "exit_code"
         case outputHead = "output_head"
@@ -28,7 +29,8 @@ extension RunHistoryRecord {
     init(_ entry: RunHistoryEntry) {
         uuid = entry.id
         hostUUID = entry.hostUUID
-        command = entry.command
+        script = entry.script
+        interpreter = entry.interpreter
         exitCode = entry.exitCode
         outputHead = entry.outputHead
         state = entry.state
@@ -39,7 +41,8 @@ extension RunHistoryRecord {
         RunHistoryEntry(
             id: uuid,
             hostUUID: hostUUID,
-            command: command,
+            script: script,
+            interpreter: interpreter,
             exitCode: exitCode,
             outputHead: outputHead,
             state: state,

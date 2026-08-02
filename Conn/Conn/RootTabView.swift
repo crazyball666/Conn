@@ -22,8 +22,7 @@ struct RootTabView: View {
     /// （大标题 + 系统搜索 `.searchable` + 右上角 toolbar 图标）；这些修饰只有挂在各自栈内的
     /// 内容上才会生效，`TabView` 嵌在单一外层栈里时不会冒泡。
     ///
-    /// 根列表使用系统原生底栏；进入主机工作区等沉浸式详情后由目的页面隐藏底栏，
-    /// 避免“App 导航 + 工作区导航”同时占据屏幕。
+    /// 根列表和主机工作区都使用系统原生底栏，详情页也可以直接切换到其它 Tab。
     var body: some View {
         TabView(selection: $selection) {
             tab(.servers) {

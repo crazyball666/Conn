@@ -52,6 +52,7 @@ final class ServersViewModel {
     }
 
     func load() {
+        errorMessage = nil
         do {
             hosts = try hostStore.allHosts()
             groups = try groupStore.allGroups()
@@ -71,6 +72,7 @@ final class ServersViewModel {
 
     /// 真删除，不可恢复。只影响本地记录，不影响服务器本身。
     func delete(_ host: Host) {
+        errorMessage = nil
         try? hostStore.delete(id: host.id)
         load()
     }
@@ -195,6 +197,7 @@ final class ServersViewModel {
     // MARK: - 分组
 
     func addGroup(_ name: String) {
+        errorMessage = nil
         do {
             let trimmed = try GroupListEditor.validate(name: name, against: groups.map(\.name))
             try groupStore.save(HostGroup(
@@ -212,6 +215,7 @@ final class ServersViewModel {
 
     func renameGroup(id: String, to name: String) {
         guard var group = groups.first(where: { $0.id == id }) else { return }
+        errorMessage = nil
         do {
             let others = groups.filter { $0.id != id }.map(\.name)
             group.name = try GroupListEditor.validate(name: name, against: others)
@@ -227,6 +231,7 @@ final class ServersViewModel {
 
     /// 删除分组只解除归属，主机本身不受影响（成员行由外键级联清理）。
     func deleteGroup(id: String) {
+        errorMessage = nil
         do {
             try groupStore.delete(id: id)
             if selectedGroupID == id { selectedGroupID = nil }

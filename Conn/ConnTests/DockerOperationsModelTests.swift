@@ -58,7 +58,7 @@ struct DockerOperationsModelTests {
         #expect(entry?.state == .known)
         #expect(entry?.exitCode == 1)
         #expect(entry?.outputHead == nil)
-        #expect(entry?.command.contains("private-token") == false)
+        #expect(entry?.script.contains("private-token") == false)
     }
 
     @Test("已知失败向用户展示远端 stderr 而不是只有退出码")
@@ -140,10 +140,10 @@ struct DockerOperationsModelTests {
         await operations.runContainer(draft)
 
         let entry = history.entries.first
-        #expect(entry?.command.contains("API_TOKEN") == false)
-        #expect(entry?.command.contains("local-secret") == false)
-        #expect(entry?.command.contains("from-server") == false)
-        #expect(entry?.command.contains("docker run") == false)
+        #expect(entry?.script.contains("API_TOKEN") == false)
+        #expect(entry?.script.contains("local-secret") == false)
+        #expect(entry?.script.contains("from-server") == false)
+        #expect(entry?.script.contains("docker run") == false)
         #expect(entry?.outputHead == nil)
     }
 
@@ -255,8 +255,8 @@ struct DockerOperationsModelTests {
         #expect(confirmed)
         #expect(session.lastCommand == DockerCommand.composeDown(project, dialect: .v2, sudo: false))
         #expect(refreshes == [.all])
-        #expect(history.entries.first?.command == L("Docker Compose 停止并移除项目"))
-        #expect(history.entries.first?.command.contains("/srv/web") == false)
+        #expect(history.entries.first?.script == L("Docker Compose 停止并移除项目"))
+        #expect(history.entries.first?.script.contains("/srv/web") == false)
     }
 
     @Test("Compose up 与既有镜像操作共用同一单槽写闸门")
@@ -450,11 +450,11 @@ struct DockerOperationsModelTests {
             DockerMountRow(sourceKind: .namedVolume, source: "data", target: "/var/lib/api"),
             DockerMountRow(sourceKind: .bind, source: "/srv/config", target: "/etc/api", readOnly: true)
         ]
-        state.otherOptions = [
-            DockerTokenRow(value: "--cpus=1"),
-            DockerTokenRow(value: "--add-host"),
-            DockerTokenRow(value: "db:10.0.0.2")
-        ]
+        state.otherOptionsText = """
+        # 资源限制与额外 hosts
+        --cpus=1
+        --add-host=db:10.0.0.2
+        """
         state.command = [DockerTokenRow(value: "serve"), DockerTokenRow(value: "--foreground")]
 
         #expect(state.isValid)
@@ -469,7 +469,7 @@ struct DockerOperationsModelTests {
                 MountEntry(source: .namedVolume("data"), target: "/var/lib/api"),
                 MountEntry(source: .bind("/srv/config"), target: "/etc/api", readOnly: true)
             ],
-            otherOptionTokens: ["--cpus=1", "--add-host", "db:10.0.0.2"],
+            otherOptionTokens: ["--cpus=1", "--add-host=db:10.0.0.2"],
             commandTokens: ["serve", "--foreground"]
         ))
 
@@ -479,6 +479,67 @@ struct DockerOperationsModelTests {
         )
         await operations.runContainer(state.draft)
         #expect(session.lastCommand == DockerCommand.run(state.draft, sudo: false))
+    }
+
+    @Test("创建容器表单忽略空的重复行，但保留有内容的行")
+    func runFormStateIgnoresBlankRepeatableRows() {
+        var state = DockerRunFormState()
+        state.image = "nginx"
+        state.ports = [
+            DockerPortRow(),
+            DockerPortRow(hostPort: "8080", containerPort: "80"),
+        ]
+        state.environment = [
+            DockerEnvironmentRow(),
+            DockerEnvironmentRow(key: "EMPTY_VALUE", value: ""),
+        ]
+        state.mounts = [
+            DockerMountRow(),
+            DockerMountRow(source: "data", target: "/var/lib/data"),
+        ]
+        state.command = [DockerTokenRow(), DockerTokenRow(value: "nginx")]
+
+        #expect(state.draft.ports == [PortBinding(hostPort: "8080", containerPort: "80")])
+        #expect(state.draft.environment == [EnvironmentEntry(key: "EMPTY_VALUE", value: "")])
+        #expect(state.draft.mounts == [MountEntry(source: .namedVolume("data"), target: "/var/lib/data")])
+        #expect(state.draft.commandTokens == ["nginx"])
+        #expect(state.isValid)
+    }
+
+    @Test("低频容器参数仍可通过高级文本选项手动填写")
+    func runFormStateKeepsManualAdvancedOptions() {
+        var state = DockerRunFormState()
+        state.image = "nginx"
+        state.otherOptionsText = """
+        --hostname=web-01
+        --user=nginx
+        --workdir=/app
+        --read-only
+        """
+
+        #expect(state.isValid)
+        #expect(state.draft.otherOptionTokens == [
+            "--hostname=web-01", "--user=nginx", "--workdir=/app", "--read-only",
+        ])
+    }
+
+    @Test("卷和网络表单高级文本参数保持顺序并进入命令预览")
+    func resourceFormStatesUseTextOptions() {
+        var volume = DockerVolumeFormState()
+        volume.name = "cache"
+        volume.otherOptionsText = """
+        --opt=type=nfs
+        --opt=o=addr=10.0.0.2
+        """
+        #expect(volume.draft.otherOptionTokens == ["--opt=type=nfs", "--opt=o=addr=10.0.0.2"])
+        #expect(DockerCommand.createVolume(volume.draft, sudo: false).contains("--opt=type=nfs"))
+
+        var network = DockerNetworkFormState()
+        network.name = "isolated"
+        network.isInternal = true
+        network.otherOptionsText = "--opt=com.docker.network.bridge.name=br-isolated"
+        #expect(network.draft.otherOptionTokens == ["--opt=com.docker.network.bridge.name=br-isolated"])
+        #expect(DockerCommand.createNetwork(network.draft, sudo: false).contains("--internal"))
     }
 
     @Test("非法创建草稿禁用继续，高风险配置会被显式标记")
@@ -492,7 +553,7 @@ struct DockerOperationsModelTests {
 
         var networkAlias = DockerRunFormState()
         networkAlias.image = "nginx"
-        networkAlias.otherOptions = [DockerTokenRow(value: "--net=host")]
+        networkAlias.otherOptionsText = "--net=host"
         #expect(!networkAlias.isValid)
 
         let risky = DockerRunDraft(

@@ -1,0 +1,43 @@
+<h2>密钥管理界面：选择信息层级</h2>
+<p class="subtitle">两种布局都保留生成、导入、详情、复制和导出；请选择更符合 Conn 现有风格的一种。</p>
+
+<div class="cards" data-multiselect>
+  <div class="card" data-choice="compact-list" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="mockup" style="margin:0;background:#10131d;color:#eef1ff;border-radius:18px;overflow:hidden">
+        <div style="padding:16px 18px;border-bottom:1px solid #2e3445;display:flex;justify-content:space-between;align-items:center">
+          <strong style="font-size:18px">密钥</strong><button class="mock-button" style="padding:8px 12px">＋</button>
+        </div>
+        <div style="padding:14px">
+          <div style="display:flex;gap:10px;align-items:center;padding:15px;border-radius:14px;background:#1b2030;margin-bottom:10px">
+            <div style="font-size:22px">🔑</div><div style="flex:1"><strong>生产服务器</strong><div style="color:#a6aec2;font-size:12px;margin-top:4px">Ed25519 · SHA256:ab12…</div></div><span style="color:#95a2ff">›</span>
+          </div>
+          <div style="display:flex;gap:10px;align-items:center;padding:15px;border-radius:14px;background:#1b2030">
+            <div style="font-size:22px">🔑</div><div style="flex:1"><strong>旧服务器兼容</strong><div style="color:#a6aec2;font-size:12px;margin-top:4px">RSA 4096 · SHA256:ef34…</div></div><span style="color:#95a2ff">›</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body"><h3>A · 紧凑列表</h3><p>列表优先，右上角统一放“新增”。点击卡片进入详情，长按显示复制/导出/删除。</p></div>
+  </div>
+
+  <div class="card" data-choice="sectioned-detail" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="mockup" style="margin:0;background:#10131d;color:#eef1ff;border-radius:18px;overflow:hidden">
+        <div style="padding:16px 18px;border-bottom:1px solid #2e3445"><strong style="font-size:18px">密钥管家</strong></div>
+        <div style="padding:14px">
+          <div style="padding:16px;border-radius:14px;background:#1b2030;margin-bottom:12px"><div style="font-size:12px;color:#a6aec2">密钥总数</div><strong style="font-size:26px">2</strong><span style="float:right;color:#95a2ff">＋ 生成</span></div>
+          <div style="font-size:12px;color:#a6aec2;margin:12px 4px 6px">全部密钥</div>
+          <div style="padding:15px;border-radius:14px;background:#1b2030;margin-bottom:8px"><strong>生产服务器</strong><div style="color:#a6aec2;font-size:12px;margin-top:4px">Ed25519 · 1 台主机使用</div></div>
+          <div style="padding:15px;border-radius:14px;background:#1b2030"><strong>旧服务器兼容</strong><div style="color:#a6aec2;font-size:12px;margin-top:4px">RSA 4096 · 未使用</div></div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body"><h3>B · 分区信息卡</h3><p>先展示数量和使用情况，再列出密钥。更强调资产管理，但页面会更高。</p></div>
+  </div>
+</div>
+
+<div class="section" style="margin-top:24px">
+  <h3>详情页的共同结构</h3>
+  <p>名称与算法 → 指纹 → 公钥文本（复制） → 私钥导出（再次确认） → 使用中的服务器 → 删除。</p>
+</div>

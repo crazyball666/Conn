@@ -83,10 +83,8 @@ struct HostStoreTests {
         #expect(hosts.first?.name == "new")
     }
 
-    /// 锁住外键行为：`host.key_uuid` 的 SET NULL 级联在软删除时代从不触发，
-    /// 改真删除后首次生效。KeyManagerView 的删除确认依赖这条行为提示用户。
-    @Test("删除 SSH 密钥后，引用它的主机 key_uuid 被置空")
-    func deletingKeyNullsHostReference() throws {
+    @Test("删除被主机引用的 SSH 密钥会被拒绝")
+    func deletingReferencedKeyIsRejected() throws {
         let database = try AppDatabase.inMemory()
         let hosts = HostStore(database: database)
         let keys = SSHKeyStore(database: database)
@@ -98,8 +96,9 @@ struct HostStoreTests {
         )
         try hosts.save(host)
 
-        try keys.delete(id: key.id)
-
-        #expect(try hosts.host(id: host.id)?.keyUUID == nil)
+        #expect(throws: SSHKeyStoreError.inUse(hostCount: 1)) {
+            try keys.delete(id: key.id)
+        }
+        #expect(try hosts.host(id: host.id)?.keyUUID == key.id)
     }
 }

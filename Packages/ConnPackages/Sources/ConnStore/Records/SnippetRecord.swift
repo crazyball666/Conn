@@ -8,7 +8,8 @@ struct SnippetRecord: Codable, FetchableRecord, PersistableRecord, Sendable {
 
     var uuid: String
     var title: String
-    var command: String
+    var script: String
+    var interpreter: ShellInterpreter
     var pinned: Bool
     var danger: Bool
     var sortOrder: Int
@@ -17,7 +18,7 @@ struct SnippetRecord: Codable, FetchableRecord, PersistableRecord, Sendable {
     var syncDirty: Bool
 
     enum CodingKeys: String, CodingKey {
-        case uuid, title, command, pinned, danger
+        case uuid, title, script, interpreter, pinned, danger
         case sortOrder = "sort_order"
         case createdAt = "created_at"
         case updatedAt = "updated_at"
@@ -29,7 +30,8 @@ extension SnippetRecord {
     init(_ snippet: Snippet) {
         uuid = snippet.id
         title = snippet.title
-        command = snippet.command
+        script = snippet.script
+        interpreter = snippet.interpreter
         pinned = snippet.pinned
         danger = snippet.danger
         sortOrder = snippet.sortOrder
@@ -42,7 +44,8 @@ extension SnippetRecord {
         Snippet(
             id: uuid,
             title: title,
-            command: command,
+            script: script,
+            interpreter: interpreter,
             groupIDs: groupIDs,
             pinned: pinned,
             danger: danger,

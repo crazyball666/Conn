@@ -5,12 +5,16 @@ import Testing
 
 private final class StubSnippetRepository: SnippetRepository, @unchecked Sendable {
     var snippets: [Snippet]
+    var loadError: Error?
 
     init(snippets: [Snippet] = []) {
         self.snippets = snippets
     }
 
-    func allSnippets() throws -> [Snippet] { snippets }
+    func allSnippets() throws -> [Snippet] {
+        if let loadError { throw loadError }
+        return snippets
+    }
     func snippet(id: String) throws -> Snippet? { snippets.first { $0.id == id } }
     func save(_ snippet: Snippet) throws {
         if let index = snippets.firstIndex(where: { $0.id == snippet.id }) {
@@ -21,6 +25,12 @@ private final class StubSnippetRepository: SnippetRepository, @unchecked Sendabl
     }
     func delete(id: String) throws { snippets.removeAll { $0.id == id } }
     func count() throws -> Int { snippets.count }
+}
+
+private struct DetailedStoreError: Error, CustomStringConvertible {
+    var description: String {
+        "column 'interpreter' does not exist while decoding SnippetRecord"
+    }
 }
 
 /// 模拟 `snippet_group_membership` 的 `ON DELETE CASCADE`：删组时把成员 id 摘掉。
@@ -73,6 +83,16 @@ struct SnippetsViewModelTests {
         #expect(viewModel.groups.map(\.name) == ["Docker", "日志"])
     }
 
+    @Test("脚本读取失败时保留数据库错误的完整描述")
+    func loadFailureKeepsDetailedStoreError() {
+        let (viewModel, store, _) = makeViewModel()
+        store.loadError = DetailedStoreError()
+
+        viewModel.load()
+
+        #expect(viewModel.errorMessage?.contains("column 'interpreter' does not exist") == true)
+    }
+
     @Test("新增分组后刷新选择列表")
     func addGroupRefreshesGroups() {
         let (viewModel, _, _) = makeViewModel()
@@ -86,9 +106,9 @@ struct SnippetsViewModelTests {
     func filtersCommands() {
         let system = SnippetGroup(name: "系统", sortOrder: 0)
         let logs = SnippetGroup(name: "日志", sortOrder: 1)
-        let favorite = Snippet(id: "favorite", title: "常用", command: "a", groupIDs: [system.id], pinned: true)
-        let shared = Snippet(id: "shared", title: "共享", command: "b", groupIDs: [system.id, logs.id])
-        let ungrouped = Snippet(id: "ungrouped", title: "未分组", command: "c")
+        let favorite = Snippet(id: "favorite", title: "常用", script: "a", groupIDs: [system.id], pinned: true)
+        let shared = Snippet(id: "shared", title: "共享", script: "b", groupIDs: [system.id, logs.id])
+        let ungrouped = Snippet(id: "ungrouped", title: "未分组", script: "c")
         let (viewModel, _, _) = makeViewModel(
             snippets: [favorite, shared, ungrouped],
             groups: [system, logs]
@@ -105,7 +125,7 @@ struct SnippetsViewModelTests {
     func deletesGroupWithoutDeletingCommands() {
         let system = SnippetGroup(name: "系统", sortOrder: 0)
         let logs = SnippetGroup(name: "日志", sortOrder: 1)
-        let snippet = Snippet(id: "a", title: "A", command: "a", groupIDs: [system.id, logs.id])
+        let snippet = Snippet(id: "a", title: "A", script: "a", groupIDs: [system.id, logs.id])
         let (viewModel, _, _) = makeViewModel(snippets: [snippet], groups: [system, logs])
         viewModel.load()
 
@@ -142,7 +162,7 @@ struct SnippetsViewModelTests {
     @Test("重命名分组不影响成员关系")
     func renameGroupKeepsMembership() {
         let group = SnippetGroup(name: "旧名")
-        let snippet = Snippet(title: "ls", command: "ls", groupIDs: [group.id])
+        let snippet = Snippet(title: "ls", script: "ls", groupIDs: [group.id])
         let (viewModel, _, groupStore) = makeViewModel(snippets: [snippet], groups: [group])
         viewModel.load()
 
@@ -157,13 +177,13 @@ struct SnippetsViewModelTests {
         let group = SnippetGroup(name: "系统")
         let (viewModel, _, _) = makeViewModel(
             snippets: [
-                Snippet(title: "a", command: "a", groupIDs: [group.id]),
-                Snippet(title: "b", command: "b")
+                Snippet(title: "a", script: "a", groupIDs: [group.id]),
+                Snippet(title: "b", script: "b")
             ],
             groups: [group]
         )
         viewModel.load()
 
-        #expect(viewModel.commandCount(in: group.id) == 1)
+        #expect(viewModel.scriptCount(in: group.id) == 1)
     }
 }

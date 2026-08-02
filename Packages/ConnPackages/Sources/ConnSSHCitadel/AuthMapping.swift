@@ -29,11 +29,9 @@ enum AuthMapping {
         _ material: SSHPrivateKeyMaterial,
         username: String
     ) throws -> SSHAuthenticationMethod {
-        let decryptionKey = material.passphrase.map { Data($0.utf8) }
-
         switch material.kind {
         case .ed25519:
-            let key = try ed25519Key(material.representation, decryptionKey: decryptionKey)
+            let key = try ed25519Key(material.representation)
             return .ed25519(username: username, privateKey: key)
 
         case .rsa:
@@ -42,22 +40,27 @@ enum AuthMapping {
             guard case let .pem(pem) = material.representation else {
                 throw SSHError.authFailed(reason: .badCredentials)
             }
-            let key = try Insecure.RSA.PrivateKey(sshRsa: pem, decryptionKey: decryptionKey)
+            let key = try Insecure.RSA.PrivateKey(sshRsa: pem)
             return .rsa(username: username, privateKey: key)
 
-        case .secureEnclaveP256:
-            // SE 密钥的签名走 LAContext，不导出 PEM；Phase 5b 接入。
-            throw SSHError.unsupportedByEngine(.agentForwarding)
+        case .ecdsaP256:
+            let key: P256.Signing.PrivateKey
+            switch material.representation {
+            case let .raw(raw):
+                key = try P256.Signing.PrivateKey(rawRepresentation: raw)
+            case let .pem(pem):
+                key = try P256.Signing.PrivateKey(pemRepresentation: pem)
+            }
+            return .p256(username: username, privateKey: key)
         }
     }
 
     private static func ed25519Key(
-        _ representation: SSHPrivateKeyMaterial.Representation,
-        decryptionKey: Data?
+        _ representation: SSHPrivateKeyMaterial.Representation
     ) throws -> Curve25519.Signing.PrivateKey {
         switch representation {
         case let .pem(pem):
-            try Curve25519.Signing.PrivateKey(sshEd25519: pem, decryptionKey: decryptionKey)
+            try Curve25519.Signing.PrivateKey(sshEd25519: pem)
         case let .raw(data):
             // Conn 生成的密钥：直接用 32 字节原始表示构造。
             try Curve25519.Signing.PrivateKey(rawRepresentation: data)

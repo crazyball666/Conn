@@ -1,8 +1,8 @@
 import Foundation
 
-/// 可复用的命令片段。
+/// 可复用的 Shell 脚本片段。
 ///
-/// 命令中可含变量占位符 `{{name}}` 或 `{{name:默认值}}`，执行前由 UI 收集实参。
+/// 脚本中可含变量占位符 `{{name}}` 或 `{{name:默认值}}`，执行前由 UI 收集实参。
 public struct Snippet: Identifiable, Codable, Sendable, Equatable {
     /// 一个变量占位符。
     public struct Variable: Sendable, Equatable, Hashable {
@@ -17,8 +17,11 @@ public struct Snippet: Identifiable, Codable, Sendable, Equatable {
 
     public let id: String
     public var title: String
-    public var command: String
-    /// 命令所属分组的 `SnippetGroup.id`。允许为空，也允许同时属于多个分组。
+    /// 完整 Shell 脚本文本。单行内容也是合法脚本，不再单独区分命令类型。
+    public var script: String
+    /// 执行脚本时使用的解释器。
+    public var interpreter: ShellInterpreter
+    /// 脚本所属分组的 `SnippetGroup.id`。允许为空，也允许同时属于多个分组。
     public var groupIDs: [String]
     public var pinned: Bool
     /// 标记为危险片段。执行前强制二次确认；批量执行时需输入 `RUN`；
@@ -32,7 +35,8 @@ public struct Snippet: Identifiable, Codable, Sendable, Equatable {
     public init(
         id: String = UUID().uuidString,
         title: String,
-        command: String,
+        script: String,
+        interpreter: ShellInterpreter = .sh,
         groupIDs: [String] = [],
         pinned: Bool = false,
         danger: Bool = false,
@@ -43,7 +47,8 @@ public struct Snippet: Identifiable, Codable, Sendable, Equatable {
     ) {
         self.id = id
         self.title = title
-        self.command = command
+        self.script = script
+        self.interpreter = interpreter
         self.groupIDs = groupIDs
         self.pinned = pinned
         self.danger = danger
@@ -53,21 +58,21 @@ public struct Snippet: Identifiable, Codable, Sendable, Equatable {
         self.syncDirty = syncDirty
     }
 
-    /// 本片段命令中声明的变量，按首次出现顺序去重。
+    /// 本片段脚本中声明的变量，按首次出现顺序去重。
     public var variables: [Variable] {
-        Self.parseVariables(from: command)
+        Self.parseVariables(from: script)
     }
 
-    /// 用实参填充命令中的变量，得到可执行的最终命令。
+    /// 用实参填充脚本中的变量，得到可执行的最终脚本。
     ///
     /// 未提供实参的变量回退到默认值；无默认值则替换为空串。
     public func render(values: [String: String]) -> String {
-        var result = command
+        var result = script
         for variable in variables {
             let replacement = values[variable.name] ?? variable.defaultValue ?? ""
             // #22：用正则一次替换 {{name}} 与 {{name:任意默认值}} 两种写法——
             // 旧实现按 parseVariables 记住的默认值拼字面量,当同名变量先出现无默认形式时,
-            // 带默认的那处会被漏替换、原样留进命令。
+            // 带默认的那处会被漏替换、原样留进脚本。
             let escapedName = NSRegularExpression.escapedPattern(for: variable.name)
             let pattern = "\\{\\{\(escapedName)(?::[^}]*)?\\}\\}"
             guard let regex = try? NSRegularExpression(pattern: pattern) else { continue }
@@ -78,7 +83,7 @@ public struct Snippet: Identifiable, Codable, Sendable, Equatable {
         return result
     }
 
-    /// 从命令文本中解析变量占位符。
+    /// 从脚本文本中解析变量占位符。
     ///
     /// 规则：
     /// - 变量名只允许 `[A-Za-z0-9_]`，因此 Docker 的 Go 模板 `{{json .}}`、
@@ -86,10 +91,10 @@ public struct Snippet: Identifiable, Codable, Sendable, Equatable {
     ///   Docker 片段大量使用 Go 模板，误判会让用户被要求填写莫名其妙的参数。
     /// - 反斜杠转义的 `\{\{` 不参与匹配。
     /// - 同名变量只返回一次，保留首次出现时的默认值。
-    public static func parseVariables(from command: String) -> [Variable] {
-        // 先把转义序列替换为不可能出现在命令里的哨兵字符，
+    public static func parseVariables(from script: String) -> [Variable] {
+        // 先把转义序列替换为不可能出现在脚本里的哨兵字符，
         // 使 \{\{...\}\} 无法参与后续匹配
-        let sanitized = command
+        let sanitized = script
             .replacingOccurrences(of: #"\{"#, with: "\u{0}")
             .replacingOccurrences(of: #"\}"#, with: "\u{0}")
 

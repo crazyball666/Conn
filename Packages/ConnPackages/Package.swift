@@ -33,6 +33,7 @@ let package = Package(
         // 代码高亮（文件编辑器）。封装 highlight.js（JavaScriptCore 内运行，全离线、
         // 不联网、无遥测），180+ 语言 + ~40 主题。仅 ConnEditor target 引入。
         .package(url: "https://github.com/raspu/Highlightr.git", from: "2.2.0"),
+        .package(url: "https://github.com/apple/swift-crypto.git", from: "3.15.1"),
     ],
     targets: [
         // Domain：领域模型与仓库协议。零 UIKit、零三方依赖。
@@ -91,11 +92,14 @@ let package = Package(
             resources: [.process("Resources")]
         ),
 
-        // Infrastructure：密钥与凭据。本 Phase 只做 Keychain 密码/passphrase
-        // 存取（最小切片）；Phase 5 扩展为密钥生成/Secure Enclave/一键部署。
+        // Infrastructure：密钥与凭据。支持 Ed25519、RSA 4096 与 ECDSA P-256。
         .target(
             name: "ConnCrypto",
-            dependencies: ["ConnKit"],
+            dependencies: [
+                "ConnKit",
+                .product(name: "Crypto", package: "swift-crypto"),
+                .product(name: "_CryptoExtras", package: "swift-crypto"),
+            ],
             resources: [.process("Resources")]
         ),
 

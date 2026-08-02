@@ -105,7 +105,7 @@ struct DockerAuditSummary: Sendable, Equatable {
         RunHistoryEntry(
             id: id,
             hostUUID: hostUUID,
-            command: historyLabel,
+            script: historyLabel,
             exitCode: state.exitCode,
             outputHead: nil,
             state: state.runHistoryState,

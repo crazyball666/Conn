@@ -48,6 +48,8 @@ final class DockerViewModel {
     private let host: Host
     private let connectionManager: ConnectionManager
     private let runHistory: any RunHistoryRepository
+    private let snippetRepository: any SnippetRepository
+    private let snippetGroupRepository: any SnippetGroupRepository
     private var availability: DockerAvailability = .notInstalled
     private let composeRegistry = DockerComposeRegistry()
     // swiftlint:disable:next implicitly_unwrapped_optional
@@ -57,6 +59,8 @@ final class DockerViewModel {
         self.host = host
         connectionManager = dependencies.connectionManager
         runHistory = dependencies.runHistory
+        snippetRepository = dependencies.snippetRepository
+        snippetGroupRepository = dependencies.snippetGroupRepository
         let manager = dependencies.connectionManager
         let currentHost = host
         let registry = composeRegistry
@@ -207,6 +211,41 @@ final class DockerViewModel {
         }
         if scope.contains(.compose) {
             await compose.load()
+        }
+    }
+
+    // MARK: - 本地脚本片段
+
+    /// 把 Docker 草稿落成可复用脚本。失败抛给上层展示，不静默吞错——
+    /// 用户看不到保存结果会以为存了再点一次，造成重复条目。
+    func saveRunAsScript(title: String, script: String) throws {
+        let snippet = Snippet(
+            title: title,
+            script: script,
+            // 新保存的脚本挂在「Docker」分组下，方便按主机类型筛选
+            groupIDs: dockerSnippetGroupID().map { [$0] } ?? [],
+            pinned: false,
+            danger: true
+        )
+        try snippetRepository.save(snippet)
+    }
+
+    /// 查找名为"Docker"的脚本分组 id；不存在则自动创建。这样首启保存也不至于
+    /// 让脚本变成「未分组」——Docker run 脚本跟 SSH 脚本混在一起太难找。
+    private func dockerSnippetGroupID() -> String? {
+        let groups = (try? snippetGroupRepository.allGroups()) ?? []
+        if let existing = groups.first(where: { $0.name == L("Docker") }) {
+            return existing.id
+        }
+        let group = SnippetGroup(
+            name: L("Docker"),
+            sortOrder: (groups.map(\.sortOrder).max() ?? -1) + 1
+        )
+        do {
+            try snippetGroupRepository.save(group)
+            return group.id
+        } catch {
+            return nil
         }
     }
 }

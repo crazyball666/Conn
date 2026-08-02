@@ -4,7 +4,7 @@ import GRDB
 /// GRDB 数据库门面。构造即完成迁移。
 ///
 /// 数据全部只存本机（红线：无服务端、零上传）。凭据不在此库中——
-/// 密码与私钥存 Keychain / Secure Enclave，本库只存引用键。
+/// 密码与私钥存 Keychain，本库只存引用键。
 public struct AppDatabase {
     public let writer: any DatabaseWriter
 

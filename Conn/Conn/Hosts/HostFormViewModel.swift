@@ -10,14 +10,15 @@ import Observation
 final class HostFormViewModel {
     var draft: HostDraft
     var password = ""
-    var passphrase = ""
     private(set) var fieldErrors: [HostDraft.Field: String] = [:]
 
     let editingHostID: String?
     private let hostStore: any HostRepository
     private let credentialStore: any CredentialStore
+    private let keyStore: any SSHKeyRepository
     /// 可选分组。表单只做多选，新建分组走服务器页工具栏的「+」菜单。
     private(set) var availableGroups: [HostGroup] = []
+    private(set) var availableKeys: [SSHKey] = []
 
     var isEditing: Bool { editingHostID != nil }
     var title: String { isEditing ? L("编辑主机") : L("添加主机") }
@@ -27,17 +28,19 @@ final class HostFormViewModel {
         editingHostID: String?,
         hostStore: any HostRepository,
         credentialStore: any CredentialStore,
-        groupStore: any HostGroupRepository
+        groupStore: any HostGroupRepository,
+        keyStore: any SSHKeyRepository
     ) {
         self.draft = draft
         self.editingHostID = editingHostID
         self.hostStore = hostStore
         self.credentialStore = credentialStore
+        self.keyStore = keyStore
         availableGroups = (try? groupStore.allGroups()) ?? []
+        availableKeys = (try? keyStore.allKeys()) ?? []
         // 编辑时读回已存密码，便于展示与再保存
         if let id = editingHostID {
             password = (try? credentialStore.password(forHost: id)) ?? ""
-            passphrase = (try? credentialStore.passphrase(forHost: id)) ?? ""
         }
     }
 
@@ -73,9 +76,6 @@ final class HostFormViewModel {
             if draft.authKind == .password {
                 try credentialStore.setPassword(password.isEmpty ? nil : password, forHost: host.id)
             }
-            if draft.authKind == .keyPassphrase {
-                try credentialStore.setPassphrase(passphrase.isEmpty ? nil : passphrase, forHost: host.id)
-            }
             return host
         } catch {
             return nil
@@ -86,10 +86,22 @@ final class HostFormViewModel {
     func currentAuth() -> SSHAuth {
         switch draft.authKind {
         case .password:
-            .password(password)
-        case .key, .keyPassphrase, .agent:
-            // 密钥认证的连接测试待 Phase 5 密钥管家；此处先用密码兜底
-            .password(password)
+            return .password(password)
+        case .key:
+            guard let keyID = draft.keyUUID,
+                  let key = try? keyStore.key(id: keyID),
+                  let material = try? credentialStore.privateKey(forKey: keyID)
+            else { return .password(password) }
+            switch key.kind {
+            case .ed25519, .ecdsaP256:
+                if material.contains("BEGIN ") {
+                    return .key(SSHPrivateKeyMaterial(kind: key.kind, pem: material))
+                }
+                guard let raw = Data(base64Encoded: material) else { return .password(password) }
+                return .key(SSHPrivateKeyMaterial(kind: key.kind, raw: raw))
+            case .rsa:
+                return .key(SSHPrivateKeyMaterial(kind: .rsa, pem: material))
+            }
         }
     }
 }

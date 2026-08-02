@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+import ConnKit
 @testable import ConnSSH
 
 @Suite("MockSSHTransport — 脚本化假引擎")
@@ -39,6 +40,14 @@ struct MockSSHTransportTests {
     func knownCommandDeterministicOutput() async throws {
         let session = try await connect(MockSSHTransport())
         let result = try await session.exec("uname -s")
+        #expect(result.isSuccess)
+        #expect(result.stdoutText == "Linux")
+    }
+
+    @Test("execScript 解包解释器后仍命中假引擎脚本")
+    func execScriptUsesInterpreterWrapper() async throws {
+        let session = try await connect(MockSSHTransport())
+        let result = try await session.execScript("uname -s", interpreter: .bash, timeout: .seconds(30))
         #expect(result.isSuccess)
         #expect(result.stdoutText == "Linux")
     }

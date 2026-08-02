@@ -28,12 +28,15 @@ final class SnippetsViewModel {
     }
 
     func load() {
+        errorMessage = nil
         do {
             snippets = try store.allSnippets()
             groups = try groupStore.allGroups()
             errorMessage = nil
         } catch {
-            errorMessage = String(format: L("读取片段失败：%@"), error.friendlyDiagnosis)
+            // GRDB.RowDecodingError 的 localizedDescription 只有“错误 1”这类系统摘要，
+            // 真正的缺失字段、行内容和 SQL 在 CustomStringConvertible.description 中。
+            errorMessage = String(format: L("读取片段失败：%@"), String(describing: error))
             snippets = []
             groups = []
         }
@@ -43,7 +46,7 @@ final class SnippetsViewModel {
         guard !searchText.isEmpty else { return snippets }
         return snippets.filter {
             $0.title.localizedCaseInsensitiveContains(searchText)
-                || $0.command.localizedCaseInsensitiveContains(searchText)
+                || $0.script.localizedCaseInsensitiveContains(searchText)
         }
     }
 
@@ -58,7 +61,7 @@ final class SnippetsViewModel {
         }
     }
 
-    func commandCount(in groupID: String) -> Int {
+    func scriptCount(in groupID: String) -> Int {
         snippets.count { $0.groupIDs.contains(groupID) }
     }
 
@@ -68,6 +71,7 @@ final class SnippetsViewModel {
     }
 
     func save(_ snippet: Snippet) {
+        errorMessage = nil
         do {
             var value = snippet
             if !snippets.contains(where: { $0.id == value.id }) {
@@ -81,6 +85,7 @@ final class SnippetsViewModel {
     }
 
     func delete(_ snippet: Snippet) {
+        errorMessage = nil
         try? store.delete(id: snippet.id)
         load()
     }
@@ -88,6 +93,7 @@ final class SnippetsViewModel {
     // MARK: - 分组
 
     func addGroup(_ name: String) {
+        errorMessage = nil
         do {
             let trimmed = try GroupListEditor.validate(name: name, against: groups.map(\.name))
             try groupStore.save(SnippetGroup(
@@ -105,6 +111,7 @@ final class SnippetsViewModel {
 
     func renameGroup(id: String, to name: String) {
         guard var group = groups.first(where: { $0.id == id }) else { return }
+        errorMessage = nil
         do {
             let others = groups.filter { $0.id != id }.map(\.name)
             group.name = try GroupListEditor.validate(name: name, against: others)
@@ -118,8 +125,9 @@ final class SnippetsViewModel {
         }
     }
 
-    /// 删除分组只解除归属，命令本身不受影响（成员行由外键级联清理）。
+    /// 删除分组只解除归属，脚本本身不受影响（成员行由外键级联清理）。
     func deleteGroup(id: String) {
+        errorMessage = nil
         do {
             try groupStore.delete(id: id)
             load()

@@ -36,7 +36,7 @@ struct SchemaV1Tests {
 
         try queue.write { db in
             try db.execute(
-                sql: "INSERT INTO run_history (uuid, host_uuid, command, ran_at) VALUES (?, ?, ?, ?)",
+                sql: "INSERT INTO run_history (uuid, host_uuid, script, ran_at) VALUES (?, ?, ?, ?)",
                 arguments: ["run-1", "host-1", "uptime", 1000]
             )
         }

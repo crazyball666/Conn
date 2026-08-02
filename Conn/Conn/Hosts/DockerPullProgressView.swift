@@ -1,3 +1,4 @@
+import ConnOps
 import ConnUI
 import SwiftUI
 
@@ -80,6 +81,13 @@ struct DockerPullFormView: View {
                         .autocorrectionDisabled()
                 }
                 .listRowBackground(Color.connSurface)
+                Section(L("预览命令")) {
+                    Text(previewCommand)
+                        .font(.connData(.footnote))
+                        .textSelection(.enabled)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .listRowBackground(Color.connSurface)
             }
             .scrollContentBackground(.hidden)
             .background(Color.connBg.ignoresSafeArea())
@@ -97,5 +105,9 @@ struct DockerPullFormView: View {
                 }
             }
         }
+    }
+
+    private var previewCommand: String {
+        DockerCommand.pull(reference: reference, sudo: false)
     }
 }

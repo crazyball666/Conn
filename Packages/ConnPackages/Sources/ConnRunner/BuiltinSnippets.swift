@@ -10,8 +10,9 @@ public enum BuiltinSnippets {
 
     private struct CommandDTO: Decodable {
         let title: String
-        let command: String
+        let script: String
         let groups: [String]
+        let interpreter: ShellInterpreter?
         let pinned: Bool?
         let danger: Bool?
     }
@@ -39,7 +40,8 @@ public enum BuiltinSnippets {
         (decodeLibrary()?.commands ?? []).enumerated().map { index, dto in
             Snippet(
                 title: L(dto.title),
-                command: dto.command,
+                script: dto.script,
+                interpreter: dto.interpreter ?? .sh,
                 pinned: dto.pinned ?? false,
                 danger: dto.danger ?? false,
                 sortOrder: index
@@ -65,7 +67,8 @@ public enum BuiltinSnippets {
         for (index, dto) in (decodeLibrary()?.commands ?? []).enumerated() {
             try store.save(Snippet(
                 title: L(dto.title),
-                command: dto.command,
+                script: dto.script,
+                interpreter: dto.interpreter ?? .sh,
                 groupIDs: dto.groups.compactMap { idByName[L($0)] },
                 pinned: dto.pinned ?? false,
                 danger: dto.danger ?? false,

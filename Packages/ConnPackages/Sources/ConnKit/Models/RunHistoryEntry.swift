@@ -8,13 +8,14 @@ public enum RunHistoryState: String, Sendable, Equatable, Codable {
     case unknown
 }
 
-/// 一条执行审计记录（方案 §4.4/§4.6：容器启停、片段执行等写操作入 run_history）。
+/// 一条脚本执行审计记录（方案 §4.4/§4.6：容器启停、片段执行等写操作入 run_history）。
 ///
 /// 只记本地、永不上传（红线 §2）。`outputHead` 只留输出头部，避免存整段日志。
 public struct RunHistoryEntry: Identifiable, Sendable, Equatable {
     public let id: String
     public let hostUUID: String
-    public let command: String
+    public let script: String
+    public let interpreter: ShellInterpreter
     /// 退出码。nil 表示流式/未捕获退出码的操作。
     public let exitCode: Int32?
     /// 输出头部（截断）。
@@ -26,7 +27,8 @@ public struct RunHistoryEntry: Identifiable, Sendable, Equatable {
     public init(
         id: String = UUID().uuidString,
         hostUUID: String,
-        command: String,
+        script: String,
+        interpreter: ShellInterpreter = .sh,
         exitCode: Int32? = nil,
         outputHead: String? = nil,
         state: RunHistoryState = .known,
@@ -34,7 +36,8 @@ public struct RunHistoryEntry: Identifiable, Sendable, Equatable {
     ) {
         self.id = id
         self.hostUUID = hostUUID
-        self.command = command
+        self.script = script
+        self.interpreter = interpreter
         self.exitCode = exitCode
         self.outputHead = outputHead
         self.state = state

@@ -10,11 +10,12 @@ struct HostFormView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var viewModel: HostFormViewModel
     @State private var showDiagnostics = false
+    @State private var isGroupExpanded = false
     @FocusState private var focus: HostDraft.Field?
     private let dependencies: AppDependencies
     private let onSaved: () -> Void
 
-    /// 字段名列宽：容纳「用户名 / 密码短语」等最长 4 个汉字，全表左对齐。
+    /// 字段名列宽：容纳「用户名 / 认证方式」等最长 4 个汉字，全表左对齐。
     private let labelWidth: CGFloat = 76
 
     init(
@@ -30,7 +31,8 @@ struct HostFormView: View {
             editingHostID: editingHostID,
             hostStore: dependencies.hostRepository,
             credentialStore: dependencies.credentialStore,
-            groupStore: dependencies.hostGroupRepository
+            groupStore: dependencies.hostGroupRepository,
+            keyStore: dependencies.keyRepository
         ))
     }
 
@@ -117,61 +119,88 @@ struct HostFormView: View {
             Picker(L("方式"), selection: $viewModel.draft.authKind) {
                 Text(L("密码")).tag(Host.AuthKind.password)
                 Text(L("密钥")).tag(Host.AuthKind.key)
-                Text(L("密钥 + 密码短语")).tag(Host.AuthKind.keyPassphrase)
             }
             .tint(.connMuted)
             switch viewModel.draft.authKind {
             case .password:
                 secureRow(L("密码"), text: $viewModel.password)
-            case .keyPassphrase:
-                secureRow(L("密码短语"), text: $viewModel.passphrase)
-                hint(L("密钥选择将在密钥管家上线后支持"))
             case .key:
-                hint(L("密钥选择将在密钥管家上线后支持"))
-            case .agent:
-                hint(L("SSH Agent 转发"))
+                keyPicker
             }
         }
         .listRowBackground(Color.connSurface)
     }
 
+    private var keyPicker: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Picker(L("SSH 密钥"), selection: Binding(
+                get: { viewModel.draft.keyUUID ?? "" },
+                set: { viewModel.draft.keyUUID = $0.isEmpty ? nil : $0 }
+            )) {
+                Text(L("请选择密钥")).tag("")
+                ForEach(viewModel.availableKeys) { key in
+                    Text("\(key.name) · \(key.kind.displayName)").tag(key.id)
+                }
+            }
+            .tint(.connMuted)
+            if let error = viewModel.fieldErrors[.key] {
+                Text(error).font(.connFootnote).foregroundStyle(.connCrit)
+            }
+            if viewModel.availableKeys.isEmpty {
+                hint(L("还没有密钥，请先在密钥管家中生成或导入"))
+            }
+        }
+    }
+
     @ViewBuilder
     private var groupSection: some View {
         Section {
-            if viewModel.availableGroups.isEmpty {
-                Text(L("还没有分组，先用右上角「+」新建。"))
-                    .font(.connFootnote)
-                    .foregroundStyle(.connMuted)
-                    .listRowBackground(Color.connSurface)
-            } else {
-                ForEach(viewModel.availableGroups) { group in
-                    Button {
-                        toggleGroup(group.id)
-                    } label: {
-                        HStack {
-                            Text(group.name)
-                                .foregroundStyle(.connInk)
-                            Spacer()
-                            Image(systemName: viewModel.draft.groupIDs.contains(group.id)
-                                ? "checkmark.circle.fill"
-                                : "circle")
-                                .foregroundStyle(viewModel.draft.groupIDs.contains(group.id)
-                                    ? Color.connAccent
-                                    : .secondary)
+            DisclosureGroup(isExpanded: $isGroupExpanded) {
+                if viewModel.availableGroups.isEmpty {
+                    Text(L("还没有分组，先用右上角「+」新建。"))
+                        .font(.connFootnote)
+                        .foregroundStyle(.connMuted)
+                } else {
+                    ForEach(viewModel.availableGroups) { group in
+                        Button {
+                            toggleGroup(group.id)
+                        } label: {
+                            HStack {
+                                Text(group.name)
+                                    .foregroundStyle(.connInk)
+                                Spacer()
+                                Image(systemName: viewModel.draft.groupIDs.contains(group.id)
+                                    ? "checkmark.circle.fill"
+                                    : "circle")
+                                    .foregroundStyle(viewModel.draft.groupIDs.contains(group.id)
+                                        ? Color.connAccent
+                                        : .secondary)
+                            }
+                            .contentShape(Rectangle())
                         }
-                        .contentShape(Rectangle())
+                        .buttonStyle(.plain)
                     }
-                    .buttonStyle(.plain)
-                    .listRowBackground(Color.connSurface)
+                    Text(L("可多选，也可以不选；不选时归为未分组。"))
+                        .font(.connFootnote)
+                        .foregroundStyle(.connMuted)
+                }
+            } label: {
+                HStack {
+                    Text(L("分组"))
+                    Spacer()
+                    Text(groupSelectionSummary)
+                        .font(.connFootnote)
+                        .foregroundStyle(.connMuted)
                 }
             }
-        } header: {
-            Text(L("分组"))
-        } footer: {
-            if !viewModel.availableGroups.isEmpty {
-                Text(L("可多选，也可以不选；不选时归为未分组。"))
-            }
+            .listRowBackground(Color.connSurface)
         }
+    }
+
+    private var groupSelectionSummary: String {
+        if viewModel.availableGroups.isEmpty { return L("暂无") }
+        if viewModel.draft.groupIDs.isEmpty { return L("未分组") }
+        return String(format: L("已选 %d 个"), viewModel.draft.groupIDs.count)
     }
 
     private func toggleGroup(_ groupID: String) {

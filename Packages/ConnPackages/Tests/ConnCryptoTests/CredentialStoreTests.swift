@@ -1,6 +1,7 @@
 import Foundation
 import Testing
 @testable import ConnCrypto
+import ConnKit
 
 /// 凭据存储的契约测试。
 ///
@@ -32,23 +33,21 @@ struct CredentialStoreTests {
         #expect(try store.password(forHost: hostID) == nil)
     }
 
-    @Test("密码与 passphrase 互不干扰")
-    func passwordAndPassphraseSeparate() throws {
+    @Test("密码与私钥材料互不干扰")
+    func passwordAndPrivateKeySeparate() throws {
         let store = InMemoryCredentialStore()
         try store.setPassword("pw", forHost: hostID)
-        try store.setPassphrase("pp", forHost: hostID)
+        try store.setPrivateKey("private", forKey: "key-1")
         #expect(try store.password(forHost: hostID) == "pw")
-        #expect(try store.passphrase(forHost: hostID) == "pp")
+        #expect(try store.privateKey(forKey: "key-1") == "private")
     }
 
-    @Test("deleteAll 清除该主机全部凭据")
-    func deleteAllClearsBoth() throws {
+    @Test("deleteAll 清除该主机密码")
+    func deleteAllClearsPassword() throws {
         let store = InMemoryCredentialStore()
         try store.setPassword("pw", forHost: hostID)
-        try store.setPassphrase("pp", forHost: hostID)
         try store.deleteAll(forHost: hostID)
         #expect(try store.password(forHost: hostID) == nil)
-        #expect(try store.passphrase(forHost: hostID) == nil)
     }
 
     @Test("覆盖写入替换旧值")
@@ -57,5 +56,21 @@ struct CredentialStoreTests {
         try store.setPassword("old", forHost: hostID)
         try store.setPassword("new", forHost: hostID)
         #expect(try store.password(forHost: hostID) == "new")
+    }
+
+    @Test("密钥元数据可持久化并枚举")
+    func keyMetadataRoundTrip() throws {
+        let store = InMemoryCredentialStore()
+        let key = SSHKey(
+            id: "key-1",
+            name: "部署密钥",
+            kind: .ed25519,
+            publicKey: "ssh-ed25519 AAAA",
+            privateRef: "conn.key.key-1.private"
+        )
+
+        try store.setKeyMetadata(key, forKey: key.id)
+
+        #expect(try store.allKeyMetadata() == [key])
     }
 }

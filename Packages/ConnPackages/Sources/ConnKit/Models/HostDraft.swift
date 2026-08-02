@@ -8,7 +8,7 @@ import Foundation
 public struct HostDraft: Sendable, Equatable {
     /// 可校验的字段标识（校验错误按字段归位到 UI）。
     public enum Field: Sendable, Hashable {
-        case name, address, port, username
+        case name, address, port, username, key
     }
 
     public var name: String
@@ -82,6 +82,9 @@ public struct HostDraft: Sendable, Equatable {
         }
         if !(1 ... 65535).contains(port) {
             errors[.port] = L("端口需在 1–65535 之间")
+        }
+        if authKind == .key, keyUUID == nil {
+            errors[.key] = L("请选择一把 SSH 密钥")
         }
         return errors
     }

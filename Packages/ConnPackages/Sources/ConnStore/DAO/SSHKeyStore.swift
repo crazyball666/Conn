@@ -2,6 +2,10 @@ import ConnKit
 import Foundation
 import GRDB
 
+public enum SSHKeyStoreError: Error, Equatable {
+    case inUse(hostCount: Int)
+}
+
 /// `ssh_key` 表的读写入口。
 public struct SSHKeyStore: SSHKeyRepository {
     private let database: AppDatabase
@@ -32,9 +36,17 @@ public struct SSHKeyStore: SSHKeyRepository {
         try database.writer.write { try SSHKeyRecord(updated).save($0) }
     }
 
-    /// 删除（真 DELETE）。引用该密钥的主机 `key_uuid` 由外键置空。
+    /// 删除（真 DELETE）。删除前重新检查引用，避免误删导致主机失去认证。
     public func delete(id: String) throws {
         try database.writer.write { db in
+            let hostCount = try Int.fetchOne(
+                db,
+                sql: "SELECT COUNT(*) FROM host WHERE key_uuid = ?",
+                arguments: [id]
+            ) ?? 0
+            guard hostCount == 0 else {
+                throw SSHKeyStoreError.inUse(hostCount: hostCount)
+            }
             try db.execute(sql: "DELETE FROM ssh_key WHERE uuid = ?", arguments: [id])
         }
     }
@@ -74,10 +86,13 @@ struct SSHKeyRecord: Codable, FetchableRecord, PersistableRecord, Sendable {
     }
 
     func toDomain() -> SSHKey {
-        SSHKey(
+        guard let parsedKind = SSHKey.Kind(rawValue: kind) else {
+            preconditionFailure("未知 SSH 密钥算法：\(kind)")
+        }
+        return SSHKey(
             id: uuid,
             name: name,
-            kind: SSHKey.Kind(rawValue: kind) ?? .ed25519,
+            kind: parsedKind,
             publicKey: publicKey,
             privateRef: privateRef,
             createdAt: createdAt,

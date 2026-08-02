@@ -8,7 +8,7 @@ private struct SnippetFormRequest: Identifiable {
     let snippet: Snippet?
 }
 
-/// 片段库（命令 Tab，Phase 9）。
+/// Shell 脚本库（脚本 Tab，Phase 9）。
 struct SnippetsView: View {
     @State private var viewModel: SnippetsViewModel
     @State private var selectedFilter: SnippetListFilter = .favorites
@@ -21,6 +21,11 @@ struct SnippetsView: View {
     @State private var newGroupName = ""
     @State private var groupDeleteRequest: GroupEditRequest?
     @State private var renameTarget: GroupEditRequest?
+    @State private var isGroupsNewGroupPresented = false
+    @State private var groupsNameInput = ""
+    @State private var groupsDeleteRequest: GroupEditRequest?
+    @State private var groupsRenameTarget: GroupEditRequest?
+    @Environment(\.connToastCenter) private var toastCenter
     private let dependencies: AppDependencies
 
     init(dependencies: AppDependencies) {
@@ -34,8 +39,8 @@ struct SnippetsView: View {
     var body: some View {
         mainContent
             .background(Color.connBg.ignoresSafeArea())
-            .navigationTitle(L("命令"))
-            .searchable(text: $viewModel.searchText, prompt: L("搜索命令"))
+            .navigationTitle(L("脚本"))
+            .searchable(text: $viewModel.searchText, prompt: L("搜索脚本"))
             .toolbar {
                 ToolbarItemGroup(placement: .topBarTrailing) {
                     Menu {
@@ -58,7 +63,7 @@ struct SnippetsView: View {
                         Button {
                             formRequest = SnippetFormRequest(snippet: nil)
                         } label: {
-                            Label(L("新增命令"), systemImage: "command")
+                            Label(L("新增脚本"), systemImage: "terminal")
                         }
                         Button {
                             newGroupName = ""
@@ -101,7 +106,7 @@ struct SnippetsView: View {
                 deleteRequest: $groupDeleteRequest,
                 nameInput: $newGroupName,
                 actions: GroupAlertActions(
-                    deleteMessage: L("删除分组不会删除其中的命令，命令会保留在其他分组或未分组。"),
+                    deleteMessage: L("删除分组不会删除其中的脚本，脚本会保留在其他分组或未分组。"),
                     onAdd: { viewModel.addGroup($0) },
                     onRename: { viewModel.renameGroup(id: $0, to: $1) },
                     onDelete: { id in
@@ -110,22 +115,36 @@ struct SnippetsView: View {
                     }
                 )
             )
-            .connToast(message: Binding(
-                get: { viewModel.errorMessage },
-                set: { if $0 == nil { viewModel.clearError() } }
-            ))
+            .onChange(of: viewModel.errorMessage) { _, message in
+                toastCenter.show(message)
+            }
     }
 
     @ViewBuilder
     private var mainContent: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: ConnSpacing.sm) {
-                commandFilters
-                commandList
+        GeometryReader { geometry in
+            ScrollView {
+                if viewModel.snippets(for: selectedFilter).isEmpty {
+                    // 空列表时把空态放到筛选条下方的剩余视口中央，避免内容挤在列表顶部。
+                    VStack(alignment: .leading, spacing: ConnSpacing.sm) {
+                        commandFilters
+                        Spacer(minLength: 0)
+                        commandEmpty
+                            .frame(maxWidth: .infinity)
+                        Spacer(minLength: 0)
+                    }
+                    .frame(minHeight: geometry.size.height)
+                    .padding(.bottom, ConnSpacing.lg)
+                } else {
+                    VStack(alignment: .leading, spacing: ConnSpacing.sm) {
+                        commandFilters
+                        commandList
+                    }
+                    .padding(.bottom, ConnSpacing.lg)
+                }
             }
-            .padding(.bottom, ConnSpacing.lg)
+            .scrollBounceBehavior(.basedOnSize)
         }
-        .scrollBounceBehavior(.basedOnSize)
     }
 
     private var commandFilters: some View {
@@ -178,14 +197,20 @@ struct SnippetsView: View {
     }
 
     private func commandRow(_ snippet: Snippet) -> some View {
-        HStack(spacing: ConnSpacing.sm) {
-            Button { runTarget = snippet } label: {
-                VStack(alignment: .leading, spacing: 3) {
+        Button { runTarget = snippet } label: {
+            HStack(spacing: ConnSpacing.md) {
+                Image(systemName: "command")
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundStyle(.connAccent)
+                    .frame(width: 36, height: 36)
+                    .background(Color.connAccent.opacity(0.12), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                VStack(alignment: .leading, spacing: ConnSpacing.xs) {
                     HStack(spacing: ConnSpacing.xs) {
                         Text(snippet.title)
-                            .font(.connSubheadline)
-                            .fontWeight(.regular)
+                            .font(.connBody)
+                            .fontWeight(.semibold)
                             .foregroundStyle(.connInk)
+                            .lineLimit(1)
                         if snippet.danger {
                             Image(systemName: "exclamationmark.triangle.fill")
                                 .font(.caption2)
@@ -196,32 +221,35 @@ struct SnippetsView: View {
                                 .font(.connData(.caption2))
                                 .foregroundStyle(.connAccent)
                         }
+                        Text(snippet.interpreter.displayName)
+                            .font(.connData(.caption2))
+                            .foregroundStyle(.connMuted)
                     }
-                    Text(snippet.command)
+                    Text(snippet.script)
                         .font(.system(size: 11.5, design: .monospaced))
                         .foregroundStyle(.connMuted)
                         .lineLimit(1)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .buttonStyle(ConnPressStyle())
-            Menu {
-                Button { runTarget = snippet } label: {
-                    Label(L("执行"), systemImage: "play")
-                }
-                Button { formRequest = SnippetFormRequest(snippet: snippet) } label: {
-                    Label(L("编辑"), systemImage: "pencil")
-                }
-                Divider()
-                Button(role: .destructive) { viewModel.delete(snippet) } label: {
-                    Label(L("删除"), systemImage: "trash")
-                }
-            } label: {
-                ConnMoreActionsIcon()
-            }
-            .accessibilityLabel(L("更多操作"))
+            .padding(.vertical, ConnSpacing.md)
+            .padding(.horizontal, ConnSpacing.cardPadding)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(Rectangle())
         }
-        .padding(.horizontal, ConnSpacing.cardPadding)
+        .buttonStyle(ConnPressStyle())
+        .contextMenu {
+            Button { formRequest = SnippetFormRequest(snippet: snippet) } label: {
+                Label(L("编辑"), systemImage: "pencil")
+            }
+            Button { runTarget = snippet } label: {
+                Label(L("执行"), systemImage: "play")
+            }
+            Divider()
+            Button(role: .destructive) { viewModel.delete(snippet) } label: {
+                Label(L("删除"), systemImage: "trash")
+            }
+        }
         .connSurface(cornerRadius: ConnRadius.card)
     }
 
@@ -233,18 +261,16 @@ struct SnippetsView: View {
                 title: L("还没有分组"),
                 message: L("点击右上角 + 新增分组"),
                 primary: .init(L("新增分组")) {
-                    newGroupName = ""
-                    isGroupPromptPresented = true
+                    groupsNameInput = ""
+                    isGroupsNewGroupPresented = true
                 }
             )
-            .padding(.top, ConnSpacing.xxl)
         } else if filteredGroups.isEmpty {
             EmptyState(
                 systemName: "magnifyingglass",
                 title: L("没有匹配的分组"),
                 message: L("换个关键词试试")
             )
-            .padding(.top, ConnSpacing.xxl)
         } else {
             LazyVStack(spacing: ConnSpacing.stackGap) {
                 ForEach(filteredGroups) { group in
@@ -256,72 +282,105 @@ struct SnippetsView: View {
     }
 
     private func groupRow(_ group: SnippetGroup) -> some View {
-        HStack(spacing: ConnSpacing.sm) {
-            Button {
-                selectedFilter = .group(group.id)
-                isGroupsPresented = false
-            } label: {
-                HStack(spacing: ConnSpacing.sm) {
-                    Image(systemName: "folder")
-                        .font(.system(size: 19, weight: .medium))
-                        .foregroundStyle(.connAccent)
-                        .frame(width: 28)
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text(group.name)
-                            .font(.connSubheadline)
-                            .fontWeight(.regular)
-                            .foregroundStyle(.connInk)
-                        Text(String(format: L("%d 条命令"), viewModel.commandCount(in: group.id)))
-                            .font(.connFootnote)
-                            .foregroundStyle(.connMuted)
-                    }
-                    Spacer()
+        Button {
+            selectedFilter = .group(group.id)
+            isGroupsPresented = false
+        } label: {
+            HStack(spacing: ConnSpacing.md) {
+                Image(systemName: "folder.fill")
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundStyle(.connAccent)
+                    .frame(width: 36, height: 36)
+                    .background(Color.connAccent.opacity(0.12), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                VStack(alignment: .leading, spacing: ConnSpacing.xs) {
+                    Text(group.name)
+                        .font(.connBody)
+                        .fontWeight(.semibold)
+                        .foregroundStyle(.connInk)
+                        .lineLimit(1)
+                    Text(String(format: L("%d 个脚本"), viewModel.scriptCount(in: group.id)))
+                        .font(.connData(.caption))
+                        .foregroundStyle(.connMuted)
                 }
-                .contentShape(Rectangle())
+                Spacer(minLength: ConnSpacing.xxs)
+                ConnChevron()
             }
-            .buttonStyle(ConnPressStyle())
-            Menu {
-                Button {
-                    renameTarget = GroupEditRequest(id: group.id, name: group.name)
-                    newGroupName = group.name
-                } label: {
-                    Label(L("重命名分组"), systemImage: "pencil")
-                }
-                Button(role: .destructive) {
-                    groupDeleteRequest = GroupEditRequest(id: group.id, name: group.name)
-                } label: {
-                    Label(L("删除分组"), systemImage: "trash")
-                }
-            } label: {
-                ConnMoreActionsIcon()
-            }
-            .accessibilityLabel(L("更多操作"))
+            .padding(.vertical, ConnSpacing.md)
+            .padding(.horizontal, ConnSpacing.cardPadding)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(Rectangle())
         }
-        .padding(.horizontal, ConnSpacing.cardPadding)
+        .buttonStyle(ConnPressStyle())
+        .contextMenu {
+            Button {
+                groupsRenameTarget = GroupEditRequest(id: group.id, name: group.name)
+                groupsNameInput = group.name
+            } label: {
+                Label(L("重命名分组"), systemImage: "pencil")
+            }
+            Button(role: .destructive) {
+                groupsDeleteRequest = GroupEditRequest(id: group.id, name: group.name)
+            } label: {
+                Label(L("删除分组"), systemImage: "trash")
+            }
+        }
         .connSurface(cornerRadius: ConnRadius.card)
     }
 
     private var commandEmpty: some View {
         EmptyState(
             systemName: "command",
-            title: viewModel.searchText.isEmpty ? L("还没有片段") : L("没有匹配的片段"),
+            title: viewModel.searchText.isEmpty ? L("还没有脚本") : L("没有匹配的脚本"),
             message: viewModel.searchText.isEmpty ? L("新增一条，或切换其他筛选") : L("换个关键词试试"),
-            primary: viewModel.searchText.isEmpty ? .init(L("新增命令")) {
+            primary: viewModel.searchText.isEmpty ? .init(L("新增脚本")) {
                 formRequest = SnippetFormRequest(snippet: nil)
             } : nil
         )
-        .padding(.top, ConnSpacing.xxl)
     }
 
     private var groupsPage: some View {
-        ScrollView {
-            groupList
-                .padding(.vertical, ConnSpacing.sm)
+        GeometryReader { geometry in
+            ScrollView {
+                if viewModel.groups.isEmpty || filteredGroups.isEmpty {
+                    groupList
+                        .frame(maxWidth: .infinity)
+                        .frame(minHeight: geometry.size.height)
+                } else {
+                    groupList
+                        .padding(.vertical, ConnSpacing.sm)
+                }
+            }
+            .scrollBounceBehavior(.basedOnSize)
         }
-        .scrollBounceBehavior(.basedOnSize)
         .background(Color.connBg.ignoresSafeArea())
         .navigationTitle(L("分组"))
         .searchable(text: $groupSearchText, prompt: L("搜索分组"))
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button {
+                    groupsNameInput = ""
+                    isGroupsNewGroupPresented = true
+                } label: {
+                    Image(systemName: "plus")
+                }
+                .accessibilityLabel(L("新增分组"))
+            }
+        }
+        .groupManagementAlerts(
+            isNewGroupPresented: $isGroupsNewGroupPresented,
+            renameTarget: $groupsRenameTarget,
+            deleteRequest: $groupsDeleteRequest,
+            nameInput: $groupsNameInput,
+            actions: GroupAlertActions(
+                deleteMessage: L("删除分组不会删除其中的脚本，脚本会保留在其他分组或未分组。"),
+                onAdd: { viewModel.addGroup($0) },
+                onRename: { viewModel.renameGroup(id: $0, to: $1) },
+                onDelete: { id in
+                    if selectedFilter == .group(id) { selectedFilter = .all }
+                    viewModel.deleteGroup(id: id)
+                }
+            )
+        )
     }
 
     private var filteredGroups: [SnippetGroup] {

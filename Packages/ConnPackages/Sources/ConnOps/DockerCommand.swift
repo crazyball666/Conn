@@ -86,6 +86,15 @@ public enum DockerCommand {
         if let network = draft.network {
             arguments += ["--network", ShellArgument.quote(network)]
         }
+        if let hostname = draft.hostname, !hostname.isEmpty {
+            arguments += ["--hostname", ShellArgument.quote(hostname)]
+        }
+        if let user = draft.user, !user.isEmpty {
+            arguments += ["--user", ShellArgument.quote(user)]
+        }
+        if let workdir = draft.workdir, !workdir.isEmpty {
+            arguments += ["--workdir", ShellArgument.quote(workdir)]
+        }
         for port in draft.ports {
             arguments += ["--publish", ShellArgument.quote(port.dockerValue)]
         }
@@ -97,6 +106,9 @@ public enum DockerCommand {
         }
         if draft.restartPolicy != .no {
             arguments += ["--restart", ShellArgument.quote(draft.restartPolicy.rawValue)]
+        }
+        if draft.readOnlyRoot {
+            arguments.append("--read-only")
         }
         arguments += draft.otherOptionTokens.map(ShellArgument.quote)
         arguments.append(ShellArgument.quote(draft.image))

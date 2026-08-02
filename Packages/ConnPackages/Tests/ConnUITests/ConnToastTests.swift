@@ -21,4 +21,15 @@ struct ConnToastTests {
         task.cancel()
         #expect(await task.value == false)
     }
+
+    @Test("全局 Toast 中心可覆盖和清除当前消息")
+    func centerPublishesLatestMessage() {
+        let center = ConnToastCenter()
+        center.show("读取失败")
+        #expect(center.message == "读取失败")
+        center.show("保存失败")
+        #expect(center.message == "保存失败")
+        center.dismiss()
+        #expect(center.message == nil)
+    }
 }

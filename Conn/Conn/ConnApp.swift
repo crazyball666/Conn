@@ -6,6 +6,7 @@ import ConnRunner
 import ConnSSH
 import ConnSSHCitadel
 import ConnStore
+import ConnUI
 import SwiftUI
 #if canImport(UIKit)
     import UIKit
@@ -17,6 +18,7 @@ struct ConnApp: App {
     private let dependencies = ConnApp.makeDependencies()
     @State private var localization = LocalizationManager()
     @State private var settings = SettingsStore()
+    @State private var toastCenter = ConnToastCenter()
 
     init() {
         // 在任何视图（含 .searchable 搜索框）创建前配置 UIKit 外观——appearance 只对
@@ -55,6 +57,9 @@ struct ConnApp: App {
             .tint(settings.accent.color)
             // 深浅色：跟随系统 / 强制浅 / 强制深（设置页）。
             .preferredColorScheme(settings.appearance.colorScheme)
+            .connGlobalToast()
+            // Toast 中心放在全局 modifier 外层，确保根提示层和所有页面读取同一实例。
+            .environment(\.connToastCenter, toastCenter)
             // 全局「点击空白处收起键盘」。
             .onAppear { KeyboardDismisser.shared.installIfNeeded() }
         }
@@ -189,8 +194,31 @@ struct AppDependencies {
             let hostKeyStore = GRDBHostKeyStore(database: database)
             let transport = CitadelTransport(hostKeyStore: hostKeyStore)
             let credentialStore = KeychainCredentialStore()
+            _ = try? credentialStore.recoverLegacyKeyMetadata()
+            // Keychain 在卸载应用后仍保留密钥元数据；SQLite 会随应用容器删除。
+            // 启动时先恢复缺失的记录，保证主机表单和密钥管理页都能继续使用。
+            for key in (try? credentialStore.allKeyMetadata()) ?? [] {
+                if (try? keyStore.key(id: key.id)) == nil {
+                    try? keyStore.save(key)
+                }
+            }
             let connectionManager = ConnectionManager(transport: transport) { host in
-                // 从 Keychain 取该主机凭据（Phase 5 会扩展密钥/SE）
+                if host.authKind == .key,
+                   let keyID = host.keyUUID,
+                   let key = try? keyStore.key(id: keyID),
+                   let material = try? credentialStore.privateKey(forKey: keyID) {
+                    switch key.kind {
+                    case .ed25519, .ecdsaP256:
+                        if material.contains("BEGIN ") {
+                            return .key(SSHPrivateKeyMaterial(kind: key.kind, pem: material))
+                        }
+                        if let raw = Data(base64Encoded: material) {
+                            return .key(SSHPrivateKeyMaterial(kind: key.kind, raw: raw))
+                        }
+                    case .rsa:
+                        return .key(SSHPrivateKeyMaterial(kind: .rsa, pem: material))
+                    }
+                }
                 let password = (try? credentialStore.password(forHost: host.id)) ?? ""
                 return .password(password)
             }

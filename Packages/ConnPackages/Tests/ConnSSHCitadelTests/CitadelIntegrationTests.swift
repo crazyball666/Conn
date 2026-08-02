@@ -29,9 +29,9 @@ struct CitadelIntegrationTests {
             .path
     }
 
-    private func loadKey(_ name: String, kind: SSHKey.Kind, passphrase: String? = nil) throws -> SSHAuth {
+    private func loadKey(_ name: String, kind: SSHKey.Kind) throws -> SSHAuth {
         let pem = try String(contentsOfFile: "\(keysDir)/\(name)", encoding: .utf8)
-        return .key(SSHPrivateKeyMaterial(kind: kind, pem: pem, passphrase: passphrase))
+        return .key(SSHPrivateKeyMaterial(kind: kind, pem: pem))
     }
 
     private func transport() -> CitadelTransport {

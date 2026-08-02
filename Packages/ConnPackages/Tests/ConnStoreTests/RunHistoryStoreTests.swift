@@ -12,17 +12,17 @@ struct RunHistoryStoreTests {
     @Test("record 后按时间降序取回")
     func recordAndRecent() throws {
         let store = try makeStore()
-        try store.record(RunHistoryEntry(hostUUID: "h1", command: "docker restart web", exitCode: 0, ranAt: 1000))
-        try store.record(RunHistoryEntry(hostUUID: "h1", command: "docker stop db", exitCode: 0, ranAt: 2000))
+        try store.record(RunHistoryEntry(hostUUID: "h1", script: "docker restart web", exitCode: 0, ranAt: 1000))
+        try store.record(RunHistoryEntry(hostUUID: "h1", script: "docker stop db", exitCode: 0, ranAt: 2000))
         let recent = try store.recent(hostUUID: "h1", limit: 10)
-        #expect(recent.map(\.command) == ["docker stop db", "docker restart web"])
+        #expect(recent.map(\.script) == ["docker stop db", "docker restart web"])
     }
 
     @Test("hostUUID 为 nil 取全部主机")
     func allHosts() throws {
         let store = try makeStore()
-        try store.record(RunHistoryEntry(hostUUID: "h1", command: "a", ranAt: 1000))
-        try store.record(RunHistoryEntry(hostUUID: "h2", command: "b", ranAt: 2000))
+        try store.record(RunHistoryEntry(hostUUID: "h1", script: "a", ranAt: 1000))
+        try store.record(RunHistoryEntry(hostUUID: "h2", script: "b", ranAt: 2000))
         #expect(try store.recent(hostUUID: nil, limit: 10).count == 2)
         #expect(try store.recent(hostUUID: "h1", limit: 10).count == 1)
     }
@@ -31,7 +31,7 @@ struct RunHistoryStoreTests {
     func limitApplies() throws {
         let store = try makeStore()
         for ts in 1 ... 5 {
-            try store.record(RunHistoryEntry(hostUUID: "h1", command: "cmd\(ts)", ranAt: Int64(ts * 1000)))
+            try store.record(RunHistoryEntry(hostUUID: "h1", script: "cmd\(ts)", ranAt: Int64(ts * 1000)))
         }
         #expect(try store.recent(hostUUID: "h1", limit: 3).count == 3)
     }
@@ -39,7 +39,7 @@ struct RunHistoryStoreTests {
     @Test("失败记录 isSuccess 为 false")
     func failureFlag() throws {
         let store = try makeStore()
-        try store.record(RunHistoryEntry(hostUUID: "h1", command: "docker rm x", exitCode: 1, ranAt: 1000))
+        try store.record(RunHistoryEntry(hostUUID: "h1", script: "docker rm x", exitCode: 1, ranAt: 1000))
         #expect(try store.recent(hostUUID: "h1", limit: 1).first?.isSuccess == false)
     }
 
@@ -47,13 +47,13 @@ struct RunHistoryStoreTests {
     func pendingBecomesKnownWithSameID() throws {
         let store = try makeStore()
         let pending = RunHistoryEntry(
-            id: "pull-1", hostUUID: "h1", command: "Docker 拉取镜像",
+            id: "pull-1", hostUUID: "h1", script: "Docker 拉取镜像",
             state: .pending, ranAt: 1000
         )
         try store.record(pending)
 
         try store.update(RunHistoryEntry(
-            id: pending.id, hostUUID: pending.hostUUID, command: pending.command,
+            id: pending.id, hostUUID: pending.hostUUID, script: pending.script,
             exitCode: 0, state: .known, ranAt: pending.ranAt
         ))
 
@@ -67,10 +67,10 @@ struct RunHistoryStoreTests {
     func recoverPendingMarksOnlyPendingEntriesUnknown() throws {
         let store = try makeStore()
         try store.record(RunHistoryEntry(
-            id: "pending", hostUUID: "h1", command: "Docker 拉取镜像", state: .pending, ranAt: 1000
+            id: "pending", hostUUID: "h1", script: "Docker 拉取镜像", state: .pending, ranAt: 1000
         ))
         try store.record(RunHistoryEntry(
-            id: "known", hostUUID: "h1", command: "Docker 拉取镜像",
+            id: "known", hostUUID: "h1", script: "Docker 拉取镜像",
             exitCode: 0, state: .known, ranAt: 2000
         ))
 

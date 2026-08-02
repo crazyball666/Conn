@@ -31,7 +31,7 @@ enum SchemaV1 {
                 t.column("name", .text).notNull()
                 t.column("kind", .text).notNull()
                 t.column("public_key", .text).notNull()
-                // Keychain / Secure Enclave 引用键，非私钥本身
+                // Keychain 引用键，非私钥本身
                 t.column("private_ref", .text)
                 t.column("created_at", .integer).notNull()
                 t.column("updated_at", .integer).notNull()
@@ -47,7 +47,7 @@ enum SchemaV1 {
                 t.column("auth_kind", .text).notNull()
                 // Keychain 引用键，密文绝不入库（红线 §2）
                 t.column("credential_ref", .text)
-                t.column("key_uuid", .text).references("ssh_key", column: "uuid", onDelete: .setNull)
+                t.column("key_uuid", .text).references("ssh_key", column: "uuid", onDelete: .restrict)
                 t.column("jump_chain", .text).notNull().defaults(to: "[]") // JSON 数组
                 t.column("tags", .text).notNull().defaults(to: "[]") // JSON 数组
                 t.column("icon", .text)
@@ -95,7 +95,8 @@ enum SchemaV1 {
             try db.create(table: "snippet") { t in
                 t.primaryKey("uuid", .text)
                 t.column("title", .text).notNull()
-                t.column("command", .text).notNull()
+                t.column("script", .text).notNull()
+                t.column("interpreter", .text).notNull().defaults(to: ShellInterpreter.sh.rawValue)
                 t.column("pinned", .integer).notNull().defaults(to: 0)
                 t.column("danger", .integer).notNull().defaults(to: 0)
                 t.column("sort_order", .integer).notNull().defaults(to: 0)
@@ -133,7 +134,8 @@ enum SchemaV1 {
             try db.create(table: "run_history") { t in
                 t.primaryKey("uuid", .text)
                 t.column("host_uuid", .text).notNull()
-                t.column("command", .text).notNull()
+                t.column("script", .text).notNull()
+                t.column("interpreter", .text).notNull().defaults(to: ShellInterpreter.sh.rawValue)
                 t.column("exit_code", .integer)
                 t.column("output_head", .text)
                 t.column("state", .text).notNull().defaults(to: RunHistoryState.known.rawValue)

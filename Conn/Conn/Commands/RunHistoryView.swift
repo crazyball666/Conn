@@ -52,10 +52,16 @@ struct RunHistoryView: View {
                 }
                 Text(timeText(entry.ranAt)).font(.connData(.caption2)).foregroundStyle(.connMuted)
             }
-            Text(entry.command)
-                .font(.system(size: 12, design: .monospaced))
-                .foregroundStyle(.connInk).lineLimit(2)
-                .frame(maxWidth: .infinity, alignment: .leading)
+            VStack(alignment: .leading, spacing: ConnSpacing.xxs) {
+                Text(entry.interpreter.displayName)
+                    .font(.connData(.caption2))
+                    .foregroundStyle(.connAccent)
+                Text(entry.script)
+                    .font(.system(size: 12, design: .monospaced))
+                    .foregroundStyle(.connInk)
+                    .lineLimit(2)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
         .padding(ConnSpacing.cardPadding)
         .connSurface(cornerRadius: ConnRadius.card)

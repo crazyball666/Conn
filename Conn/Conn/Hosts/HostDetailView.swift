@@ -6,7 +6,7 @@ import SwiftUI
 /// 主机工作台：概览是落地页，进程 / 文件 / Docker / 日志作为独立目的地进入。
 ///
 /// 各 ViewModel 仍在工作台级持有——从模块返回时不会丢失已加载数据；进入工作台后
-/// 隐藏 App 底栏，避免全局 Tab 与主机内导航同时争夺视觉层级。
+/// 保留 App 底栏，用户可以直接切换到命令或设置 Tab。
 struct HostDetailView: View {
     let host: Host
     let dependencies: AppDependencies
@@ -51,7 +51,7 @@ struct HostDetailView: View {
         .navigationTitle(displayTitle)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar { terminalToolbarItem }
-        .toolbar(.hidden, for: .tabBar)
+        .toolbar(.visible, for: .tabBar)
         .navigationDestination(item: $route, destination: destination)
         .onAppear { monitorVM.appear() }
         .onDisappear { monitorVM.disappear() }
@@ -140,6 +140,6 @@ struct HostDetailView: View {
             .toolbar {
                 if showsTerminal { terminalToolbarItem }
             }
-            .toolbar(.hidden, for: .tabBar)
+            .toolbar(.visible, for: .tabBar)
     }
 }

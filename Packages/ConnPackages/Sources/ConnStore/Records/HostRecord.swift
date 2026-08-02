@@ -66,13 +66,16 @@ extension HostRecord {
     }
 
     func toDomain(groupIDs: [String] = []) -> DomainHost {
-        DomainHost(
+        guard let parsedAuthKind = DomainHost.AuthKind(rawValue: authKind) else {
+            preconditionFailure("未知主机认证方式：\(authKind)")
+        }
+        return DomainHost(
             id: uuid,
             name: name,
             address: address,
             username: username,
             port: port,
-            authKind: DomainHost.AuthKind(rawValue: authKind) ?? .key,
+            authKind: parsedAuthKind,
             credentialRef: credentialRef,
             keyUUID: keyUUID,
             jumpChain: Self.decodeJSON(jumpChain),

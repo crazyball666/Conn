@@ -77,14 +77,33 @@ extension DockerView {
         switch target {
         case .runContainer:
             DockerRunFormView(
-                networks: viewModel.networks, volumes: viewModel.volumes, operations: viewModel.operations
+                images: viewModel.images,
+                networks: viewModel.networks,
+                volumes: viewModel.volumes,
+                operations: viewModel.operations,
+                onSaveAsCommand: { [weak viewModel] title, command in
+                    guard let viewModel else { throw DockerCommandSaveError.unavailable }
+                    try viewModel.saveRunAsScript(title: title, script: command)
+                }
             )
         case .pullImage:
             DockerPullFormView(operations: viewModel.operations)
         case .createVolume:
-            DockerVolumeFormView(operations: viewModel.operations)
+            DockerVolumeFormView(
+                operations: viewModel.operations,
+                onSaveAsCommand: { [weak viewModel] title, command in
+                    guard let viewModel else { throw DockerCommandSaveError.unavailable }
+                    try viewModel.saveRunAsScript(title: title, script: command)
+                }
+            )
         case .createNetwork:
-            DockerNetworkFormView(operations: viewModel.operations)
+            DockerNetworkFormView(
+                operations: viewModel.operations,
+                onSaveAsCommand: { [weak viewModel] title, command in
+                    guard let viewModel else { throw DockerCommandSaveError.unavailable }
+                    try viewModel.saveRunAsScript(title: title, script: command)
+                }
+            )
         case .addComposeProject:
             DockerComposeManualFormView(model: viewModel.compose)
         case .destructive:
