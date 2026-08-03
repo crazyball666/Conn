@@ -7,17 +7,16 @@ import NIOSSH
 
 /// Citadel `withPTY` 支撑的交互式 shell 通道。
 ///
-/// **难点**：Citadel 的 `withPTY(_:environment:perform:)` 是闭包作用域式——PTY
-/// 随闭包返回而关闭。但终端会话要活到用户关闭页面。解法：在一个长驻 Task 里跑
-/// `withPTY`，闭包内一直挂起消费 `TTYOutput`（把它桥接到 `output` 流），同时用
-/// `CheckedContinuation` 把 `TTYStdinWriter` 取出来供外部 `write`/`resize`。
-/// 闭包直到 `finishSignal` 被触发（`close()`）才返回，PTY 才关闭。
+/// `withPTY` 的 PTY 只在闭包期间存活。通道以一个长驻 task 持有闭包，并由
+/// `ShellChannelLifecycleGate` 串行化 writer 就绪、远端 EOF、错误和本地关闭，保证
+/// open continuation 与输出流均只结束一次。
 final class CitadelShellChannel: ShellChannel, @unchecked Sendable {
     let output: AsyncThrowingStream<Data, Error>
     private let outputContinuation: AsyncThrowingStream<Data, Error>.Continuation
 
     private let writerBox = NIOLockedValueBox<TTYStdinWriter?>(nil)
-    private let closeContinuationBox = NIOLockedValueBox<CheckedContinuation<Void, Never>?>(nil)
+    private let completionBox = NIOLockedValueBox(false)
+    private let lifecycle = ShellChannelLifecycleGate()
     private var ptyTask: Task<Void, Never>?
 
     private init() {
@@ -27,7 +26,6 @@ final class CitadelShellChannel: ShellChannel, @unchecked Sendable {
     /// 在给定 client 上开一个 PTY 并返回就绪的通道。
     static func open(client: SSHClient, term: TermSize) async throws -> CitadelShellChannel {
         let channel = CitadelShellChannel()
-
         let request = SSHChannelRequestEvent.PseudoTerminalRequest(
             wantReply: true,
             term: "xterm-256color",
@@ -38,33 +36,39 @@ final class CitadelShellChannel: ShellChannel, @unchecked Sendable {
             terminalModes: SSHTerminalModes([:])
         )
 
-        // 等待 writer 就绪再返回，保证调用方拿到通道后能立即 write。
-        try await withCheckedThrowingContinuation { (ready: CheckedContinuation<Void, Error>) in
-            channel.ptyTask = Task {
-                do {
-                    try await client.withPTY(request) { inbound, outbound in
-                        channel.writerBox.withLockedValue { $0 = outbound }
-                        ready.resume()
-                        // 桥接 PTY 输出到 output 流
-                        await channel.pump(inbound)
-                        // 挂起直到 close() 触发，否则闭包返回会立刻关闭 PTY
-                        await withCheckedContinuation { (stop: CheckedContinuation<Void, Never>) in
-                            channel.closeContinuationBox.withLockedValue { $0 = stop }
-                        }
-                    }
-                    channel.outputContinuation.finish()
-                } catch {
-                    // withPTY 建立失败：若 ready 尚未 resume，让 open 抛错
-                    channel.outputContinuation.finish(throwing: error)
-                    channel.resumeCloseIfNeeded()
-                    ready.resume(throwing: error)
-                }
-            }
+        channel.ptyTask = Task {
+            await channel.run(client: client, request: request)
         }
+        try await channel.lifecycle.waitForReady()
         return channel
     }
 
-    private func pump(_ inbound: TTYOutput) async {
+    private func run(client: SSHClient, request: SSHChannelRequestEvent.PseudoTerminalRequest) async {
+        do {
+            try await client.withPTY(request) { inbound, outbound in
+                writerBox.withLockedValue { $0 = outbound }
+                lifecycle.markReady()
+
+                if let error = await pump(inbound) {
+                    finish(error: error)
+                } else {
+                    // 远端正常 EOF 也意味着 PTY 已结束，不能继续等待用户本地 close。
+                    finish(error: nil)
+                }
+
+                // `finish` 已把 stop 标记为完成；此 await 让 withPTY 立即离开闭包。
+                await lifecycle.waitForStop()
+            }
+            finish(error: nil)
+        } catch {
+            // writer 就绪前：让 open() 抛原始错误；writer 就绪后：只结束 output，
+            // 不可重复 resume 已成功的 open continuation。
+            finish(error: error)
+        }
+    }
+
+    /// 返回 nil 表示远端正常 EOF；非 nil 表示 reader 传输错误。
+    private func pump(_ inbound: TTYOutput) async -> Error? {
         do {
             for try await chunk in inbound {
                 switch chunk {
@@ -72,35 +76,62 @@ final class CitadelShellChannel: ShellChannel, @unchecked Sendable {
                     outputContinuation.yield(Data(buffer.readableBytesView))
                 }
             }
+            return nil
         } catch {
-            outputContinuation.finish(throwing: error)
+            return error
         }
     }
 
     func write(_ bytes: Data) async throws {
-        guard let writer = writerBox.withLockedValue({ $0 }) else { return }
+        guard lifecycle.isWritable,
+              let writer = writerBox.withLockedValue({ $0 }) else {
+            throw SSHError.channelClosed
+        }
         var buffer = ByteBufferAllocator().buffer(capacity: bytes.count)
         buffer.writeBytes(bytes)
-        try await writer.write(buffer)
+        do {
+            try await writer.write(buffer)
+        } catch {
+            finish(error: error)
+            throw error
+        }
     }
 
     func resize(_ size: TermSize) async throws {
-        guard let writer = writerBox.withLockedValue({ $0 }) else { return }
-        try await writer.changeSize(cols: size.cols, rows: size.rows, pixelWidth: 0, pixelHeight: 0)
+        guard lifecycle.isWritable,
+              let writer = writerBox.withLockedValue({ $0 }) else {
+            throw SSHError.channelClosed
+        }
+        do {
+            try await writer.changeSize(cols: size.cols, rows: size.rows, pixelWidth: 0, pixelHeight: 0)
+        } catch {
+            finish(error: error)
+            throw error
+        }
     }
 
+    /// 只关闭当前 PTY；绝不触碰承载它的共享 SSH client。
     func close() async {
-        resumeCloseIfNeeded()
-        outputContinuation.finish()
+        finish(error: nil)
         ptyTask?.cancel()
     }
 
-    /// 触发挂起的闭包返回（关闭 PTY）。幂等。
-    private func resumeCloseIfNeeded() {
-        let continuation = closeContinuationBox.withLockedValue { box -> CheckedContinuation<Void, Never>? in
-            defer { box = nil }
-            return box
+    private func finish(error: Error?) {
+        let shouldFinish = completionBox.withLockedValue { completed -> Bool in
+            guard !completed else { return false }
+            completed = true
+            return true
         }
-        continuation?.resume()
+        guard shouldFinish else { return }
+
+        writerBox.withLockedValue { $0 = nil }
+        if let error {
+            lifecycle.markOpenFailed(error)
+            outputContinuation.finish(throwing: error)
+        } else {
+            lifecycle.markOpenFailed(SSHError.channelClosed)
+            outputContinuation.finish()
+        }
+        lifecycle.terminate()
     }
 }
