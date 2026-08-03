@@ -74,4 +74,53 @@ struct TerminalSessionStoreTests {
         #expect(store.tabs.isEmpty)
         #expect(store.currentTabID == nil)
     }
+
+    @Test("同一主机允许多个会话，并按最近选择复用")
+    func supportsMultipleTabsPerHostAndTracksRecent() {
+        let store = TerminalSessionStore()
+        let first = makeTab(hostID: "h1", name: "web")
+        let second = makeTab(hostID: "h1", name: "web")
+        store.add(first)
+        store.add(second)
+        store.select(first.id)
+
+        #expect(store.tabs(forHost: "h1").map(\.id) == [first.id, second.id])
+        #expect(store.recentTab(forHost: "h1")?.id == first.id)
+    }
+
+    @Test("别名去空白，空别名恢复自动名称")
+    func updatesAliasOrRestoresAutomaticName() {
+        let store = TerminalSessionStore()
+        let tab = makeTab(hostID: "h1", name: "web")
+        store.add(tab)
+
+        store.updateAlias(tab.id, to: "  部署窗口  ")
+        #expect(store.tabs.first?.displayName == "部署窗口")
+        store.updateAlias(tab.id, to: "   ")
+        #expect(store.tabs.first?.displayName == "终端")
+    }
+
+    @Test("按主机分组只保留有会话的主机")
+    func groupsTabsByHost() {
+        let store = TerminalSessionStore()
+        store.add(makeTab(hostID: "h1", name: "web"))
+        store.add(makeTab(hostID: "h2", name: "db"))
+
+        #expect(store.hostGroups.map(\.hostID) == ["h1", "h2"])
+        #expect(store.hostGroups.map(\.hostName) == ["web", "db"])
+        #expect(store.hostGroups.map { $0.tabs.count } == [1, 1])
+    }
+
+    @Test("关闭一台主机的会话不影响其它主机")
+    func closeAllForHostLeavesOtherHosts() async {
+        let store = TerminalSessionStore()
+        store.add(makeTab(hostID: "h1", name: "web"))
+        store.add(makeTab(hostID: "h1", name: "web"))
+        let other = makeTab(hostID: "h2", name: "db")
+        store.add(other)
+
+        await store.closeAll(forHost: "h1")
+
+        #expect(store.tabs.map(\.id) == [other.id])
+    }
 }
