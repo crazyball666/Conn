@@ -46,7 +46,7 @@ struct RunHistoryView: View {
                     Text(L("结果未知"))
                         .font(.connData(.caption2)).foregroundStyle(.connMuted)
                 } else if let code = entry.exitCode {
-                    Text("exit \(code)")
+                    Text(String(format: L("exit %d"), code))
                         .font(.connData(.caption2)).connTabularNumbers()
                         .foregroundStyle(entry.isSuccess ? .connGood : .connCrit)
                 }

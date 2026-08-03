@@ -121,7 +121,7 @@ struct DockerVolumeFormView: View {
         } header: {
             Text(L("高级选项"))
         } footer: {
-            Text("一行一项 docker flag，可写 --flag=value 形式。空行与 # 开头行忽略。")
+            Text(L("一行一项 docker flag，可写 --flag=value 形式。空行与 # 开头行忽略。"))
         }
         .listRowBackground(Color.connSurface)
     }
@@ -270,7 +270,7 @@ struct DockerNetworkFormView: View {
         } header: {
             Text(L("高级选项"))
         } footer: {
-            Text("一行一项 docker flag，可写 --flag=value 形式。空行与 # 开头行忽略。")
+            Text(L("一行一项 docker flag，可写 --flag=value 形式。空行与 # 开头行忽略。"))
         }
         .listRowBackground(Color.connSurface)
     }

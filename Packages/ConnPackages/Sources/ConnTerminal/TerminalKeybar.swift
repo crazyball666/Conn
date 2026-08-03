@@ -60,26 +60,26 @@
                     HStack(spacing: 6) {
                         actionCap(
                             systemName: "keyboard.chevron.compact.down",
-                            accessibilityLabel: "收起键盘",
+                            accessibilityLabel: L("收起键盘"),
                             identifier: "terminal.keybar.dismissKeyboard",
                             action: onDismissKeyboard
                         )
                         actionCap(
                             systemName: "arrow.clockwise",
-                            accessibilityLabel: "重新打开终端",
+                            accessibilityLabel: L("重新打开终端"),
                             identifier: "terminal.keybar.reconnect",
                             action: onReconnect
                         )
                         actionCap(
                             systemName: "command",
-                            accessibilityLabel: "选择本地命令",
+                            accessibilityLabel: L("选择本地脚本"),
                             identifier: "terminal.keybar.commands",
                             action: onChooseCommand
                         )
                         pasteCap
                         actionCap(
                             systemName: "chevron.up",
-                            accessibilityLabel: "展开快捷键",
+                            accessibilityLabel: L("展开快捷键"),
                             identifier: "terminal.keybar.expand"
                         ) {
                             onExpansionChange(true)
@@ -98,7 +98,7 @@
                 HStack(spacing: 6) {
                     actionCap(
                         systemName: "chevron.down",
-                        accessibilityLabel: "收起快捷键",
+                        accessibilityLabel: L("收起快捷键"),
                         identifier: "terminal.keybar.collapse"
                     ) {
                         onExpansionChange(false)
@@ -106,19 +106,19 @@
                     pasteCap
                     actionCap(
                         systemName: "command",
-                        accessibilityLabel: "选择本地命令",
+                        accessibilityLabel: L("选择本地脚本"),
                         identifier: "terminal.keybar.commands",
                         action: onChooseCommand
                     )
                     actionCap(
                         systemName: "arrow.clockwise",
-                        accessibilityLabel: "重新打开终端",
+                        accessibilityLabel: L("重新打开终端"),
                         identifier: "terminal.keybar.reconnect",
                         action: onReconnect
                     )
                     actionCap(
                         systemName: "keyboard.chevron.compact.down",
-                        accessibilityLabel: "收起键盘",
+                        accessibilityLabel: L("收起键盘"),
                         identifier: "terminal.keybar.dismissKeyboard",
                         action: onDismissKeyboard
                     )
@@ -188,7 +188,7 @@
                 )
             }
             .buttonStyle(.plain)
-            .accessibilityLabel(Text("粘贴"))
+            .accessibilityLabel(Text(L("粘贴")))
             .accessibilityIdentifier("terminal.keybar.paste")
             .frame(maxWidth: .infinity)
             .frame(height: 34)
@@ -196,7 +196,7 @@
 
         private func actionCap(
             systemName: String,
-            accessibilityLabel: LocalizedStringKey,
+            accessibilityLabel: String,
             identifier: String,
             action: @escaping () -> Void
         ) -> some View {

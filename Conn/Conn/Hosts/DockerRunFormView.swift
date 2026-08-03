@@ -311,7 +311,7 @@ struct DockerRunFormView: View {
                             .foregroundStyle(.connAccent)
                             .frame(width: 34, height: 34)
                     }
-                    .accessibilityLabel("选择已有镜像")
+                    .accessibilityLabel(L("选择已有镜像"))
                 }
             }
             TextField(L("名称"), text: $state.name).textInputAutocapitalization(.never).autocorrectionDisabled()
@@ -331,7 +331,7 @@ struct DockerRunFormView: View {
                             .foregroundStyle(.connAccent)
                             .frame(width: 34, height: 34)
                     }
-                    .accessibilityLabel("选择已有网络")
+                    .accessibilityLabel(L("选择已有网络"))
                 }
             }
             Picker(L("重启策略"), selection: $state.restartPolicy) {
@@ -460,7 +460,7 @@ struct DockerRunFormView: View {
                                                 .foregroundStyle(.connAccent)
                                                 .frame(width: 34, height: 34)
                                         }
-                                        .accessibilityLabel("选择已有卷")
+                                        .accessibilityLabel(L("选择已有卷"))
                                     }
                                 }
                             } else {
@@ -506,7 +506,7 @@ struct DockerRunFormView: View {
         } header: {
             Text(L("高级选项"))
         } footer: {
-            Text("一行一项 docker flag，可写 --flag=value 形式。空行与 # 开头行忽略；\(L("主机名"))、\(L("用户"))、\(L("工作目录"))和\(L("只读根文件系统"))也可在这里填写。")
+            Text(String(format: L("一行一项 docker flag，可写 --flag=value 形式。空行与 # 开头行忽略；%@、%@、%@和%@也可在这里填写。"), L("主机名"), L("用户"), L("工作目录"), L("只读根文件系统")))
         }
         .listRowBackground(Color.connSurface)
     }

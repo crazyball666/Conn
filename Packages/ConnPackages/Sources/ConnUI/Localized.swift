@@ -5,7 +5,11 @@ import Foundation
 ///
 /// 从 ConnUI 资源 bundle 当前语言的 `.lproj` 子 bundle 查表——`String(localized:locale:)`
 /// 的 locale 参数不选表，无法做 App 内语言覆盖，故走 `.lproj` 子 bundle。
-func L(_ key: String) -> String {
+/// Returns a localized value from the ConnUI resource bundle.
+///
+/// Public so UI packages built on top of ConnUI can localize accessibility
+/// labels and other user-visible strings without duplicating bundle logic.
+public func L(_ key: String) -> String {
     connUILocalizedBundle().localizedString(forKey: key, value: key, table: nil)
 }
 
@@ -35,5 +39,6 @@ private func connUICurrentIdentifier() -> String {
         if lower.hasPrefix("ko") { return "ko" }
         if lower.hasPrefix("en") { return "en" }
     }
-    return "zh-Hans"
+    // 设备语言不在支持范围内时，统一使用 English，避免显示源语言中文。
+    return "en"
 }

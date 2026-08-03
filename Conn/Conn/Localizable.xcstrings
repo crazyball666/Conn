@@ -2,7 +2,14 @@
   "sourceLanguage" : "zh-Hans",
   "strings" : {
     "—" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "—"
+          }
+        }
+      }
     },
     "；审计未保存" : {
       "extractionState" : "stale",
@@ -34,7 +41,14 @@
       }
     },
     ":" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : ":"
+          }
+        }
+      }
     },
     "（无输出）" : {
       "extractionState" : "stale",
@@ -124,10 +138,23 @@
       }
     },
     "%" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%"
+          }
+        }
+      }
     },
     "%@ · %@" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ · %2$@"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "new",
@@ -138,6 +165,12 @@
     },
     "%@ · %@ · %@" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ · %2$@ · %3$@"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "new",
@@ -351,6 +384,12 @@
     },
     "%@，%@" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@, %2$@"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "new",
@@ -418,13 +457,33 @@
       }
     },
     "%@（可手动填写）" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ (enter manually)"
+          }
+        }
+      }
     },
     "%@（可选）" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ (optional)"
+          }
+        }
+      }
     },
     "%@@%@:%@" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@@%2$@:%3$@"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "new",
@@ -985,19 +1044,53 @@
       }
     },
     "%lld" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld"
+          }
+        }
+      }
     },
     "%lld pt" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld pt"
+          }
+        }
+      }
     },
     "%lld%%" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld%%"
+          }
+        }
+      }
     },
     "↑ %@" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "↑ %1$@"
+          }
+        }
+      }
     },
     "↑%@ ↓%@" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "↑%1$@ ↓%2$@"
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "new",
@@ -1007,7 +1100,14 @@
       }
     },
     "↓ %@" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "↓ %1$@"
+          }
+        }
+      }
     },
     "1 分钟" : {
       "extractionState" : "stale",
@@ -1097,7 +1197,14 @@
       }
     },
     "22" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "22"
+          }
+        }
+      }
     },
     "Compose" : {
       "extractionState" : "stale",
@@ -1245,7 +1352,14 @@
       }
     },
     "CPU%lld" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CPU%lld"
+          }
+        }
+      }
     },
     "Docker" : {
       "extractionState" : "stale",
@@ -2002,10 +2116,48 @@
       }
     },
     "exit %d" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Exit code %d"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "終了コード %d"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "종료 코드 %d"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "退出码 %d"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "結束代碼 %d"
+          }
+        }
+      }
     },
     "hidden" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "hidden"
+          }
+        }
+      }
     },
     "IO 写" : {
       "extractionState" : "stale",
@@ -2124,7 +2276,14 @@
       }
     },
     "s" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "s"
+          }
+        }
+      }
     },
     "SSH Agent 转发" : {
       "extractionState" : "stale",
@@ -2156,7 +2315,14 @@
       }
     },
     "t" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "t"
+          }
+        }
+      }
     },
     "Tab 宽度" : {
       "extractionState" : "stale",
@@ -2188,20 +2354,65 @@
       }
     },
     "type" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "type"
+          }
+        }
+      }
     },
     "v" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "v"
+          }
+        }
+      }
     },
     "visible" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "visible"
+          }
+        }
+      }
     },
     "一行一项 docker flag，可写 --flag=value 形式。空行与 # 开头行忽略；%@、%@、%@和%@也可在这里填写。" : {
       "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enter one Docker flag per line using --flag=value. Empty lines and lines beginning with # are ignored. You may also enter %1$@, %2$@, %3$@, and %4$@ here."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Docker フラグを 1 行に 1 つ、--flag=value 形式で入力します。空行と # で始まる行は無視されます。%1$@、%2$@、%3$@、%4$@ も入力できます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Docker 플래그를 --flag=value 형식으로 한 줄에 하나씩 입력합니다. 빈 줄과 #으로 시작하는 줄은 무시됩니다. %1$@, %2$@, %3$@, %4$@도 입력할 수 있습니다."
+          }
+        },
         "zh-Hans" : {
           "stringUnit" : {
-            "state" : "new",
-            "value" : "一行一项 docker flag，可写 --flag=value 形式。空行与 # 开头行忽略；%1$@、%2$@、%3$@和%4$@也可在这里填写。"
+            "state" : "translated",
+            "value" : "每行填写一个 Docker flag，格式为 --flag=value。空行和以 # 开头的行会被忽略；也可以填写 %1$@、%2$@、%3$@ 和 %4$@。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "每行輸入一個 Docker flag，格式為 --flag=value。空行與以 # 開頭的行會被忽略；也可以輸入 %1$@、%2$@、%3$@ 和 %4$@。"
           }
         }
       }
@@ -3658,28 +3869,34 @@
     "先在「命令」页面添加常用命令" : {
       "extractionState" : "stale",
       "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "请先在“脚本”页面添加常用脚本。"
+          }
+        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Add commonly used commands on the Commands screen first."
+            "value" : "Add commonly used scripts on the Scripts screen first."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "まず「コマンド」画面でよく使うコマンドを追加してください。"
+            "value" : "まず「スクリプト」画面でよく使うスクリプトを追加してください。"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "먼저 ‘명령’ 화면에서 자주 쓰는 명령을 추가하세요."
+            "value" : "먼저 ‘스크립트’ 화면에서 자주 사용하는 스크립트를 추가하세요."
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "請先在「命令」頁面新增常用命令。"
+            "value" : "請先在「指令碼」頁面新增常用指令碼。"
           }
         }
       }
@@ -3687,10 +3904,16 @@
     "先逛逛演示模式" : {
       "extractionState" : "stale",
       "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "体验演示模式"
+          }
+        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Explore demo mode"
+            "value" : "Try demo mode"
           }
         },
         "ja" : {
@@ -3708,7 +3931,7 @@
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "先逛逛示範模式"
+            "value" : "體驗示範模式"
           }
         }
       }
@@ -5717,28 +5940,34 @@
     "可多选，也可以不选；不选时命令归为未分组。" : {
       "extractionState" : "stale",
       "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "可选择多个分组，也可不选；未选择时归入未分组。"
+          }
+        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Select multiple groups or none. Commands with no selection remain ungrouped."
+            "value" : "Select multiple groups or leave them unassigned; unassigned scripts remain ungrouped."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "複数選択または未選択にできます。未選択のコマンドは未分類になります。"
+            "value" : "複数のグループを選択するか、未選択のままにできます。未選択のスクリプトは未分類になります。"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "여러 그룹을 선택하거나 선택하지 않을 수 있습니다. 선택하지 않은 명령은 미분류로 유지됩니다."
+            "value" : "여러 그룹을 선택하거나 지정하지 않을 수 있습니다. 지정하지 않은 스크립트는 미분류로 유지됩니다."
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "可多選，也可以不選；不選時命令歸為未分組。"
+            "value" : "可選取多個分組，也可不選；未選取時會歸入未分組。"
           }
         }
       }
@@ -5746,28 +5975,34 @@
     "可多选，也可以不选；不选时归为未分组。" : {
       "extractionState" : "stale",
       "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "可选择多个分组，也可不选；未选择时归入未分组。"
+          }
+        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Select any number, or none — unselected means ungrouped."
+            "value" : "Select any number of groups, or none; unselected items remain ungrouped."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "複数選択も未選択も可能です。未選択の場合は未分類になります。"
+            "value" : "複数選択または未選択にできます。未選択の場合は未分類になります。"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "여러 개를 선택하거나 선택하지 않아도 됩니다. 선택하지 않으면 미분류가 됩니다."
+            "value" : "여러 그룹을 선택하거나 지정하지 않을 수 있습니다. 지정하지 않으면 미분류가 됩니다."
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "可多選，也可以不選；不選時歸為未分組。"
+            "value" : "可選取多個分組，也可不選；未選取時會歸入未分組。"
           }
         }
       }
@@ -6152,28 +6387,34 @@
     "命令只会填入终端，不会自动执行。" : {
       "extractionState" : "stale",
       "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "脚本仅填入终端，不会自动执行。"
+          }
+        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "The command will only be inserted into the terminal and will not run automatically."
+            "value" : "The script is inserted into the terminal only; it is not executed automatically."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "コマンドはターミナルに入力されるだけで、自動実行されません。"
+            "value" : "スクリプトはターミナルに入力されるだけで、自動実行されません。"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "명령은 터미널에 입력만 되며 자동으로 실행되지 않습니다."
+            "value" : "스크립트는 터미널에 입력만 되며 자동으로 실행되지 않습니다."
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "命令只會填入終端機，不會自動執行。"
+            "value" : "指令碼只會填入終端機，不會自動執行。"
           }
         }
       }
@@ -6819,10 +7060,16 @@
     "如：磁盘 / 网络（可留空）" : {
       "extractionState" : "stale",
       "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "例如：磁盘 / 网络（可选）"
+          }
+        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "e.g. Disk / Network (optional)"
+            "value" : "For example: Disk / Network (optional)"
           }
         },
         "ja" : {
@@ -6840,7 +7087,7 @@
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "例如：磁碟 / 網路（可留空）"
+            "value" : "例如：磁碟 / 網路（可選）"
           }
         }
       }
@@ -8849,6 +9096,12 @@
     "换个关键词试试" : {
       "extractionState" : "stale",
       "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "请尝试其他关键词"
+          }
+        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
@@ -8870,7 +9123,7 @@
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "換個關鍵字試試"
+            "value" : "請嘗試其他關鍵字"
           }
         }
       }
@@ -9458,10 +9711,16 @@
     "支持 ssh root@1.2.3.4 -p 2222 一类命令，自动识别地址、用户名与端口。" : {
       "extractionState" : "stale",
       "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "支持 ssh root@1.2.3.4 -p 2222 格式的命令，并自动识别地址、用户名和端口。"
+          }
+        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Supports commands like ssh root@1.2.3.4 -p 2222, automatically detecting the address, username and port."
+            "value" : "Supports commands in the ssh root@1.2.3.4 -p 2222 format and automatically detects the address, username, and port."
           }
         },
         "ja" : {
@@ -9479,7 +9738,7 @@
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "支援 ssh root@1.2.3.4 -p 2222 之類的指令，自動辨識位址、使用者名稱與連接埠。"
+            "value" : "支援 ssh root@1.2.3.4 -p 2222 格式的指令，並自動辨識位址、使用者名稱與連接埠。"
           }
         }
       }
@@ -11951,10 +12210,16 @@
     "添加你的第一台服务器，开始监控与管理" : {
       "extractionState" : "stale",
       "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "添加第一台服务器，开始监控和管理"
+          }
+        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Add your first server to start monitoring and managing"
+            "value" : "Add your first server to start monitoring and managing it"
           }
         },
         "ja" : {
@@ -11972,7 +12237,7 @@
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "新增你的第一台伺服器，開始監控與管理"
+            "value" : "新增第一台伺服器，開始監控與管理"
           }
         }
       }
@@ -12125,10 +12390,16 @@
     "添加第一台服务器，或先用演示模式逛一圈" : {
       "extractionState" : "stale",
       "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "添加第一台服务器，或先体验演示模式"
+          }
+        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Add your first server, or explore in demo mode first"
+            "value" : "Add your first server, or try demo mode first"
           }
         },
         "ja" : {
@@ -12146,7 +12417,7 @@
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "新增第一台伺服器，或先用示範模式逛一圈"
+            "value" : "新增第一台伺服器，或先體驗示範模式"
           }
         }
       }
@@ -12386,10 +12657,16 @@
     "点击右上角 + 新增分组" : {
       "extractionState" : "stale",
       "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "请点击右上角“+”添加分组"
+          }
+        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Tap + in the top-right corner to add a group"
+            "value" : "Select “+” in the top-right corner to add a group"
           }
         },
         "ja" : {
@@ -12407,7 +12684,7 @@
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "點擊右上角 + 新增分組"
+            "value" : "請點擊右上角「+」新增分組"
           }
         }
       }
@@ -12792,28 +13069,34 @@
     "留空则用地址显示。" : {
       "extractionState" : "stale",
       "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "留空时显示地址。"
+          }
+        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Leave blank to display the address."
+            "value" : "Leave blank to use the address as the display name."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "空欄の場合はアドレスを表示します。"
+            "value" : "空欄の場合はアドレスを表示名として使用します。"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "비워두면 주소가 표시됩니다."
+            "value" : "비워 두면 주소를 표시 이름으로 사용합니다."
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "留空則用地址顯示。"
+            "value" : "留空時會以位址作為顯示名稱。"
           }
         }
       }
@@ -15808,28 +16091,34 @@
     "还没有主机" : {
       "extractionState" : "stale",
       "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "暂无服务器"
+          }
+        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "No hosts yet"
+            "value" : "No servers yet"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "ホストがありません"
+            "value" : "サーバーがありません"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "아직 호스트가 없습니다"
+            "value" : "아직 서버가 없습니다"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "還沒有主機"
+            "value" : "尚無伺服器"
           }
         }
       }
@@ -15837,28 +16126,34 @@
     "还没有主机，请先在「主机」里添加。" : {
       "extractionState" : "stale",
       "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "暂无服务器，请先在“服务器”中添加。"
+          }
+        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "No hosts yet. Add one in Hosts first."
+            "value" : "No servers yet. Add one from Servers first."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "ホストがありません。まず「ホスト」で追加してください。"
+            "value" : "サーバーがありません。まず「サーバー」から追加してください。"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "아직 호스트가 없습니다. 먼저 '호스트'에서 추가하세요."
+            "value" : "아직 서버가 없습니다. 먼저 '서버'에서 추가하세요."
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "尚未有主機，請先在「主機」中新增。"
+            "value" : "尚無伺服器，請先在「伺服器」中新增。"
           }
         }
       }
@@ -15895,10 +16190,16 @@
     "还没有分组，先到分组管理中创建。" : {
       "extractionState" : "stale",
       "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "暂无分组，请先在分组管理中创建。"
+          }
+        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "No groups yet — create one in Group Management first."
+            "value" : "No groups yet. Create one in Group Management first."
           }
         },
         "ja" : {
@@ -15910,13 +16211,13 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "아직 그룹이 없습니다. 먼저 그룹 관리에서 만들어 주세요."
+            "value" : "그룹이 없습니다. 먼저 그룹 관리에서 생성하세요."
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "尚未有分組，請先到分組管理中建立。"
+            "value" : "尚無分組，請先在分組管理中建立。"
           }
         }
       }
@@ -15924,10 +16225,16 @@
     "还没有分组，先用右上角「+」新建。" : {
       "extractionState" : "stale",
       "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "暂无分组，请点击右上角“+”创建。"
+          }
+        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "No groups yet — create one with “+” in the top right."
+            "value" : "No groups yet. Select “+” in the top-right corner to create one."
           }
         },
         "ja" : {
@@ -15939,13 +16246,13 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "아직 그룹이 없습니다. 오른쪽 위 “+”로 만드세요."
+            "value" : "그룹이 없습니다. 오른쪽 상단의 “+”로 생성하세요."
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "還沒有分組，先用右上角「+」新建。"
+            "value" : "尚無分組，請點擊右上角「+」建立。"
           }
         }
       }
@@ -15953,28 +16260,34 @@
     "还没有命令" : {
       "extractionState" : "stale",
       "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "暂无脚本"
+          }
+        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "No Commands Yet"
+            "value" : "No scripts yet"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "コマンドはまだありません"
+            "value" : "スクリプトはまだありません"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "아직 명령이 없습니다"
+            "value" : "아직 스크립트가 없습니다"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "尚無命令"
+            "value" : "尚無指令碼"
           }
         }
       }
@@ -15982,6 +16295,12 @@
     "还没有密钥" : {
       "extractionState" : "stale",
       "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "暂无密钥"
+          }
+        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
@@ -15991,19 +16310,19 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "まだ鍵がありません"
+            "value" : "鍵がありません"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "아직 키가 없습니다"
+            "value" : "키가 없습니다"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "還沒有金鑰"
+            "value" : "尚無金鑰"
           }
         }
       }
@@ -16040,28 +16359,34 @@
     "还没有片段" : {
       "extractionState" : "stale",
       "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "暂无脚本片段"
+          }
+        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "No snippets yet"
+            "value" : "No script snippets yet"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "スニペットがありません"
+            "value" : "スクリプトスニペットはまだありません"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "아직 스니펫이 없습니다"
+            "value" : "아직 스크립트 스니펫이 없습니다"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "尚未有片段"
+            "value" : "尚無指令碼片段"
           }
         }
       }
@@ -16618,13 +16943,106 @@
       }
     },
     "选择已有卷" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Select an existing volume"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "既存のボリュームを選択"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "기존 볼륨 선택"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "选择已有卷"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "選擇現有磁碟區"
+          }
+        }
+      }
     },
     "选择已有网络" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Select an existing network"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "既存のネットワークを選択"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "기존 네트워크 선택"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "选择已有网络"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "選擇現有網路"
+          }
+        }
+      }
     },
     "选择已有镜像" : {
-
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Select an existing image"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "既存のイメージを選択"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "기존 이미지 선택"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "选择已有镜像"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "選擇現有映像"
+          }
+        }
+      }
     },
     "选择本地命令" : {
       "extractionState" : "stale",
@@ -17874,10 +18292,16 @@
     },
     "应用暂时无法读取本地配置，请重试。你的数据不会上传。" : {
       "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "应用暂时无法读取本地配置，请重试。数据不会上传。"
+          }
+        },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "The app cannot read local configuration right now. Please try again. Your data is not uploaded."
+            "value" : "The app cannot read the local configuration. Try again. Your data is not uploaded."
           }
         },
         "ja" : {
@@ -17895,7 +18319,7 @@
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "目前無法讀取本機設定，請重試。你的資料不會上傳。"
+            "value" : "目前無法讀取本機設定，請重試。資料不會上傳。"
           }
         }
       }

@@ -38,11 +38,15 @@ public enum ConnLanguage {
         return systemPreferred()
     }
 
-    private static func systemPreferred() -> String {
-        for language in Locale.preferredLanguages {
+    /// 将系统首选语言解析为 App 支持的语言。
+    ///
+    /// 设备语言不在支持范围内时，使用 English 作为稳定的产品级回退语言，
+    /// 避免用户在不支持的语言环境下意外看到源语言中文。
+    static func systemPreferred(_ preferredLanguages: [String] = Locale.preferredLanguages) -> String {
+        for language in preferredLanguages {
             if let match = match(language) { return match }
         }
-        return "zh-Hans"
+        return "en"
     }
 
     /// 把系统语言码归一到支持集（zh-Hant-TW→zh-Hant，ja-JP→ja…）。
