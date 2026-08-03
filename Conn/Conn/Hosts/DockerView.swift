@@ -1,5 +1,6 @@
 import ConnKit
 import ConnOps
+import ConnTerminal
 import ConnUI
 import SwiftUI
 
@@ -44,8 +45,10 @@ struct DockerView: View {
             .fullScreenCover(item: $consoleContainer) { container in
                 TerminalScreen(
                     host: host, dependencies: dependencies,
-                    autoCommand: viewModel.containers.consoleCommand(for: container),
-                    replaysAutoCommandOnReconnect: true
+                    launchPolicy: .createNew,
+                    source: .docker(containerName: container.name),
+                    initialCommand: viewModel.containers.consoleCommand(for: container),
+                    replayInitialCommandOnReconnect: true
                 )
             }
             .navigationBarTitleDisplayMode(.inline)

@@ -11,17 +11,20 @@
     /// 快捷键栏展开时会真实压缩终端视口，不再通过 `inputAccessoryView` 悬浮覆盖内容。
     public struct TerminalHostingView: View {
         private let session: TerminalSession
+        private let transcript: TerminalTranscript
         private let configuration: TerminalConfiguration
         private let onChooseCommand: () -> Void
         private let onReconnect: () -> Void
 
         public init(
             session: TerminalSession,
+            transcript: TerminalTranscript,
             configuration: TerminalConfiguration = .init(),
             onChooseCommand: @escaping () -> Void = {},
             onReconnect: @escaping () -> Void = {}
         ) {
             self.session = session
+            self.transcript = transcript
             self.configuration = configuration
             self.onChooseCommand = onChooseCommand
             self.onReconnect = onReconnect
@@ -30,6 +33,7 @@
         public var body: some View {
             TerminalHostContent(
                 session: session,
+                transcript: transcript,
                 configuration: configuration,
                 onChooseCommand: onChooseCommand,
                 onReconnect: onReconnect
@@ -49,11 +53,12 @@
 
         init(
             session: TerminalSession,
+            transcript: TerminalTranscript,
             configuration: TerminalConfiguration,
             onChooseCommand: @escaping () -> Void,
             onReconnect: @escaping () -> Void
         ) {
-            _controller = StateObject(wrappedValue: TerminalInputController(session: session))
+            _controller = StateObject(wrappedValue: TerminalInputController(session: session, transcript: transcript))
             self.configuration = configuration
             self.onChooseCommand = onChooseCommand
             self.onReconnect = onReconnect
@@ -92,6 +97,7 @@
                     isKeybarExpanded = false
                 }
             }
+            .onDisappear { controller.detach() }
         }
     }
 
@@ -177,27 +183,71 @@
     /// SwiftTerm delegate、会话输入和 SwiftUI 键条共享的单一状态源。
     private final class TerminalInputController: NSObject, TerminalViewDelegate, ObservableObject {
         private let session: TerminalSession
-        private var didStartSession = false
+        private let transcript: TerminalTranscript
+        private var renderTask: Task<Void, Never>?
+        private var attachmentID: UUID?
         weak var terminalView: KeybarTerminalView?
 
         @Published var ctrlActive = false
         @Published private(set) var isTerminalFocused = false
 
-        init(session: TerminalSession) {
+        init(session: TerminalSession, transcript: TerminalTranscript) {
             self.session = session
+            self.transcript = transcript
         }
 
         func attach(_ terminalView: KeybarTerminalView) {
             self.terminalView = terminalView
-            guard !didStartSession else { return }
-            didStartSession = true
-            Task { [weak self] in
-                guard let self else { return }
-                await session.start { [weak self] bytes in
-                    Task { @MainActor [weak self] in
-                        self?.terminalView?.feedFollowingLiveOutput(byteArray: bytes[...])
+            detach()
+            renderTask = Task { @MainActor [weak self] in
+                await self?.renderTranscript()
+            }
+        }
+
+        func detach() {
+            renderTask?.cancel()
+            renderTask = nil
+            guard let attachmentID else { return }
+            self.attachmentID = nil
+            Task { [transcript] in
+                await transcript.detach(attachmentID)
+            }
+        }
+
+        @MainActor
+        private func renderTranscript() async {
+            let attachment = await transcript.attach()
+            attachmentID = attachment.id
+            // `onDisappear` 可能恰好发生在 await attach 期间；此时 detach 尚拿不到
+            // attachmentID。建立订阅后立即补查取消态，避免留下无人消费的 output stream。
+            guard !Task.isCancelled else {
+                await transcript.detach(attachment.id)
+                attachmentID = nil
+                return
+            }
+            for await event in attachment.events {
+                guard !Task.isCancelled else { break }
+                guard let terminalView else { continue }
+                switch event {
+                case let .replayStarted(requiresReset):
+                    if requiresReset {
+                        terminalView.getTerminal().resetToInitialState()
                     }
+                case let .replayBytes(bytes), let .liveBytes(bytes):
+                    terminalView.feedFollowingLiveOutput(byteArray: bytes[...])
+                case let .replayFinished(viewport):
+                    if viewport.followsLiveOutput {
+                        terminalView.scroll(toPosition: 1)
+                    } else {
+                        terminalView.scroll(toPosition: viewport.scrollPosition)
+                    }
+                case .generationBoundary:
+                    terminalView.feedFollowingLiveOutput(byteArray: TerminalTranscript.generationBoundaryBytes[...])
                 }
+            }
+            await transcript.detach(attachment.id)
+            if attachmentID == attachment.id {
+                attachmentID = nil
             }
         }
 
@@ -210,12 +260,12 @@
         func send(source: TerminalView, data: ArraySlice<UInt8>) {
             let (encoded, stillActive) = TerminalKeyEncoder.encode([UInt8](data), ctrlActive: ctrlActive)
             ctrlActive = stillActive
-            Task { await session.send(encoded) }
+            Task { try? await session.send(encoded) }
         }
 
         /// 终端尺寸变化 → PTY resize。
         func sizeChanged(source: TerminalView, newCols: Int, newRows: Int) {
-            Task { await session.resize(cols: newCols, rows: newRows) }
+            Task { try? await session.resize(cols: newCols, rows: newRows) }
         }
 
         func handleKey(_ key: TerminalKey) {
@@ -225,11 +275,11 @@
             }
             let (encoded, stillActive) = TerminalKeyEncoder.encode(key.bytes, ctrlActive: ctrlActive)
             ctrlActive = stillActive
-            Task { await session.send(encoded) }
+            Task { try? await session.send(encoded) }
         }
 
         func handlePaste(_ text: String) {
-            Task { await session.send(Array(text.utf8)) }
+            Task { try? await session.send(Array(text.utf8)) }
         }
 
         func dismissKeyboard() {
@@ -238,7 +288,15 @@
 
         func setTerminalTitle(source: TerminalView, title: String) {}
         func hostCurrentDirectoryUpdate(source: TerminalView, directory: String?) {}
-        func scrolled(source: TerminalView, position: Double) {}
+        func scrolled(source: TerminalView, position: Double) {
+            let state = TerminalViewportState(
+                followsLiveOutput: !source.canScroll || position >= 1,
+                scrollPosition: position
+            )
+            Task { [transcript] in
+                await transcript.updateViewport(state)
+            }
+        }
         func requestOpenLink(source: TerminalView, link: String, params: [String: String]) {}
         func bell(source: TerminalView) {}
         func clipboardCopy(source: TerminalView, content: Data) {}

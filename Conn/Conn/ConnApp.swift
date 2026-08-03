@@ -6,6 +6,7 @@ import ConnRunner
 import ConnSSH
 import ConnSSHCitadel
 import ConnStore
+import ConnTerminal
 import ConnUI
 import SwiftUI
 #if canImport(UIKit)
@@ -89,14 +90,17 @@ struct ConnApp: App {
                 // `TerminalScreen` 现在自己包了一层 `NavigationStack`（配合 6 个调用点
                 // 都改成 `.fullScreenCover`），这里不再外包一层，否则嵌两层导航栈。
                 TerminalScreen(
-                    host: Host(name: "spike-ubuntu24", address: "127.0.0.1", username: "deploy", port: 2202),
-                    // 冒烟专用：固定密码 resolver（正常路径走 Keychain）
-                    connectionManager: ConnectionManager(
-                        transport: dependencies.diagnosticsTransport
-                    ) { _ in .password("conntest123") },
-                    autoCommand: smokeTerminalCommand(),
-                    snippetRepository: dependencies.snippetRepository,
-                    snippetGroupRepository: dependencies.snippetGroupRepository
+                    host: smokeTerminalHost(dependencies: dependencies),
+                    dependencies: dependencies,
+                    // 冒烟专用：固定密码 resolver（正常路径走 Keychain）。
+                    terminalSessions: TerminalSessionCoordinator(
+                        hostRepository: dependencies.hostRepository,
+                        connectionManager: ConnectionManager(
+                            transport: dependencies.diagnosticsTransport
+                        ) { _ in .password("conntest123") }
+                    ),
+                    launchPolicy: .createNew,
+                    initialCommand: smokeTerminalCommand()
                 )
             } else if ProcessInfo.processInfo.environment["CONN_SMOKE_DETAIL"] != nil,
                       let host = smokeDetailHost(dependencies: dependencies) {
@@ -118,7 +122,7 @@ struct ConnApp: App {
             } else if ProcessInfo.processInfo.environment["CONN_SMOKE_SNIPPETS"] != nil {
                 NavigationStack { SnippetsView(dependencies: dependencies) }
             } else if ProcessInfo.processInfo.environment["CONN_SMOKE_HOSTFORM"] != nil {
-                HostFormView(dependencies: dependencies, initialDraft: HostDraft(), editingHostID: nil) {}
+                HostFormView(dependencies: dependencies, initialDraft: HostDraft(), editingHostID: nil) { _ in }
             } else if ProcessInfo.processInfo.environment["CONN_SMOKE_CARDS"] != nil {
                 CardStatesSmokeView()
             } else if ProcessInfo.processInfo.environment["CONN_SMOKE_ME"] != nil {
@@ -142,6 +146,20 @@ struct ConnApp: App {
     }
 
     #if DEBUG
+        /// 终端 UI 冒烟使用本地 Spike；协调器会校验主机仍在仓库中，故把这台仅测试用的
+        /// 主机写入演示内存库。它不进入生产依赖，也不会出现在发布版的数据里。
+        private func smokeTerminalHost(dependencies: AppDependencies) -> Host {
+            let host = Host(
+                id: "conn.smoke.terminal",
+                name: "spike-ubuntu24",
+                address: "127.0.0.1",
+                username: "deploy",
+                port: 2202
+            )
+            try? dependencies.hostRepository.save(host)
+            return host
+        }
+
         /// 冒烟：优先取演示故障机（有高负载 + 进程列表），否则第一台。
         private func smokeDetailHost(dependencies: AppDependencies) -> Host? {
             let hosts = (try? dependencies.hostRepository.allHosts()) ?? []
@@ -246,6 +264,8 @@ struct AppDependencies {
     let snippetRepository: any SnippetRepository
     /// 命令分组仓库。与 `hostGroupRepository`（主机分组）同构。
     let snippetGroupRepository: any SnippetGroupRepository
+    /// 全局终端会话中心。只驻留内存，复用 `connectionManager` 的 SSH 连接池。
+    let terminalSessions: TerminalSessionCoordinator
     /// 应用锁。默认关闭，设置页开启（Phase 5）。
     let appLock: AppLockController
 
@@ -288,6 +308,10 @@ struct AppDependencies {
                 let password = (try? credentialStore.password(forHost: host.id)) ?? ""
                 return .password(password)
             }
+            let terminalSessions = TerminalSessionCoordinator(
+                hostRepository: hostStore,
+                connectionManager: connectionManager
+            )
 
             // 监控栈：采集调度。指标为纯内存态，不落库。
             let monitor = MonitorScheduler(connectionManager: connectionManager)
@@ -311,6 +335,7 @@ struct AppDependencies {
                 runHistory: runHistoryStore,
                 snippetRepository: snippetStore,
                 snippetGroupRepository: snippetGroupStore,
+                terminalSessions: terminalSessions,
                 appLock: AppLockController(
                     authenticator: LABiometricAuthenticator(),
                     // 设置页持久化的开关；DEBUG 冒烟可强制开启验证锁屏。
@@ -335,6 +360,10 @@ struct AppDependencies {
             let transport = MockSSHTransport(behavior: DemoData.behavior())
             let credentialStore = InMemoryCredentialStore()
             let connectionManager = ConnectionManager(transport: transport) { _ in .password("demo") }
+            let terminalSessions = TerminalSessionCoordinator(
+                hostRepository: hostStore,
+                connectionManager: connectionManager
+            )
             let monitor = MonitorScheduler(connectionManager: connectionManager)
             let snippetStore = SnippetStore(database: database)
             let snippetGroupStore = SnippetGroupStore(database: database)
@@ -353,6 +382,7 @@ struct AppDependencies {
                 runHistory: runHistoryStore,
                 snippetRepository: snippetStore,
                 snippetGroupRepository: snippetGroupStore,
+                terminalSessions: terminalSessions,
                 appLock: AppLockController(authenticator: LABiometricAuthenticator(), isEnabled: false)
             )
         } catch {

@@ -3,9 +3,7 @@ import ConnMonitor
 import ConnUI
 import SwiftUI
 
-/// App 根导航：3 Tab（服务器 / 命令 / 设置）。
-///
-/// 终端不再单独占一个 Tab——从主机详情右上角的终端图标进入（会话随详情栈存活）。
+/// App 根导航：服务器、终端、脚本、设置。
 struct RootTabView: View {
     @State private var selection: ConnDock.Tab = .servers
     @Environment(\.scenePhase) private var scenePhase
@@ -27,6 +25,9 @@ struct RootTabView: View {
         TabView(selection: $selection) {
             tab(.servers) {
                 NavigationStack { ServersView(dependencies: dependencies) }
+            }
+            tab(.terminal) {
+                NavigationStack { TerminalSessionCenterView(dependencies: dependencies) }
             }
             tab(.commands) {
                 NavigationStack { SnippetsView(dependencies: dependencies) }

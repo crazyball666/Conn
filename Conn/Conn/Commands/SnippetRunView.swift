@@ -1,6 +1,7 @@
 import ConnKit
 import ConnRunner
 import ConnSSH
+import ConnTerminal
 import ConnUI
 import SwiftUI
 
@@ -61,7 +62,9 @@ struct SnippetRunView: View {
                 TerminalScreen(
                     host: route.host,
                     dependencies: dependencies,
-                    autoCommand: route.interpreter.invocation(for: route.script)
+                    launchPolicy: .createNew,
+                    source: .script(title: snippet.title),
+                    initialCommand: route.interpreter.invocation(for: route.script)
                 )
             }
             .confirmationDialog(

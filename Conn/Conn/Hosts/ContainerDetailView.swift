@@ -1,6 +1,7 @@
 import ConnKit
 import ConnOps
 import ConnSSH
+import ConnTerminal
 import ConnUI
 import SwiftUI
 
@@ -89,8 +90,10 @@ struct ContainerDetailView: View {
         .fullScreenCover(isPresented: $showConsole) {
             TerminalScreen(
                 host: host, dependencies: dependencies,
-                autoCommand: viewModel.containers.consoleCommand(for: container),
-                replaysAutoCommandOnReconnect: true
+                launchPolicy: .createNew,
+                source: .docker(containerName: container.name),
+                initialCommand: viewModel.containers.consoleCommand(for: container),
+                replayInitialCommandOnReconnect: true
             )
         }
         .alert(L("Docker 操作"), isPresented: messageBinding) {

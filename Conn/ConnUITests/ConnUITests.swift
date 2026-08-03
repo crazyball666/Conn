@@ -137,7 +137,7 @@ final class ConnUITests: XCTestCase {
     }
 
     @MainActor
-    func testTerminalCommandPickerKeepsSearchAboveEmptyState() throws {
+    func testTerminalCommandPickerShowsScriptSearchAndResults() throws {
         let app = XCUIApplication()
         app.launchEnvironment["CONN_DEMO"] = "1"
         app.launchEnvironment["CONN_SMOKE_TERMINAL"] = "1"
@@ -148,17 +148,17 @@ final class ConnUITests: XCTestCase {
         XCTAssertTrue(commandButton.waitForExistence(timeout: 10))
         commandButton.tap()
 
-        let searchField = app.searchFields["搜索命令"]
-        let emptyTitle = app.staticTexts["还没有命令"]
+        let searchField = app.searchFields["搜索脚本"]
+        let scriptTitle = app.staticTexts["系统概览"]
         XCTAssertTrue(searchField.waitForExistence(timeout: 5))
-        XCTAssertTrue(emptyTitle.waitForExistence(timeout: 5))
+        XCTAssertTrue(scriptTitle.waitForExistence(timeout: 5))
 
         let attachment = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
-        attachment.name = "Terminal command picker empty state"
+        attachment.name = "Terminal script picker"
         attachment.lifetime = .keepAlways
         add(attachment)
 
-        XCTAssertLessThan(searchField.frame.midY, emptyTitle.frame.minY)
+        XCTAssertLessThan(searchField.frame.midY, scriptTitle.frame.minY)
     }
 
     @MainActor
@@ -210,11 +210,11 @@ final class ConnUITests: XCTestCase {
         let addButton = app.buttons["新增"]
         XCTAssertTrue(addButton.waitForExistence(timeout: 10))
         addButton.tap()
-        let newCommand = app.buttons["新增命令"].firstMatch
-        XCTAssertTrue(newCommand.waitForExistence(timeout: 5))
-        newCommand.tap()
+        let newScript = app.buttons["新增脚本"].firstMatch
+        XCTAssertTrue(newScript.waitForExistence(timeout: 5))
+        newScript.tap()
 
-        XCTAssertTrue(app.navigationBars["新增命令"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.navigationBars["新增脚本"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.staticTexts["分组"].waitForExistence(timeout: 5))
         XCTAssertFalse(app.staticTexts["还没有分组，先到分组管理中创建。"].exists)
     }

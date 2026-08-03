@@ -13,7 +13,7 @@ struct HostFormView: View {
     @State private var isGroupExpanded = false
     @FocusState private var focus: HostDraft.Field?
     private let dependencies: AppDependencies
-    private let onSaved: () -> Void
+    private let onSaved: (HostFormSaveResult) async -> Void
 
     /// 字段名列宽：容纳「用户名 / 认证方式」等最长 4 个汉字，全表左对齐。
     private let labelWidth: CGFloat = 76
@@ -22,7 +22,7 @@ struct HostFormView: View {
         dependencies: AppDependencies,
         initialDraft: HostDraft,
         editingHostID: String?,
-        onSaved: @escaping () -> Void
+        onSaved: @escaping (HostFormSaveResult) async -> Void
     ) {
         self.dependencies = dependencies
         self.onSaved = onSaved
@@ -305,9 +305,11 @@ struct HostFormView: View {
     }
 
     private func save() {
-        if viewModel.save() != nil {
-            onSaved()
-            dismiss()
+        if let result = viewModel.save() {
+            Task {
+                await onSaved(result)
+                dismiss()
+            }
         }
     }
 }

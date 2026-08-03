@@ -7,7 +7,6 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		7C181B11100CF0AD00307624 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 7C181B10100CF0AD00307624 /* PrivacyInfo.xcprivacy */; };
 		7C181B04300CF0AD00307624 /* ConnKit in Frameworks */ = {isa = PBXBuildFile; productRef = 7C181B02300CF0AD00307624 /* ConnKit */; };
 		7C181B05300CF0AD00307624 /* ConnStore in Frameworks */ = {isa = PBXBuildFile; productRef = 7C181B03300CF0AD00307624 /* ConnStore */; };
 		7C181B06300CF0AD00307624 /* ConnUI in Frameworks */ = {isa = PBXBuildFile; productRef = 7C181B07300CF0AD00307624 /* ConnUI */; };
@@ -15,6 +14,7 @@
 		7C181B0A300CF0AD00307624 /* ConnSSHCitadel in Frameworks */ = {isa = PBXBuildFile; productRef = 7C181B0B300CF0AD00307624 /* ConnSSHCitadel */; };
 		7C181B0C300CF0AD00307624 /* ConnCrypto in Frameworks */ = {isa = PBXBuildFile; productRef = 7C181B0D300CF0AD00307624 /* ConnCrypto */; };
 		7C181B0E300CF0AD00307624 /* ConnTerminal in Frameworks */ = {isa = PBXBuildFile; productRef = 7C181B0F300CF0AD00307624 /* ConnTerminal */; };
+		7C181B11100CF0AD00307624 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 7C181B10100CF0AD00307624 /* PrivacyInfo.xcprivacy */; };
 		7CAA0001300CF0AD00307624 /* ConnMonitor in Frameworks */ = {isa = PBXBuildFile; productRef = 7CAA0002300CF0AD00307624 /* ConnMonitor */; };
 		7CAA0003300CF0AD00307624 /* ConnOps in Frameworks */ = {isa = PBXBuildFile; productRef = 7CAA0004300CF0AD00307624 /* ConnOps */; };
 		7CAA0005300CF0AD00307624 /* ConnRunner in Frameworks */ = {isa = PBXBuildFile; productRef = 7CAA0006300CF0AD00307624 /* ConnRunner */; };
@@ -39,10 +39,10 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
-		7C181B10100CF0AD00307624 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		7C181A90300CF0AD00307624 /* Conn.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Conn.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		7C181A9D300CF0AF00307624 /* ConnTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ConnTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		7C181AA7300CF0AF00307624 /* ConnUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ConnUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		7C181B10100CF0AD00307624 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */

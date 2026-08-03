@@ -4,6 +4,13 @@ import ConnSSH
 import Foundation
 import Observation
 
+/// 主机保存后的会话联动所需信息。密码文本仍只在表单内比较，绝不写入此结果。
+struct HostFormSaveResult {
+    let host: Host
+    let previousHost: Host?
+    let connectionIdentityChanged: Bool
+}
+
 /// 主机表单 ViewModel（新增/编辑）。
 @Observable
 @MainActor
@@ -16,6 +23,8 @@ final class HostFormViewModel {
     private let hostStore: any HostRepository
     private let credentialStore: any CredentialStore
     private let keyStore: any SSHKeyRepository
+    private let previousHost: Host?
+    private let previousPassword: String
     /// 可选分组。表单只做多选，新建分组走服务器页工具栏的「+」菜单。
     private(set) var availableGroups: [HostGroup] = []
     private(set) var availableKeys: [SSHKey] = []
@@ -36,11 +45,16 @@ final class HostFormViewModel {
         self.hostStore = hostStore
         self.credentialStore = credentialStore
         self.keyStore = keyStore
+        previousHost = editingHostID.flatMap { try? hostStore.host(id: $0) }
         availableGroups = (try? groupStore.allGroups()) ?? []
         availableKeys = (try? keyStore.allKeys()) ?? []
         // 编辑时读回已存密码，便于展示与再保存
         if let id = editingHostID {
-            password = (try? credentialStore.password(forHost: id)) ?? ""
+            let storedPassword = (try? credentialStore.password(forHost: id)) ?? ""
+            password = storedPassword
+            previousPassword = storedPassword
+        } else {
+            previousPassword = ""
         }
     }
 
@@ -58,9 +72,9 @@ final class HostFormViewModel {
         return true
     }
 
-    /// 校验并保存。成功返回定稿后的 Host，失败返回 nil 并填充 fieldErrors。
+    /// 校验并保存。成功时返回主机及连接身份是否变化，失败返回 nil 并填充 fieldErrors。
     @discardableResult
-    func save() -> Host? {
+    func save() -> HostFormSaveResult? {
         fieldErrors = draft.validate()
         guard fieldErrors.isEmpty else { return nil }
 
@@ -76,7 +90,11 @@ final class HostFormViewModel {
             if draft.authKind == .password {
                 try credentialStore.setPassword(password.isEmpty ? nil : password, forHost: host.id)
             }
-            return host
+            return HostFormSaveResult(
+                host: host,
+                previousHost: previousHost,
+                connectionIdentityChanged: didChangeConnectionIdentity(to: host)
+            )
         } catch {
             return nil
         }
@@ -103,5 +121,16 @@ final class HostFormViewModel {
                 return .key(SSHPrivateKeyMaterial(kind: .rsa, pem: material))
             }
         }
+    }
+
+    private func didChangeConnectionIdentity(to host: Host) -> Bool {
+        guard let previousHost else { return false }
+        return previousHost.address != host.address
+            || previousHost.port != host.port
+            || previousHost.username != host.username
+            || previousHost.authKind != host.authKind
+            || previousHost.keyUUID != host.keyUUID
+            || previousHost.jumpChain != host.jumpChain
+            || (host.authKind == .password && previousPassword != password)
     }
 }

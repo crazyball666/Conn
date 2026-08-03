@@ -1,89 +1,60 @@
 import ConnKit
-import ConnSSH
 import ConnTerminal
 import ConnUI
 import SwiftUI
 
-/// 单个主机的终端会话屏。
+/// 一个已存在或即将创建的全局终端会话的全屏呈现。
 ///
-/// Phase 4a：单会话直连。多标签会话中心（S4）在 Phase 4b。
+/// 返回只关闭这个界面；只有「退出」才会关闭对应 PTY。SSH 连接由全局连接池继续复用。
 struct TerminalScreen: View {
     let host: Host
-    let connectionManager: ConnectionManager
+    private let terminalSessions: TerminalSessionCoordinator
     private let snippetRepository: (any SnippetRepository)?
     private let snippetGroupRepository: (any SnippetGroupRepository)?
-    /// 首次连接就绪后自动发送的命令（Docker 控制台 / 命令片段 / DEBUG 冒烟）。
-    let autoCommand: String?
-    /// Docker 控制台重开 shell 后需要重新进入容器；普通命令片段不能因重连被重复执行。
-    private let replaysAutoCommandOnReconnect: Bool
+    private let launchPolicy: TerminalLaunchPolicy
+    private let source: TerminalSessionSource
+    private let initialCommand: String?
+    private let replayInitialCommandOnReconnect: Bool
 
-    @State private var phase: Phase = .connecting
-    @State private var isOpeningTerminal = false
+    @State private var tabID: String?
+    @State private var isLaunching = false
+    @State private var isReconnecting = false
     @State private var isCommandPickerPresented = false
-    @State private var hasSentAutoCommand = false
-    @State private var hasPendingAutoCommandReplay = false
+    @State private var isSessionListPresented = false
     @Environment(SettingsStore.self) private var settings
-    /// fullScreenCover 没有下滑手势也没有返回键，关闭按钮是唯一出口。
+    @Environment(\.connToastCenter) private var toastCenter
     @Environment(\.dismiss) private var dismiss
 
     init(
         host: Host,
-        connectionManager: ConnectionManager,
-        autoCommand: String? = nil,
-        replaysAutoCommandOnReconnect: Bool = false,
-        snippetRepository: (any SnippetRepository)? = nil,
-        snippetGroupRepository: (any SnippetGroupRepository)? = nil
-    ) {
-        self.host = host
-        self.connectionManager = connectionManager
-        self.autoCommand = autoCommand
-        self.replaysAutoCommandOnReconnect = replaysAutoCommandOnReconnect
-        self.snippetRepository = snippetRepository
-        self.snippetGroupRepository = snippetGroupRepository
-    }
-
-    init(
-        host: Host,
         dependencies: AppDependencies,
-        autoCommand: String? = nil,
-        replaysAutoCommandOnReconnect: Bool = false
+        terminalSessions: TerminalSessionCoordinator? = nil,
+        launchPolicy: TerminalLaunchPolicy = .reuseRecentOrCreate,
+        source: TerminalSessionSource = .shell,
+        initialCommand: String? = nil,
+        replayInitialCommandOnReconnect: Bool = false
     ) {
         self.host = host
-        connectionManager = dependencies.connectionManager
-        self.autoCommand = autoCommand
-        self.replaysAutoCommandOnReconnect = replaysAutoCommandOnReconnect
+        self.terminalSessions = terminalSessions ?? dependencies.terminalSessions
         snippetRepository = dependencies.snippetRepository
         snippetGroupRepository = dependencies.snippetGroupRepository
-    }
-
-    enum Phase {
-        case connecting
-        case ready(TerminalSession)
-        case failed(String)
+        self.launchPolicy = launchPolicy
+        self.source = source
+        self.initialCommand = initialCommand
+        self.replayInitialCommandOnReconnect = replayInitialCommandOnReconnect
     }
 
     var body: some View {
-        // 六个调用点都改成了 `.fullScreenCover`（没有系统返回键/下滑手势），
-        // 所以这层导航栈与关闭按钮自己包在 `TerminalScreen` 内部，调用方无需关心。
-        // 唯一例外是 `ConnApp` 的 `CONN_SMOKE_TERMINAL` 冒烟入口——它把本视图直接当
-        // 根视图用，不会再套一层 `NavigationStack`，避免嵌两层导航栈。
         NavigationStack {
             terminalContent
-                .navigationTitle(host.name)
+                .navigationTitle(activeTab?.displayName ?? host.name)
                 .navigationBarTitleDisplayMode(.inline)
-                // 终端背景是深色，nav bar 透明露出底色，强制 dark scheme 让标题/返回箭头
-                // 按深色模式渲染（浅色字），否则会出现「黑字黑底看不见」。
                 .toolbarBackground(.hidden, for: .navigationBar)
                 .toolbarColorScheme(.dark, for: .navigationBar)
-                .toolbar {
-                    ToolbarItem(placement: .topBarTrailing) { closeButton }
-                }
+                .toolbar { terminalToolbar }
         }
-        // 上面的 toolbarColorScheme 只管导航栏。状态栏不是 toolbar——时间 / 信号 /
-        // 电量跟的是 `preferredColorScheme`，App 在浅色模式时它们被画成黑字，压在
-        // 深色终端上几乎看不见。全部 8 个终端主题背景都是深色（#07090F～#2E3440），
-        // 所以这里无条件强制深色是安全的。
         .preferredColorScheme(.dark)
+        .task { await launchIfNeeded() }
         .sheet(isPresented: $isCommandPickerPresented) {
             if let snippetRepository, let snippetGroupRepository {
                 TerminalCommandPickerView(
@@ -94,43 +65,124 @@ struct TerminalScreen: View {
                 .presentationDragIndicator(.visible)
             }
         }
+        .sheet(isPresented: $isSessionListPresented) {
+            TerminalSessionListSheet(
+                host: host,
+                store: terminalSessions.store,
+                selectedTabID: tabID,
+                onSelect: { selectedID in
+                    terminalSessions.store.select(selectedID)
+                    tabID = selectedID
+                    isSessionListPresented = false
+                },
+                onCreate: {
+                    isSessionListPresented = false
+                    Task { await createAdditionalSession() }
+                },
+                onRename: { id, alias in
+                    terminalSessions.store.updateAlias(id, to: alias)
+                },
+                onClose: { id in
+                    Task {
+                        await terminalSessions.close(id)
+                        if tabID == id {
+                            tabID = terminalSessions.store.recentTab(forHost: host.id)?.id
+                            if tabID == nil { dismiss() }
+                        }
+                    }
+                }
+            )
+            .presentationDetents([.medium, .large])
+            .presentationDragIndicator(.visible)
+        }
     }
 
+    private var activeTab: TerminalTab? {
+        guard let tabID else { return nil }
+        return terminalSessions.store.tab(id: tabID)
+    }
+
+    @ViewBuilder
     private var terminalContent: some View {
         let configuration = settings.terminalConfiguration
-        return ZStack {
-            color(configuration.theme.background).ignoresSafeArea()
-            switch phase {
-            case .connecting:
-                connecting
-            case let .ready(session):
+        ZStack {
+            terminalColor(configuration.theme.background).ignoresSafeArea()
+            if let tab = activeTab {
                 TerminalHostingView(
-                    session: session,
+                    session: tab.session,
+                    transcript: tab.transcript,
                     configuration: configuration,
                     onChooseCommand: showCommandPicker,
-                    onReconnect: { reopen(session) }
+                    onReconnect: { Task { await reconnect(tab.id) } }
                 )
-                    // 只延伸到设备底边，保留键盘安全区。键盘出现时终端视口真实缩小，
-                    // SwiftTerm 会同步 PTY 行数并把当前提示符留在键盘上方；不再通过
-                    // contentInset 伪造一段可滚动空白。
-                    .ignoresSafeArea(.container, edges: .bottom)
-            case let .failed(message):
-                failure(message)
+                .ignoresSafeArea(.container, edges: .bottom)
+                .overlay(alignment: .top) {
+                    if case let .disconnected(message) = tab.status {
+                        reconnectNotice(message)
+                    } else if case .reconnecting = tab.status {
+                        ProgressView(L("正在重新连接…"))
+                            .tint(.connAccent)
+                            .padding(ConnSpacing.sm)
+                            .background(.black.opacity(0.72), in: Capsule())
+                            .padding(.top, ConnSpacing.xs)
+                    }
+                }
+            } else if isLaunching {
+                ProgressView(String(format: L("正在连接 %@…"), host.name))
+                    .tint(.connAccent)
+                    .foregroundStyle(.connMuted)
             }
         }
-        .task { await connect() }
     }
 
-    private var closeButton: some View {
-        Button {
-            dismiss()
-        } label: {
-            Image(systemName: "xmark")
+    @ToolbarContentBuilder
+    private var terminalToolbar: some ToolbarContent {
+        ToolbarItem(placement: .topBarLeading) {
+            Button { dismiss() } label: {
+                Image(systemName: "chevron.backward")
+            }
+            .accessibilityLabel(L("返回"))
         }
-        .accessibilityLabel(L("关闭"))
+        ToolbarItemGroup(placement: .topBarTrailing) {
+            Button {
+                guard let tabID else { dismiss(); return }
+                Task {
+                    await terminalSessions.close(tabID)
+                    dismiss()
+                }
+            } label: {
+                Image(systemName: "xmark.circle")
+            }
+            .accessibilityLabel(L("退出终端"))
+
+            Button { isSessionListPresented = true } label: {
+                Image(systemName: "rectangle.stack")
+            }
+            .accessibilityLabel(L("会话列表"))
+        }
     }
 
-    private func color(_ rgb: TerminalTheme.RGB) -> Color {
+    private func reconnectNotice(_ message: String?) -> some View {
+        HStack(spacing: ConnSpacing.sm) {
+            Image(systemName: "wifi.exclamationmark")
+                .foregroundStyle(.connWarn)
+            Text(message ?? L("终端连接已断开"))
+                .font(.connFootnote)
+                .lineLimit(2)
+            Button(L("重连")) {
+                if let tabID { Task { await reconnect(tabID) } }
+            }
+            .buttonStyle(.bordered)
+            .disabled(isReconnecting)
+        }
+        .foregroundStyle(.white)
+        .padding(ConnSpacing.sm)
+        .background(.black.opacity(0.78), in: RoundedRectangle(cornerRadius: ConnRadius.control))
+        .padding(.horizontal, ConnSpacing.page)
+        .padding(.top, ConnSpacing.xs)
+    }
+
+    private func terminalColor(_ rgb: TerminalTheme.RGB) -> Color {
         Color(
             red: Double(rgb.r) / 255,
             green: Double(rgb.g) / 255,
@@ -138,65 +190,51 @@ struct TerminalScreen: View {
         )
     }
 
-    private var connecting: some View {
-        VStack(spacing: ConnSpacing.sm) {
-            ProgressView().controlSize(.large).tint(.connAccent)
-            Text(String(format: L("正在连接 %@…"), host.name))
-                .font(.connData())
-                .foregroundStyle(.connMuted)
+    private func launchIfNeeded() async {
+        guard tabID == nil, !isLaunching else { return }
+        isLaunching = true
+        defer { isLaunching = false }
+        let request = TerminalLaunchRequest(
+            host: host,
+            policy: launchPolicy,
+            source: source,
+            initialCommand: initialCommand,
+            replayInitialCommandOnReconnect: replayInitialCommandOnReconnect
+        )
+        switch await terminalSessions.launch(request) {
+        case let .success(tab):
+            tabID = tab.id
+        case let .failure(failure):
+            show(failure)
+            dismiss()
         }
     }
 
-    private func failure(_ message: String) -> some View {
-        VStack(spacing: ConnSpacing.sm) {
-            Image(systemName: "xmark.octagon").font(.system(size: 40)).foregroundStyle(.connCrit)
-            Text(message)
-                .font(.connFootnote)
-                .foregroundStyle(.connMuted)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, ConnSpacing.xl)
-            ConnButton(L("重试"), kind: .ghost) {
-                phase = .connecting
-                Task { await connect() }
-            }
+    private func createAdditionalSession() async {
+        guard !isLaunching else { return }
+        isLaunching = true
+        defer { isLaunching = false }
+        let request = TerminalLaunchRequest(host: host, policy: .createNew, source: .shell)
+        switch await terminalSessions.launch(request) {
+        case let .success(tab):
+            tabID = tab.id
+        case let .failure(failure):
+            show(failure)
         }
     }
 
-    private func connect() async {
-        guard !isOpeningTerminal else { return }
-        isOpeningTerminal = true
-        defer { isOpeningTerminal = false }
-        do {
-            let session = try await connectionManager.session(for: host)
-            let channel = try await session.openShell(term: TermSize(cols: 80, rows: 24))
-            let terminalSession = TerminalSession(channel: channel)
-            phase = .ready(terminalSession)
-
-            if let autoCommand, !hasSentAutoCommand || hasPendingAutoCommandReplay {
-                hasSentAutoCommand = true
-                hasPendingAutoCommandReplay = false
-                // 等 shell 就绪后自动发一条命令（冒烟：验证中文渲染）
-                Task {
-                    try? await Task.sleep(for: .milliseconds(800))
-                    await terminalSession.send([UInt8]("\(autoCommand)\n".utf8))
-                }
-            }
-        } catch let error as SSHError {
-            phase = .failed(error.diagnosis)
-        } catch {
-            phase = .failed(String(format: L("连接失败：%@"), error.friendlyDiagnosis))
+    private func reconnect(_ id: String) async {
+        guard !isReconnecting else { return }
+        isReconnecting = true
+        defer { isReconnecting = false }
+        if case let .failure(failure) = await terminalSessions.reconnect(id) {
+            show(failure)
         }
     }
 
-    /// 只关闭当前 PTY shell，再从连接池打开一个新 shell；不驱逐共享 SSH 连接，
-    /// 避免打断同一主机正在采集的指标、文件传输或日志流。
-    private func reopen(_ current: TerminalSession) {
-        guard !isOpeningTerminal else { return }
-        hasPendingAutoCommandReplay = replaysAutoCommandOnReconnect
-        phase = .connecting
-        Task {
-            await current.close()
-            await connect()
+    private func show(_ failure: TerminalLaunchFailure) {
+        if let message = terminalSessions.consumeFailure(failure) {
+            toastCenter.show(message)
         }
     }
 
@@ -205,10 +243,10 @@ struct TerminalScreen: View {
         isCommandPickerPresented = true
     }
 
-    /// 本地命令只写进当前 PTY，不追加换行；用户仍需在终端里确认后手动执行。
+    /// 本地脚本只写入当前 PTY，用户仍需在终端里自行确认并执行。
     private func insertCommand(_ command: String) {
-        guard case let .ready(session) = phase else { return }
         isCommandPickerPresented = false
-        Task { await session.send(Array(command.utf8)) }
+        guard let tab = activeTab else { return }
+        Task { try? await tab.session.send(Array(command.utf8)) }
     }
 }

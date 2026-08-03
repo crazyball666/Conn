@@ -1,4 +1,5 @@
 import ConnKit
+import ConnTerminal
 import ConnUI
 import SwiftUI
 
@@ -75,7 +76,12 @@ struct ServersView: View {
                 dependencies: dependencies,
                 initialDraft: request.draft,
                 editingHostID: request.editingHostID
-            ) {
+            ) { result in
+                await dependencies.terminalSessions.hostDidSave(
+                    result.host,
+                    replacing: result.previousHost,
+                    connectionIdentityChanged: result.connectionIdentityChanged
+                )
                 viewModel.load()
             }
         }
@@ -85,8 +91,11 @@ struct ServersView: View {
             presenting: pendingDelete
         ) { host in
             Button(L("删除"), role: .destructive) {
-                viewModel.delete(host)
-                pendingDelete = nil
+                Task {
+                    await dependencies.terminalSessions.hostDidDelete(host)
+                    viewModel.delete(host)
+                    pendingDelete = nil
+                }
             }
             Button(L("取消"), role: .cancel) { pendingDelete = nil }
         } message: { host in

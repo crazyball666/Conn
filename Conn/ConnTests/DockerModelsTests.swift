@@ -3,6 +3,7 @@ import ConnKit
 import ConnMonitor
 import ConnOps
 import ConnSSH
+import ConnTerminal
 import Foundation
 import Testing
 @testable import Conn
@@ -203,6 +204,10 @@ struct DockerModelsTests {
             runHistory: StubRunHistoryRepository(),
             snippetRepository: StubSnippetRepository(),
             snippetGroupRepository: StubSnippetGroupRepository(),
+            terminalSessions: TerminalSessionCoordinator(
+                hostRepository: StubHostRepository(),
+                connectionManager: connectionManager
+            ),
             appLock: AppLockController(authenticator: StubAuthenticator(), isEnabled: false)
         )
     }
