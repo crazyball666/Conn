@@ -34,6 +34,11 @@ public struct TerminalReplayBuffer: Sendable {
         trimIfNeeded()
     }
 
+    public mutating func removeAll() {
+        bytes.removeAll(keepingCapacity: true)
+        wasTruncated = false
+    }
+
     private mutating func trimIfNeeded() {
         var didTrim = false
 

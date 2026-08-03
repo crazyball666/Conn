@@ -1,3 +1,4 @@
+import ConnUI
 import Foundation
 import Observation
 
@@ -59,7 +60,7 @@ public struct TerminalTab: Identifiable, Sendable {
         transcript: TerminalTranscript = TerminalTranscript(),
         source: TerminalSessionSource = .shell,
         reconnectDescriptor: TerminalReconnectDescriptor = .init(),
-        automaticAlias: String = "终端",
+        automaticAlias: String = L("终端"),
         alias: String? = nil,
         status: TerminalTabStatus = .connected,
         generation: UInt64 = 0,

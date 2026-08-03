@@ -77,62 +77,58 @@ struct TerminalSessionCenterView: View {
     }
 
     private func hostGroup(_ group: TerminalHostSessionGroup) -> some View {
-        let isExpanded = expandedHostIDs.contains(group.hostID)
-        return VStack(alignment: .leading, spacing: ConnSpacing.xs) {
-            Button {
-                if isExpanded {
-                    expandedHostIDs.remove(group.hostID)
-                } else {
+        return DisclosureGroup(isExpanded: Binding(
+            get: { expandedHostIDs.contains(group.hostID) },
+            set: { expanded in
+                if expanded {
                     expandedHostIDs.insert(group.hostID)
+                } else {
+                    expandedHostIDs.remove(group.hostID)
                 }
-            } label: {
-                HStack(spacing: ConnSpacing.sm) {
-                    Image(systemName: "server.rack")
-                        .foregroundStyle(.connAccent)
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(group.hostName)
-                            .font(.connSubheadline)
-                            .foregroundStyle(.connInk)
-                        Text(group.hostAddress)
-                            .font(.connData(.caption2))
-                            .foregroundStyle(.connMuted)
-                    }
-                    Spacer(minLength: 0)
-                    Text(String(format: L("%d 个会话"), group.tabs.count))
-                        .font(.connFootnote)
-                        .foregroundStyle(.connMuted)
-                    Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(.connMuted)
-                }
-                .padding(ConnSpacing.cardPadding)
-                .contentShape(.rect)
             }
-            .buttonStyle(.plain)
-            .connSurface(cornerRadius: ConnRadius.card)
-
-            if isExpanded {
-                VStack(spacing: 0) {
-                    ForEach(group.tabs) { tab in
-                        Button { openExisting(tab) } label: {
-                            sessionRow(tab)
+        )) {
+            VStack(spacing: 0) {
+                ForEach(group.tabs) { tab in
+                    Button { openExisting(tab) } label: {
+                        sessionRow(tab)
+                    }
+                    .buttonStyle(.plain)
+                    .contentShape(.rect)
+                    .contextMenu {
+                        Button(role: .destructive) {
+                            Task { await dependencies.terminalSessions.close(tab.id) }
+                        } label: {
+                            Label(L("关闭会话"), systemImage: "xmark.circle")
                         }
-                        .buttonStyle(.plain)
-                        .contentShape(.rect)
-                        .contextMenu {
-                            Button(role: .destructive) {
-                                Task { await dependencies.terminalSessions.close(tab.id) }
-                            } label: {
-                                Label(L("关闭会话"), systemImage: "xmark.circle")
-                            }
-                        }
-                        if tab.id != group.tabs.last?.id { Divider().padding(.leading, 48) }
+                    }
+                    if tab.id != group.tabs.last?.id {
+                        Divider().padding(.leading, 36)
                     }
                 }
-                .padding(.horizontal, ConnSpacing.cardPadding)
-                .connSurface(cornerRadius: ConnRadius.card)
+            }
+            .padding(.top, ConnSpacing.xs)
+        } label: {
+            HStack(spacing: ConnSpacing.sm) {
+                Image(systemName: "server.rack")
+                    .foregroundStyle(.connAccent)
+                    .frame(width: 24)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(group.hostName)
+                        .font(.connSubheadline)
+                        .foregroundStyle(.connInk)
+                    Text(group.hostAddress)
+                        .font(.connData(.caption2))
+                        .foregroundStyle(.connMuted)
+                }
+                Spacer(minLength: 0)
+                Text(String(format: L("%d 个会话"), group.tabs.count))
+                    .font(.connFootnote)
+                    .foregroundStyle(.connMuted)
             }
         }
+        .tint(.connMuted)
+        .padding(ConnSpacing.cardPadding)
+        .connSurface(cornerRadius: ConnRadius.card)
     }
 
     private func sessionRow(_ tab: TerminalTab) -> some View {
@@ -157,6 +153,8 @@ struct TerminalSessionCenterView: View {
                 .foregroundStyle(.connMuted)
         }
         .padding(.vertical, ConnSpacing.sm)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .contentShape(Rectangle())
     }
 
     private func open(_ host: Host, tabID: String?) {
@@ -213,7 +211,9 @@ struct TerminalSessionCenterView: View {
     private func sessionStatus(_ status: TerminalTabStatus) -> some View {
         switch status {
         case .connected:
-            Image(systemName: "checkmark.circle.fill").foregroundStyle(.connGood)
+            Image(systemName: "circle.fill")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(.connGood)
         case .reconnecting:
             ProgressView().controlSize(.small)
         case .disconnected:

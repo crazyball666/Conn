@@ -109,6 +109,8 @@ struct TerminalSessionListSheet: View {
             }
         }
         .padding(.vertical, ConnSpacing.xs)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .contentShape(Rectangle())
     }
 
     private func sourceIcon(_ source: TerminalSessionSource) -> String {
@@ -131,7 +133,9 @@ struct TerminalSessionListSheet: View {
     private func statusIcon(_ status: TerminalTabStatus) -> some View {
         switch status {
         case .connected:
-            Image(systemName: "checkmark.circle.fill").foregroundStyle(.connGood)
+            Image(systemName: "circle.fill")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(.connGood)
         case .reconnecting:
             ProgressView().controlSize(.small)
         case .disconnected:

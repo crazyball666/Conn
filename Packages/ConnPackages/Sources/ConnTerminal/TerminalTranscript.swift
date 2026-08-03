@@ -1,3 +1,4 @@
+import ConnUI
 import Foundation
 
 /// 终端视口在页面销毁与重新打开之间保留的轻量状态。
@@ -35,9 +36,11 @@ public enum TerminalRenderEvent: Sendable, Equatable {
 /// 跨终端页面和 PTY generation 保留的输出与视口。
 public actor TerminalTranscript {
     /// 只做软复位，不使用会清空 scrollback 的 RIS（ESC c）。
-    public static let generationBoundaryBytes = Array(
-        "\u{1B}[?1049l\u{1B}[!p\u{1B}[0m\u{1B}[?25h\u{1B}[?7h\r\n\r\n[已重新连接]\r\n".utf8
-    )
+    public static var generationBoundaryBytes: [UInt8] {
+        Array(
+            "\u{1B}[?1049l\u{1B}[!p\u{1B}[0m\u{1B}[?25h\u{1B}[?7h\r\n\r\n[\(L("已重新连接"))]\r\n".utf8
+        )
+    }
 
     private var replayBuffer: TerminalReplayBuffer
     private var activeGeneration: UInt64?
@@ -50,6 +53,15 @@ public actor TerminalTranscript {
 
     public func activateGeneration(_ generation: UInt64) {
         activeGeneration = generation
+    }
+
+    /// 重建 PTY 时从干净的终端屏幕开始，避免旧 shell 的光标/内容与新 shell 重叠。
+    /// 已挂载的视图会先收到 reset，再收到后续的重连边界；未挂载的视图下次 attach
+    /// 只会回放清空后的新 generation 内容。
+    public func resetForGeneration(_ generation: UInt64) {
+        guard activeGeneration == generation else { return }
+        replayBuffer.removeAll()
+        attachment?.continuation.yield(.replayStarted(requiresReset: true))
     }
 
     public func append(_ bytes: [UInt8], generation: UInt64) {

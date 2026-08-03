@@ -1,5 +1,6 @@
 import ConnKit
 import ConnSSH
+import ConnUI
 import Foundation
 import Observation
 
@@ -69,7 +70,7 @@ public final class TerminalSessionCoordinator {
         switch request.policy {
         case let .existing(tabID):
             guard let tab = store.tab(id: tabID) else {
-                return .failure(TerminalLaunchFailure(message: "终端会话不存在"))
+                return .failure(TerminalLaunchFailure(message: L("终端会话不存在")))
             }
             store.select(tabID)
             return .success(tab)
@@ -87,7 +88,7 @@ public final class TerminalSessionCoordinator {
             let generation = launchGeneration(forHost: key)
             let task: Task<Result<TerminalTab, TerminalLaunchFailure>, Never> = Task { [weak self] in
                 guard let self else {
-                    return Result.failure(TerminalLaunchFailure(message: "终端协调器已释放"))
+                    return Result.failure(TerminalLaunchFailure(message: L("终端协调器已释放")))
                 }
                 return await self.createTab(for: request, expectedHostLaunchGeneration: generation)
             }
@@ -118,7 +119,7 @@ public final class TerminalSessionCoordinator {
         }
         let task: Task<Result<TerminalTab, TerminalLaunchFailure>, Never> = Task { [weak self] in
             guard let self else {
-                return Result.failure(TerminalLaunchFailure(message: "终端协调器已释放"))
+                return Result.failure(TerminalLaunchFailure(message: L("终端协调器已释放")))
             }
             return await self.replaceDisconnectedTab(tabID)
         }
@@ -128,6 +129,16 @@ public final class TerminalSessionCoordinator {
             reconnectTasks[tabID] = nil
         }
         return result
+    }
+
+    /// App 长时间退到后台后，SSH 连接可能已被系统回收；回前台时重建所有 PTY。
+    /// 即使旧 tab 仍显示 connected 也要重建，因为半开 socket 不一定会先发布 EOF。
+    public func resumeAfterBackground(idleFor: TimeInterval) async {
+        guard idleFor > 30 else { return }
+        let tabIDs = store.tabs.map(\.id)
+        for tabID in tabIDs {
+            _ = await reconnect(tabID)
+        }
     }
 
     public func close(_ tabID: String) async {
@@ -182,7 +193,7 @@ public final class TerminalSessionCoordinator {
             guard isLaunchCurrent(forHost: request.host.id, expectedGeneration: expectedHostLaunchGeneration),
                   let host = try hostRepository.host(id: request.host.id)
             else {
-                return .failure(TerminalLaunchFailure(message: "终端会话启动已取消"))
+                return .failure(TerminalLaunchFailure(message: L("终端会话启动已取消")))
             }
 
             let channel = try await openShell(for: host)
@@ -198,7 +209,7 @@ public final class TerminalSessionCoordinator {
                   (try hostRepository.host(id: request.host.id)) != nil
             else {
                 await session.close()
-                return .failure(TerminalLaunchFailure(message: "终端会话启动已取消"))
+                return .failure(TerminalLaunchFailure(message: L("终端会话启动已取消")))
             }
 
             if let initialCommand = request.initialCommand {
@@ -232,19 +243,20 @@ public final class TerminalSessionCoordinator {
 
     private func replaceDisconnectedTab(_ tabID: String) async -> Result<TerminalTab, TerminalLaunchFailure> {
         guard let oldTab = store.tab(id: tabID) else {
-            return .failure(TerminalLaunchFailure(message: "终端会话不存在"))
+            return .failure(TerminalLaunchFailure(message: L("终端会话不存在")))
         }
         let nextGeneration = oldTab.generation + 1
         store.updateStatus(tabID, to: .reconnecting)
         // 先失效旧代次，再关闭旧 PTY；任何迟到输出都不会污染新 generation。
         await oldTab.transcript.activateGeneration(nextGeneration)
+        await oldTab.transcript.resetForGeneration(nextGeneration)
         lifecycleTasks.removeValue(forKey: tabID)?.cancel()
         await oldTab.session.close()
 
         var temporarySession: TerminalSession?
         do {
             guard let host = try hostRepository.host(id: oldTab.hostID) else {
-                throw TerminalLaunchFailure(message: "主机已被删除")
+                throw TerminalLaunchFailure(message: L("主机已被删除"))
             }
             let channel = try await openShell(for: host)
             let session = TerminalSession(
@@ -259,7 +271,7 @@ public final class TerminalSessionCoordinator {
             }
             guard let current = store.tab(id: tabID), current.generation == oldTab.generation else {
                 await session.close()
-                return .failure(TerminalLaunchFailure(message: "终端会话已关闭"))
+                return .failure(TerminalLaunchFailure(message: L("终端会话已关闭")))
             }
 
             await oldTab.transcript.appendGenerationBoundary(nextGeneration)
@@ -267,7 +279,7 @@ public final class TerminalSessionCoordinator {
             await session.start()
             observeLifecycle(for: tabID, generation: nextGeneration, session: session)
             guard let replacement = store.tab(id: tabID) else {
-                return .failure(TerminalLaunchFailure(message: "终端会话已关闭"))
+                return .failure(TerminalLaunchFailure(message: L("终端会话已关闭")))
             }
             return .success(replacement)
         } catch {
@@ -334,10 +346,11 @@ public final class TerminalSessionCoordinator {
         case .shell:
             let names = Set(store.tabs(forHost: hostID).map(\.automaticAlias))
             var index = 1
-            while names.contains("终端 \(index)") {
+            let prefix = L("终端")
+            while names.contains("\(prefix) \(index)") {
                 index += 1
             }
-            return "终端 \(index)"
+            return "\(prefix) \(index)"
         case let .docker(containerName):
             return containerName
         case let .script(title):

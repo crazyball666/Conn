@@ -47,11 +47,27 @@ struct TerminalScreen: View {
     var body: some View {
         NavigationStack {
             terminalContent
-                .navigationTitle(activeTab?.displayName ?? host.name)
+                .navigationTitle(hostTitle)
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbarBackground(.hidden, for: .navigationBar)
                 .toolbarColorScheme(.dark, for: .navigationBar)
-                .toolbar { terminalToolbar }
+                .toolbar {
+                    ToolbarItem(placement: .principal) {
+                        VStack(spacing: 0) {
+                            Text(hostTitle)
+                                .font(.headline)
+                                .foregroundStyle(.connInk)
+                                .lineLimit(1)
+                            Text(sessionSubtitle)
+                                .font(.caption2)
+                                .foregroundStyle(.connMuted)
+                                .lineLimit(1)
+                        }
+                        .frame(maxWidth: 220)
+                        .accessibilityElement(children: .combine)
+                    }
+                    terminalToolbar
+                }
         }
         .preferredColorScheme(.dark)
         .task { await launchIfNeeded() }
@@ -100,6 +116,15 @@ struct TerminalScreen: View {
     private var activeTab: TerminalTab? {
         guard let tabID else { return nil }
         return terminalSessions.store.tab(id: tabID)
+    }
+
+    private var hostTitle: String {
+        let name = host.name.trimmingCharacters(in: .whitespacesAndNewlines)
+        return name.isEmpty ? host.address : name
+    }
+
+    private var sessionSubtitle: String {
+        activeTab?.displayName ?? L("终端")
     }
 
     @ViewBuilder

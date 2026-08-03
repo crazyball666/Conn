@@ -1,5 +1,6 @@
 import ConnKit
 import ConnMonitor
+import ConnTerminal
 import ConnUI
 import SwiftUI
 
@@ -38,7 +39,10 @@ struct RootTabView: View {
         }
         .onChange(of: scenePhase) { _, phase in
             guard let idle = resumePolicy.idleDurationOnResume(for: phase) else { return }
-            Task { await dependencies.monitor.resumeAfterBackground(idleFor: idle) }
+            Task {
+                await dependencies.monitor.resumeAfterBackground(idleFor: idle)
+                await dependencies.terminalSessions.resumeAfterBackground(idleFor: idle)
+            }
         }
     }
 

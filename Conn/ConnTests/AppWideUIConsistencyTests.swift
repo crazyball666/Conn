@@ -56,6 +56,26 @@ struct AppWideUIConsistencyTests {
         #expect(source.components(separatedBy: ".contentShape(Rectangle())").count >= 3)
     }
 
+    @Test("终端会话列表项整行空白区域也能点击")
+    func terminalSessionRowsMakeEntireRowInteractive() throws {
+        for path in [
+            "Terminal/TerminalSessionCenterView.swift",
+            "Terminal/TerminalSessionListSheet.swift",
+        ] {
+            let source = try appSource(path)
+            #expect(source.contains(".frame(maxWidth: .infinity, alignment: .leading)"), path)
+            #expect(source.contains(".contentShape(Rectangle())"), path)
+        }
+    }
+
+    @Test("终端导航栏主标题显示主机，会话名显示副标题")
+    func terminalNavigationUsesHostTitleAndSessionSubtitle() throws {
+        let source = try appSource("Terminal/TerminalScreen.swift")
+        #expect(source.contains(".navigationTitle(hostTitle)"))
+        #expect(source.contains("Text(hostTitle)"))
+        #expect(source.contains("Text(sessionSubtitle)"))
+    }
+
     @Test("创建 Docker 命令保存成功后锁定按钮并防止重复保存")
     func dockerCommandSaveLocksAfterSuccess() throws {
         let runForm = try appSource("Hosts/DockerRunFormView.swift")

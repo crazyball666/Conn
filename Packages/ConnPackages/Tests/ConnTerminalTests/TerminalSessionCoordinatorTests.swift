@@ -193,6 +193,8 @@ struct TerminalSessionCoordinatorTests {
             Issue.record("初次创建应成功")
             return
         }
+        await first.transcript.activateGeneration(first.generation)
+        await first.transcript.append(Array("old-screen\n".utf8), generation: first.generation)
 
         let reconnected = await coordinator.reconnect(first.id)
         guard case let .success(second) = reconnected else {
@@ -210,8 +212,34 @@ struct TerminalSessionCoordinatorTests {
             Issue.record("重连后的回放应保留输出")
             return
         }
+        #expect(!String(decoding: bytes, as: UTF8.self).contains("old-screen"))
         #expect(String(decoding: bytes, as: UTF8.self).contains("[已重新连接]"))
         await coordinator.close(first.id)
+    }
+
+    @Test("后台恢复会重建所有终端会话")
+    func backgroundResumeReconnectsAllSessions() async {
+        let host = Host(id: "host-1", name: "web", address: "10.0.0.1", username: "root")
+        let coordinator = TerminalSessionCoordinator(
+            hostRepository: TerminalHostRepository(hosts: [host]),
+            connectionManager: ConnectionManager(transport: MockSSHTransport())
+        )
+
+        guard case let .success(first) = await coordinator.launch(
+            TerminalLaunchRequest(host: host, policy: .createNew, source: .shell)
+        ) else {
+            Issue.record("初次创建应成功")
+            return
+        }
+
+        await coordinator.resumeAfterBackground(idleFor: 31)
+
+        guard let resumed = coordinator.store.tab(id: first.id) else {
+            Issue.record("后台恢复不应移除会话")
+            return
+        }
+        #expect(resumed.generation == first.generation + 1)
+        #expect(resumed.status == .connected)
     }
 
     @Test("主机删除在 PTY 建立途中发生时，不得留下孤儿会话")
