@@ -80,22 +80,25 @@ extension FileBrowserViewModel {
             defer { try? localHandle.close() } // #15：任何路径都关闭
             let total = max(Self.fileSize(localURL), 1)
             let remotePath = RemotePath.join(currentPath, name)
-            let file = try await filesystem().open(remotePath, mode: .writeCreate)
-            var offset: UInt64 = 0
-            do {
-                while true {
-                    let chunk = try localHandle.read(upToCount: Int(Self.chunkSize)) ?? Data()
-                    if chunk.isEmpty { break }
-                    try await file.write(chunk, at: offset)
-                    offset += UInt64(chunk.count)
-                    transfer?.progress = min(1, Double(offset) / Double(total))
+            let fileSystem = try await filesystem()
+            try await fileSystem.writeFileSafely(to: remotePath) { temporaryPath in
+                let file = try await fileSystem.open(temporaryPath, mode: .writeCreate)
+                var offset: UInt64 = 0
+                do {
+                    while true {
+                        let chunk = try localHandle.read(upToCount: Int(Self.chunkSize)) ?? Data()
+                        if chunk.isEmpty { break }
+                        try await file.write(chunk, at: offset)
+                        offset += UInt64(chunk.count)
+                        transfer?.progress = min(1, Double(offset) / Double(total))
+                    }
+                    try await file.close()
+                    try localHandle.close()
+                } catch {
+                    try? await file.close()
+                    try? localHandle.close()
+                    throw error
                 }
-                try await file.close()
-                try localHandle.close()
-            } catch {
-                try? await file.close()
-                try? localHandle.close()
-                throw error
             }
             await load()
         } catch {

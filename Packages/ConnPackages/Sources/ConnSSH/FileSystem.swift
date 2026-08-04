@@ -192,4 +192,99 @@ public extension RemoteFileSystem {
             throw error
         }
     }
+
+    /// 把完整内容先写到目标同目录的唯一临时文件，再发布到最终路径。
+    ///
+    /// 同目录保证 rename 不跨文件系统。目标已存在时，发布过程先把原文件移动到
+    /// 唯一备份路径；临时文件 rename 失败则立即把备份移回目标，避免原文件丢失。
+    func writeFileSafely(
+        to destinationPath: String,
+        fallbackPermissions: UInt32? = nil,
+        writeTemporary: (String) async throws -> Void
+    ) async throws {
+        let temporaryPath = temporarySiblingPath(of: destinationPath, suffix: "tmp")
+        let permissions = (try? await stat(destinationPath).permissions) ?? fallbackPermissions
+
+        do {
+            try await writeTemporary(temporaryPath)
+            if let permissions {
+                try await setPermissions(permissions & 0o7777, path: temporaryPath)
+            }
+            try Task.checkCancellation()
+            try await replaceFile(at: destinationPath, with: temporaryPath)
+        } catch {
+            try? await remove(temporaryPath)
+            throw error
+        }
+    }
+
+    /// 发布一个已经完整写好的同目录临时文件。
+    func replaceFile(at destinationPath: String, with temporaryPath: String) async throws {
+        guard try await itemExists(destinationPath) else {
+            try await rename(temporaryPath, to: destinationPath)
+            return
+        }
+
+        let backupPath = temporarySiblingPath(of: destinationPath, suffix: "backup")
+        try await rename(destinationPath, to: backupPath)
+        do {
+            try await rename(temporaryPath, to: destinationPath)
+        } catch {
+            let replacementError = error
+            do {
+                try await rename(backupPath, to: destinationPath)
+            } catch {
+                throw RemoteFileRollbackError(
+                    recoveryPath: backupPath,
+                    replacementFailure: replacementError.friendlyDiagnosis,
+                    rollbackFailure: error.friendlyDiagnosis
+                )
+            }
+            throw replacementError
+        }
+
+        // 新文件已经发布成功；清理失败只会留下备份，不应把成功保存误报成失败。
+        try? await remove(backupPath)
+    }
+
+    private func itemExists(_ path: String) async throws -> Bool {
+        do {
+            _ = try await stat(path)
+            return true
+        } catch let error as SFTPFileError {
+            guard case .notFound = error else { throw error }
+            return false
+        } catch let error as SSHError {
+            // SFTP v3 SSH_FX_NO_SUCH_FILE = 2。
+            guard case let .sftpError(code, _) = error, code == 2 else { throw error }
+            return false
+        }
+    }
+
+    private func temporarySiblingPath(of destinationPath: String, suffix: String) -> String {
+        RemotePath.join(
+            RemotePath.parent(destinationPath),
+            ".conn-\(UUID().uuidString).\(suffix)"
+        )
+    }
+}
+
+/// 原文件已安全移动到备份，但发布失败后的自动回滚也失败。
+/// `recoveryPath` 明确保留原始数据所在位置，调用方不得删除该路径。
+public struct RemoteFileRollbackError: LocalizedError, Sendable {
+    public let recoveryPath: String
+    public let replacementFailure: String
+    public let rollbackFailure: String
+
+    public var errorDescription: String? {
+        "Remote replacement failed and rollback could not restore the original file. "
+            + "Original data remains at \(recoveryPath). Replacement: \(replacementFailure). "
+            + "Rollback: \(rollbackFailure)."
+    }
+
+    public init(recoveryPath: String, replacementFailure: String, rollbackFailure: String) {
+        self.recoveryPath = recoveryPath
+        self.replacementFailure = replacementFailure
+        self.rollbackFailure = rollbackFailure
+    }
 }

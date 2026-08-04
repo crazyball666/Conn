@@ -134,4 +134,73 @@ struct MockRemoteFileSystemTests {
             try await fileSystem.readAll("/nope/missing.txt")
         }
     }
+
+    @Test("安全替换发布失败时回滚原文件")
+    func safeReplacementRollsBackOriginal() async throws {
+        let target = "/etc/nginx/nginx.conf"
+        let fileSystem = ReplacementFailureFileSystem(target: target)
+        let original = try await fileSystem.readAll(target)
+
+        await #expect(throws: SSHError.self) {
+            try await fileSystem.writeFileSafely(to: target, fallbackPermissions: 0o100644) { temporaryPath in
+                try await fileSystem.writeAll(Data("new content\n".utf8), to: temporaryPath)
+            }
+        }
+
+        #expect(try await fileSystem.readAll(target) == original)
+    }
+
+    @Test("安全写入中断时不触碰已有目标")
+    func interruptedStagingLeavesOriginalUntouched() async throws {
+        let target = "/etc/nginx/nginx.conf"
+        let fileSystem = MockRemoteFileSystem()
+        let original = try await fileSystem.readAll(target)
+
+        await #expect(throws: SSHError.self) {
+            try await fileSystem.writeFileSafely(to: target, fallbackPermissions: 0o100644) { temporaryPath in
+                let file = try await fileSystem.open(temporaryPath, mode: .writeCreate)
+                try await file.write(Data("partial".utf8), at: 0)
+                try? await file.close()
+                throw SSHError.channelClosed
+            }
+        }
+
+        #expect(try await fileSystem.readAll(target) == original)
+    }
+}
+
+private final class ReplacementFailureFileSystem: RemoteFileSystem, @unchecked Sendable {
+    private let underlying = MockRemoteFileSystem()
+    private let target: String
+    private let lock = NSLock()
+    private var failuresRemaining = 1
+
+    init(target: String) {
+        self.target = target
+    }
+
+    func list(_ path: String) async throws -> [FileEntry] { try await underlying.list(path) }
+    func stat(_ path: String) async throws -> FileEntry { try await underlying.stat(path) }
+    func open(_ path: String, mode: RemoteFileMode) async throws -> any RemoteFile {
+        try await underlying.open(path, mode: mode)
+    }
+    func createDirectory(_ path: String) async throws { try await underlying.createDirectory(path) }
+    func remove(_ path: String) async throws { try await underlying.remove(path) }
+    func removeDirectory(_ path: String) async throws { try await underlying.removeDirectory(path) }
+
+    func rename(_ path: String, to newPath: String) async throws {
+        let shouldFail = lock.withLock { () -> Bool in
+            guard newPath == target, failuresRemaining > 0 else { return false }
+            failuresRemaining -= 1
+            return true
+        }
+        if shouldFail { throw SSHError.channelClosed }
+        try await underlying.rename(path, to: newPath)
+    }
+
+    func setPermissions(_ mode: UInt32, path: String) async throws {
+        try await underlying.setPermissions(mode, path: path)
+    }
+    func realPath(_ path: String) async throws -> String { try await underlying.realPath(path) }
+    func close() async { await underlying.close() }
 }

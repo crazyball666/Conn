@@ -1,2 +1,3 @@
 /* 本地网络权限说明。 */
 "NSLocalNetworkUsageDescription" = "Conn 需要访问本地网络，以连接你添加的 SSH 主机并管理文件、进程和 Docker。";
+"NSFaceIDUsageDescription" = "启用应用锁后，Conn 使用 Face ID 解锁应用。";

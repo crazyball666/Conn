@@ -226,7 +226,7 @@
 				};
 			};
 			buildConfigurationList = 7C181A8B300CF0AD00307624 /* Build configuration list for PBXProject "Conn" */;
-			developmentRegion = "zh-Hans";
+			developmentRegion = en;
 			hasScannedForEncodings = 0;
 			knownRegions = (
 				en,
@@ -447,6 +447,7 @@
 				DEVELOPMENT_TEAM = 35ZLHHTRAP;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSFaceIDUsageDescription = "Conn uses Face ID to unlock the app when App Lock is enabled.";
 				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Conn needs local network access to connect to your SSH hosts and manage files, processes, and Docker.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
@@ -480,6 +481,7 @@
 				DEVELOPMENT_TEAM = 35ZLHHTRAP;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSFaceIDUsageDescription = "Conn uses Face ID to unlock the app when App Lock is enabled.";
 				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Conn needs local network access to connect to your SSH hosts and manage files, processes, and Docker.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;

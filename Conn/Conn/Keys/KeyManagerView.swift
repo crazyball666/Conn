@@ -1,4 +1,5 @@
 import ConnKit
+import ConnSSH
 import ConnUI
 import SwiftUI
 import UniformTypeIdentifiers
@@ -66,7 +67,15 @@ struct KeyManagerView: View {
         .sheet(isPresented: $showImport) { importSheet }
         .fileImporter(isPresented: $showFileImporter, allowedContentTypes: [.text, .data]) { result in
             if case let .success(url) = result {
-                importText = (try? String(contentsOf: url, encoding: .utf8)) ?? ""
+                let scoped = url.startAccessingSecurityScopedResource()
+                defer {
+                    if scoped { url.stopAccessingSecurityScopedResource() }
+                }
+                do {
+                    importText = try String(contentsOf: url, encoding: .utf8)
+                } catch {
+                    viewModel.lastError = "\(L("私钥读取失败"))：\(error.friendlyDiagnosis)"
+                }
             }
         }
         .alert(L("操作失败"), isPresented: Binding(

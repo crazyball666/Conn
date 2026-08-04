@@ -51,11 +51,27 @@ struct AppLockGate<Content: View>: View {
                 Text(L("Conn 已锁定"))
                     .font(.connSectionTitle)
                     .foregroundStyle(.connInk)
+                if let unlockError = lock.unlockError {
+                    Text(unlockErrorMessage(unlockError))
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                        .frame(maxWidth: 280)
+                }
                 ConnButton(String(format: L("用 %@ 解锁"), lock.biometryName)) {
                     Task { await lock.unlock() }
                 }
                 .frame(maxWidth: 240)
             }
+        }
+    }
+
+    private func unlockErrorMessage(_ error: AppLockController.UnlockError) -> String {
+        switch error {
+        case .failed:
+            L("认证未完成，请重试")
+        case .unavailable:
+            L("设备认证不可用，请在系统设置中启用设备密码或 Face ID")
         }
     }
 }

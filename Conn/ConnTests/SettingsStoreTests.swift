@@ -7,6 +7,14 @@ import Testing
 @Suite("SettingsStore — 设置持久化")
 @MainActor
 struct SettingsStoreTests {
+    @Test("隐私政策链接仅使用有效 HTTPS URL")
+    func privacyPolicyLinkIsValidHTTPS() {
+        let url = AppLegalLinks.privacyPolicyURL
+        #expect(url?.scheme?.lowercased() == "https")
+        #expect(url?.host == "github.com")
+        #expect(url?.path.contains("PRIVACY_POLICY.md") == true)
+    }
+
     @Test("首次启动默认使用深色模式和紫色主题")
     func firstLaunchUsesDarkPurpleDefaults() {
         let suiteName = "SettingsStoreTests.\(UUID().uuidString)"

@@ -1,6 +1,134 @@
 {
   "sourceLanguage" : "zh-Hans",
   "strings" : {
+    "认证未完成，请重试" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Authentication was not completed. Try again."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "認証が完了しませんでした。もう一度お試しください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "인증이 완료되지 않았습니다. 다시 시도해 주세요."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "認證未完成，請重試。"
+          }
+        }
+      }
+    },
+    "设备认证不可用，请在系统设置中启用设备密码或 Face ID" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Device authentication is unavailable. Enable a device passcode or Face ID in Settings."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "デバイス認証を利用できません。設定でデバイスパスコードまたは Face ID を有効にしてください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "기기 인증을 사용할 수 없습니다. 설정에서 기기 암호 또는 Face ID를 켜 주세요."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法使用裝置認證，請在設定中啟用裝置密碼或 Face ID。"
+          }
+        }
+      }
+    },
+    "隐私" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Privacy"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "プライバシー"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "개인정보 보호"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "隱私"
+          }
+        }
+      }
+    },
+    "隐私政策" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Privacy Policy"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "プライバシーポリシー"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "개인정보 처리방침"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "隱私權政策"
+          }
+        }
+      }
+    },
+    "法律与隐私" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Legal & Privacy" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "法務とプライバシー" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "법률 및 개인정보 보호" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "法律與隱私" } }
+      }
+    },
+    "开源许可" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Open-Source Licenses" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "オープンソースライセンス" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "오픈 소스 라이선스" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "開放原始碼授權" } }
+      }
+    },
     "—" : {
       "localizations" : {
         "en" : {
@@ -575,6 +703,70 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%@ 容器"
+          }
+        }
+      }
+    },
+    "%d 个会话" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%d sessions"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%d 件のセッション"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "세션 %d개"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%d 个会话"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%d 個工作階段"
+          }
+        }
+      }
+    },
+    "%d 个脚本" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%d scripts"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%d 個のスクリプト"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%d개 스크립트"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%d 個指令碼"
           }
         }
       }
@@ -1854,6 +2046,35 @@
         }
       }
     },
+    "Docker 守护进程未运行。\\n请在服务器上启动：\\nsudo systemctl start docker" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The Docker daemon is not running.\\nStart it on the server:\\nsudo systemctl start docker"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Docker デーモンが起動していません。\\nサーバーで起動してください：\\nsudo systemctl start docker"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Docker 데몬이 실행되고 있지 않습니다.\\n서버에서 시작하세요:\\nsudo systemctl start docker"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Docker 背景程式未執行。\\n請在伺服器上啟動：\\nsudo systemctl start docker"
+          }
+        }
+      }
+    },
     "Docker 当前不可用" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -2285,6 +2506,64 @@
         }
       }
     },
+    "Shell 类型" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shell type"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shell 種類"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "셸 유형"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shell 類型"
+          }
+        }
+      }
+    },
+    "Shell 脚本" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shell script"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shell スクリプト"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "셸 스크립트"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shell 指令碼"
+          }
+        }
+      }
+    },
     "SSH Agent 转发" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -2310,6 +2589,64 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "SSH Agent 轉發"
+          }
+        }
+      }
+    },
+    "SSH 密钥" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SSH key"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SSH 鍵"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SSH 키"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SSH 金鑰"
+          }
+        }
+      }
+    },
+    "Swap" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Swap"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "スワップ"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "스왑"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Swap"
           }
         }
       }
@@ -2911,6 +3248,64 @@
         }
       }
     },
+    "不支持加密私钥，请导入未加密的 PEM/PKCS#8 私钥" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Encrypted private keys are not supported. Import an unencrypted PEM/PKCS#8 key."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "暗号化された秘密鍵には対応していません。暗号化されていない PEM/PKCS#8 鍵をインポートしてください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "암호화된 개인 키는 지원되지 않습니다. 암호화되지 않은 PEM/PKCS#8 키를 가져오세요."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不支援加密私鑰，請匯入未加密的 PEM/PKCS#8 私鑰。"
+          }
+        }
+      }
+    },
+    "不支持加密私钥（密码短语），请导入未加密私钥" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Encrypted private keys (passphrases) are not supported. Import an unencrypted key."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "暗号化された秘密鍵（パスフレーズ）には対応していません。暗号化されていない鍵をインポートしてください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "암호화된 개인 키(암호문)는 지원되지 않습니다. 암호화되지 않은 키를 가져오세요."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不支援加密私鑰（密碼短語），請匯入未加密私鑰。"
+          }
+        }
+      }
+    },
     "不设置" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -3027,6 +3422,64 @@
         }
       }
     },
+    "主机凭据回滚未完成，请重试" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Host credential rollback did not finish. Please try again."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ホスト認証情報の復元が完了しませんでした。もう一度お試しください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "호스트 자격 증명 복원이 완료되지 않았습니다. 다시 시도해 주세요."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "主機憑據回復未完成，請重試。"
+          }
+        }
+      }
+    },
+    "主机删除回滚未完成，请重试" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Host deletion rollback did not finish. Please try again."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ホスト削除の復元が完了しませんでした。もう一度お試しください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "호스트 삭제 롤백이 완료되지 않았습니다. 다시 시도해 주세요."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "主機刪除回復未完成，請重試。"
+          }
+        }
+      }
+    },
     "主机名" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -3052,6 +3505,41 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "主機名"
+          }
+        }
+      }
+    },
+    "主机已不存在" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The server no longer exists"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "サーバーは存在しません"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "서버가 더 이상 존재하지 않습니다"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "主机已不存在"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "主機已不存在"
           }
         }
       }
@@ -3288,6 +3776,35 @@
         }
       }
     },
+    "仅支持未加密私钥。Ed25519、RSA 4096、ECDSA P-256 均支持 OpenSSH；RSA 也支持 PKCS#1/PKCS#8，ECDSA 支持 PEM/PKCS#8；Ed25519 和 ECDSA 也可粘贴原始私钥 Base64。" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Only unencrypted private keys are supported. Ed25519, RSA 4096, and ECDSA P-256 support OpenSSH; RSA also supports PKCS#1/PKCS#8, ECDSA supports PEM/PKCS#8, and Ed25519 and ECDSA also accept raw private-key Base64."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "暗号化されていない秘密鍵のみ対応しています。Ed25519、RSA 4096、ECDSA P-256 は OpenSSH に対応し、RSA は PKCS#1/PKCS#8、ECDSA は PEM/PKCS#8 にも対応します。Ed25519 と ECDSA は秘密鍵の Base64 も貼り付けられます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "암호화되지 않은 개인 키만 지원됩니다. Ed25519, RSA 4096, ECDSA P-256은 OpenSSH를 지원하며 RSA는 PKCS#1/PKCS#8, ECDSA는 PEM/PKCS#8도 지원합니다. Ed25519와 ECDSA는 원시 개인 키 Base64를 붙여 넣을 수도 있습니다."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "僅支援未加密私鑰。Ed25519、RSA 4096、ECDSA P-256 均支援 OpenSSH；RSA 也支援 PKCS#1/PKCS#8，ECDSA 支援 PEM/PKCS#8；Ed25519 與 ECDSA 也可貼上原始私鑰 Base64。"
+          }
+        }
+      }
+    },
     "仍要执行" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -3313,6 +3830,41 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "仍要執行"
+          }
+        }
+      }
+    },
+    "从主机详情打开终端，或在这里新建一个会话。" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open a terminal from host details, or create a session here."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ホスト詳細からターミナルを開くか、ここでセッションを作成してください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "호스트 상세에서 터미널을 열거나 여기에서 세션을 생성하세요."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "从主机详情打开终端，或在此新建会话。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "請從主機詳細資料開啟終端機，或在此建立工作階段。"
           }
         }
       }
@@ -3375,6 +3927,35 @@
         }
       }
     },
+    "从文件选择" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose from File"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ファイルを選択"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "파일에서 선택"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "從檔案選擇"
+          }
+        }
+      }
+    },
     "代码主题" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -3400,6 +3981,41 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "程式碼主題"
+          }
+        }
+      }
+    },
+    "会话列表" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Session list"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "セッション一覧"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "세션 목록"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "会话列表"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "工作階段列表"
           }
         }
       }
@@ -3491,6 +4107,35 @@
         }
       }
     },
+    "保存主机失败" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Failed to save host"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ホストを保存できませんでした"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "호스트를 저장하지 못했습니다"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "儲存主機失敗"
+          }
+        }
+      }
+    },
     "保存到本地命令" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -3516,6 +4161,64 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "儲存到本地命令"
+          }
+        }
+      }
+    },
+    "保存失败" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Save failed"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "保存に失敗しました"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "저장하지 못했습니다"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "儲存失敗"
+          }
+        }
+      }
+    },
+    "保存失败，请重试" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Save failed. Please try again."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "保存に失敗しました。もう一度お試しください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "저장하지 못했습니다. 다시 시도해 주세요."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "儲存失敗，請重試。"
           }
         }
       }
@@ -3903,6 +4606,41 @@
         }
       }
     },
+    "先在「脚本」页面添加常用脚本" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add commonly used scripts on the Scripts screen first."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "まず「スクリプト」画面でよく使うスクリプトを追加してください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "먼저 ‘스크립트’ 화면에서 자주 사용하는 스크립트를 추가하세요."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "请先在“脚本”页面添加常用脚本。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "請先在「指令碼」頁面新增常用指令碼。"
+          }
+        }
+      }
+    },
     "先逛逛演示模式" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -4170,6 +4908,35 @@
         }
       }
     },
+    "公钥" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Public key"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "公開鍵"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "공개 키"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "公鑰"
+          }
+        }
+      }
+    },
     "共 %d 个" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -4199,14 +4966,6 @@
         }
       }
     },
-    "共 %d 个容器" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "%d containers" } },
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "%d 個のコンテナ" } },
-        "ko" : { "stringUnit" : { "state" : "translated", "value" : "컨테이너 %d개" } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "共 %d 個容器" } }
-      }
-    },
     "共 %d 个卷" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -4232,6 +4991,35 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "共 %d 個磁碟區"
+          }
+        }
+      }
+    },
+    "共 %d 个容器" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%d containers"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%d 個のコンテナ"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "컨테이너 %d개"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "共 %d 個容器"
           }
         }
       }
@@ -4377,6 +5165,41 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "關閉"
+          }
+        }
+      }
+    },
+    "关闭会话" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Close session"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "セッションを閉じる"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "세션 닫기"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "关闭会话"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "關閉工作階段"
           }
         }
       }
@@ -5019,6 +5842,35 @@
         }
       }
     },
+    "删除主机失败：%@" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Failed to delete host: %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ホストを削除できませんでした：%@"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "호스트를 삭제하지 못했습니다: %@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "刪除主機失敗：%@"
+          }
+        }
+      }
+    },
     "删除分组" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -5106,6 +5958,35 @@
         }
       }
     },
+    "删除分组不会删除其中的脚本，脚本会保留在其他分组或未分组。" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Deleting a group does not delete its scripts. They remain in other groups or ungrouped."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "グループを削除してもスクリプトは削除されず、他のグループまたは未分類に残ります。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "그룹을 삭제해도 스크립트는 삭제되지 않으며 다른 그룹 또는 미분류로 유지됩니다."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "刪除群組不會刪除其中的指令碼，指令碼會保留在其他群組或未分組。"
+          }
+        }
+      }
+    },
     "删除卷" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -5160,6 +6041,35 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "刪除失敗"
+          }
+        }
+      }
+    },
+    "删除失败：%@" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delete failed: %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "削除に失敗しました：%@"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "삭제하지 못했습니다: %@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "刪除失敗：%@"
           }
         }
       }
@@ -5363,6 +6273,41 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "刪除映像 %@？"
+          }
+        }
+      }
+    },
+    "别名" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Alias"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "エイリアス"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "별칭"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "别名"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "別名"
           }
         }
       }
@@ -5715,6 +6660,41 @@
         }
       }
     },
+    "双击切换；长按可设置别名或关闭" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Double-tap to switch; long-press to set an alias or close the session."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ダブルタップで切り替え、長押しでエイリアスの設定またはセッションの終了ができます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "두 번 탭하여 전환하고 길게 눌러 별칭을 설정하거나 세션을 종료합니다."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "双击切换；长按可设置别名或关闭会话。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "點兩下切換；長按可設定別名或關閉工作階段。"
+          }
+        }
+      }
+    },
     "双击切换图表折线" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -6013,6 +6993,35 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "可選取多個分組，也可不選；未選取時會歸入未分組。"
+          }
+        }
+      }
+    },
+    "可多选，也可以不选；不选时脚本归为未分组。" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Select multiple groups, or none to leave the script ungrouped."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "複数のグループを選択できます。選択しない場合は未分類になります。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "여러 그룹을 선택하거나 선택하지 않으면 미분류로 남습니다."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "可選取多個群組，也可以不選；不選時指令碼會歸為未分組。"
           }
         }
       }
@@ -6864,6 +7873,35 @@
         }
       }
     },
+    "复制私钥" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copy private key"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "秘密鍵をコピー"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "개인 키 복사"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "複製私鑰"
+          }
+        }
+      }
+    },
     "复核配置" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -7334,6 +8372,41 @@
         }
       }
     },
+    "容器：%@" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Container: %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "コンテナ：%@"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "컨테이너: %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "容器：%@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "容器：%@"
+          }
+        }
+      }
+    },
     "容器刷新间隔" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -7566,6 +8639,122 @@
         }
       }
     },
+    "密钥保存失败" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Failed to save key"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "鍵の保存に失敗しました"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "키 저장 실패"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "金鑰儲存失敗"
+          }
+        }
+      }
+    },
+    "密钥信息" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Key details"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "鍵の情報"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "키 정보"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "金鑰資訊"
+          }
+        }
+      }
+    },
+    "密钥元数据保存失败" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Failed to save key metadata"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "鍵メタデータを保存できませんでした"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "키 메타데이터를 저장하지 못했습니다"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "儲存金鑰中繼資料失敗"
+          }
+        }
+      }
+    },
+    "密钥删除失败" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Failed to delete key"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "鍵の削除に失敗しました"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "키 삭제 실패"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "金鑰刪除失敗"
+          }
+        }
+      }
+    },
     "密钥名称" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -7624,6 +8813,93 @@
         }
       }
     },
+    "密钥恢复失败" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Failed to restore key"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "鍵を復元できませんでした"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "키를 복원하지 못했습니다"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "還原金鑰失敗"
+          }
+        }
+      }
+    },
+    "密钥数据清理未完成，请重试" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Key cleanup did not finish. Please try again."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "鍵のクリーンアップが完了しませんでした。もう一度お試しください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "키 정리가 완료되지 않았습니다. 다시 시도해 주세요."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "金鑰清理未完成，請重試。"
+          }
+        }
+      }
+    },
+    "密钥生成失败" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Failed to generate key"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "鍵の生成に失敗しました"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "키 생성 실패"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "金鑰產生失敗"
+          }
+        }
+      }
+    },
     "密钥管家" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -7653,6 +8929,35 @@
         }
       }
     },
+    "密钥读取失败" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Failed to read keys"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "鍵の読み込みに失敗しました"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "키를 읽지 못했습니다"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "讀取金鑰失敗"
+          }
+        }
+      }
+    },
     "密钥选择将在密钥管家上线后支持" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -7678,6 +8983,151 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "金鑰選擇將在金鑰管家上線後支援"
+          }
+        }
+      }
+    },
+    "导入" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Import"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "インポート"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "가져오기"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "匯入"
+          }
+        }
+      }
+    },
+    "导入密钥" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Import key"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "鍵をインポート"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "키 가져오기"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "匯入金鑰"
+          }
+        }
+      }
+    },
+    "导入私钥" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Import private key"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "秘密鍵をインポート"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "개인 키 가져오기"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "匯入私鑰"
+          }
+        }
+      }
+    },
+    "导出" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Export"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "エクスポート"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "내보내기"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "匯出"
+          }
+        }
+      }
+    },
+    "导出私钥" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Export private key"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "秘密鍵をエクスポート"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "개인 키 내보내기"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "匯出私鑰"
           }
         }
       }
@@ -8204,6 +9654,41 @@
         }
       }
     },
+    "已有会话" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Existing sessions"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "既存のセッション"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "기존 세션"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已有会话"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "現有工作階段"
+          }
+        }
+      }
+    },
     "已用" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -8258,6 +9743,64 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "已選 %d 個"
+          }
+        }
+      }
+    },
+    "已选择 %d 台主机" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%d hosts selected"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%d 台のホストを選択中"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%d대의 호스트 선택됨"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已選取 %d 台主機"
+          }
+        }
+      }
+    },
+    "已选择多台主机，批量执行仅支持静默执行。" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Multiple hosts selected. Batch execution supports silent execution only."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "複数のホストが選択されています。バッチ実行ではサイレント実行のみ対応しています。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "여러 호스트가 선택되었습니다. 일괄 실행은 자동 실행만 지원합니다."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已選取多台主機。批次執行僅支援靜默執行。"
           }
         }
       }
@@ -8471,6 +10014,35 @@
         }
       }
     },
+    "当前用户无权访问 Docker。\\n将用户加入 docker 组：\\nsudo usermod -aG docker $USER\\n然后重新登录后重试。" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The current user cannot access Docker.\\nAdd the user to the docker group:\\nsudo usermod -aG docker $USER\\nThen sign in again and retry."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "現在のユーザーには Docker へのアクセス権がありません。\\nユーザーを docker グループに追加してください：\\nsudo usermod -aG docker $USER\\nその後、再ログインして再試行してください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "현재 사용자는 Docker에 액세스할 수 없습니다.\\n사용자를 docker 그룹에 추가하세요:\\nsudo usermod -aG docker $USER\\n그런 다음 다시 로그인하고 재시도하세요."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "目前使用者無法存取 Docker。\\n請將使用者加入 docker 群組：\\nsudo usermod -aG docker $USER\\n然後重新登入並重試。"
+          }
+        }
+      }
+    },
     "必填" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -8583,6 +10155,35 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "我的"
+          }
+        }
+      }
+    },
+    "所选密钥不可用，请重新导入或生成密钥" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The selected key is unavailable. Re-import or generate it."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "選択した鍵を利用できません。再インポートまたは再生成してください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "선택한 키를 사용할 수 없습니다. 다시 가져오거나 생성하세요."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "所選金鑰無法使用，請重新匯入或產生。"
           }
         }
       }
@@ -8819,6 +10420,35 @@
         }
       }
     },
+    "执行主机" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Execution hosts"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "実行ホスト"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "실행 호스트"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "執行主機"
+          }
+        }
+      }
+    },
     "执行历史" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -8906,6 +10536,93 @@
         }
       }
     },
+    "执行结果" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Execution result"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "実行結果"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "실행 결과"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "執行結果"
+          }
+        }
+      }
+    },
+    "执行脚本" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Run script"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "スクリプトを実行"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "스크립트 실행"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "執行指令碼"
+          }
+        }
+      }
+    },
+    "批量" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Batch"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "一括"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "일괄"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "批次"
+          }
+        }
+      }
+    },
     "批量执行" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -8931,6 +10648,35 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "批次執行"
+          }
+        }
+      }
+    },
+    "批量执行结果" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Batch execution results"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "一括実行結果"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "일괄 실행 결과"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "批次執行結果"
           }
         }
       }
@@ -9579,6 +11325,41 @@
         }
       }
     },
+    "搜索脚本" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Search scripts"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "スクリプトを検索"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "스크립트 검색"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "搜索脚本"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "搜尋指令碼"
+          }
+        }
+      }
+    },
     "搜索进程 / PID / 用户" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -9695,6 +11476,35 @@
         }
       }
     },
+    "操作失败" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Operation failed"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "操作に失敗しました"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "작업 실패"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "操作失敗"
+          }
+        }
+      }
+    },
     "操作系统" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -9784,6 +11594,35 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "支援 ssh root@1.2.3.4 -p 2222 格式的指令，並自動辨識位址、使用者名稱與連接埠。"
+          }
+        }
+      }
+    },
+    "支持单行或多行 Shell 脚本；变量用 {{名称}} 或 {{名称:默认值}}，执行前会让你填参。" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Supports one-line or multi-line Shell scripts. Use {{name}} or {{name:default}} for variables; you will be prompted before execution."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "1 行または複数行の Shell スクリプトに対応しています。変数は {{name}} または {{name:default}} と記述し、実行前に入力します。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "한 줄 또는 여러 줄 셸 스크립트를 지원합니다. 변수는 {{이름}} 또는 {{이름:기본값}} 형식이며 실행 전에 입력합니다."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "支援單行或多行 Shell 指令碼；變數使用 {{名稱}} 或 {{名稱:預設值}}，執行前會要求填寫。"
           }
         }
       }
@@ -10194,6 +12033,35 @@
         }
       }
     },
+    "新增密钥" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add key"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "鍵を追加"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "키 추가"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新增金鑰"
+          }
+        }
+      }
+    },
     "新增服务器" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -10248,6 +12116,35 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "新增片段"
+          }
+        }
+      }
+    },
+    "新增脚本" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add script"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "スクリプトを追加"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "스크립트 추가"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新增指令碼"
           }
         }
       }
@@ -10339,6 +12236,41 @@
         }
       }
     },
+    "新建会话会复用已建立的 SSH 连接，但创建独立的 PTY。" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "New sessions reuse the established SSH connection but create an independent PTY."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新しいセッションは既存の SSH 接続を再利用しますが、独立した PTY を作成します。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "새 세션은 기존 SSH 연결을 재사용하지만 독립적인 PTY를 생성합니다."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新建会话会复用已建立的 SSH 连接，但会创建独立的 PTY。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新工作階段會重用現有的 SSH 連線，但會建立獨立的 PTY。"
+          }
+        }
+      }
+    },
     "新建文件" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -10393,6 +12325,76 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "新增資料夾"
+          }
+        }
+      }
+    },
+    "新建终端" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "New terminal"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新しいターミナル"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "새 터미널"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新建终端"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新增終端機"
+          }
+        }
+      }
+    },
+    "新建终端会话" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "New terminal session"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新しいターミナルセッション"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "새 터미널 세션"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新建终端会话"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新增終端工作階段"
           }
         }
       }
@@ -10509,6 +12511,64 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "無伺服端 · 零遙測"
+          }
+        }
+      }
+    },
+    "无法保存 Docker 操作审计，未执行远程命令" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unable to record the Docker audit entry; the remote command was not run"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Docker 操作の監査記録を保存できないため、リモートコマンドは実行されませんでした"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Docker 감사 기록을 저장할 수 없어 원격 명령을 실행하지 않았습니다"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法儲存 Docker 操作稽核記錄，未執行遠端命令"
+          }
+        }
+      }
+    },
+    "无法保存执行记录，未执行脚本" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unable to record the execution; the script was not run"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "実行記録を保存できないため、スクリプトは実行されませんでした"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "실행 기록을 저장할 수 없어 스크립트를 실행하지 않았습니다"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法儲存執行記錄，未執行指令碼"
           }
         }
       }
@@ -10803,6 +12863,41 @@
         }
       }
     },
+    "普通终端" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shell terminal"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "シェルターミナル"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "셸 터미널"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "普通终端"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "一般終端機"
+          }
+        }
+      }
+    },
     "暂无" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -11064,6 +13159,64 @@
         }
       }
     },
+    "未发现常见日志源。\\n可在终端里直接查看自定义路径。" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No common log sources found.\\nYou can inspect a custom path in Terminal."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "一般的なログソースが見つかりません。\\nターミナルでカスタムパスを直接確認できます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "일반 로그 소스를 찾을 수 없습니다.\\n터미널에서 사용자 지정 경로를 직접 확인할 수 있습니다."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "找不到常見的記錄來源。\\n可在終端機直接查看自訂路徑。"
+          }
+        }
+      }
+    },
+    "未启用" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Disabled"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無効"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "사용 안 함"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未啟用"
+          }
+        }
+      }
+    },
     "未检测到 Docker CLI。请确认该服务器已安装 Docker。" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -11205,6 +13358,35 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "架構"
+          }
+        }
+      }
+    },
+    "查看私钥" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "View private key"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "秘密鍵を表示"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "개인 키 보기"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "檢視私鑰"
           }
         }
       }
@@ -11557,6 +13739,41 @@
         }
       }
     },
+    "正在重新连接…" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reconnecting…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "再接続中…"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "다시 연결하는 중…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在重新连接…"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在重新連線…"
+          }
+        }
+      }
+    },
     "正常" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -11901,6 +14118,41 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "沒有符合的網路"
+          }
+        }
+      }
+    },
+    "没有匹配的脚本" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No matching scripts"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "一致するスクリプトがありません"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "일치하는 스크립트가 없습니다"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "没有匹配的脚本"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "沒有相符的指令碼"
           }
         }
       }
@@ -13170,6 +15422,41 @@
         }
       }
     },
+    "留空会恢复自动名称。" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Leave blank to restore the automatic name."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "空欄にすると自動名に戻ります。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "비워 두면 자동 이름으로 복원됩니다."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "留空时恢复自动名称。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "留空時會恢復自動名稱。"
+          }
+        }
+      }
+    },
     "留空则用地址显示。" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -13553,6 +15840,209 @@
         }
       }
     },
+    "私钥" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Private key"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "秘密鍵"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "개인 키"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "私鑰"
+          }
+        }
+      }
+    },
+    "私钥不会写入数据库，只保存在设备 Keychain。" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The private key is never written to the database; it is stored only in the device Keychain."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "秘密鍵はデータベースに保存されず、デバイスの Keychain のみに保存されます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "개인 키는 데이터베이스에 저장되지 않고 기기의 Keychain에만 보관됩니다."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "私鑰不會寫入資料庫，只會儲存在裝置的 Keychain。"
+          }
+        }
+      }
+    },
+    "私钥仅保存在 Keychain；导出前请确认周围环境安全。" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The private key is stored only in the Keychain. Make sure your surroundings are secure before exporting it."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "秘密鍵は Keychain にのみ保存されます。エクスポートする前に周囲の安全を確認してください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "개인 키는 Keychain에만 저장됩니다. 내보내기 전에 주변 환경이 안전한지 확인하세요."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "私鑰僅儲存在 Keychain；匯出前請確認周遭環境安全。"
+          }
+        }
+      }
+    },
+    "私钥信息" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Private key details"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "秘密鍵の情報"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "개인 키 정보"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "私鑰資訊"
+          }
+        }
+      }
+    },
+    "私钥内容" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Private key content"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "秘密鍵の内容"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "개인 키 내용"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "私鑰內容"
+          }
+        }
+      }
+    },
+    "私钥导入失败" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Failed to import private key"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "秘密鍵のインポートに失敗しました"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "개인 키 가져오기 실패"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "私鑰匯入失敗"
+          }
+        }
+      }
+    },
+    "私钥读取失败" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Failed to read private key"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "秘密鍵の読み込みに失敗しました"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "개인 키를 읽지 못했습니다"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "讀取私鑰失敗"
+          }
+        }
+      }
+    },
     "移动" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -13872,6 +16362,35 @@
         }
       }
     },
+    "算法" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Algorithm"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "アルゴリズム"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "알고리즘"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "演算法"
+          }
+        }
+      }
+    },
     "管理分组" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -14104,6 +16623,41 @@
         }
       }
     },
+    "终端会话" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Terminal sessions"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ターミナルセッション"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "터미널 세션"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "终端会话"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "終端工作階段"
+          }
+        }
+      }
+    },
     "终端设置" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -14129,6 +16683,41 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "終端設定"
+          }
+        }
+      }
+    },
+    "终端连接已断开" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Terminal connection closed"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ターミナル接続が切断されました"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "터미널 연결이 끊어졌습니다"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "终端连接已断开"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "終端連線已中斷"
           }
         }
       }
@@ -14655,6 +17244,35 @@
         }
       }
     },
+    "编辑脚本" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Edit script"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "スクリプトを編集"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "스크립트 편집"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "編輯指令碼"
+          }
+        }
+      }
+    },
     "缩进" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -14916,6 +17534,134 @@
         }
       }
     },
+    "脚本" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Script"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "スクリプト"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "스크립트"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "指令碼"
+          }
+        }
+      }
+    },
+    "脚本：%@" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Script: %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "スクリプト：%@"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "스크립트: %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "脚本：%@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "指令碼：%@"
+          }
+        }
+      }
+    },
+    "脚本只会填入终端，不会自动执行。" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The script is inserted into the terminal only; it is not executed automatically."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "スクリプトはターミナルに入力されるだけで、自動実行されません。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "스크립트는 터미널에 입력만 되며 자동으로 실행되지 않습니다."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "脚本仅填入终端，不会自动执行。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "指令碼只會填入終端機，不會自動執行。"
+          }
+        }
+      }
+    },
+    "脚本已执行，但执行记录保存失败" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Script executed, but the execution record could not be saved"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "スクリプトは実行されましたが、実行記録を保存できませんでした"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "스크립트를 실행했지만 실행 기록을 저장하지 못했습니다"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "指令碼已執行，但無法儲存執行記錄"
+          }
+        }
+      }
+    },
     "自动发现" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -15061,6 +17807,35 @@
         }
       }
     },
+    "解释器" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Interpreter"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "インタープリター"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "인터프리터"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "解譯器"
+          }
+        }
+      }
+    },
     "解锁 Conn" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -15148,6 +17923,76 @@
         }
       }
     },
+    "设置别名" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Set alias"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "エイリアスを設定"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "별칭 설정"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "设置别名"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "設定別名"
+          }
+        }
+      }
+    },
+    "设置终端别名" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Set terminal alias"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ターミナルのエイリアスを設定"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "터미널 별칭 설정"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "设置终端别名"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "設定終端別名"
+          }
+        }
+      }
+    },
     "该主机上没有容器" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -15202,6 +18047,35 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "此片段被標記為危險"
+          }
+        }
+      }
+    },
+    "该脚本被标记为危险" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This script is marked as dangerous"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このスクリプトは危険としてマークされています"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이 스크립트는 위험한 것으로 표시되어 있습니다"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此指令碼已標記為危險"
           }
         }
       }
@@ -15293,6 +18167,35 @@
         }
       }
     },
+    "请稍后重试" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Please try again later."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "しばらくしてからもう一度お試しください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "잠시 후 다시 시도해 주세요."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "請稍後重試。"
+          }
+        }
+      }
+    },
     "请输入 %@ 以继续。" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -15318,6 +18221,35 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "請輸入 %@ 以繼續。"
+          }
+        }
+      }
+    },
+    "请选择密钥" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Select a key"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "鍵を選択してください"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "키를 선택하세요"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "請選取金鑰"
           }
         }
       }
@@ -15438,22 +18370,6 @@
         }
       }
     },
-    "读取主机配置失败，请重试" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Failed to load host settings. Please try again." } },
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "ホスト設定を読み込めません。もう一度お試しください。" } },
-        "ko" : { "stringUnit" : { "state" : "translated", "value" : "호스트 설정을 불러오지 못했습니다. 다시 시도해 주세요." } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "讀取主機設定失敗，請重試。" } }
-      }
-    },
-    "读取主机配置失败" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Failed to load host settings" } },
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "ホスト設定を読み込めません" } },
-        "ko" : { "stringUnit" : { "state" : "translated", "value" : "호스트 설정을 불러오지 못했습니다" } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "讀取主機設定失敗" } }
-      }
-    },
     "读取主机失败：%@" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -15479,6 +18395,64 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "讀取主機失敗：%@"
+          }
+        }
+      }
+    },
+    "读取主机配置失败" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Failed to load host settings"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ホスト設定を読み込めません"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "호스트 설정을 불러오지 못했습니다"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "讀取主機設定失敗"
+          }
+        }
+      }
+    },
+    "读取主机配置失败，请重试" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Failed to load host settings. Please try again."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ホスト設定を読み込めません。もう一度お試しください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "호스트 설정을 불러오지 못했습니다. 다시 시도해 주세요."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "讀取主機設定失敗，請重試。"
           }
         }
       }
@@ -15541,6 +18515,35 @@
         }
       }
     },
+    "读取执行历史失败：%@" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Failed to read execution history: %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "実行履歴の読み込みに失敗しました：%@"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "실행 기록을 읽지 못했습니다: %@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "讀取執行歷程失敗：%@"
+          }
+        }
+      }
+    },
     "读取文件…" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -15599,6 +18602,35 @@
         }
       }
     },
+    "读取片段失败，请重试" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Failed to load scripts. Please try again."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "スクリプトを読み込めません。もう一度お試しください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "스크립트를 불러오지 못했습니다. 다시 시도해 주세요."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "讀取腳本失敗，請重試。"
+          }
+        }
+      }
+    },
     "读取片段失败：%@" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -15626,14 +18658,6 @@
             "value" : "讀取片段失敗：%@"
           }
         }
-      }
-    },
-    "读取片段失败，请重试" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Failed to load scripts. Please try again." } },
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "スクリプトを読み込めません。もう一度お試しください。" } },
-        "ko" : { "stringUnit" : { "state" : "translated", "value" : "스크립트를 불러오지 못했습니다. 다시 시도해 주세요." } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "讀取腳本失敗，請重試。" } }
       }
     },
     "读取目录…" : {
@@ -16129,6 +19153,35 @@
         }
       }
     },
+    "运行 %@" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Run %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ を実行"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 실행"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "執行 %@"
+          }
+        }
+      }
+    },
     "运行中" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -16212,6 +19265,41 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "返回"
+          }
+        }
+      }
+    },
+    "返回不会关闭会话；仅“退出终端”或在这里关闭才会结束该 PTY。" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Going back does not close the session. Only “Exit terminal” or closing it here ends the PTY."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "戻るだけではセッションは終了しません。「ターミナルを終了」またはここで閉じた場合にのみ PTY が終了します。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "뒤로 가도 세션은 종료되지 않습니다. ‘터미널 종료’를 선택하거나 여기에서 닫아야 PTY가 종료됩니다."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "返回不会关闭会话；只有“退出终端”或在此关闭会话才会结束该 PTY。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "返回不會關閉工作階段；只有「退出終端機」或在此關閉工作階段才會結束該 PTY。"
           }
         }
       }
@@ -16455,6 +19543,35 @@
         }
       }
     },
+    "还没有密钥，请先在密钥管家中生成或导入" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No keys yet. Generate or import one in Key Manager first."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "鍵がありません。まず鍵の管理で生成またはインポートしてください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "키가 없습니다. 먼저 키 관리자에서 생성하거나 가져오세요."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "尚無金鑰，請先在金鑰管理中產生或匯入。"
+          }
+        }
+      }
+    },
     "还没有执行记录" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -16515,6 +19632,76 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "尚無指令碼片段"
+          }
+        }
+      }
+    },
+    "还没有终端会话" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No terminal sessions yet"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ターミナルセッションはまだありません"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "터미널 세션이 없습니다"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "暂无终端会话"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "尚無終端工作階段"
+          }
+        }
+      }
+    },
+    "还没有脚本" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No scripts yet"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "スクリプトはまだありません"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "아직 스크립트가 없습니다"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "暂无脚本"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "尚無指令碼"
           }
         }
       }
@@ -16983,6 +20170,41 @@
         }
       }
     },
+    "退出终端" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Exit terminal"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ターミナルを終了"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "터미널 종료"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "退出终端"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "退出終端機"
+          }
+        }
+      }
+    },
     "选填" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -17037,6 +20259,35 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "選擇主機"
+          }
+        }
+      }
+    },
+    "选择主机或分组" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Select hosts or a group"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ホストまたはグループを選択"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "호스트 또는 그룹 선택"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "選取主機或群組"
           }
         }
       }
@@ -17200,6 +20451,41 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "選擇本機命令"
+          }
+        }
+      }
+    },
+    "选择本地脚本" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Select local script"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ローカルスクリプトを選択"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "로컬 스크립트 선택"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "选择本地脚本"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "選擇本機指令碼"
           }
         }
       }
@@ -17697,6 +20983,41 @@
         }
       }
     },
+    "重连" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reconnect"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "再接続"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "다시 연결"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重连"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重新連線"
+          }
+        }
+      }
+    },
     "错误详情" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -17929,35 +21250,6 @@
         }
       }
     },
-    "隐藏文件" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Hide files"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "隠しファイル非表示"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "숨김 파일 숨기기"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "隱藏檔案"
-          }
-        }
-      }
-    },
     "隐藏密码" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -17983,6 +21275,35 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "隱藏密碼"
+          }
+        }
+      }
+    },
+    "隐藏文件" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hide files"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "隠しファイル非表示"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "숨김 파일 숨기기"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "隱藏檔案"
           }
         }
       }
@@ -18393,1056 +21714,6 @@
         }
       }
     },
-    "%d 个会话" :     {
-      "extractionState": "stale",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%d sessions"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%d 件のセッション"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "세션 %d개"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%d 个会话"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%d 個工作階段"
-          }
-        }
-      }
-    },
-    "还没有终端会话" :     {
-      "extractionState": "stale",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "No terminal sessions yet"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "ターミナルセッションはまだありません"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "터미널 세션이 없습니다"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "暂无终端会话"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "尚無終端工作階段"
-          }
-        }
-      }
-    },
-    "主机已不存在" :     {
-      "extractionState": "stale",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "The server no longer exists"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "サーバーは存在しません"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "서버가 더 이상 존재하지 않습니다"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "主机已不存在"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "主機已不存在"
-          }
-        }
-      }
-    },
-    "从主机详情打开终端，或在这里新建一个会话。" :     {
-      "extractionState": "stale",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Open a terminal from host details, or create a session here."
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "ホスト詳細からターミナルを開くか、ここでセッションを作成してください。"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "호스트 상세에서 터미널을 열거나 여기에서 세션을 생성하세요."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "从主机详情打开终端，或在此新建会话。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "請從主機詳細資料開啟終端機，或在此建立工作階段。"
-          }
-        }
-      }
-    },
-    "会话列表" :     {
-      "extractionState": "stale",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Session list"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "セッション一覧"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "세션 목록"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "会话列表"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "工作階段列表"
-          }
-        }
-      }
-    },
-    "先在「脚本」页面添加常用脚本" :     {
-      "extractionState": "stale",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Add commonly used scripts on the Scripts screen first."
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "まず「スクリプト」画面でよく使うスクリプトを追加してください。"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "먼저 ‘스크립트’ 화면에서 자주 사용하는 스크립트를 추가하세요."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "请先在“脚本”页面添加常用脚本。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "請先在「指令碼」頁面新增常用指令碼。"
-          }
-        }
-      }
-    },
-    "关闭会话" :     {
-      "extractionState": "stale",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Close session"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "セッションを閉じる"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "세션 닫기"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "关闭会话"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "關閉工作階段"
-          }
-        }
-      }
-    },
-    "别名" :     {
-      "extractionState": "stale",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Alias"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "エイリアス"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "별칭"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "别名"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "別名"
-          }
-        }
-      }
-    },
-    "双击切换；长按可设置别名或关闭" :     {
-      "extractionState": "stale",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Double-tap to switch; long-press to set an alias or close the session."
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "ダブルタップで切り替え、長押しでエイリアスの設定またはセッションの終了ができます。"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "두 번 탭하여 전환하고 길게 눌러 별칭을 설정하거나 세션을 종료합니다."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "双击切换；长按可设置别名或关闭会话。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "點兩下切換；長按可設定別名或關閉工作階段。"
-          }
-        }
-      }
-    },
-    "容器：%@" :     {
-      "extractionState": "stale",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Container: %@"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "コンテナ：%@"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "컨테이너: %@"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "容器：%@"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "容器：%@"
-          }
-        }
-      }
-    },
-    "已有会话" :     {
-      "extractionState": "stale",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Existing sessions"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "既存のセッション"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "기존 세션"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "已有会话"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "現有工作階段"
-          }
-        }
-      }
-    },
-    "搜索脚本" :     {
-      "extractionState": "stale",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Search scripts"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "スクリプトを検索"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "스크립트 검색"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "搜索脚本"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "搜尋指令碼"
-          }
-        }
-      }
-    },
-    "新建会话会复用已建立的 SSH 连接，但创建独立的 PTY。" :     {
-      "extractionState": "stale",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "New sessions reuse the established SSH connection but create an independent PTY."
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "新しいセッションは既存の SSH 接続を再利用しますが、独立した PTY を作成します。"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "새 세션은 기존 SSH 연결을 재사용하지만 독립적인 PTY를 생성합니다."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "新建会话会复用已建立的 SSH 连接，但会创建独立的 PTY。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "新工作階段會重用現有的 SSH 連線，但會建立獨立的 PTY。"
-          }
-        }
-      }
-    },
-    "新建终端" :     {
-      "extractionState": "stale",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "New terminal"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "新しいターミナル"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "새 터미널"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "新建终端"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "新增終端機"
-          }
-        }
-      }
-    },
-    "新建终端会话" :     {
-      "extractionState": "stale",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "New terminal session"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "新しいターミナルセッション"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "새 터미널 세션"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "新建终端会话"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "新增終端工作階段"
-          }
-        }
-      }
-    },
-    "普通终端" :     {
-      "extractionState": "stale",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Shell terminal"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "シェルターミナル"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "셸 터미널"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "普通终端"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "一般終端機"
-          }
-        }
-      }
-    },
-    "正在重新连接…" :     {
-      "extractionState": "stale",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Reconnecting…"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "再接続中…"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "다시 연결하는 중…"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "正在重新连接…"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "正在重新連線…"
-          }
-        }
-      }
-    },
-    "没有匹配的脚本" :     {
-      "extractionState": "stale",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "No matching scripts"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "一致するスクリプトがありません"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "일치하는 스크립트가 없습니다"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "没有匹配的脚本"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "沒有相符的指令碼"
-          }
-        }
-      }
-    },
-    "留空会恢复自动名称。" :     {
-      "extractionState": "stale",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Leave blank to restore the automatic name."
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "空欄にすると自動名に戻ります。"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "비워 두면 자동 이름으로 복원됩니다."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "留空时恢复自动名称。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "留空時會恢復自動名稱。"
-          }
-        }
-      }
-    },
-    "终端会话" :     {
-      "extractionState": "stale",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Terminal sessions"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "ターミナルセッション"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "터미널 세션"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "终端会话"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "終端工作階段"
-          }
-        }
-      }
-    },
-    "终端连接已断开" :     {
-      "extractionState": "stale",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Terminal connection closed"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "ターミナル接続が切断されました"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "터미널 연결이 끊어졌습니다"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "终端连接已断开"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "終端連線已中斷"
-          }
-        }
-      }
-    },
-    "脚本只会填入终端，不会自动执行。" :     {
-      "extractionState": "stale",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "The script is inserted into the terminal only; it is not executed automatically."
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "スクリプトはターミナルに入力されるだけで、自動実行されません。"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "스크립트는 터미널에 입력만 되며 자동으로 실행되지 않습니다."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "脚本仅填入终端，不会自动执行。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "指令碼只會填入終端機，不會自動執行。"
-          }
-        }
-      }
-    },
-    "脚本：%@" :     {
-      "extractionState": "stale",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Script: %@"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "スクリプト：%@"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "스크립트: %@"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "脚本：%@"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "指令碼：%@"
-          }
-        }
-      }
-    },
-    "设置别名" :     {
-      "extractionState": "stale",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Set alias"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "エイリアスを設定"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "별칭 설정"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "设置别名"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "設定別名"
-          }
-        }
-      }
-    },
-    "设置终端别名" :     {
-      "extractionState": "stale",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Set terminal alias"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "ターミナルのエイリアスを設定"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "터미널 별칭 설정"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "设置终端别名"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "設定終端別名"
-          }
-        }
-      }
-    },
-    "返回不会关闭会话；仅“退出终端”或在这里关闭才会结束该 PTY。" :     {
-      "extractionState": "stale",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Going back does not close the session. Only “Exit terminal” or closing it here ends the PTY."
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "戻るだけではセッションは終了しません。「ターミナルを終了」またはここで閉じた場合にのみ PTY が終了します。"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "뒤로 가도 세션은 종료되지 않습니다. ‘터미널 종료’를 선택하거나 여기에서 닫아야 PTY가 종료됩니다."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "返回不会关闭会话；只有“退出终端”或在此关闭会话才会结束该 PTY。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "返回不會關閉工作階段；只有「退出終端機」或在此關閉工作階段才會結束該 PTY。"
-          }
-        }
-      }
-    },
-    "还没有脚本" :     {
-      "extractionState": "stale",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "No scripts yet"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "スクリプトはまだありません"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "아직 스크립트가 없습니다"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "暂无脚本"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "尚無指令碼"
-          }
-        }
-      }
-    },
-    "退出终端" :     {
-      "extractionState": "stale",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Exit terminal"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "ターミナルを終了"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "터미널 종료"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "退出终端"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "退出終端機"
-          }
-        }
-      }
-    },
-    "选择本地脚本" :     {
-      "extractionState": "stale",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Select local script"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "ローカルスクリプトを選択"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "로컬 스크립트 선택"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "选择本地脚本"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "選擇本機指令碼"
-          }
-        }
-      }
-    },
-    "重连" :     {
-      "extractionState": "stale",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Reconnect"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "再接続"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "다시 연결"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "重连"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "重新連線"
-          }
-        }
-      }
-    },
     "默认" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -19499,1574 +21770,6 @@
             "value" : "預設會移除已停止容器、未使用網路、懸空映像檔和建置快取。"
           }
         }
-      }
-    },
-    "%d 个脚本" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%d scripts"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%d 個のスクリプト"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%d개 스크립트"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%d 個指令碼"
-          }
-        }
-      }
-    },
-    "SSH 密钥" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "SSH key"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "SSH 鍵"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "SSH 키"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "SSH 金鑰"
-          }
-        }
-      }
-    },
-    "Shell 类型" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Shell type"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Shell 種類"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "셸 유형"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Shell 類型"
-          }
-        }
-      }
-    },
-    "Shell 脚本" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Shell script"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Shell スクリプト"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "셸 스크립트"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Shell 指令碼"
-          }
-        }
-      }
-    },
-    "Swap" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Swap"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "スワップ"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "스왑"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Swap"
-          }
-        }
-      }
-    },
-    "不支持加密私钥（密码短语），请导入未加密私钥" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Encrypted private keys (passphrases) are not supported. Import an unencrypted key."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "暗号化された秘密鍵（パスフレーズ）には対応していません。暗号化されていない鍵をインポートしてください。"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "암호화된 개인 키(암호문)는 지원되지 않습니다. 암호화되지 않은 키를 가져오세요."
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "不支援加密私鑰（密碼短語），請匯入未加密私鑰。"
-          }
-        }
-      }
-    },
-    "不支持加密私钥，请导入未加密的 PEM/PKCS#8 私钥" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Encrypted private keys are not supported. Import an unencrypted PEM/PKCS#8 key."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "暗号化された秘密鍵には対応していません。暗号化されていない PEM/PKCS#8 鍵をインポートしてください。"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "암호화된 개인 키는 지원되지 않습니다. 암호화되지 않은 PEM/PKCS#8 키를 가져오세요."
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "不支援加密私鑰，請匯入未加密的 PEM/PKCS#8 私鑰。"
-          }
-        }
-      }
-    },
-    "仅支持未加密私钥。Ed25519、RSA 4096、ECDSA P-256 均支持 OpenSSH；RSA 也支持 PKCS#1/PKCS#8，ECDSA 支持 PEM/PKCS#8；Ed25519 和 ECDSA 也可粘贴原始私钥 Base64。" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Only unencrypted private keys are supported. Ed25519, RSA 4096, and ECDSA P-256 support OpenSSH; RSA also supports PKCS#1/PKCS#8, ECDSA supports PEM/PKCS#8, and Ed25519 and ECDSA also accept raw private-key Base64."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "暗号化されていない秘密鍵のみ対応しています。Ed25519、RSA 4096、ECDSA P-256 は OpenSSH に対応し、RSA は PKCS#1/PKCS#8、ECDSA は PEM/PKCS#8 にも対応します。Ed25519 と ECDSA は秘密鍵の Base64 も貼り付けられます。"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "암호화되지 않은 개인 키만 지원됩니다. Ed25519, RSA 4096, ECDSA P-256은 OpenSSH를 지원하며 RSA는 PKCS#1/PKCS#8, ECDSA는 PEM/PKCS#8도 지원합니다. Ed25519와 ECDSA는 원시 개인 키 Base64를 붙여 넣을 수도 있습니다."
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "僅支援未加密私鑰。Ed25519、RSA 4096、ECDSA P-256 均支援 OpenSSH；RSA 也支援 PKCS#1/PKCS#8，ECDSA 支援 PEM/PKCS#8；Ed25519 與 ECDSA 也可貼上原始私鑰 Base64。"
-          }
-        }
-      }
-    },
-    "从文件选择" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Choose from File"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "ファイルを選択"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "파일에서 선택"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "從檔案選擇"
-          }
-        }
-      }
-    },
-    "公钥" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Public key"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "公開鍵"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "공개 키"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "公鑰"
-          }
-        }
-      }
-    },
-    "删除分组不会删除其中的脚本，脚本会保留在其他分组或未分组。" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Deleting a group does not delete its scripts. They remain in other groups or ungrouped."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "グループを削除してもスクリプトは削除されず、他のグループまたは未分類に残ります。"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "그룹을 삭제해도 스크립트는 삭제되지 않으며 다른 그룹 또는 미분류로 유지됩니다."
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "刪除群組不會刪除其中的指令碼，指令碼會保留在其他群組或未分組。"
-          }
-        }
-      }
-    },
-    "可多选，也可以不选；不选时脚本归为未分组。" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Select multiple groups, or none to leave the script ungrouped."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "複数のグループを選択できます。選択しない場合は未分類になります。"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "여러 그룹을 선택하거나 선택하지 않으면 미분류로 남습니다."
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "可選取多個群組，也可以不選；不選時指令碼會歸為未分組。"
-          }
-        }
-      }
-    },
-    "复制私钥" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Copy private key"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "秘密鍵をコピー"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "개인 키 복사"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "複製私鑰"
-          }
-        }
-      }
-    },
-    "密钥保存失败" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Failed to save key"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "鍵の保存に失敗しました"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "키 저장 실패"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "金鑰儲存失敗"
-          }
-        }
-      }
-    },
-    "密钥信息" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Key details"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "鍵の情報"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "키 정보"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "金鑰資訊"
-          }
-        }
-      }
-    },
-    "密钥删除失败" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Failed to delete key"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "鍵の削除に失敗しました"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "키 삭제 실패"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "金鑰刪除失敗"
-          }
-        }
-      }
-    },
-    "密钥生成失败" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Failed to generate key"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "鍵の生成に失敗しました"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "키 생성 실패"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "金鑰產生失敗"
-          }
-        }
-      }
-    },
-    "导入" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Import"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "インポート"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "가져오기"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "匯入"
-          }
-        }
-      }
-    },
-    "导入密钥" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Import key"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "鍵をインポート"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "키 가져오기"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "匯入金鑰"
-          }
-        }
-      }
-    },
-    "导入私钥" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Import private key"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "秘密鍵をインポート"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "개인 키 가져오기"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "匯入私鑰"
-          }
-        }
-      }
-    },
-    "导出" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Export"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "エクスポート"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "내보내기"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "匯出"
-          }
-        }
-      }
-    },
-    "导出私钥" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Export private key"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "秘密鍵をエクスポート"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "개인 키 내보내기"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "匯出私鑰"
-          }
-        }
-      }
-    },
-    "已选择 %d 台主机" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%d hosts selected"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%d 台のホストを選択中"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%d대의 호스트 선택됨"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "已選取 %d 台主機"
-          }
-        }
-      }
-    },
-    "已选择多台主机，批量执行仅支持静默执行。" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Multiple hosts selected. Batch execution supports silent execution only."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "複数のホストが選択されています。バッチ実行ではサイレント実行のみ対応しています。"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "여러 호스트가 선택되었습니다. 일괄 실행은 자동 실행만 지원합니다."
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "已選取多台主機。批次執行僅支援靜默執行。"
-          }
-        }
-      }
-    },
-    "执行主机" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Execution hosts"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "実行ホスト"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "실행 호스트"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "執行主機"
-          }
-        }
-      }
-    },
-    "执行结果" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Execution result"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "実行結果"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "실행 결과"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "執行結果"
-          }
-        }
-      }
-    },
-    "执行脚本" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Run script"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "スクリプトを実行"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "스크립트 실행"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "執行指令碼"
-          }
-        }
-      }
-    },
-    "批量" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Batch"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "一括"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "일괄"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "批次"
-          }
-        }
-      }
-    },
-    "批量执行结果" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Batch execution results"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "一括実行結果"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "일괄 실행 결과"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "批次執行結果"
-          }
-        }
-      }
-    },
-    "操作失败" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Operation failed"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "操作に失敗しました"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "작업 실패"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "操作失敗"
-          }
-        }
-      }
-    },
-    "支持单行或多行 Shell 脚本；变量用 {{名称}} 或 {{名称:默认值}}，执行前会让你填参。" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Supports one-line or multi-line Shell scripts. Use {{name}} or {{name:default}} for variables; you will be prompted before execution."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "1 行または複数行の Shell スクリプトに対応しています。変数は {{name}} または {{name:default}} と記述し、実行前に入力します。"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "한 줄 또는 여러 줄 셸 스크립트를 지원합니다. 변수는 {{이름}} 또는 {{이름:기본값}} 형식이며 실행 전에 입력합니다."
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "支援單行或多行 Shell 指令碼；變數使用 {{名稱}} 或 {{名稱:預設值}}，執行前會要求填寫。"
-          }
-        }
-      }
-    },
-    "新增密钥" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Add key"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "鍵を追加"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "키 추가"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "新增金鑰"
-          }
-        }
-      }
-    },
-    "新增脚本" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Add script"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "スクリプトを追加"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "스크립트 추가"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "新增指令碼"
-          }
-        }
-      }
-    },
-    "未启用" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Disabled"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "無効"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "사용 안 함"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "未啟用"
-          }
-        }
-      }
-    },
-    "查看私钥" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "View private key"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "秘密鍵を表示"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "개인 키 보기"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "檢視私鑰"
-          }
-        }
-      }
-    },
-    "私钥" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Private key"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "秘密鍵"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "개인 키"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "私鑰"
-          }
-        }
-      }
-    },
-    "私钥不会写入数据库，只保存在设备 Keychain。" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "The private key is never written to the database; it is stored only in the device Keychain."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "秘密鍵はデータベースに保存されず、デバイスの Keychain のみに保存されます。"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "개인 키는 데이터베이스에 저장되지 않고 기기의 Keychain에만 보관됩니다."
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "私鑰不會寫入資料庫，只會儲存在裝置的 Keychain。"
-          }
-        }
-      }
-    },
-    "私钥仅保存在 Keychain；导出前请确认周围环境安全。" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "The private key is stored only in the Keychain. Make sure your surroundings are secure before exporting it."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "秘密鍵は Keychain にのみ保存されます。エクスポートする前に周囲の安全を確認してください。"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "개인 키는 Keychain에만 저장됩니다. 내보내기 전에 주변 환경이 안전한지 확인하세요."
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "私鑰僅儲存在 Keychain；匯出前請確認周遭環境安全。"
-          }
-        }
-      }
-    },
-    "私钥信息" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Private key details"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "秘密鍵の情報"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "개인 키 정보"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "私鑰資訊"
-          }
-        }
-      }
-    },
-    "私钥内容" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Private key content"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "秘密鍵の内容"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "개인 키 내용"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "私鑰內容"
-          }
-        }
-      }
-    },
-    "私钥导入失败" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Failed to import private key"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "秘密鍵のインポートに失敗しました"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "개인 키 가져오기 실패"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "私鑰匯入失敗"
-          }
-        }
-      }
-    },
-    "算法" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Algorithm"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "アルゴリズム"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "알고리즘"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "演算法"
-          }
-        }
-      }
-    },
-    "编辑脚本" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Edit script"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "スクリプトを編集"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "스크립트 편집"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "編輯指令碼"
-          }
-        }
-      }
-    },
-    "脚本" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Script"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "スクリプト"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "스크립트"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "指令碼"
-          }
-        }
-      }
-    },
-    "解释器" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Interpreter"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "インタープリター"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "인터프리터"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "解譯器"
-          }
-        }
-      }
-    },
-    "该脚本被标记为危险" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "This script is marked as dangerous"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "このスクリプトは危険としてマークされています"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "이 스크립트는 위험한 것으로 표시되어 있습니다"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "此指令碼已標記為危險"
-          }
-        }
-      }
-    },
-    "请选择密钥" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Select a key"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "鍵を選択してください"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "키를 선택하세요"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "請選取金鑰"
-          }
-        }
-      }
-    },
-    "运行 %@" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Run %@"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@ を実行"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "%@ 실행"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "執行 %@"
-          }
-        }
-      }
-    },
-    "还没有密钥，请先在密钥管家中生成或导入" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "No keys yet. Generate or import one in Key Manager first."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "鍵がありません。まず鍵の管理で生成またはインポートしてください。"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "키가 없습니다. 먼저 키 관리자에서 생성하거나 가져오세요."
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "尚無金鑰，請先在金鑰管理中產生或匯入。"
-          }
-        }
-      }
-    },
-    "选择主机或分组" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Select hosts or a group"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "ホストまたはグループを選択"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "호스트 또는 그룹 선택"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "選取主機或群組"
-          }
-        }
-      }
-    },
-    "Docker 守护进程未运行。\\n请在服务器上启动：\\nsudo systemctl start docker" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "The Docker daemon is not running.\\nStart it on the server:\\nsudo systemctl start docker" } },
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "Docker デーモンが起動していません。\\nサーバーで起動してください：\\nsudo systemctl start docker" } },
-        "ko" : { "stringUnit" : { "state" : "translated", "value" : "Docker 데몬이 실행되고 있지 않습니다.\\n서버에서 시작하세요:\\nsudo systemctl start docker" } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "Docker 背景程式未執行。\\n請在伺服器上啟動：\\nsudo systemctl start docker" } }
-      }
-    },
-    "保存失败" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Save failed" } },
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "保存に失敗しました" } },
-        "ko" : { "stringUnit" : { "state" : "translated", "value" : "저장하지 못했습니다" } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "儲存失敗" } }
-      }
-    },
-    "请稍后重试" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Please try again later." } },
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "しばらくしてからもう一度お試しください。" } },
-        "ko" : { "stringUnit" : { "state" : "translated", "value" : "잠시 후 다시 시도해 주세요." } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "請稍後重試。" } }
-      }
-    },
-    "保存失败，请重试" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Save failed. Please try again." } },
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "保存に失敗しました。もう一度お試しください。" } },
-        "ko" : { "stringUnit" : { "state" : "translated", "value" : "저장하지 못했습니다. 다시 시도해 주세요." } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "儲存失敗，請重試。" } }
-      }
-    },
-    "主机凭据回滚未完成，请重试" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Host credential rollback did not finish. Please try again." } },
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "ホスト認証情報の復元が完了しませんでした。もう一度お試しください。" } },
-        "ko" : { "stringUnit" : { "state" : "translated", "value" : "호스트 자격 증명 복원이 완료되지 않았습니다. 다시 시도해 주세요." } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "主機憑據回復未完成，請重試。" } }
-      }
-    },
-    "主机删除回滚未完成，请重试" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Host deletion rollback did not finish. Please try again." } },
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "ホスト削除の復元が完了しませんでした。もう一度お試しください。" } },
-        "ko" : { "stringUnit" : { "state" : "translated", "value" : "호스트 삭제 롤백이 완료되지 않았습니다. 다시 시도해 주세요." } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "主機刪除回復未完成，請重試。" } }
-      }
-    },
-    "密钥数据清理未完成，请重试" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Key cleanup did not finish. Please try again." } },
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "鍵のクリーンアップが完了しませんでした。もう一度お試しください。" } },
-        "ko" : { "stringUnit" : { "state" : "translated", "value" : "키 정리가 완료되지 않았습니다. 다시 시도해 주세요." } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "金鑰清理未完成，請重試。" } }
-      }
-    },
-    "删除主机失败：%@" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Failed to delete host: %@" } },
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "ホストを削除できませんでした：%@" } },
-        "ko" : { "stringUnit" : { "state" : "translated", "value" : "호스트를 삭제하지 못했습니다: %@" } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "刪除主機失敗：%@" } }
-      }
-    },
-    "当前用户无权访问 Docker。\\n将用户加入 docker 组：\\nsudo usermod -aG docker $USER\\n然后重新登录后重试。" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "The current user cannot access Docker.\\nAdd the user to the docker group:\\nsudo usermod -aG docker $USER\\nThen sign in again and retry." } },
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "現在のユーザーには Docker へのアクセス権がありません。\\nユーザーを docker グループに追加してください：\\nsudo usermod -aG docker $USER\\nその後、再ログインして再試行してください。" } },
-        "ko" : { "stringUnit" : { "state" : "translated", "value" : "현재 사용자는 Docker에 액세스할 수 없습니다.\\n사용자를 docker 그룹에 추가하세요:\\nsudo usermod -aG docker $USER\\n그런 다음 다시 로그인하고 재시도하세요." } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "目前使用者無法存取 Docker。\\n請將使用者加入 docker 群組：\\nsudo usermod -aG docker $USER\\n然後重新登入並重試。" } }
-      }
-    },
-    "未发现常见日志源。\\n可在终端里直接查看自定义路径。" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "No common log sources found.\\nYou can inspect a custom path in Terminal." } },
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "一般的なログソースが見つかりません。\\nターミナルでカスタムパスを直接確認できます。" } },
-        "ko" : { "stringUnit" : { "state" : "translated", "value" : "일반 로그 소스를 찾을 수 없습니다.\\n터미널에서 사용자 지정 경로를 직접 확인할 수 있습니다." } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "找不到常見的記錄來源。\\n可在終端機直接查看自訂路徑。" } }
-      }
-    },
-    "读取执行历史失败：%@" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Failed to read execution history: %@" } },
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "実行履歴の読み込みに失敗しました：%@" } },
-        "ko" : { "stringUnit" : { "state" : "translated", "value" : "실행 기록을 읽지 못했습니다: %@" } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "讀取執行歷程失敗：%@" } }
-      }
-    },
-    "删除失败：%@" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Delete failed: %@" } },
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "削除に失敗しました：%@" } },
-        "ko" : { "stringUnit" : { "state" : "translated", "value" : "삭제하지 못했습니다: %@" } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "刪除失敗：%@" } }
-      }
-    },
-    "保存主机失败" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Failed to save host" } },
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "ホストを保存できませんでした" } },
-        "ko" : { "stringUnit" : { "state" : "translated", "value" : "호스트를 저장하지 못했습니다" } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "儲存主機失敗" } }
-      }
-    },
-    "密钥读取失败" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Failed to read keys" } },
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "鍵の読み込みに失敗しました" } },
-        "ko" : { "stringUnit" : { "state" : "translated", "value" : "키를 읽지 못했습니다" } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "讀取金鑰失敗" } }
-      }
-    },
-    "密钥元数据保存失败" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Failed to save key metadata" } },
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "鍵メタデータを保存できませんでした" } },
-        "ko" : { "stringUnit" : { "state" : "translated", "value" : "키 메타데이터를 저장하지 못했습니다" } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "儲存金鑰中繼資料失敗" } }
-      }
-    },
-    "密钥恢复失败" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Failed to restore key" } },
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "鍵を復元できませんでした" } },
-        "ko" : { "stringUnit" : { "state" : "translated", "value" : "키를 복원하지 못했습니다" } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "還原金鑰失敗" } }
-      }
-    },
-    "私钥读取失败" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Failed to read private key" } },
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "秘密鍵の読み込みに失敗しました" } },
-        "ko" : { "stringUnit" : { "state" : "translated", "value" : "개인 키를 읽지 못했습니다" } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "讀取私鑰失敗" } }
-      }
-    },
-    "无法保存 Docker 操作审计，未执行远程命令" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Unable to record the Docker audit entry; the remote command was not run" } },
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "Docker 操作の監査記録を保存できないため、リモートコマンドは実行されませんでした" } },
-        "ko" : { "stringUnit" : { "state" : "translated", "value" : "Docker 감사 기록을 저장할 수 없어 원격 명령을 실행하지 않았습니다" } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "無法儲存 Docker 操作稽核記錄，未執行遠端命令" } }
-      }
-    },
-    "无法保存执行记录，未执行脚本" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Unable to record the execution; the script was not run" } },
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "実行記録を保存できないため、スクリプトは実行されませんでした" } },
-        "ko" : { "stringUnit" : { "state" : "translated", "value" : "실행 기록을 저장할 수 없어 스크립트를 실행하지 않았습니다" } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "無法儲存執行記錄，未執行指令碼" } }
-      }
-    },
-    "脚本已执行，但执行记录保存失败" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Script executed, but the execution record could not be saved" } },
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "スクリプトは実行されましたが、実行記録を保存できませんでした" } },
-        "ko" : { "stringUnit" : { "state" : "translated", "value" : "스크립트를 실행했지만 실행 기록을 저장하지 못했습니다" } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "指令碼已執行，但無法儲存執行記錄" } }
-      }
-    },
-    "所选密钥不可用，请重新导入或生成密钥" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "The selected key is unavailable. Re-import or generate it." } },
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "選択した鍵を利用できません。再インポートまたは再生成してください。" } },
-        "ko" : { "stringUnit" : { "state" : "translated", "value" : "선택한 키를 사용할 수 없습니다. 다시 가져오거나 생성하세요." } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "所選金鑰無法使用，請重新匯入或產生。" } }
       }
     }
   },

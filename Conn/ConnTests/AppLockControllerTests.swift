@@ -38,6 +38,14 @@ struct AppLockControllerTests {
         #expect(lock.state == .locked)
     }
 
+    @Test("设备认证不可用 → 保持锁定并暴露状态")
+    func unavailableStaysLockedWithStatus() async {
+        let lock = AppLockController(authenticator: StubAuthenticator(result: .unavailable), isEnabled: true)
+        await lock.unlock()
+        #expect(lock.state == .locked)
+        #expect(lock.unlockError == .unavailable)
+    }
+
     @Test("后台超过宽限回前台 → 重新上锁")
     func relocksAfterGrace() async {
         var clock = Date(timeIntervalSince1970: 1000)

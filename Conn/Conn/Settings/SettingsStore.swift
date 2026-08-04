@@ -1,6 +1,7 @@
 import ConnEditor
 import ConnTerminal
 import ConnUI
+import Foundation
 import Observation
 import SwiftUI
 
@@ -65,6 +66,17 @@ enum RefreshInterval: Int, CaseIterable, Identifiable {
     var id: Int { rawValue }
     var label: String { String(format: L("每 %d 秒"), rawValue) }
     var duration: Duration { .seconds(rawValue) }
+}
+
+/// App Store 公开法律页面。发布前应确保该仓库路径仍公开可访问。
+enum AppLegalLinks {
+    static let privacyPolicyURL: URL? = {
+        guard let url = URL(string: "https://github.com/crazyball666/Conn/blob/main/docs/app-store/PRIVACY_POLICY.md"),
+              url.scheme?.lowercased() == "https",
+              url.host != nil
+        else { return nil }
+        return url
+    }()
 }
 
 /// App 偏好设置（UserDefaults 落盘）。外观即时应用、主题色改单点即整体换肤。

@@ -74,6 +74,19 @@ struct MeView: View {
                 }
             }
 
+            Section(L("法律与隐私")) {
+                if let privacyPolicyURL = AppLegalLinks.privacyPolicyURL {
+                    Link(destination: privacyPolicyURL) {
+                        Label(L("隐私政策"), systemImage: "hand.raised.fill")
+                    }
+                }
+                NavigationLink {
+                    OpenSourceLicensesView()
+                } label: {
+                    Label(L("开源许可"), systemImage: "doc.text.magnifyingglass")
+                }
+            }
+
             Section {
                 LabeledContent {
                     Text(appVersion).foregroundStyle(.secondary)

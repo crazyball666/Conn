@@ -15,7 +15,14 @@ final class AppLockController {
         case authenticating
     }
 
+    /// 最近一次解锁尝试的结果，供锁屏显示可操作的错误状态。
+    enum UnlockError: Equatable {
+        case failed
+        case unavailable
+    }
+
     private(set) var state: State
+    private(set) var unlockError: UnlockError?
     /// UserDefaults 键：应用锁开关（设置页持久化）。
     static let storageKey = "conn.appLock.enabled"
 
@@ -25,6 +32,7 @@ final class AppLockController {
             UserDefaults.standard.set(isEnabled, forKey: Self.storageKey)
             if !isEnabled {
                 state = .unlocked
+                unlockError = nil
             }
         }
     }
@@ -46,6 +54,7 @@ final class AppLockController {
         self.backgroundGrace = backgroundGrace
         self.now = now
         state = isEnabled ? .locked : .unlocked
+        unlockError = nil
     }
 
     var biometryName: String { authenticator.displayName }
@@ -54,8 +63,18 @@ final class AppLockController {
     func unlock() async {
         guard isEnabled, state != .unlocked else { return }
         state = .authenticating
+        unlockError = nil
         let result = await authenticator.authenticate(reason: L("解锁 Conn"))
-        state = (result == .success || result == .unavailable) ? .unlocked : .locked
+        switch result {
+        case .success:
+            state = .unlocked
+        case .failed:
+            state = .locked
+            unlockError = .failed
+        case .unavailable:
+            state = .locked
+            unlockError = .unavailable
+        }
     }
 
     /// 场景进入后台。

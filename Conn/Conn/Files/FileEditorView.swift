@@ -62,16 +62,16 @@ final class FileEditorViewModel {
         isSaving = true
         defer { isSaving = false }
         do {
-            // #4：写临时文件 → 保留原权限 → 原子改名替换。避免「先截断原文件再写」——
-            // 半途掉线会把正在用的配置文件（如 nginx.conf）清空/写坏。临时文件失败时原文件不动。
+            // 完整写入同目录唯一临时文件后再发布；若发布 rename 失败，文件系统层会
+            // 把备份原文件回滚到目标路径，不能先删除正在使用的配置文件。
             let fileSystem = try await filesystem()
-            let tempPath = entry.path + ".conntmp"
-            try await fileSystem.writeAll(Data(content.utf8), to: tempPath)
-            let mode = (try? await fileSystem.stat(entry.path).permissions) ?? entry.permissions
-            if let mode { try? await fileSystem.setPermissions(mode & 0o7777, path: tempPath) }
-            // SFTP rename 不覆盖已存在目标：先删原文件再改名（窗口毫秒级，失败时 .conntmp 仍在可恢复）。
-            try? await fileSystem.remove(entry.path)
-            try await fileSystem.rename(tempPath, to: entry.path)
+            let data = Data(content.utf8)
+            try await fileSystem.writeFileSafely(
+                to: entry.path,
+                fallbackPermissions: entry.permissions
+            ) { temporaryPath in
+                try await fileSystem.writeAll(data, to: temporaryPath)
+            }
             saveMessage = L("已保存")
         } catch {
             cachedFileSystem = nil // 出错丢弃可能已死的通道

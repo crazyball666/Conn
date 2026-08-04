@@ -12,8 +12,8 @@
 | 主类别 | Developer Tools | 后台选择 |
 | 次类别 | Utilities | 后台选择 |
 | 年龄分级 | 4+（按问卷逐项确认） | 后台填写 |
-| 支持 URL | `[填写公开支持页 URL]` | 必填 |
-| 隐私政策 URL | `[填写隐私政策 URL]` | 必填 |
+| 支持 URL | `https://github.com/crazyball666/Conn/issues` | 提交前确认公开可访问 |
+| 隐私政策 URL | `https://github.com/crazyball666/Conn/blob/main/docs/app-store/PRIVACY_POLICY.md` | 提交前确认公开可访问 |
 | 营销 URL | `[可选]` | 可选 |
 | 价格 | `[免费 / 付费]` | 当前工程未发现 StoreKit 购买流程，未实现买断前不要配置内购权益 |
 
@@ -167,7 +167,7 @@ If the host is temporarily unavailable, please contact [review contact email].
 
 ## 6. 还需要用户/后台补充的内容
 
-1. 公开支持页和隐私政策 URL；
+1. 确认支持页和隐私政策 URL 在 App Store Connect 中公开可访问；
 2. App Store Connect 中的 App 名称可用性、价格和销售地区；
 3. 最终商店截图：6.7 英寸 iPhone、6.5 英寸 iPhone，以及需要时的 12.9 英寸 iPad；
 4. 一台临时审核 SSH 主机和审核账号；

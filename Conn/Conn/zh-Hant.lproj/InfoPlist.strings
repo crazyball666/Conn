@@ -1,2 +1,3 @@
 /* 本機網路權限說明。 */
 "NSLocalNetworkUsageDescription" = "Conn 需要存取本機網路，以連線到你新增的 SSH 主機並管理檔案、程序和 Docker。";
+"NSFaceIDUsageDescription" = "啟用應用鎖後，Conn 會使用 Face ID 解鎖應用程式。";
