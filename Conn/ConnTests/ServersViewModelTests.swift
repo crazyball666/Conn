@@ -184,7 +184,7 @@ struct ServersViewModelTests {
         viewModel.addGroup(" 生产 ")
 
         #expect(groupStore.groups.count == 1)
-        #expect(viewModel.errorMessage == L("已存在同名分组"))
+        #expect(viewModel.errorMessage == Conn.L("已存在同名分组"))
     }
 
     @Test("新增分组的排序权重递增")

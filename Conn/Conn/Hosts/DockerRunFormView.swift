@@ -617,8 +617,8 @@ struct DockerRunFormView: View {
         guard !isCommandSaved else { return }
         let command = previewCommand
         let title = state.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            ? "运行 \(state.image.trimmingCharacters(in: .whitespacesAndNewlines))"
-            : "运行 \(state.name.trimmingCharacters(in: .whitespacesAndNewlines))"
+            ? String(format: L("运行 %@"), state.image.trimmingCharacters(in: .whitespacesAndNewlines))
+            : String(format: L("运行 %@"), state.name.trimmingCharacters(in: .whitespacesAndNewlines))
         do {
             try onSave(title, command)
             savedTitle = title

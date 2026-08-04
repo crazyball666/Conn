@@ -166,7 +166,7 @@ public final class TerminalSessionCoordinator {
         connectionIdentityChanged: Bool
     ) async {
         guard connectionIdentityChanged, let previousHost else {
-            refreshHostPresentation(host)
+            refreshHostName(host)
             return
         }
 
@@ -180,8 +180,8 @@ public final class TerminalSessionCoordinator {
         await connectionManager.invalidate(host: host)
     }
 
-    public func refreshHostPresentation(_ host: ConnKit.Host) {
-        store.refreshHostPresentation(hostID: host.id, name: host.name, address: host.displayAddress)
+    public func refreshHostName(_ host: ConnKit.Host) {
+        store.refreshHostName(hostID: host.id, name: host.name)
     }
 
     private func createTab(

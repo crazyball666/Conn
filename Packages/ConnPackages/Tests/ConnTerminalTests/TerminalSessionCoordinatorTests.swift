@@ -291,4 +291,29 @@ struct TerminalSessionCoordinatorTests {
         #expect(coordinator.store.tabs.isEmpty)
         #expect(await manager.activeCount == 0)
     }
+
+    @Test("仅修改主机展示信息时保留会话端点并刷新名称")
+    func savingHostMetadataDoesNotRebuildDisplayAddress() async {
+        let previous = Host(id: "host-1", name: "web", address: "10.0.0.1", username: "root")
+        let updated = Host(id: previous.id, name: "生产 Web", address: previous.address, username: previous.username)
+        let coordinator = TerminalSessionCoordinator(
+            hostRepository: TerminalHostRepository(hosts: [previous]),
+            connectionManager: ConnectionManager(transport: MockSSHTransport())
+        )
+
+        guard case let .success(tab) = await coordinator.launch(
+            TerminalLaunchRequest(host: previous, policy: .createNew, source: .shell)
+        ) else {
+            Issue.record("初始终端会话应成功建立")
+            return
+        }
+        let originalAddress = coordinator.store.currentTab?.hostAddress
+
+        await coordinator.hostDidSave(updated, replacing: previous, connectionIdentityChanged: false)
+
+        #expect(coordinator.store.currentTab?.hostName == "生产 Web")
+        #expect(coordinator.store.currentTab?.hostAddress == originalAddress)
+        #expect(coordinator.store.tabs.count == 1)
+        await coordinator.close(tab.id)
+    }
 }

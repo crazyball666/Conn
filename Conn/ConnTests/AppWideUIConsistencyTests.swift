@@ -63,9 +63,17 @@ struct AppWideUIConsistencyTests {
             "Terminal/TerminalSessionListSheet.swift",
         ] {
             let source = try appSource(path)
-            #expect(source.contains(".frame(maxWidth: .infinity, alignment: .leading)"), path)
-            #expect(source.contains(".contentShape(Rectangle())"), path)
+            #expect(source.contains(".frame(maxWidth: .infinity, alignment: .leading)"))
+            #expect(source.contains(".contentShape(Rectangle())"))
         }
+    }
+
+    @Test("终端选择主机与会话操作列表整行可点击")
+    func terminalHostPickerRowsMakeEntireRowInteractive() throws {
+        let source = try appSource("Terminal/TerminalSessionCenterView.swift")
+        #expect(source.contains(".frame(maxWidth: .infinity, alignment: .leading)"))
+        #expect(source.contains(".contentShape(Rectangle())"))
+        #expect(source.contains("Button { onOpen(tab.id) } label:"))
     }
 
     @Test("终端导航栏主标题显示主机，会话名显示副标题")

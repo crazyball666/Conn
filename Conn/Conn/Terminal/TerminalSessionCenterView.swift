@@ -256,8 +256,14 @@ private struct TerminalHostPickerSheet: View {
                         Image(systemName: "chevron.right").font(.caption).foregroundStyle(.connMuted)
                     }
                     .padding(.vertical, ConnSpacing.xs)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
+                // Expand the control itself as well as its label. SwiftUI's List
+                // otherwise may keep the hit target to the intrinsic text width.
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(Rectangle())
             }
             .scrollContentBackground(.hidden)
             .background(Color.connBg.ignoresSafeArea())
@@ -327,7 +333,18 @@ private struct TerminalHostActionSheet: View {
                 if !tabs.isEmpty {
                     Section(L("已有会话")) {
                         ForEach(tabs) { tab in
-                            Button(tab.displayName) { onOpen(tab.id) }
+                            Button { onOpen(tab.id) } label: {
+                                HStack {
+                                    Text(tab.displayName)
+                                        .foregroundStyle(.connInk)
+                                    Spacer(minLength: 0)
+                                }
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .contentShape(Rectangle())
                         }
                     }
                 }
@@ -336,7 +353,10 @@ private struct TerminalHostActionSheet: View {
                         onOpen(nil)
                     } label: {
                         Label(L("新建终端会话"), systemImage: "plus")
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .contentShape(Rectangle())
                     }
+                    .buttonStyle(.plain)
                 } footer: {
                     Text(L("新建会话会复用已建立的 SSH 连接，但创建独立的 PTY。"))
                 }

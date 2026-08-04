@@ -60,6 +60,7 @@ struct TerminalCommandPickerView: View {
                             .font(.caption)
                             .foregroundStyle(.connMuted)
                     }
+                    .frame(maxWidth: .infinity, alignment: .leading)
                     .contentShape(.rect)
                 }
                 .buttonStyle(.plain)

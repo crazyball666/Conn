@@ -181,10 +181,14 @@ public final class TerminalSessionStore {
         tabs[index].lastUsedAt = .now
     }
 
-    public func refreshHostPresentation(hostID: String, name: String, address: String) {
+    /// 更新会话中心中主机的展示名称。
+    ///
+    /// 连接地址属于会话建立时的连接身份，不应在编辑主机元数据时重新拼接或覆盖。
+    /// 这样可以避免保存主机时触发无意义的地址格式化，也保证已建立会话继续显示
+    /// 当时使用的连接端点。
+    public func refreshHostName(hostID: String, name: String) {
         for index in tabs.indices where tabs[index].hostID == hostID {
             tabs[index].hostName = name
-            tabs[index].hostAddress = address
         }
     }
 
