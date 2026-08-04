@@ -9,36 +9,67 @@ import GRDB
 /// 留存，是防降级攻击的基础（技术方案 §4.1）。
 public struct GRDBHostKeyStore: HostKeyStore {
     private let database: AppDatabase
+    private let state: FailureState
+
+    private final class FailureState: @unchecked Sendable {
+        private let lock = NSLock()
+        private var failedEndpoints: Set<String> = []
+
+        func markFailed(_ endpoint: SSHEndpoint) {
+            _ = lock.withLock { failedEndpoints.insert(endpoint.identifier) }
+        }
+
+        func hasFailed(_ endpoint: SSHEndpoint) -> Bool {
+            lock.withLock { failedEndpoints.contains(endpoint.identifier) }
+        }
+    }
 
     public init(database: AppDatabase) {
         self.database = database
+        state = FailureState()
     }
 
     public func knownFingerprint(for endpoint: SSHEndpoint) -> String? {
-        try? database.writer.read { db in
-            try KnownHostRecord
-                .filter(sql: "host_pattern = ?", arguments: [endpoint.identifier])
-                .fetchOne(db)?
-                .fingerprint
+        do {
+            return try database.writer.read { db in
+                try KnownHostRecord
+                    .filter(sql: "host_pattern = ?", arguments: [endpoint.identifier])
+                    .fetchOne(db)?
+                    .fingerprint
+            }
+        } catch {
+            state.markFailed(endpoint)
+            return nil
         }
     }
 
     public func remember(_ fingerprint: String, for endpoint: SSHEndpoint) {
         // 用 host_pattern 唯一索引做 upsert：同主机改指纹时覆盖那一行。
-        try? database.writer.write { db in
-            try db.execute(
-                sql: """
-                INSERT INTO known_host (uuid, host_pattern, key_type, fingerprint, first_seen)
-                VALUES (?, ?, ?, ?, ?)
-                ON CONFLICT(host_pattern, key_type) DO UPDATE SET fingerprint = excluded.fingerprint
-                """,
-                arguments: [UUID().uuidString, endpoint.identifier, "unknown", fingerprint, Timestamp.now()]
-            )
+        do {
+            try database.writer.write { db in
+                try db.execute(
+                    sql: """
+                    INSERT INTO known_host (uuid, host_pattern, key_type, fingerprint, first_seen)
+                    VALUES (?, ?, ?, ?, ?)
+                    ON CONFLICT(host_pattern, key_type) DO UPDATE SET fingerprint = excluded.fingerprint
+                    """,
+                    arguments: [UUID().uuidString, endpoint.identifier, "unknown", fingerprint, Timestamp.now()]
+                )
+            }
+        } catch {
+            state.markFailed(endpoint)
         }
     }
 
     public func evaluate(_ presented: String, for endpoint: SSHEndpoint) -> HostKeyVerdict {
-        defaultEvaluate(presented, for: endpoint)
+        guard !state.hasFailed(endpoint) else { return .unavailable }
+        let known = knownFingerprint(for: endpoint)
+        guard !state.hasFailed(endpoint) else { return .unavailable }
+        guard let known else {
+            remember(presented, for: endpoint)
+            return state.hasFailed(endpoint) ? .unavailable : .trustedFirstUse
+        }
+        return known == presented ? .matches : .mismatch(known: known)
     }
 }
 

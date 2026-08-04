@@ -70,7 +70,8 @@ struct SchemaV1Tests {
         try db.writer.write { try HostRecord(host).insert($0) }
 
         let loaded = try db.writer.read { try HostRecord.fetchOne($0, key: host.id) }
-        #expect(loaded?.toDomain() == host)
+        let loadedDomain = try loaded?.toDomain()
+        #expect(loadedDomain == host)
     }
 
     @Test("jump_chain 与 tags 以 JSON 存储，可正确往返")

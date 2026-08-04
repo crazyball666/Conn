@@ -40,7 +40,8 @@ struct ServersView: View {
         _viewModel = State(initialValue: ServersViewModel(
             hostStore: dependencies.hostRepository,
             groupStore: dependencies.hostGroupRepository,
-            monitor: dependencies.monitor
+            monitor: dependencies.monitor,
+            credentialStore: dependencies.credentialStore
         ))
     }
 

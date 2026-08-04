@@ -67,6 +67,14 @@ struct HostFormView: View {
                     transport: dependencies.diagnosticsTransport
                 )
             }
+            .alert(L("保存失败"), isPresented: Binding(
+                get: { viewModel.saveError != nil },
+                set: { if !$0 { viewModel.saveError = nil } }
+            )) {
+                Button(L("确定"), role: .cancel) { viewModel.saveError = nil }
+            } message: {
+                Text(viewModel.saveError ?? "")
+            }
         }
     }
 
@@ -229,7 +237,7 @@ struct HostFormView: View {
                 Label(L("连接测试"), systemImage: "bolt.horizontal.circle")
                     .foregroundStyle(viewModel.draft.isValid ? Color.connAccent : .connMuted)
             }
-            .disabled(!viewModel.draft.isValid)
+            .disabled(!viewModel.draft.isValid || !viewModel.canTestConnection)
             .listRowBackground(Color.connSurface)
         }
     }

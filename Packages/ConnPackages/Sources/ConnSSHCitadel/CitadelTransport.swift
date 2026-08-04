@@ -25,14 +25,17 @@ public final class CitadelTransport: SSHTransport {
         hostKeyPolicy: HostKeyPolicy
     ) async throws -> any SSHSession {
         let method = try AuthMapping.method(for: auth, username: username)
-        _ = hostKeyPolicy
 
         do {
             let client = try await SSHClient.connect(
                 host: endpoint.host,
                 port: endpoint.port,
                 authenticationMethod: method,
-                hostKeyValidator: .acceptAnything(),
+                hostKeyValidator: CitadelHostKeyVerifier.validator(
+                    endpoint: endpoint,
+                    hostKeyStore: hostKeyStore,
+                    policy: hostKeyPolicy
+                ),
                 reconnect: .never,
                 algorithms: .all
             )
@@ -47,9 +50,48 @@ public final class CitadelTransport: SSHTransport {
     /// - Parameters:
     ///   - hops: 按顺序的跳板机（不含目标）。
     ///   - target: 最终目标。
-    public func connect(via hops: [JumpHop], to target: JumpHop) async throws -> any SSHSession {
-        let client = try await JumpChain.connect(hops: hops, target: target)
+    public func connect(
+        via hops: [SSHJumpHop],
+        to target: SSHJumpHop,
+        hostKeyPolicy: HostKeyPolicy = .tofu
+    ) async throws -> any SSHSession {
+        let citadelHops = hops.map {
+            JumpHop(endpoint: $0.endpoint, username: $0.username, auth: $0.auth)
+        }
+        let citadelTarget = JumpHop(
+            endpoint: target.endpoint,
+            username: target.username,
+            auth: target.auth
+        )
+        let client = try await JumpChain.connect(
+            hops: citadelHops,
+            target: citadelTarget,
+            hostKeyStore: hostKeyStore,
+            hostKeyPolicy: hostKeyPolicy
+        )
         // 跳板链的会话最终落在 target 上，超时诊断也该指向它而非任何一级跳板。
         return CitadelSession(client: client, endpoint: target.endpoint)
+    }
+
+    /// 兼容 ConnSSHCitadel 内部直接使用的引擎级跳板类型；业务层统一走
+    /// SSHJumpHop，避免上层依赖 Citadel。
+    public func connect(
+        via hops: [JumpHop],
+        to target: JumpHop,
+        hostKeyPolicy: HostKeyPolicy = .tofu
+    ) async throws -> any SSHSession {
+        let genericHops = hops.map {
+            SSHJumpHop(endpoint: $0.endpoint, username: $0.username, auth: $0.auth)
+        }
+        let genericTarget = SSHJumpHop(
+            endpoint: target.endpoint,
+            username: target.username,
+            auth: target.auth
+        )
+        return try await connect(
+            via: genericHops,
+            to: genericTarget,
+            hostKeyPolicy: hostKeyPolicy
+        )
     }
 }

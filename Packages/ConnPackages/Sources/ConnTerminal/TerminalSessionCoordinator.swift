@@ -237,7 +237,7 @@ public final class TerminalSessionCoordinator {
             if let temporarySession {
                 await temporarySession.close()
             }
-            return .failure(TerminalLaunchFailure(message: String(describing: error)))
+            return .failure(TerminalLaunchFailure(message: error.friendlyDiagnosis))
         }
     }
 
@@ -287,9 +287,9 @@ public final class TerminalSessionCoordinator {
                 await temporarySession.close()
             }
             if store.tab(id: tabID)?.generation == oldTab.generation {
-                store.updateStatus(tabID, to: .disconnected(message: String(describing: error)))
+                store.updateStatus(tabID, to: .disconnected(message: error.friendlyDiagnosis))
             }
-            return .failure(TerminalLaunchFailure(message: String(describing: error)))
+            return .failure(TerminalLaunchFailure(message: error.friendlyDiagnosis))
         }
     }
 

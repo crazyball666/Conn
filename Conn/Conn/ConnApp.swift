@@ -288,11 +288,16 @@ struct AppDependencies {
                     try? keyStore.save(key)
                 }
             }
-            let connectionManager = ConnectionManager(transport: transport) { host in
-                if host.authKind == .key,
-                   let keyID = host.keyUUID,
-                   let key = try? keyStore.key(id: keyID),
-                   let material = try? credentialStore.privateKey(forKey: keyID) {
+            let authResolver: AuthResolver = { host in
+                if host.authKind == .key {
+                    guard let keyID = host.keyUUID else {
+                        throw SSHError.missingPrivateKey
+                    }
+                    guard let key = try keyStore.key(id: keyID),
+                          let material = try credentialStore.privateKey(forKey: keyID)
+                    else {
+                        throw SSHError.missingPrivateKey
+                    }
                     switch key.kind {
                     case .ed25519, .ecdsaP256:
                         if material.contains("BEGIN ") {
@@ -301,13 +306,35 @@ struct AppDependencies {
                         if let raw = Data(base64Encoded: material) {
                             return .key(SSHPrivateKeyMaterial(kind: key.kind, raw: raw))
                         }
+                        throw SSHError.missingPrivateKey
                     case .rsa:
                         return .key(SSHPrivateKeyMaterial(kind: .rsa, pem: material))
                     }
                 }
-                let password = (try? credentialStore.password(forHost: host.id)) ?? ""
+                // Keychain 读取失败不能静默降级为空密码；否则真实的存储故障
+                // 会被误报成远端认证失败，并反复重试浪费连接资源。
+                let password = try credentialStore.password(forHost: host.id) ?? ""
                 return .password(password)
             }
+            let connectionManager = ConnectionManager(
+                transport: transport,
+                resolveAuth: authResolver,
+                resolveJumpChain: { host in
+                    var hops: [SSHJumpHop] = []
+                    for (index, jumpID) in host.jumpChain.enumerated() {
+                        guard let jumpHost = try hostStore.host(id: jumpID) else {
+                            throw SSHError.jumpChainFailed(hopIndex: index, hopHost: jumpID)
+                        }
+                        let auth = try await authResolver(jumpHost)
+                        hops.append(SSHJumpHop(
+                            endpoint: SSHEndpoint(host: jumpHost.address, port: jumpHost.port),
+                            username: jumpHost.username,
+                            auth: auth
+                        ))
+                    }
+                    return hops
+                }
+            )
             let terminalSessions = TerminalSessionCoordinator(
                 hostRepository: hostStore,
                 connectionManager: connectionManager

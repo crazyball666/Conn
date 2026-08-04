@@ -2,6 +2,10 @@ import ConnKit
 import Foundation
 import GRDB
 
+public enum HostStoreError: Error, Equatable {
+    case unknownAuthKind(rawValue: String)
+}
+
 /// `host` 表的读写入口。`ConnKit.HostRepository` 的 GRDB 实现。
 public struct HostStore: HostRepository {
     private let database: AppDatabase

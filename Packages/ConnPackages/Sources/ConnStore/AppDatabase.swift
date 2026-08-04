@@ -5,7 +5,10 @@ import GRDB
 ///
 /// 数据全部只存本机（红线：无服务端、零上传）。凭据不在此库中——
 /// 密码与私钥存 Keychain，本库只存引用键。
-public struct AppDatabase {
+/// GRDB 的 `DatabaseWriter`（`DatabaseQueue` / `DatabasePool`）本身提供线程安全的
+/// writer API，但当前 GRDB 7 的协议没有声明 `Sendable`。数据库门面只转发这些
+/// writer 操作，不把 `Database` 实例跨并发域保存，因此这里显式标注其并发边界。
+public struct AppDatabase: @unchecked Sendable {
     public let writer: any DatabaseWriter
 
     /// 用给定 writer 构造并立即执行迁移。

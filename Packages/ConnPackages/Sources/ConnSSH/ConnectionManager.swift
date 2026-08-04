@@ -6,6 +6,7 @@ import Foundation
 /// 用闭包而非协议，让 App 层可直接注入 Keychain 读取逻辑，测试可注入常量。
 /// 凭据只在此刻现取现用，不长驻内存（技术方案 §4.7）。
 public typealias AuthResolver = @Sendable (ConnKit.Host) async throws -> SSHAuth
+public typealias JumpChainResolver = @Sendable (ConnKit.Host) async throws -> [SSHJumpHop]
 
 /// 全局唯一的连接池管理器（技术方案 §4.1）。
 ///
@@ -16,6 +17,33 @@ public typealias AuthResolver = @Sendable (ConnKit.Host) async throws -> SSHAuth
 public actor ConnectionManager {
     private let transport: any SSHTransport
     private let resolveAuth: AuthResolver
+    private let resolveJumpChain: JumpChainResolver
+
+    /// 连接池必须区分配置不同的主机，即使它们暂时指向同一端点。
+    ///
+    /// `address:port` 只能标识网络端点，不能标识登录身份。若两个 Host 共享端点
+    /// 但用户名、密钥或跳板链不同，复用同一 SSH 会话会把错误的认证上下文交给调用方。
+    private struct PoolKey: Hashable {
+        let id: String
+        let address: String
+        let port: Int
+        let username: String
+        let authKind: String
+        let credentialRef: String?
+        let keyUUID: String?
+        let jumpChain: [String]
+
+        init(host: ConnKit.Host) {
+            id = host.id
+            address = host.address
+            port = host.port
+            username = host.username
+            authKind = host.authKind.rawValue
+            credentialRef = host.credentialRef
+            keyUUID = host.keyUUID
+            jumpChain = host.jumpChain
+        }
+    }
 
     /// 每主机的会话，或正在建立中的任务（用于并发去重）。
     private enum Entry {
@@ -23,7 +51,7 @@ public actor ConnectionManager {
         case connected(any SSHSession)
     }
 
-    private var entries: [String: Entry] = [:]
+    private var entries: [PoolKey: Entry] = [:]
 
     /// - Parameters:
     ///   - transport: SSH 引擎（已注入其所需的 `HostKeyStore`）。
@@ -31,10 +59,31 @@ public actor ConnectionManager {
     ///     App 层必须注入真实的 Keychain 读取。
     public init(
         transport: any SSHTransport,
-        resolveAuth: @escaping AuthResolver = { _ in .password("") }
+        resolveAuth: @escaping AuthResolver = { _ in .password("") },
+        resolveJumpChain: @escaping JumpChainResolver = { host in
+            guard host.jumpChain.isEmpty else { throw SSHError.jumpChainUnsupported }
+            return []
+        }
     ) {
         self.transport = transport
         self.resolveAuth = resolveAuth
+        self.resolveJumpChain = resolveJumpChain
+    }
+
+    /// 保留旧的两参数构造入口，避免现有调用方因新增跳板解析器而失去
+    /// 二进制/源码兼容性；默认拒绝未解析的跳板配置。
+    public init(
+        transport: any SSHTransport,
+        resolveAuth: @escaping AuthResolver
+    ) {
+        self.init(
+            transport: transport,
+            resolveAuth: resolveAuth,
+            resolveJumpChain: { host in
+                guard host.jumpChain.isEmpty else { throw SSHError.jumpChainUnsupported }
+                return []
+            }
+        )
     }
 
     /// 取（或建立）到某主机的会话。同一主机复用同一条连接。
@@ -69,15 +118,17 @@ public actor ConnectionManager {
         }
 
         let resolve = resolveAuth
+        let resolveJumps = resolveJumpChain
         let engine = transport
         let task = Task<any SSHSession, Error> {
             let auth = try await resolve(host)
-            return try await engine.connect(
-                SSHEndpoint(host: host.address, port: host.port),
+            let target = SSHJumpHop(
+                endpoint: SSHEndpoint(host: host.address, port: host.port),
                 username: host.username,
-                auth: auth,
-                hostKeyPolicy: .tofu
+                auth: auth
             )
+            let hops = try await resolveJumps(host)
+            return try await engine.connect(via: hops, to: target, hostKeyPolicy: .tofu)
         }
         entries[key] = .connecting(task)
         return try await claim(task, key: key)
@@ -95,7 +146,7 @@ public actor ConnectionManager {
     ///
     /// 判定用 `Task` 的身份相等（`Task` 是 `Hashable`，按实例比较），不用「条目非空」
     /// ——invalidate 后紧接着又发起一次新握手时，条目非空但已经不是自己那条了。
-    private func claim(_ task: Task<any SSHSession, Error>, key: String) async throws -> any SSHSession {
+    private func claim(_ task: Task<any SSHSession, Error>, key: PoolKey) async throws -> any SSHSession {
         let session: any SSHSession
         do {
             session = try await task.value
@@ -205,7 +256,7 @@ public actor ConnectionManager {
         }.count
     }
 
-    private func poolKey(for host: ConnKit.Host) -> String {
-        "\(host.address):\(host.port)"
+    private func poolKey(for host: ConnKit.Host) -> PoolKey {
+        PoolKey(host: host)
     }
 }

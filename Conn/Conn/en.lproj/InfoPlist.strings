@@ -1,0 +1,2 @@
+/* Local network permission prompt. */
+"NSLocalNetworkUsageDescription" = "Conn needs local network access to connect to your SSH hosts and manage files, processes, and Docker.";

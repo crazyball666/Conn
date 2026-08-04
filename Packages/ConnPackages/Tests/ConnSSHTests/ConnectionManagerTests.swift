@@ -28,6 +28,48 @@ struct ConnectionManagerTests {
         #expect(first !== second)
     }
 
+    @Test("同端点但不同主机身份不复用会话")
+    func sameEndpointDifferentHostIdentityDoesNotReuseSession() async throws {
+        let manager = ConnectionManager(transport: MockSSHTransport())
+        let firstHost = host("prod", address: "10.0.0.1")
+        let secondHost = DomainHost(
+            id: "different-id",
+            name: "staging",
+            address: firstHost.address,
+            username: firstHost.username,
+            port: firstHost.port
+        )
+
+        let first = try await manager.session(for: firstHost)
+        let second = try await manager.session(for: secondHost)
+
+        #expect(first !== second)
+    }
+
+    @Test("同端点但不同用户名或凭据不复用会话")
+    func sameEndpointDifferentLoginIdentityDoesNotReuseSession() async throws {
+        let manager = ConnectionManager(transport: MockSSHTransport())
+        let firstHost = DomainHost(
+            id: "same-host-id",
+            name: "prod-root",
+            address: "10.0.0.1",
+            username: "root",
+            credentialRef: "credential-root"
+        )
+        let secondHost = DomainHost(
+            id: firstHost.id,
+            name: "prod-deploy",
+            address: firstHost.address,
+            username: "deploy",
+            credentialRef: "credential-deploy"
+        )
+
+        let first = try await manager.session(for: firstHost)
+        let second = try await manager.session(for: secondHost)
+
+        #expect(first !== second)
+    }
+
     @Test("并发请求同一主机只握手一次（去重）")
     func concurrentRequestsDeduplicate() async throws {
         let counter = ConnectCounter()

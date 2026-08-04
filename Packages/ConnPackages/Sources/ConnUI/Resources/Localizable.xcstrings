@@ -8,7 +8,10 @@
             "state" : "translated",
             "value" : "—"
           }
-        }
+        },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "—" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "—" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "—" } }
       }
     },
     "%d 核" : {
@@ -47,7 +50,10 @@
             "state" : "translated",
             "value" : "%lld%%"
           }
-        }
+        },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "%lld%%" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "%lld%%" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "%lld%%" } }
       }
     },
     "主机" : {

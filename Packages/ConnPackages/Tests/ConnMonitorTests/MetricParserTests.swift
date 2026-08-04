@@ -66,15 +66,15 @@ struct MetricParserTests {
     func gnuMem() {
         let parsed = MetricParser.parse(gnuOutput)
         // used = 4096000 - 2048000 = 2048000 → 50%
-        #expect(parsed.memPercent == 50)
+        #expect(parsed.memPercent == 50.0)
     }
 
     @Test("GNU：负载 / 磁盘 / 网络 / 开机时长")
     func gnuMisc() {
         let parsed = MetricParser.parse(gnuOutput)
         #expect(parsed.load1 == 0.42)
-        #expect(parsed.diskUsedBytes == 18_000_000 * 1024)
-        #expect(parsed.diskTotalBytes == 41_152_000 * 1024)
+        #expect(parsed.diskUsedBytes == Double(18_000_000 * 1024))
+        #expect(parsed.diskTotalBytes == Double(41_152_000 * 1024))
         #expect(parsed.netRxBytes == 5_000_000) // 排除 lo
         #expect(parsed.netTxBytes == 3_000_000)
         #expect(parsed.uptimeSeconds == 123_456.78)
@@ -84,10 +84,10 @@ struct MetricParserTests {
     func gnuExtras() {
         let parsed = MetricParser.parse(gnuOutput)
         #expect(parsed.cpuCores == 1) // 仅 cpu0 一行
-        #expect(parsed.memTotalBytes == 4_096_000 * 1024)
-        #expect(parsed.memUsedBytes == 2_048_000 * 1024) // total - MemAvailable
-        #expect(parsed.swapTotalBytes == 102_400 * 1024)
-        #expect(parsed.swapUsedBytes == 51_200 * 1024)
+        #expect(parsed.memTotalBytes == Double(4_096_000 * 1024))
+        #expect(parsed.memUsedBytes == Double(2_048_000 * 1024)) // total - MemAvailable
+        #expect(parsed.swapTotalBytes == Double(102_400 * 1024))
+        #expect(parsed.swapUsedBytes == Double(51_200 * 1024))
         // sda 整盘扇区读/写 ×512；排除分区 sda1 与 dm-0
         #expect(parsed.ioReadBytes == Int64(200_000 * 512))
         #expect(parsed.ioWriteBytes == Int64(100_000 * 512))
@@ -102,8 +102,8 @@ struct MetricParserTests {
         #expect(parsed.osName == "Ubuntu 24.04.1 LTS")
         #expect(parsed.cpuModel == "Intel(R) Xeon(R) CPU E5-2698 v4 @ 2.20GHz")
         // 空闲 = MemFree；缓冲缓存 = Buffers + Cached
-        #expect(parsed.memFree == 512_000 * 1024)
-        #expect(parsed.memBuffersCache == 900_000 * 1024)
+        #expect(parsed.memFree == Double(512_000 * 1024))
+        #expect(parsed.memBuffersCache == Double(900_000 * 1024))
     }
 
     @Test("CPU 时间片解析 + 各类占比差分")
@@ -213,8 +213,8 @@ struct MetricParserTests {
     @Test("BusyBox：overlay 作根盘（无 /dev/vda 时取 / 挂载点）")
     func busyboxDisk() {
         let parsed = MetricParser.parse(busyboxOutput)
-        #expect(parsed.diskUsedBytes == 5_120_000 * 1024)
-        #expect(parsed.diskTotalBytes == 20_480_000 * 1024)
+        #expect(parsed.diskUsedBytes == Double(5_120_000 * 1024))
+        #expect(parsed.diskTotalBytes == Double(20_480_000 * 1024))
     }
 
     // MARK: - 缺段容忍
@@ -238,6 +238,6 @@ struct MetricParserTests {
         __CONN_END__
         """
         let parsed = MetricParser.parse(output)
-        #expect(parsed.diskTotalBytes == 50_000_000 * 1024) // /data 最大
+        #expect(parsed.diskTotalBytes == Double(50_000_000 * 1024)) // /data 最大
     }
 }

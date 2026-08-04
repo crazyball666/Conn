@@ -2,7 +2,7 @@ import ConnSSH
 import Testing
 @testable import ConnOps
 
-@Suite("DockerService — 卷 / 网络 / 镜像详情取数")
+@Suite("DockerService — 卷 / 网络 / 镜像详情取数", .serialized)
 struct DockerServiceResourceTests {
     private func session(_ responses: [String: String]) async throws -> any SSHSession {
         let mapped = responses.mapValues { MockSSHTransport.CommandResponse(stdout: $0) }

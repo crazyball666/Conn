@@ -4,6 +4,7 @@ import GRDB
 
 public enum SSHKeyStoreError: Error, Equatable {
     case inUse(hostCount: Int)
+    case unknownKind(rawValue: String)
 }
 
 /// `ssh_key` 表的读写入口。
@@ -19,13 +20,13 @@ public struct SSHKeyStore: SSHKeyRepository {
             try SSHKeyRecord
                 .order(sql: "created_at DESC")
                 .fetchAll(db)
-                .map { $0.toDomain() }
+                .map { try $0.toDomain() }
         }
     }
 
     public func key(id: String) throws -> SSHKey? {
         try database.writer.read { db in
-            try SSHKeyRecord.fetchOne(db, key: id).map { $0.toDomain() }
+            try SSHKeyRecord.fetchOne(db, key: id).map { try $0.toDomain() }
         }
     }
 
@@ -85,9 +86,9 @@ struct SSHKeyRecord: Codable, FetchableRecord, PersistableRecord, Sendable {
         syncDirty = key.syncDirty
     }
 
-    func toDomain() -> SSHKey {
+    func toDomain() throws -> SSHKey {
         guard let parsedKind = SSHKey.Kind(rawValue: kind) else {
-            preconditionFailure("未知 SSH 密钥算法：\(kind)")
+            throw SSHKeyStoreError.unknownKind(rawValue: kind)
         }
         return SSHKey(
             id: uuid,

@@ -77,6 +77,12 @@ enum AuthMapping {
             return sshError
         }
 
+        // Citadel host-key validation fails the NIO handshake promise with a wrapper so
+        // the precise domain error survives the engine boundary.
+        if let validationError = error as? CitadelHostKeyValidationError {
+            return validationError.sshError
+        }
+
         let description = String(describing: error).lowercased()
 
         if description.contains("authentication") || description.contains("auth failed") || description.contains("permission denied") {

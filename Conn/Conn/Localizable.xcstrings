@@ -20810,6 +20810,134 @@
           }
         }
       }
+    },
+    "Docker 守护进程未运行。\\n请在服务器上启动：\\nsudo systemctl start docker" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "The Docker daemon is not running.\\nStart it on the server:\\nsudo systemctl start docker" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "Docker デーモンが起動していません。\\nサーバーで起動してください：\\nsudo systemctl start docker" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "Docker 데몬이 실행되고 있지 않습니다.\\n서버에서 시작하세요:\\nsudo systemctl start docker" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "Docker 背景程式未執行。\\n請在伺服器上啟動：\\nsudo systemctl start docker" } }
+      }
+    },
+    "保存失败" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Save failed" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "保存に失敗しました" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "저장하지 못했습니다" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "儲存失敗" } }
+      }
+    },
+    "删除主机失败：%@" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Failed to delete host: %@" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "ホストを削除できませんでした：%@" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "호스트를 삭제하지 못했습니다: %@" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "刪除主機失敗：%@" } }
+      }
+    },
+    "当前用户无权访问 Docker。\\n将用户加入 docker 组：\\nsudo usermod -aG docker $USER\\n然后重新登录后重试。" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "The current user cannot access Docker.\\nAdd the user to the docker group:\\nsudo usermod -aG docker $USER\\nThen sign in again and retry." } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "現在のユーザーには Docker へのアクセス権がありません。\\nユーザーを docker グループに追加してください：\\nsudo usermod -aG docker $USER\\nその後、再ログインして再試行してください。" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "현재 사용자는 Docker에 액세스할 수 없습니다.\\n사용자를 docker 그룹에 추가하세요:\\nsudo usermod -aG docker $USER\\n그런 다음 다시 로그인하고 재시도하세요." } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "目前使用者無法存取 Docker。\\n請將使用者加入 docker 群組：\\nsudo usermod -aG docker $USER\\n然後重新登入並重試。" } }
+      }
+    },
+    "未发现常见日志源。\\n可在终端里直接查看自定义路径。" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "No common log sources found.\\nYou can inspect a custom path in Terminal." } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "一般的なログソースが見つかりません。\\nターミナルでカスタムパスを直接確認できます。" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "일반 로그 소스를 찾을 수 없습니다.\\n터미널에서 사용자 지정 경로를 직접 확인할 수 있습니다." } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "找不到常見的記錄來源。\\n可在終端機直接查看自訂路徑。" } }
+      }
+    },
+    "读取执行历史失败：%@" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Failed to read execution history: %@" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "実行履歴の読み込みに失敗しました：%@" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "실행 기록을 읽지 못했습니다: %@" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "讀取執行歷程失敗：%@" } }
+      }
+    },
+    "删除失败：%@" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Delete failed: %@" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "削除に失敗しました：%@" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "삭제하지 못했습니다: %@" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "刪除失敗：%@" } }
+      }
+    },
+    "保存主机失败" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Failed to save host" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "ホストを保存できませんでした" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "호스트를 저장하지 못했습니다" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "儲存主機失敗" } }
+      }
+    },
+    "密钥读取失败" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Failed to read keys" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "鍵の読み込みに失敗しました" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "키를 읽지 못했습니다" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "讀取金鑰失敗" } }
+      }
+    },
+    "密钥元数据保存失败" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Failed to save key metadata" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "鍵メタデータを保存できませんでした" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "키 메타데이터를 저장하지 못했습니다" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "儲存金鑰中繼資料失敗" } }
+      }
+    },
+    "密钥恢复失败" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Failed to restore key" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "鍵を復元できませんでした" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "키를 복원하지 못했습니다" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "還原金鑰失敗" } }
+      }
+    },
+    "私钥读取失败" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Failed to read private key" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "秘密鍵の読み込みに失敗しました" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "개인 키를 읽지 못했습니다" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "讀取私鑰失敗" } }
+      }
+    },
+    "无法保存 Docker 操作审计，未执行远程命令" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Unable to record the Docker audit entry; the remote command was not run" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "Docker 操作の監査記録を保存できないため、リモートコマンドは実行されませんでした" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "Docker 감사 기록을 저장할 수 없어 원격 명령을 실행하지 않았습니다" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "無法儲存 Docker 操作稽核記錄，未執行遠端命令" } }
+      }
+    },
+    "无法保存执行记录，未执行脚本" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Unable to record the execution; the script was not run" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "実行記録を保存できないため、スクリプトは実行されませんでした" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "실행 기록을 저장할 수 없어 스크립트를 실행하지 않았습니다" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "無法儲存執行記錄，未執行指令碼" } }
+      }
+    },
+    "脚本已执行，但执行记录保存失败" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Script executed, but the execution record could not be saved" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "スクリプトは実行されましたが、実行記録を保存できませんでした" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "스크립트를 실행했지만 실행 기록을 저장하지 못했습니다" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "指令碼已執行，但無法儲存執行記錄" } }
+      }
+    },
+    "所选密钥不可用，请重新导入或生成密钥" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "The selected key is unavailable. Re-import or generate it." } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "選択した鍵を利用できません。再インポートまたは再生成してください。" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "선택한 키를 사용할 수 없습니다. 다시 가져오거나 생성하세요." } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "所選金鑰無法使用，請重新匯入或產生。" } }
+      }
     }
   },
   "version" : "1.0"

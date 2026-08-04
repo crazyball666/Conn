@@ -1,4 +1,5 @@
 import ConnKit
+import ConnCrypto
 import ConnMonitor
 import ConnSSH
 import ConnUI
@@ -25,6 +26,7 @@ final class ServersViewModel {
 
     private let hostStore: any HostRepository
     private let groupStore: any HostGroupRepository
+    private let credentialStore: (any CredentialStore)?
     /// 采集调度。View 在 appear/disappear 控制生命周期。
     let monitor: MonitorScheduler
 
@@ -36,11 +38,13 @@ final class ServersViewModel {
     init(
         hostStore: any HostRepository,
         groupStore: any HostGroupRepository,
-        monitor: MonitorScheduler
+        monitor: MonitorScheduler,
+        credentialStore: (any CredentialStore)? = nil
     ) {
         self.hostStore = hostStore
         self.groupStore = groupStore
         self.monitor = monitor
+        self.credentialStore = credentialStore
     }
 
     // MARK: - 生命周期
@@ -92,8 +96,31 @@ final class ServersViewModel {
     /// 真删除，不可恢复。只影响本地记录，不影响服务器本身。
     func delete(_ host: Host) {
         errorMessage = nil
-        try? hostStore.delete(id: host.id)
-        load()
+        do {
+            // 先确认凭据可读，再删除 SQLite 行；否则 Keychain 读取故障时继续删除
+            // 会让补偿路径失去原密码，形成不可恢复的半删除状态。
+            let previousPassword: String?
+            if let credentialStore {
+                previousPassword = try credentialStore.password(forHost: host.id)
+            } else {
+                previousPassword = nil
+            }
+            try hostStore.delete(id: host.id)
+            do {
+                try credentialStore?.deleteAll(forHost: host.id)
+            } catch {
+                // Keychain 清理失败时恢复 SQLite 行，避免出现“列表没了、
+                // 凭据还在”的半删除状态；用户可稍后重试并保留可诊断信息。
+                try? hostStore.save(host)
+                if let previousPassword {
+                    try? credentialStore?.setPassword(previousPassword, forHost: host.id)
+                }
+                throw error
+            }
+            load()
+        } catch {
+            errorMessage = String(format: L("删除主机失败：%@"), error.friendlyDiagnosis)
+        }
     }
 
     // MARK: - 派生

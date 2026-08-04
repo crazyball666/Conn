@@ -101,4 +101,38 @@ struct HostStoreTests {
         }
         #expect(try hosts.host(id: host.id)?.keyUUID == key.id)
     }
+
+    @Test("未知认证方式返回可处理错误，不应直接崩溃")
+    func unknownAuthKindIsReported() throws {
+        let database = try AppDatabase.inMemory()
+        try database.writer.write { db in
+            try db.execute(sql: """
+                INSERT INTO host (
+                    uuid, name, address, port, username, auth_kind, credential_ref,
+                    key_uuid, jump_chain, tags, icon, color, note, expire_at,
+                    sort_order, status, created_at, updated_at, sync_dirty
+                ) VALUES (?, ?, ?, ?, ?, ?, NULL, NULL, '[]', '[]', NULL, NULL, NULL, NULL, 0, ?, 1, 1, 0)
+                """, arguments: ["bad-host", "Bad", "10.0.0.1", 22, "root", "future-auth", "unknown"])
+        }
+
+        #expect(throws: HostStoreError.unknownAuthKind(rawValue: "future-auth")) {
+            try HostStore(database: database).allHosts()
+        }
+    }
+
+    @Test("未知密钥算法返回可处理错误，不应直接崩溃")
+    func unknownKeyKindIsReported() throws {
+        let database = try AppDatabase.inMemory()
+        try database.writer.write { db in
+            try db.execute(sql: """
+                INSERT INTO ssh_key (
+                    uuid, name, kind, public_key, private_ref, created_at, updated_at, sync_dirty
+                ) VALUES (?, ?, ?, ?, NULL, 1, 1, 0)
+                """, arguments: ["bad-key", "Bad", "future-algorithm", "ssh-ed25519 AAAA"])
+        }
+
+        #expect(throws: SSHKeyStoreError.unknownKind(rawValue: "future-algorithm")) {
+            try SSHKeyStore(database: database).allKeys()
+        }
+    }
 }

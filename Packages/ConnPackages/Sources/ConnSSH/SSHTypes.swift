@@ -15,6 +15,19 @@ public struct SSHEndpoint: Sendable, Equatable, Hashable {
     public var identifier: String { "\(host):\(port)" }
 }
 
+/// 一跳跳板机的连接上下文。放在 ConnSSH 层，避免连接池依赖具体 SSH 引擎。
+public struct SSHJumpHop: Sendable {
+    public let endpoint: SSHEndpoint
+    public let username: String
+    public let auth: SSHAuth
+
+    public init(endpoint: SSHEndpoint, username: String, auth: SSHAuth) {
+        self.endpoint = endpoint
+        self.username = username
+        self.auth = auth
+    }
+}
+
 /// 私钥材料。
 ///
 /// **只在建立连接的瞬间存在于内存**，由上层从 Keychain 取出后
@@ -140,7 +153,11 @@ public enum SSHError: Error, Sendable, Equatable {
     /// **超时不会终止远端命令**，它只是停止本地等待（见 `CitadelSession.exec` 的说明）。
     case commandTimeout(endpoint: SSHEndpoint, seconds: Int)
     case authFailed(reason: AuthFailureReason)
+    case missingPrivateKey
     case hostKeyMismatch(expected: String, actual: String)
+    case hostKeyStoreUnavailable
+    /// 配置了跳板链，但当前传输层没有提供跳板实现。
+    case jumpChainUnsupported
     case unsupportedByEngine(SSHAuth.Feature)
     /// 跳板链在第 `hopIndex`（从 0 起）级失败，该级主机名为 `hopHost`。
     case jumpChainFailed(hopIndex: Int, hopHost: String)
@@ -179,9 +196,15 @@ public enum SSHError: Error, Sendable, Equatable {
             case .noAcceptedMethods:
                 L("认证失败：服务器不接受所提供的任何认证方式。\n下一步：确认服务器允许密钥或密码登录。")
             }
+        case .missingPrivateKey:
+            L("密钥认证不可用：未找到对应的私钥材料。\n下一步：在密钥管家中重新导入或生成密钥，然后重新选择该密钥。")
         case let .hostKeyMismatch(expected, actual):
             String(format: L("主机指纹已变更，连接已阻断。\n原因：服务器密钥与首次记录不符（可能是重装系统，也可能是中间人攻击）。\n记录：%@\n当前：%@\n下一步：确认变更来源后再手动信任。"),
                    expected, actual)
+        case .hostKeyStoreUnavailable:
+            L("无法读取服务器指纹，连接已阻断。\n下一步：检查本地数据库状态后重试。")
+        case .jumpChainUnsupported:
+            L("当前连接引擎不支持跳板机链路。\n下一步：请更新连接引擎，或移除该主机的跳板机配置。")
         case let .unsupportedByEngine(feature):
             switch feature {
             case .keyboardInteractive:

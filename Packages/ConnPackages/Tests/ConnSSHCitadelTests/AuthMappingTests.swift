@@ -28,4 +28,22 @@ struct AuthMappingTests {
         let auth = SSHAuth.key(SSHPrivateKeyMaterial(kind: .ecdsaP256, pem: pem))
         _ = try AuthMapping.method(for: auth, username: "deploy")
     }
+
+    @Test("主机密钥校验错误映射为精确的指纹变更错误")
+    func hostKeyValidationErrorPreservesMismatch() {
+        let endpoint = SSHEndpoint(host: "example.test")
+        let expected = "SHA256:known"
+        let actual = "SHA256:presented"
+        let error = CitadelHostKeyValidationError(
+            sshError: .hostKeyMismatch(expected: expected, actual: actual)
+        )
+
+        #expect(
+            AuthMapping.mapConnectError(
+                error,
+                endpoint: endpoint,
+                auth: .password("ignored")
+            ) == .hostKeyMismatch(expected: expected, actual: actual)
+        )
+    }
 }

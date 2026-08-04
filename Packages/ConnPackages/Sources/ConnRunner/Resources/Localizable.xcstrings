@@ -811,6 +811,22 @@
           }
         }
       }
+    },
+    "无法保存执行记录，未执行脚本" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Unable to record the execution; the script was not run" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "実行記録を保存できないため、スクリプトは実行されませんでした" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "실행 기록을 저장할 수 없어 스크립트를 실행하지 않았습니다" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "無法儲存執行記錄，未執行指令碼" } }
+      }
+    },
+    "脚本已执行，但执行记录保存失败" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Script executed, but the execution record could not be saved" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "スクリプトは実行されましたが、実行記録を保存できませんでした" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "스크립트를 실행했지만 실행 기록을 저장하지 못했습니다" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "指令碼已執行，但無法儲存執行記錄" } }
+      }
     }
   },
   "version" : "1.0"

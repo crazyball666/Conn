@@ -79,13 +79,13 @@ final class ConnectionTester {
         case .connectionRefused, .timeout:
             passUpTo(0)
             fail(at: 1, detail: error.diagnosis)
-        case .authFailed, .unsupportedByEngine:
+        case .authFailed, .missingPrivateKey, .unsupportedByEngine:
             passUpTo(1)
             fail(at: 2, detail: error.diagnosis)
-        case .hostKeyMismatch:
+        case .hostKeyMismatch, .hostKeyStoreUnavailable:
             passUpTo(2)
             fail(at: 3, detail: error.diagnosis)
-        case .jumpChainFailed, .channelClosed:
+        case .jumpChainFailed, .jumpChainUnsupported, .channelClosed:
             passUpTo(0)
             fail(at: 1, detail: error.diagnosis)
         case .sftpError, .commandTimeout:

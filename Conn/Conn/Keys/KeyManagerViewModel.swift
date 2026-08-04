@@ -1,5 +1,6 @@
 import ConnCrypto
 import ConnKit
+import ConnSSH
 import Foundation
 import Observation
 
@@ -32,21 +33,54 @@ final class KeyManagerViewModel {
     }
 
     func load() {
-        let databaseKeys = (try? keyStore.allKeys()) ?? []
-        let keychainKeys = (try? credentialStore.allKeyMetadata()) ?? []
+        lastError = nil
+        let databaseKeys: [SSHKey]
+        let keychainKeys: [SSHKey]
+        do {
+            databaseKeys = try keyStore.allKeys()
+            keychainKeys = try credentialStore.allKeyMetadata()
+        } catch {
+            keys = []
+            lastError = "\(L("密钥读取失败"))：\(error.friendlyDiagnosis)"
+            return
+        }
         let databaseIDs = Set(databaseKeys.map(\.id))
         let keychainByID = Dictionary(uniqueKeysWithValues: keychainKeys.map { ($0.id, $0) })
 
-        // 升级前已有的数据库密钥，首次加载时补写元数据索引。
-        for key in databaseKeys where keychainByID[key.id] == nil {
-            try? credentialStore.setKeyMetadata(key, forKey: key.id)
+        // SQLite 是当前安装的权威索引；Keychain 里的元数据既用于卸载重装恢复，
+        // 也必须在编辑失败/旧版本残留时被修回一致状态。
+        for key in databaseKeys {
+            guard let keychainKey = keychainByID[key.id] else {
+                do {
+                    try credentialStore.setKeyMetadata(key, forKey: key.id)
+                } catch {
+                    lastError = "\(L("密钥元数据保存失败"))：\(error.friendlyDiagnosis)"
+                }
+                continue
+            }
+            guard keychainKey != key else { continue }
+            do {
+                try credentialStore.setKeyMetadata(key, forKey: key.id)
+            } catch {
+                lastError = "\(L("密钥元数据保存失败"))：\(error.friendlyDiagnosis)"
+            }
         }
 
         // 卸载重装后 SQLite 元数据不存在：从 Keychain 恢复回数据库，
         // 同时保留恢复结果，即使本次数据库写入暂时失败，页面仍可展示密钥。
-        let recoveredKeys = keychainKeys.filter { !databaseIDs.contains($0.id) }
-        for key in recoveredKeys {
-            try? keyStore.save(key)
+        let recoveredKeys = keychainKeys.compactMap { key -> SSHKey? in
+            guard !databaseIDs.contains(key.id) else { return nil }
+            do {
+                guard try credentialStore.privateKey(forKey: key.id) != nil else {
+                    lastError = "\(L("密钥恢复失败"))：\(L("所选密钥不可用，请重新导入或生成密钥"))"
+                    return nil
+                }
+                try keyStore.save(key)
+                return key
+            } catch {
+                lastError = "\(L("密钥恢复失败"))：\(error.friendlyDiagnosis)"
+                return nil
+            }
         }
         keys = (databaseKeys + recoveredKeys).sorted {
             if $0.createdAt != $1.createdAt { return $0.createdAt > $1.createdAt }
@@ -74,7 +108,7 @@ final class KeyManagerViewModel {
                 generated = SSHKeyGenerator.generateECDSAP256(comment: comment)
             }
         } catch {
-            lastError = "\(L("密钥生成失败"))：\(error)"
+            lastError = "\(L("密钥生成失败"))：\(error.friendlyDiagnosis)"
             return nil
         }
         let keyID = UUID().uuidString
@@ -93,7 +127,10 @@ final class KeyManagerViewModel {
             load()
             return key
         } catch {
-            lastError = "\(L("密钥保存失败"))：\(error)"
+            try? credentialStore.setPrivateKey(nil, forKey: keyID)
+            try? credentialStore.setKeyMetadata(nil, forKey: keyID)
+            try? keyStore.delete(id: keyID)
+            lastError = "\(L("密钥保存失败"))：\(error.friendlyDiagnosis)"
             return nil
         }
     }
@@ -106,6 +143,7 @@ final class KeyManagerViewModel {
             return nil
         }
         let comment = "conn@\(name.isEmpty ? "imported" : name)"
+        var createdKeyID: String?
         do {
             let generated: GeneratedKey
             switch kind {
@@ -127,6 +165,7 @@ final class KeyManagerViewModel {
                 }
             }
             let keyID = UUID().uuidString
+            createdKeyID = keyID
             let key = SSHKey(
                 id: keyID,
                 name: name.isEmpty ? L("导入密钥") : name,
@@ -143,18 +182,41 @@ final class KeyManagerViewModel {
             lastError = L("不支持加密私钥（密码短语），请导入未加密私钥")
             return nil
         } catch {
-            lastError = "\(L("私钥导入失败"))：\(error)"
+            if let keyID = createdKeyID {
+                try? credentialStore.setPrivateKey(nil, forKey: keyID)
+                try? credentialStore.setKeyMetadata(nil, forKey: keyID)
+                try? keyStore.delete(id: keyID)
+            }
+            lastError = "\(L("私钥导入失败"))：\(error.friendlyDiagnosis)"
             return nil
         }
     }
 
     func delete(_ key: SSHKey) {
+        var privateMaterial: String?
+        var privateMaterialRemoved = false
+        var metadataRemoved = false
         do {
-            try keyStore.delete(id: key.id)
+            privateMaterial = try credentialStore.privateKey(forKey: key.id)
             try credentialStore.setPrivateKey(nil, forKey: key.id)
+            privateMaterialRemoved = true
             try credentialStore.setKeyMetadata(nil, forKey: key.id)
+            metadataRemoved = true
+            do {
+                try keyStore.delete(id: key.id)
+            } catch {
+                throw error
+            }
         } catch {
-            lastError = "\(L("密钥删除失败"))：\(error)"
+            // 任一步失败都补偿已完成的 Keychain 删除，避免 SQLite 与 Keychain
+            // 出现“已删一半”的状态；补偿失败仍保留原始错误供用户重试。
+            if metadataRemoved {
+                try? credentialStore.setKeyMetadata(key, forKey: key.id)
+            }
+            if privateMaterialRemoved, let privateMaterial {
+                try? credentialStore.setPrivateKey(privateMaterial, forKey: key.id)
+            }
+            lastError = "\(L("密钥删除失败"))：\(error.friendlyDiagnosis)"
         }
         load()
     }
@@ -169,12 +231,19 @@ final class KeyManagerViewModel {
         var updated = key
         updated.name = trimmed
         do {
-            try keyStore.save(updated)
             try credentialStore.setKeyMetadata(updated, forKey: key.id)
+            do {
+                try keyStore.save(updated)
+            } catch {
+                // Keychain 已先更新，数据库失败时恢复旧元数据，保证下次
+                // 启动不会从 Keychain 读到与 SQLite 不同的名称。
+                try? credentialStore.setKeyMetadata(key, forKey: key.id)
+                throw error
+            }
             load()
             return true
         } catch {
-            lastError = "\(L("密钥保存失败"))：\(error)"
+            lastError = "\(L("密钥保存失败"))：\(error.friendlyDiagnosis)"
             return false
         }
     }
@@ -186,6 +255,11 @@ final class KeyManagerViewModel {
 
     /// 仅在详情页用户明确点击后读取私钥，用于复制或导出。
     func privateMaterial(for key: SSHKey) -> String? {
-        try? credentialStore.privateKey(forKey: key.id)
+        do {
+            return try credentialStore.privateKey(forKey: key.id)
+        } catch {
+            lastError = "\(L("私钥读取失败"))：\(error.friendlyDiagnosis)"
+            return nil
+        }
     }
 }

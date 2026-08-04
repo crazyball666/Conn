@@ -86,8 +86,12 @@ final class SnippetsViewModel {
 
     func delete(_ snippet: Snippet) {
         errorMessage = nil
-        try? store.delete(id: snippet.id)
-        load()
+        do {
+            try store.delete(id: snippet.id)
+            load()
+        } catch {
+            errorMessage = String(format: L("删除失败：%@"), error.friendlyDiagnosis)
+        }
     }
 
     // MARK: - 分组

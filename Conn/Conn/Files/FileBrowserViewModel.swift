@@ -181,11 +181,12 @@ final class FileBrowserViewModel {
     func delete(_ entry: FileEntry) async {
         pendingDeletion = nil
         if entry.isDirectory {
+            let fallbackFailureMessage = L("删除失败")
             await run(L("删除")) {
                 let session = try await self.connectionManager.session(for: self.host)
                 let result = try await session.exec("rm -rf \(Self.shellQuote(entry.path))", timeout: .seconds(30))
                 guard result.isSuccess else {
-                    throw FileOpError(result.stderrText.isEmpty ? L("删除失败") : result.stderrText)
+                    throw FileOpError(result.stderrText.isEmpty ? fallbackFailureMessage : result.stderrText)
                 }
             }
         } else {

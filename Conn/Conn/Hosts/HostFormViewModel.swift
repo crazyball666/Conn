@@ -18,6 +18,7 @@ final class HostFormViewModel {
     var draft: HostDraft
     var password = ""
     private(set) var fieldErrors: [HostDraft.Field: String] = [:]
+    var saveError: String?
 
     let editingHostID: String?
     private let hostStore: any HostRepository
@@ -31,6 +32,13 @@ final class HostFormViewModel {
 
     var isEditing: Bool { editingHostID != nil }
     var title: String { isEditing ? L("编辑主机") : L("添加主机") }
+
+    /// 连接测试和保存都必须使用真实存在的私钥材料，不能把缺失密钥
+    /// 静默降级成空密码，否则用户会得到误导性的“密码错误”。
+    var canTestConnection: Bool {
+        guard draft.authKind == .key else { return true }
+        return hasPrivateKeyMaterial
+    }
 
     init(
         draft: HostDraft,
@@ -75,8 +83,13 @@ final class HostFormViewModel {
     /// 校验并保存。成功时返回主机及连接身份是否变化，失败返回 nil 并填充 fieldErrors。
     @discardableResult
     func save() -> HostFormSaveResult? {
+        saveError = nil
         fieldErrors = draft.validate()
         guard fieldErrors.isEmpty else { return nil }
+        if draft.authKind == .key, !hasPrivateKeyMaterial {
+            fieldErrors[.key] = L("所选密钥不可用，请重新导入或生成密钥")
+            return nil
+        }
 
         // 丢掉解析不到现存分组的悬空 id（分组在编辑期间被删是良性竞态）。
         // store 层也会过滤，这里是就近防御。
@@ -85,10 +98,23 @@ final class HostFormViewModel {
         }
         let host = draft.toHost(existingID: editingHostID)
         do {
-            try hostStore.save(host)
             // 凭据存 Keychain（红线：不入 SQLite）
             if draft.authKind == .password {
                 try credentialStore.setPassword(password.isEmpty ? nil : password, forHost: host.id)
+            } else {
+                // 切换到密钥认证后，旧密码不再是有效凭据，必须同步清理。
+                try credentialStore.deleteAll(forHost: host.id)
+            }
+            do {
+                try hostStore.save(host)
+            } catch {
+                // 数据库写入失败时恢复原密码，避免 Keychain 与 SQLite 分叉。
+                if previousHost?.authKind == .password {
+                    try? credentialStore.setPassword(previousPassword.isEmpty ? nil : previousPassword, forHost: host.id)
+                } else {
+                    try? credentialStore.deleteAll(forHost: host.id)
+                }
+                throw error
             }
             return HostFormSaveResult(
                 host: host,
@@ -96,6 +122,7 @@ final class HostFormViewModel {
                 connectionIdentityChanged: didChangeConnectionIdentity(to: host)
             )
         } catch {
+            saveError = "\(L("保存主机失败"))：\(error.friendlyDiagnosis)"
             return nil
         }
     }
@@ -120,6 +147,19 @@ final class HostFormViewModel {
             case .rsa:
                 return .key(SSHPrivateKeyMaterial(kind: .rsa, pem: material))
             }
+        }
+    }
+
+    private var hasPrivateKeyMaterial: Bool {
+        guard let keyID = draft.keyUUID else { return false }
+        do {
+            guard try keyStore.key(id: keyID) != nil,
+                  let material = try credentialStore.privateKey(forKey: keyID),
+                  !material.isEmpty
+            else { return false }
+            return true
+        } catch {
+            return false
         }
     }
 

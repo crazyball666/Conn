@@ -1,5 +1,6 @@
 import ConnKit
 import ConnUI
+import ConnSSH
 import SwiftUI
 
 /// 执行历史（审计，Phase 8/9）：容器操作与片段执行的本地记录。
@@ -7,6 +8,7 @@ struct RunHistoryView: View {
     private let dependencies: AppDependencies
     @State private var entries: [RunHistoryEntry] = []
     @State private var hostNames: [String: String] = [:]
+    @Environment(\.connToastCenter) private var toastCenter
 
     init(dependencies: AppDependencies) {
         self.dependencies = dependencies
@@ -68,9 +70,15 @@ struct RunHistoryView: View {
     }
 
     private func load() {
-        entries = (try? dependencies.runHistory.recent(hostUUID: nil, limit: 100)) ?? []
-        let hosts = (try? dependencies.hostRepository.allHosts()) ?? []
-        hostNames = Dictionary(uniqueKeysWithValues: hosts.map { ($0.id, $0.name) })
+        do {
+            entries = try dependencies.runHistory.recent(hostUUID: nil, limit: 100)
+            let hosts = try dependencies.hostRepository.allHosts()
+            hostNames = Dictionary(uniqueKeysWithValues: hosts.map { ($0.id, $0.name) })
+        } catch {
+            entries = []
+            hostNames = [:]
+            toastCenter.show(String(format: L("读取执行历史失败：%@"), error.friendlyDiagnosis))
+        }
     }
 
     private func timeText(_ millis: Int64) -> String {

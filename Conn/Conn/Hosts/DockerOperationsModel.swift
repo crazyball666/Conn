@@ -352,13 +352,22 @@ final class DockerOperationsModel {
     ) async -> DockerOperationOutcome {
         if let rejection = begin(operation) { return rejection }
         defer { activeOperation = nil }
+        guard let pendingEntry = audit.recordPending(for: operation) else {
+            let message = L("无法保存 Docker 操作审计，未执行远程命令")
+            context.report(message)
+            return .unknown(remoteMessage: message)
+        }
         do {
             let session = try await context.session()
             let result = try await remote(session, context.sudo)
             let state = DockerOperationResultState.known(exitCode: result.exitCode)
             let outcome = DockerOperationOutcome(result: result)
-            let auditSaved = audit.record(
-                DockerAuditSummary(operation: operation.auditOperation, state: state)
+            let auditSaved = audit.update(
+                DockerAuditSummary(
+                    operation: operation.auditOperation,
+                    state: state,
+                    ranAt: pendingEntry.ranAt
+                ).historyEntry(hostUUID: audit.hostUUID, id: pendingEntry.id)
             )
             context.report(DockerOperationFeedback.message(
                 for: outcome, label: label, auditSaved: auditSaved
@@ -367,8 +376,12 @@ final class DockerOperationsModel {
             await context.refresh(operation.refreshScope)
             return outcome
         } catch {
-            let auditSaved = audit.record(
-                DockerAuditSummary(operation: operation.auditOperation, state: .unknown)
+            let auditSaved = audit.update(
+                DockerAuditSummary(
+                    operation: operation.auditOperation,
+                    state: .unknown,
+                    ranAt: pendingEntry.ranAt
+                ).historyEntry(hostUUID: audit.hostUUID, id: pendingEntry.id)
             )
             // 连接中断、超时或 stream 没有终态时，远端实际状态无法推断，不能刷新覆盖当前视图。
             let outcome = DockerOperationOutcome.unknown(remoteMessage: error.friendlyDiagnosis)

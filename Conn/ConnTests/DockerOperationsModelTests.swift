@@ -91,6 +91,24 @@ struct DockerOperationsModelTests {
         #expect(reports.last?.contains("private stdout") == false)
     }
 
+    @Test("普通 Docker 写操作先记录 pending，再用同一条记录写入终态")
+    func writeOperationUsesPendingAuditLifecycle() async {
+        let session = OperationSession(result: ExecResult(exitCode: 0, stdout: Data(), stderr: Data()))
+        let history = RecordingHistory()
+        let operations = DockerOperationsModel(
+            context: makeContext(session: { session }),
+            hostUUID: "host-1",
+            runHistory: history
+        )
+
+        await operations.createNetwork(DockerNetworkDraft(name: "app-net"))
+
+        #expect(history.entries.count == 1)
+        #expect(history.recordedIDs.count == 1)
+        #expect(history.updatedIDs == history.recordedIDs)
+        #expect(history.entries.first?.state == .known)
+    }
+
     @Test("没有最终结果的写操作记录未知且不自动刷新")
     func unknownWriteAuditsWithoutRefresh() async {
         let session = OperationSession(throwsUnknown: true)

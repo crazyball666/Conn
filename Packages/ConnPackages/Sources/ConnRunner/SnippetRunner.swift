@@ -2,6 +2,20 @@ import ConnKit
 import ConnSSH
 import Foundation
 
+public enum SnippetRunnerError: LocalizedError, Equatable {
+    case auditUnavailable
+    case auditUpdateFailed
+
+    public var errorDescription: String? {
+        switch self {
+        case .auditUnavailable:
+            L("无法保存执行记录，未执行脚本")
+        case .auditUpdateFailed:
+            L("脚本已执行，但执行记录保存失败")
+        }
+    }
+}
+
 /// 一次脚本批量执行的单主机结果。
 public struct ScriptBatchResult: Identifiable, Sendable, Equatable {
     public let hostID: String
@@ -55,27 +69,60 @@ public struct SnippetRunner {
         interpreter: ShellInterpreter = .sh,
         on host: ConnKit.Host
     ) async throws -> RunOutcome {
-        let session = try await connectionManager.session(for: host)
-        let result = try await session.execScript(
-            script,
-            interpreter: interpreter,
-            timeout: Self.silentRunTimeout
-        )
-        let outcome = RunOutcome(
-            script: script,
-            interpreter: interpreter,
-            exitCode: result.exitCode,
-            stdout: result.stdoutText,
-            stderr: result.stderrText
-        )
-        try? runHistory.record(RunHistoryEntry(
+        let pending = RunHistoryEntry(
             hostUUID: host.id,
             script: script,
             interpreter: interpreter,
-            exitCode: result.exitCode,
-            outputHead: String(result.stdoutText.prefix(500))
-        ))
-        return outcome
+            state: .pending
+        )
+        do {
+            try runHistory.record(pending)
+        } catch {
+            throw SnippetRunnerError.auditUnavailable
+        }
+
+        do {
+            let session = try await connectionManager.session(for: host)
+            let result = try await session.execScript(
+                script,
+                interpreter: interpreter,
+                timeout: Self.silentRunTimeout
+            )
+            let outcome = RunOutcome(
+                script: script,
+                interpreter: interpreter,
+                exitCode: result.exitCode,
+                stdout: result.stdoutText,
+                stderr: result.stderrText
+            )
+            let final = RunHistoryEntry(
+                id: pending.id,
+                hostUUID: pending.hostUUID,
+                script: pending.script,
+                interpreter: pending.interpreter,
+                exitCode: result.exitCode,
+                outputHead: String(result.stdoutText.prefix(500)),
+                state: .known,
+                ranAt: pending.ranAt
+            )
+            do {
+                try runHistory.update(final)
+            } catch {
+                throw SnippetRunnerError.auditUpdateFailed
+            }
+            return outcome
+        } catch {
+            let unknown = RunHistoryEntry(
+                id: pending.id,
+                hostUUID: pending.hostUUID,
+                script: pending.script,
+                interpreter: pending.interpreter,
+                state: .unknown,
+                ranAt: pending.ranAt
+            )
+            try? runHistory.update(unknown)
+            throw error
+        }
     }
 
     /// 并发执行同一脚本到多台主机。单台失败不会阻塞其他主机，并为每台主机返回独立结果。

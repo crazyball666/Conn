@@ -20,6 +20,30 @@ public protocol SSHTransport: Sendable {
         auth: SSHAuth,
         hostKeyPolicy: HostKeyPolicy
     ) async throws -> any SSHSession
+
+    /// 经跳板链连接到目标主机。默认实现只支持空链，避免测试和第三方引擎
+    /// 在升级协议后悄悄忽略跳板配置。
+    func connect(
+        via hops: [SSHJumpHop],
+        to target: SSHJumpHop,
+        hostKeyPolicy: HostKeyPolicy
+    ) async throws -> any SSHSession
+}
+
+public extension SSHTransport {
+    func connect(
+        via hops: [SSHJumpHop],
+        to target: SSHJumpHop,
+        hostKeyPolicy: HostKeyPolicy
+    ) async throws -> any SSHSession {
+        guard hops.isEmpty else { throw SSHError.jumpChainUnsupported }
+        return try await connect(
+            target.endpoint,
+            username: target.username,
+            auth: target.auth,
+            hostKeyPolicy: hostKeyPolicy
+        )
+    }
 }
 
 /// 一条已建立的 SSH 会话。

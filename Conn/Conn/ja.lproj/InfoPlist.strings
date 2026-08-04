@@ -1,0 +1,2 @@
+/* ローカルネットワーク権限の説明。 */
+"NSLocalNetworkUsageDescription" = "Conn は SSH ホストへの接続とファイル、プロセス、Docker の管理にローカルネットワークを使用します。";

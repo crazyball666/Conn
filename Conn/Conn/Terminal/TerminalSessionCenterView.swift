@@ -1,4 +1,5 @@
 import ConnKit
+import ConnSSH
 import ConnTerminal
 import ConnUI
 import SwiftUI
@@ -308,7 +309,7 @@ private struct TerminalHostPickerSheet: View {
             hosts = try hostRepository.allHosts()
             errorMessage = nil
         } catch {
-            errorMessage = String(describing: error)
+            errorMessage = error.friendlyDiagnosis
         }
     }
 

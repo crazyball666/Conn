@@ -65,9 +65,9 @@ extension HostRecord {
         syncDirty = host.syncDirty
     }
 
-    func toDomain(groupIDs: [String] = []) -> DomainHost {
+    func toDomain(groupIDs: [String] = []) throws -> DomainHost {
         guard let parsedAuthKind = DomainHost.AuthKind(rawValue: authKind) else {
-            preconditionFailure("未知主机认证方式：\(authKind)")
+            throw HostStoreError.unknownAuthKind(rawValue: authKind)
         }
         return DomainHost(
             id: uuid,

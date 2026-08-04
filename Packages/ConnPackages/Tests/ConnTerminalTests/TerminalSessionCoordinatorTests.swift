@@ -119,7 +119,7 @@ private final class DelayedShellChannel: ShellChannel, @unchecked Sendable {
     func close() async { continuation.finish() }
 }
 
-@Suite("TerminalSessionCoordinator — 创建与复用")
+@Suite("TerminalSessionCoordinator — 创建与复用", .serialized)
 @MainActor
 struct TerminalSessionCoordinatorTests {
     @Test("普通主机入口复用最近会话，显式新建则创建新 PTY")

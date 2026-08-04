@@ -8,6 +8,8 @@ public enum HostKeyVerdict: Sendable, Equatable {
     case matches
     /// 与已记录指纹不符，带出旧指纹。**必须全屏阻断**（技术方案 §4.1）。
     case mismatch(known: String)
+    /// 指纹库不可读或不可写。安全起见必须阻断连接，而不是把它当成首次使用。
+    case unavailable
 }
 
 /// TOFU（Trust On First Use）主机指纹库。

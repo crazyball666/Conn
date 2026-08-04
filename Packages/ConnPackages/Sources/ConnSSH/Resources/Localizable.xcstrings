@@ -200,6 +200,30 @@
         "ko" : { "stringUnit" : { "state" : "translated", "value" : "연결 채널이 닫혔습니다.\n다음 단계: 당겨서 재연결하거나 서버 측 세션이 종료되었는지 확인하세요." } },
         "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "連線通道已關閉。\n下一步：下拉重連，或檢查伺服器端工作階段是否被終止。" } }
       }
+    },
+    "密钥认证不可用：未找到对应的私钥材料。\n下一步：在密钥管家中重新导入或生成密钥，然后重新选择该密钥。" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Key authentication is unavailable: the private key material was not found.\nNext: re-import or generate a key in Key Manager, then select it again." } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "鍵認証を利用できません：秘密鍵の材料が見つかりません。\n次の手順：鍵の管理で鍵を再インポートまたは生成し、もう一度選択してください。" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "키 인증을 사용할 수 없습니다. 개인 키 자료를 찾을 수 없습니다.\n다음 단계: 키 관리자에서 키를 다시 가져오거나 생성한 후 다시 선택하세요." } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "無法使用金鑰驗證：找不到對應的私鑰材料。\n下一步：在金鑰管理中重新匯入或產生金鑰，然後重新選取。" } }
+      }
+    },
+    "无法读取服务器指纹，连接已阻断。\n下一步：检查本地数据库状态后重试。" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "The server fingerprint could not be read; the connection was blocked.\nNext: check the local database and retry." } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "サーバーのフィンガープリントを読み込めないため、接続をブロックしました。\n次の手順：ローカルデータベースを確認して再試行してください。" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "서버 지문을 읽을 수 없어 연결을 차단했습니다.\n다음 단계: 로컬 데이터베이스를 확인한 후 재시도하세요." } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "無法讀取伺服器指紋，連線已阻擋。\n下一步：檢查本機資料庫狀態後重試。" } }
+      }
+    },
+    "当前连接引擎不支持跳板机链路。\n下一步：请更新连接引擎，或移除该主机的跳板机配置。" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "The current connection engine does not support jump-host chains.\nNext: update the connection engine or remove the jump-host configuration." } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "現在の接続エンジンは踏み台チェーンに対応していません。\n次の手順：接続エンジンを更新するか、このホストの踏み台設定を削除してください。" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "현재 연결 엔진은 점프 호스트 체인을 지원하지 않습니다.\n다음 단계: 연결 엔진을 업데이트하거나 이 호스트의 점프 호스트 설정을 삭제하세요." } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "目前連線引擎不支援跳板機鏈路。\n下一步：更新連線引擎，或移除此主機的跳板機設定。" } }
+      }
     }
   },
   "version" : "1.0"

@@ -72,7 +72,7 @@ public actor TerminalSession {
             } catch is CancellationError {
                 await self.finishClosed()
             } catch {
-                await self.finishFailed(message: String(describing: error))
+                await self.finishFailed(message: error.friendlyDiagnosis)
             }
         }
     }
@@ -102,7 +102,7 @@ public actor TerminalSession {
         do {
             try await channel.write(Data(bytes))
         } catch {
-            await finishFailed(message: String(describing: error))
+            await finishFailed(message: error.friendlyDiagnosis)
             throw error
         }
     }
@@ -112,7 +112,7 @@ public actor TerminalSession {
         do {
             try await channel.resize(TermSize(cols: cols, rows: rows))
         } catch {
-            await finishFailed(message: String(describing: error))
+            await finishFailed(message: error.friendlyDiagnosis)
             throw error
         }
     }
