@@ -243,7 +243,7 @@ struct SnippetRunView: View {
             HStack(spacing: ConnSpacing.sm) {
                 ConnButton(L("执行脚本"), kind: .primary) { attempt(.silent) }
                     .disabled(selectedHosts.isEmpty || isRunning)
-                ConnButton(L("进终端"), kind: .ghost) { attempt(.terminal) }
+                ConnButton(L("进终端"), kind: .primary) { attempt(.terminal) }
                     .disabled(selectedHosts.count != 1 || isRunning)
             }
             if selectedHosts.count > 1 {
@@ -336,7 +336,6 @@ struct SnippetRunView: View {
     private func loadHosts() {
         hosts = (try? dependencies.hostRepository.allHosts()) ?? []
         hostGroups = (try? dependencies.hostGroupRepository.allGroups()) ?? []
-        if selectedHostIDs.isEmpty, let first = hosts.first { selectedHostIDs = [first.id] }
     }
 
     private func toggleHost(_ host: Host) {

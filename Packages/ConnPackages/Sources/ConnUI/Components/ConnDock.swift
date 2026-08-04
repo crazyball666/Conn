@@ -16,7 +16,7 @@ public struct ConnDock: View {
             switch self {
             case .servers: "服务器"
             case .terminal: "终端"
-            case .commands: "命令"
+            case .commands: "脚本"
             case .me: "设置"
             }
         }

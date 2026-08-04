@@ -19,6 +19,7 @@ public struct ConnButton: View {
     private let kind: Kind
     private let height: CGFloat
     private let action: () -> Void
+    @Environment(\.isEnabled) private var isEnabled
 
     public init(
         _ title: String,
@@ -44,33 +45,38 @@ public struct ConnButton: View {
                 .overlay(border)
                 .clipShape(.rect(cornerRadius: ConnRadius.control, style: .continuous))
                 .shadow(
-                    color: kind == .primary ? Color.connAccentDeep.opacity(0.22) : .clear,
-                    radius: kind == .primary ? 10 : 0,
-                    y: kind == .primary ? 2 : 0
+                    color: isEnabled && kind == .primary ? Color.connAccentDeep.opacity(0.22) : .clear,
+                    radius: isEnabled && kind == .primary ? 10 : 0,
+                    y: isEnabled && kind == .primary ? 2 : 0
                 )
         }
         .buttonStyle(ConnPressStyle())
     }
 
     private var foreground: Color {
+        guard isEnabled else { return .connMuted }
         switch kind {
-        case .primary: .white
-        case .ghost: .connInk
-        case .destructive: .connCrit
+        case .primary: return .white
+        case .ghost: return .connInk
+        case .destructive: return .connCrit
         }
     }
 
     @ViewBuilder
     private var background: some View {
-        switch kind {
-        case .primary:
-            LinearGradient(
-                colors: [.connAccent, .connAccentDeep],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-        case .ghost, .destructive:
-            Color.clear
+        if !isEnabled {
+            Color.connMuted.opacity(0.16)
+        } else {
+            switch kind {
+            case .primary:
+                LinearGradient(
+                    colors: [.connAccent, .connAccentDeep],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+            case .ghost, .destructive:
+                Color.clear
+            }
         }
     }
 

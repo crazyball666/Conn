@@ -14,6 +14,21 @@ struct AppWideUIConsistencyTests {
         #expect(source.contains("Label(L(\"管理分组\")"))
     }
 
+    @Test("根 Tab 使用脚本文案，脚本执行默认不选主机且按钮状态统一")
+    func scriptTabAndRunActionsUseConsistentState() throws {
+        let dock = try packageSource("Sources/ConnUI/Components/ConnDock.swift")
+        let runView = try appSource("Commands/SnippetRunView.swift")
+        let button = try packageSource("Sources/ConnUI/Components/ConnButton.swift")
+
+        #expect(dock.contains("case .commands: \"脚本\""))
+        #expect(!runView.contains("if selectedHostIDs.isEmpty, let first = hosts.first"))
+        #expect(runView.contains("ConnButton(L(\"执行脚本\"), kind: .primary)"))
+        #expect(runView.contains("ConnButton(L(\"进终端\"), kind: .primary)"))
+        #expect(runView.contains(".disabled(selectedHosts.isEmpty || isRunning)"))
+        #expect(runView.contains(".disabled(selectedHosts.count != 1 || isRunning)"))
+        #expect(button.contains("@Environment(\\.isEnabled)"))
+    }
+
     @Test("管理分组页自己承载分组弹窗并居中空状态")
     func snippetGroupsOwnPresentationAndCenteredEmptyState() throws {
         let source = try appSource("Commands/SnippetsView.swift")
