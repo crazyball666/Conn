@@ -165,6 +165,8 @@ enum DemoOps {
     ]
     """
 
+    // JSONL fixtures intentionally keep one record per line for the Docker parser.
+    // swiftlint:disable line_length
     private static let composeContainersJSON = """
     {"ID":"ca1","Image":"conn-api:latest","Names":"conn-web-api-1","State":"running","Status":"Up 3 days","Ports":"8080/tcp","Labels":"com.docker.compose.project=conn-web,com.docker.compose.project.config_files=/srv/conn-web/compose.yml,com.docker.compose.project.working_dir=/srv/conn-web,com.docker.compose.service=api"}
     {"ID":"cw1","Image":"conn-worker:latest","Names":"conn-web-worker-1","State":"running","Status":"Up 3 days","Ports":"","Labels":"com.docker.compose.project=conn-web,com.docker.compose.project.config_files=/srv/conn-web/compose.yml,com.docker.compose.project.working_dir=/srv/conn-web,com.docker.compose.service=worker"}
@@ -178,6 +180,7 @@ enum DemoOps {
     {"ID":"cw1","Image":"conn-worker:latest","Names":"conn-web-worker-1","State":"running","Status":"Up 3 days","Ports":"","Labels":"com.docker.compose.project=conn-web,com.docker.compose.service=worker"}
     {"ID":"cd1","Image":"postgres:16","Names":"conn-web-db-1","State":"running","Status":"Up 3 days","Ports":"5432/tcp","Labels":"com.docker.compose.project=conn-web,com.docker.compose.service=db"}
     """
+    // swiftlint:enable line_length
 
     private static let composeLog = """
     api-1     | 2026-07-31T10:00:00Z server listening on :8080

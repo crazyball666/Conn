@@ -4199,6 +4199,14 @@
         }
       }
     },
+    "共 %d 个容器" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "%d containers" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "%d 個のコンテナ" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "컨테이너 %d개" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "共 %d 個容器" } }
+      }
+    },
     "共 %d 个卷" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -10679,6 +10687,35 @@
         }
       }
     },
+    "显示密码" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Show password"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "パスワードを表示"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "비밀번호 표시"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "顯示密碼"
+          }
+        }
+      }
+    },
     "显示行号" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -15401,6 +15438,22 @@
         }
       }
     },
+    "读取主机配置失败，请重试" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Failed to load host settings. Please try again." } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "ホスト設定を読み込めません。もう一度お試しください。" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "호스트 설정을 불러오지 못했습니다. 다시 시도해 주세요." } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "讀取主機設定失敗，請重試。" } }
+      }
+    },
+    "读取主机配置失败" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Failed to load host settings" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "ホスト設定を読み込めません" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "호스트 설정을 불러오지 못했습니다" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "讀取主機設定失敗" } }
+      }
+    },
     "读取主机失败：%@" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -15573,6 +15626,14 @@
             "value" : "讀取片段失敗：%@"
           }
         }
+      }
+    },
+    "读取片段失败，请重试" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Failed to load scripts. Please try again." } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "スクリプトを読み込めません。もう一度お試しください。" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "스크립트를 불러오지 못했습니다. 다시 시도해 주세요." } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "讀取腳本失敗，請重試。" } }
       }
     },
     "读取目录…" : {
@@ -17893,6 +17954,35 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "隱藏檔案"
+          }
+        }
+      }
+    },
+    "隐藏密码" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hide password"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "パスワードを隠す"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "비밀번호 숨기기"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "隱藏密碼"
           }
         }
       }
@@ -20825,6 +20915,46 @@
         "ja" : { "stringUnit" : { "state" : "translated", "value" : "保存に失敗しました" } },
         "ko" : { "stringUnit" : { "state" : "translated", "value" : "저장하지 못했습니다" } },
         "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "儲存失敗" } }
+      }
+    },
+    "请稍后重试" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Please try again later." } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "しばらくしてからもう一度お試しください。" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "잠시 후 다시 시도해 주세요." } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "請稍後重試。" } }
+      }
+    },
+    "保存失败，请重试" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Save failed. Please try again." } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "保存に失敗しました。もう一度お試しください。" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "저장하지 못했습니다. 다시 시도해 주세요." } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "儲存失敗，請重試。" } }
+      }
+    },
+    "主机凭据回滚未完成，请重试" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Host credential rollback did not finish. Please try again." } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "ホスト認証情報の復元が完了しませんでした。もう一度お試しください。" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "호스트 자격 증명 복원이 완료되지 않았습니다. 다시 시도해 주세요." } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "主機憑據回復未完成，請重試。" } }
+      }
+    },
+    "主机删除回滚未完成，请重试" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Host deletion rollback did not finish. Please try again." } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "ホスト削除の復元が完了しませんでした。もう一度お試しください。" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "호스트 삭제 롤백이 완료되지 않았습니다. 다시 시도해 주세요." } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "主機刪除回復未完成，請重試。" } }
+      }
+    },
+    "密钥数据清理未完成，请重试" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Key cleanup did not finish. Please try again." } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "鍵のクリーンアップが完了しませんでした。もう一度お試しください。" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "키 정리가 완료되지 않았습니다. 다시 시도해 주세요." } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "金鑰清理未完成，請重試。" } }
       }
     },
     "删除主机失败：%@" : {

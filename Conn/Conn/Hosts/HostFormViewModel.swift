@@ -23,9 +23,11 @@ final class HostFormViewModel {
     let editingHostID: String?
     private let hostStore: any HostRepository
     private let credentialStore: any CredentialStore
+    private let groupStore: any HostGroupRepository
     private let keyStore: any SSHKeyRepository
-    private let previousHost: Host?
-    private let previousPassword: String
+    private var previousHost: Host?
+    private var previousPassword = ""
+    var loadError: String?
     /// 可选分组。表单只做多选，新建分组走服务器页工具栏的「+」菜单。
     private(set) var availableGroups: [HostGroup] = []
     private(set) var availableKeys: [SSHKey] = []
@@ -36,6 +38,7 @@ final class HostFormViewModel {
     /// 连接测试和保存都必须使用真实存在的私钥材料，不能把缺失密钥
     /// 静默降级成空密码，否则用户会得到误导性的“密码错误”。
     var canTestConnection: Bool {
+        guard loadError == nil else { return false }
         guard draft.authKind == .key else { return true }
         return hasPrivateKeyMaterial
     }
@@ -52,17 +55,33 @@ final class HostFormViewModel {
         self.editingHostID = editingHostID
         self.hostStore = hostStore
         self.credentialStore = credentialStore
+        self.groupStore = groupStore
         self.keyStore = keyStore
-        previousHost = editingHostID.flatMap { try? hostStore.host(id: $0) }
-        availableGroups = (try? groupStore.allGroups()) ?? []
-        availableKeys = (try? keyStore.allKeys()) ?? []
-        // 编辑时读回已存密码，便于展示与再保存
-        if let id = editingHostID {
-            let storedPassword = (try? credentialStore.password(forHost: id)) ?? ""
-            password = storedPassword
-            previousPassword = storedPassword
-        } else {
-            previousPassword = ""
+        loadReferences()
+    }
+
+    /// 重新读取表单依赖。读取失败时保留草稿但禁止保存/测试，避免用空数据覆盖现有配置。
+    func reloadReferences() {
+        loadReferences()
+    }
+
+    private func loadReferences() {
+        loadError = nil
+        do {
+            previousHost = try editingHostID.flatMap { try hostStore.host(id: $0) }
+            availableGroups = try groupStore.allGroups()
+            availableKeys = try keyStore.allKeys()
+            if let id = editingHostID {
+                let storedPassword = try credentialStore.password(forHost: id) ?? ""
+                password = storedPassword
+                previousPassword = storedPassword
+            } else {
+                previousPassword = ""
+            }
+        } catch {
+            availableGroups = []
+            availableKeys = []
+            loadError = L("读取主机配置失败，请重试")
         }
     }
 
@@ -84,6 +103,7 @@ final class HostFormViewModel {
     @discardableResult
     func save() -> HostFormSaveResult? {
         saveError = nil
+        guard loadError == nil else { return nil }
         fieldErrors = draft.validate()
         guard fieldErrors.isEmpty else { return nil }
         if draft.authKind == .key, !hasPrivateKeyMaterial {
@@ -97,6 +117,7 @@ final class HostFormViewModel {
             availableGroups.contains { $0.id == id }
         }
         let host = draft.toHost(existingID: editingHostID)
+        var credentialRollbackFailed = false
         do {
             // 凭据存 Keychain（红线：不入 SQLite）
             if draft.authKind == .password {
@@ -109,10 +130,8 @@ final class HostFormViewModel {
                 try hostStore.save(host)
             } catch {
                 // 数据库写入失败时恢复原密码，避免 Keychain 与 SQLite 分叉。
-                if previousHost?.authKind == .password {
-                    try? credentialStore.setPassword(previousPassword.isEmpty ? nil : previousPassword, forHost: host.id)
-                } else {
-                    try? credentialStore.deleteAll(forHost: host.id)
+                if !restorePreviousCredential(for: host.id) {
+                    credentialRollbackFailed = true
                 }
                 throw error
             }
@@ -122,7 +141,9 @@ final class HostFormViewModel {
                 connectionIdentityChanged: didChangeConnectionIdentity(to: host)
             )
         } catch {
-            saveError = "\(L("保存主机失败"))：\(error.friendlyDiagnosis)"
+            saveError = credentialRollbackFailed
+                ? L("主机凭据回滚未完成，请重试")
+                : "\(L("保存主机失败"))：\(error.friendlyDiagnosis)"
             return nil
         }
     }
@@ -136,13 +157,13 @@ final class HostFormViewModel {
             guard let keyID = draft.keyUUID,
                   let key = try? keyStore.key(id: keyID),
                   let material = try? credentialStore.privateKey(forKey: keyID)
-            else { return .password(password) }
+            else { return .password("") }
             switch key.kind {
             case .ed25519, .ecdsaP256:
                 if material.contains("BEGIN ") {
                     return .key(SSHPrivateKeyMaterial(kind: key.kind, pem: material))
                 }
-                guard let raw = Data(base64Encoded: material) else { return .password(password) }
+                guard let raw = Data(base64Encoded: material) else { return .password("") }
                 return .key(SSHPrivateKeyMaterial(kind: key.kind, raw: raw))
             case .rsa:
                 return .key(SSHPrivateKeyMaterial(kind: .rsa, pem: material))
@@ -161,6 +182,20 @@ final class HostFormViewModel {
         } catch {
             return false
         }
+    }
+
+    private func restorePreviousCredential(for hostID: String) -> Bool {
+        var succeeded = true
+        do {
+            if previousHost?.authKind == .password {
+                try credentialStore.setPassword(previousPassword.isEmpty ? nil : previousPassword, forHost: hostID)
+            } else {
+                try credentialStore.deleteAll(forHost: hostID)
+            }
+        } catch {
+            succeeded = false
+        }
+        return succeeded
     }
 
     private func didChangeConnectionIdentity(to host: Host) -> Bool {

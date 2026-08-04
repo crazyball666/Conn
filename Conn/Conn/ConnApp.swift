@@ -46,7 +46,7 @@ struct ConnApp: App {
         do {
             return .ready(try AppDependencies.live())
         } catch {
-            return .failed(String(describing: error))
+            return .failed(error.friendlyDiagnosis)
         }
     }
 
@@ -280,12 +280,12 @@ struct AppDependencies {
             let hostKeyStore = GRDBHostKeyStore(database: database)
             let transport = CitadelTransport(hostKeyStore: hostKeyStore)
             let credentialStore = KeychainCredentialStore()
-            _ = try? credentialStore.recoverLegacyKeyMetadata()
+            _ = try credentialStore.recoverLegacyKeyMetadata()
             // Keychain 在卸载应用后仍保留密钥元数据；SQLite 会随应用容器删除。
             // 启动时先恢复缺失的记录，保证主机表单和密钥管理页都能继续使用。
-            for key in (try? credentialStore.allKeyMetadata()) ?? [] {
-                if (try? keyStore.key(id: key.id)) == nil {
-                    try? keyStore.save(key)
+            for key in try credentialStore.allKeyMetadata() {
+                if try keyStore.key(id: key.id) == nil {
+                    try keyStore.save(key)
                 }
             }
             let authResolver: AuthResolver = { host in

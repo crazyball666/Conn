@@ -34,9 +34,7 @@ final class SnippetsViewModel {
             groups = try groupStore.allGroups()
             errorMessage = nil
         } catch {
-            // GRDB.RowDecodingError 的 localizedDescription 只有“错误 1”这类系统摘要，
-            // 真正的缺失字段、行内容和 SQL 在 CustomStringConvertible.description 中。
-            errorMessage = String(format: L("读取片段失败：%@"), String(describing: error))
+            errorMessage = L("读取片段失败，请重试")
             snippets = []
             groups = []
         }

@@ -11,6 +11,7 @@ struct HostFormView: View {
     @State private var viewModel: HostFormViewModel
     @State private var showDiagnostics = false
     @State private var isGroupExpanded = false
+    @State private var isPasswordVisible = false
     @FocusState private var focus: HostDraft.Field?
     private let dependencies: AppDependencies
     private let onSaved: (HostFormSaveResult) async -> Void
@@ -56,7 +57,9 @@ struct HostFormView: View {
                     Button(L("取消")) { dismiss() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button(L("保存")) { save() }.fontWeight(.semibold)
+                    Button(L("保存")) { save() }
+                        .fontWeight(.semibold)
+                        .disabled(viewModel.loadError != nil)
                 }
             }
             .sheet(isPresented: $showDiagnostics) {
@@ -74,6 +77,15 @@ struct HostFormView: View {
                 Button(L("确定"), role: .cancel) { viewModel.saveError = nil }
             } message: {
                 Text(viewModel.saveError ?? "")
+            }
+            .alert(L("读取主机配置失败"), isPresented: Binding(
+                get: { viewModel.loadError != nil },
+                set: { if !$0 { viewModel.loadError = nil } }
+            )) {
+                Button(L("重试")) { viewModel.reloadReferences() }
+                Button(L("取消"), role: .cancel) { dismiss() }
+            } message: {
+                Text(viewModel.loadError ?? L("请稍后重试"))
             }
         }
     }
@@ -299,10 +311,28 @@ struct HostFormView: View {
             Text(label)
                 .foregroundStyle(.connMuted)
                 .frame(width: labelWidth, alignment: .leading)
-            SecureField(L("选填"), text: text)
-                .foregroundStyle(.connInk)
-                .textInputAutocapitalization(.never)
-                .autocorrectionDisabled()
+            Group {
+                if isPasswordVisible {
+                    TextField(L("选填"), text: text)
+                } else {
+                    SecureField(L("选填"), text: text)
+                }
+            }
+            .foregroundStyle(.connInk)
+            .textInputAutocapitalization(.never)
+            .autocorrectionDisabled()
+            .textContentType(.password)
+
+            Button {
+                isPasswordVisible.toggle()
+            } label: {
+                Image(systemName: isPasswordVisible ? "eye.slash" : "eye")
+                    .foregroundStyle(.connMuted)
+                    .frame(width: 32, height: 32)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.borderless)
+            .accessibilityLabel(isPasswordVisible ? L("隐藏密码") : L("显示密码"))
         }
     }
 

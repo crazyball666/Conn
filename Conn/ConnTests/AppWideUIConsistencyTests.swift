@@ -135,6 +135,18 @@ struct AppWideUIConsistencyTests {
         #expect(keyManager.contains("导入私钥"))
     }
 
+    @Test("主机登录密码支持显示与隐藏切换")
+    func hostPasswordCanToggleVisibility() throws {
+        let hostForm = try appSource("Hosts/HostFormView.swift")
+
+        #expect(hostForm.contains("@State private var isPasswordVisible = false"))
+        #expect(hostForm.contains("isPasswordVisible.toggle()"))
+        #expect(hostForm.contains("SecureField(L(\"选填\"), text: text)"))
+        #expect(hostForm.contains("TextField(L(\"选填\"), text: text)"))
+        #expect(hostForm.contains("L(\"显示密码\")"))
+        #expect(hostForm.contains("L(\"隐藏密码\")"))
+    }
+
     @Test("服务器和命令表单的分组选择默认收起")
     func groupSelectionFormsUseCollapsedDisclosureGroups() throws {
         let hostForm = try appSource("Hosts/HostFormView.swift")

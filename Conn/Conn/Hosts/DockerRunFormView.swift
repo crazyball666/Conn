@@ -624,10 +624,7 @@ struct DockerRunFormView: View {
             savedTitle = title
             isCommandSaved = true
         } catch {
-            errorMessage = String(
-                format: L("保存失败：%@"),
-                (error as? LocalizedError)?.errorDescription ?? String(describing: error)
-            )
+            errorMessage = L("保存失败，请重试")
         }
     }
 

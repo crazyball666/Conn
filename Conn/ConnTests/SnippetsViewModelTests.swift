@@ -83,14 +83,14 @@ struct SnippetsViewModelTests {
         #expect(viewModel.groups.map(\.name) == ["Docker", "日志"])
     }
 
-    @Test("脚本读取失败时保留数据库错误的完整描述")
-    func loadFailureKeepsDetailedStoreError() {
+    @Test("脚本读取失败时使用通用可操作文案")
+    func loadFailureUsesGenericMessage() {
         let (viewModel, store, _) = makeViewModel()
         store.loadError = DetailedStoreError()
 
         viewModel.load()
 
-        #expect(viewModel.errorMessage?.contains("column 'interpreter' does not exist") == true)
+        #expect(viewModel.errorMessage == L("读取片段失败，请重试"))
     }
 
     @Test("新增分组后刷新选择列表")

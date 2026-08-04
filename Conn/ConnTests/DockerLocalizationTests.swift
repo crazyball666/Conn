@@ -89,6 +89,7 @@ struct DockerLocalizationTests {
         "%@ 失败：%@",
         "%@ 成功",
         "%@ 结果未知",
+        "exit %d",
         "%@容器",
         "Docker",
         "Docker Socket",
@@ -107,6 +108,7 @@ struct DockerLocalizationTests {
         "Docker 系统清理",
         "Docker 重启容器",
         "一行一项 docker flag，可写 --flag=value 形式。空行与 # 开头行忽略。",
+        "一行一项 docker flag，可写 --flag=value 形式。空行与 # 开头行忽略；%@、%@、%@和%@也可在这里填写。",
         "不设置",
         "不重启",
         "主机名",
@@ -115,6 +117,7 @@ struct DockerLocalizationTests {
         "主机路径",
         "保存到本地命令",
         "保存失败：%@",
+        "保存失败，请重试",
         "值",
         "停止",
         "具名卷",
@@ -155,6 +158,7 @@ struct DockerLocalizationTests {
         "拉取结果未知",
         "挂载",
         "无法保存拉取审计，未开始拉取",
+        "无法保存 Docker 操作审计，未执行远程命令",
         "有效配置",
         "根目录绑定",
         "正在拉取镜像",
@@ -186,6 +190,9 @@ struct DockerLocalizationTests {
         "请输入 %@ 以继续。",
         "返回",
         "选择卷",
+        "选择已有卷",
+        "选择已有网络",
+        "选择已有镜像",
         "选项",
         "重启",
         "重启策略",
@@ -207,6 +214,7 @@ struct DockerLocalizationTests {
         "入口",
         "入口与命令",
         "共 %d 个",
+        "共 %d 个容器",
         "共 %d 个卷",
         "共 %d 个网络",
         "共 %d 个镜像",
@@ -318,6 +326,8 @@ struct DockerLocalizationTests {
         "只会从当前会话的项目列表移除，不会停止或删除服务器上的 Docker 资源。",
         "将移除该项目的容器和网络，但不会删除卷。项目配置会保留，之后可以再次启动。",
         "执行中…",
+        "运行 %@",
+        "读取执行历史失败：%@",
         "这是生产环境主机。该操作会影响正在运行的服务，请核对目标后再继续。",
         "移除",
         "移除手动项目？"
@@ -405,7 +415,7 @@ extension DockerLocalizationTests {
         #expect(!routing.contains("operationToolbar"))
         #expect(dockerView.contains("private var resourceOperationMenu"))
         #expect(dockerView.contains(".toolbar { resourceNavigationToolbar }"))
-        #expect(dockerView.contains("L(\"共 %d 个\")"))
+        #expect(dockerView.contains("L(\"共 %d 个容器\")"))
         #expect(!dockerView.contains("L(\"%@容器\")"))
         #expect(dockerView.contains("operationSheet = .runContainer"))
         #expect(dockerView.contains("operationSheet = .pullImage"))

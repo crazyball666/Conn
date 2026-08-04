@@ -127,9 +127,10 @@ final class KeyManagerViewModel {
             load()
             return key
         } catch {
-            try? credentialStore.setPrivateKey(nil, forKey: keyID)
-            try? credentialStore.setKeyMetadata(nil, forKey: keyID)
-            try? keyStore.delete(id: keyID)
+            if !cleanupCreatedKey(id: keyID) {
+                lastError = "\(L("密钥保存失败"))：\(L("密钥数据清理未完成，请重试"))"
+                return nil
+            }
             lastError = "\(L("密钥保存失败"))：\(error.friendlyDiagnosis)"
             return nil
         }
@@ -183,9 +184,10 @@ final class KeyManagerViewModel {
             return nil
         } catch {
             if let keyID = createdKeyID {
-                try? credentialStore.setPrivateKey(nil, forKey: keyID)
-                try? credentialStore.setKeyMetadata(nil, forKey: keyID)
-                try? keyStore.delete(id: keyID)
+                if !cleanupCreatedKey(id: keyID) {
+                    lastError = "\(L("私钥导入失败"))：\(L("密钥数据清理未完成，请重试"))"
+                    return nil
+                }
             }
             lastError = "\(L("私钥导入失败"))：\(error.friendlyDiagnosis)"
             return nil
@@ -196,6 +198,7 @@ final class KeyManagerViewModel {
         var privateMaterial: String?
         var privateMaterialRemoved = false
         var metadataRemoved = false
+        var deleteSucceeded = false
         do {
             privateMaterial = try credentialStore.privateKey(forKey: key.id)
             try credentialStore.setPrivateKey(nil, forKey: key.id)
@@ -207,18 +210,27 @@ final class KeyManagerViewModel {
             } catch {
                 throw error
             }
+            deleteSucceeded = true
         } catch {
             // 任一步失败都补偿已完成的 Keychain 删除，避免 SQLite 与 Keychain
             // 出现“已删一半”的状态；补偿失败仍保留原始错误供用户重试。
+            var compensationFailed = false
             if metadataRemoved {
-                try? credentialStore.setKeyMetadata(key, forKey: key.id)
+                do { try credentialStore.setKeyMetadata(key, forKey: key.id) }
+                catch { compensationFailed = true }
             }
             if privateMaterialRemoved, let privateMaterial {
-                try? credentialStore.setPrivateKey(privateMaterial, forKey: key.id)
+                do { try credentialStore.setPrivateKey(privateMaterial, forKey: key.id) }
+                catch { compensationFailed = true }
             }
-            lastError = "\(L("密钥删除失败"))：\(error.friendlyDiagnosis)"
+            lastError = compensationFailed
+                ? "\(L("密钥删除失败"))：\(L("密钥数据清理未完成，请重试"))"
+                : "\(L("密钥删除失败"))：\(error.friendlyDiagnosis)"
         }
-        load()
+        // 失败时保留当前列表和错误提示，避免 load() 清空 lastError 并掩盖删除失败。
+        if deleteSucceeded {
+            load()
+        }
     }
 
     /// 修改密钥显示名称。SQLite 缓存与 Keychain 元数据索引同时更新，
@@ -230,6 +242,7 @@ final class KeyManagerViewModel {
 
         var updated = key
         updated.name = trimmed
+        var metadataRollbackFailed = false
         do {
             try credentialStore.setKeyMetadata(updated, forKey: key.id)
             do {
@@ -237,13 +250,19 @@ final class KeyManagerViewModel {
             } catch {
                 // Keychain 已先更新，数据库失败时恢复旧元数据，保证下次
                 // 启动不会从 Keychain 读到与 SQLite 不同的名称。
-                try? credentialStore.setKeyMetadata(key, forKey: key.id)
+                do {
+                    try credentialStore.setKeyMetadata(key, forKey: key.id)
+                } catch {
+                    metadataRollbackFailed = true
+                }
                 throw error
             }
             load()
             return true
         } catch {
-            lastError = "\(L("密钥保存失败"))：\(error.friendlyDiagnosis)"
+            lastError = metadataRollbackFailed
+                ? L("密钥数据清理未完成，请重试")
+                : "\(L("密钥保存失败"))：\(error.friendlyDiagnosis)"
             return false
         }
     }
@@ -261,5 +280,16 @@ final class KeyManagerViewModel {
             lastError = "\(L("私钥读取失败"))：\(error.friendlyDiagnosis)"
             return nil
         }
+    }
+
+    private func cleanupCreatedKey(id: String) -> Bool {
+        var succeeded = true
+        do { try credentialStore.setPrivateKey(nil, forKey: id) }
+        catch { succeeded = false }
+        do { try credentialStore.setKeyMetadata(nil, forKey: id) }
+        catch { succeeded = false }
+        do { try keyStore.delete(id: id) }
+        catch { succeeded = false }
+        return succeeded
     }
 }

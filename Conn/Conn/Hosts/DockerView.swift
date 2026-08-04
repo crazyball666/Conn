@@ -321,7 +321,7 @@ extension DockerView {
     private var containerList: some View {
         VStack(spacing: ConnSpacing.sm) {
             DockerDetail.listHeader(
-                count: String(format: L("共 %d 个"), filteredContainers.count) + L("容器")
+                count: String(format: L("共 %d 个容器"), filteredContainers.count)
             )
             if sortedContainers.isEmpty {
                 // 搜索词非空但无匹配时不能说「没有容器」——主机上可能明明有 20 个，

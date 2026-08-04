@@ -5,23 +5,23 @@ import SwiftUI
 
 /// 图表颜色是数据语义的一部分，固定后不会因主题或系统强调色变化而改变含义。
 private enum HostChartPalette {
-    static let cpuUser = Color(red: 0.145, green: 0.388, blue: 0.922)
-    static let cpuSystem = Color(red: 0.863, green: 0.149, blue: 0.149)
-    static let cpuWait = Color(red: 0.792, green: 0.541, blue: 0.016)
-    static let cpuIdle = Color(red: 0.486, green: 0.518, blue: 0.580)
-    static let cpuNice = Color(red: 0.086, green: 0.639, blue: 0.290)
-    static let cpuHardInterrupt = Color(red: 0.576, green: 0.200, blue: 0.918)
-    static let cpuSoftInterrupt = Color(red: 0.859, green: 0.153, blue: 0.467)
-    static let cpuSteal = Color(red: 0.051, green: 0.580, blue: 0.533)
+    static let cpuUser = Color(.sRGB, red: 0.145, green: 0.388, blue: 0.922, opacity: 1)
+    static let cpuSystem = Color(.sRGB, red: 0.863, green: 0.149, blue: 0.149, opacity: 1)
+    static let cpuWait = Color(.sRGB, red: 0.792, green: 0.541, blue: 0.016, opacity: 1)
+    static let cpuIdle = Color(.sRGB, red: 0.486, green: 0.518, blue: 0.580, opacity: 1)
+    static let cpuNice = Color(.sRGB, red: 0.086, green: 0.639, blue: 0.290, opacity: 1)
+    static let cpuHardInterrupt = Color(.sRGB, red: 0.576, green: 0.200, blue: 0.918, opacity: 1)
+    static let cpuSoftInterrupt = Color(.sRGB, red: 0.859, green: 0.153, blue: 0.467, opacity: 1)
+    static let cpuSteal = Color(.sRGB, red: 0.051, green: 0.580, blue: 0.533, opacity: 1)
 
-    static let memoryUsed = Color(red: 0.89, green: 0.35, blue: 0.39)
-    static let memoryCache = Color(red: 0.86, green: 0.60, blue: 0.08)
-    static let memoryFree = Color(red: 0.12, green: 0.64, blue: 0.34)
-    static let swap = Color(red: 0.57, green: 0.36, blue: 0.88)
-    static let diskRead = Color(red: 0.145, green: 0.388, blue: 0.922)
-    static let diskWrite = Color(red: 0.918, green: 0.345, blue: 0.047)
-    static let networkDown = Color(red: 0.05, green: 0.57, blue: 0.78)
-    static let networkUp = Color(red: 0.12, green: 0.64, blue: 0.34)
+    static let memoryUsed = Color(.sRGB, red: 0.89, green: 0.35, blue: 0.39, opacity: 1)
+    static let memoryCache = Color(.sRGB, red: 0.86, green: 0.60, blue: 0.08, opacity: 1)
+    static let memoryFree = Color(.sRGB, red: 0.12, green: 0.64, blue: 0.34, opacity: 1)
+    static let swap = Color(.sRGB, red: 0.57, green: 0.36, blue: 0.88, opacity: 1)
+    static let diskRead = Color(.sRGB, red: 0.145, green: 0.388, blue: 0.922, opacity: 1)
+    static let diskWrite = Color(.sRGB, red: 0.918, green: 0.345, blue: 0.047, opacity: 1)
+    static let networkDown = Color(.sRGB, red: 0.05, green: 0.57, blue: 0.78, opacity: 1)
+    static let networkUp = Color(.sRGB, red: 0.12, green: 0.64, blue: 0.34, opacity: 1)
 }
 
 /// 单机概览：分块（系统 / 负载 / CPU / 内存 / 磁盘 / 网络 / 进程）。

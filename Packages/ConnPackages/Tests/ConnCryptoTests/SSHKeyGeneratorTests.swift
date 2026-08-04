@@ -175,11 +175,13 @@ struct SSHKeyGeneratorTests {
 
     @Test("OpenSSH ECDSA P-256 私钥可导入")
     func importsOpenSSHECDSAP256() throws {
+        // swiftlint:disable line_length
         let pem = """
         -----BEGIN OPENSSH PRIVATE KEY-----
         b3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAEbm9uZQAAAAAAAAABAAAAaAAAABNlY2RzYS1zaGEyLW5pc3RwMjU2AAAACG5pc3RwMjU2AAAAQQRob4LK6FLySyDoR4pZP3UJsT8hFt9AWJPJm44AY0sgGngPMLJV593R5/fHEnbUVzB/aYK4NfBNQtKyD9ca46ccAAAAqG+bXzZvm182AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBGhvgsroUvJLIOhHilk/dQmxPyEW30BYk8mbjgBjSyAaeA8wslXn3dHn98cSdtRXMH9pgrg18E1C0rIP1xrjpxwAAAAhAI2AawQq7PTUoJnfEgaQIz0ETk+W/IgIpVRw1+xlNEEsAAAACWNvbm4tdGVzdAECAwQFBg==
         -----END OPENSSH PRIVATE KEY-----
         """
+        // swiftlint:enable line_length
         let payload = try #require(Data(base64Encoded: pem.components(separatedBy: .newlines).filter { !$0.hasPrefix("-----") }.joined()))
         var offset = 15
         func readString(_ data: Data, _ offset: inout Int) throws -> Data {

@@ -96,10 +96,12 @@ struct DockerComposeTests {
 
     @Test("容器标签为 v1 归并项目并保留多配置文件路径")
     func discoversV1ProjectsFromContainerLabels() {
+        // swiftlint:disable line_length
         let output = """
         {"ID":"c1","Image":"api:1","Names":"web-api-1","State":"running","Status":"Up 2 hours","Ports":"8080/tcp","Labels":"com.docker.compose.project=web,com.docker.compose.project.config_files=/srv/web/compose.yml,/srv/base.yml,com.docker.compose.project.working_dir=/srv/web,com.docker.compose.service=api"}
         {"ID":"c2","Image":"worker:1","Names":"web-worker-1","State":"exited","Status":"Exited (0) 1 hour ago","Ports":"","Labels":"com.docker.compose.project=web,com.docker.compose.project.config_files=/srv/web/compose.yml,/srv/base.yml,com.docker.compose.project.working_dir=/srv/web,com.docker.compose.service=worker"}
         """
+        // swiftlint:enable line_length
 
         let projects = DockerComposeParser.parseProjectsFromContainers(output)
 

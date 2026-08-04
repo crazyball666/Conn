@@ -96,6 +96,7 @@ final class ServersViewModel {
     /// 真删除，不可恢复。只影响本地记录，不影响服务器本身。
     func delete(_ host: Host) {
         errorMessage = nil
+        var compensationFailed = false
         do {
             // 先确认凭据可读，再删除 SQLite 行；否则 Keychain 读取故障时继续删除
             // 会让补偿路径失去原密码，形成不可恢复的半删除状态。
@@ -111,15 +112,19 @@ final class ServersViewModel {
             } catch {
                 // Keychain 清理失败时恢复 SQLite 行，避免出现“列表没了、
                 // 凭据还在”的半删除状态；用户可稍后重试并保留可诊断信息。
-                try? hostStore.save(host)
+                do { try hostStore.save(host) }
+                catch { compensationFailed = true }
                 if let previousPassword {
-                    try? credentialStore?.setPassword(previousPassword, forHost: host.id)
+                    do { try credentialStore?.setPassword(previousPassword, forHost: host.id) }
+                    catch { compensationFailed = true }
                 }
                 throw error
             }
             load()
         } catch {
-            errorMessage = String(format: L("删除主机失败：%@"), error.friendlyDiagnosis)
+            errorMessage = compensationFailed
+                ? L("主机删除回滚未完成，请重试")
+                : String(format: L("删除主机失败：%@"), error.friendlyDiagnosis)
         }
     }
 

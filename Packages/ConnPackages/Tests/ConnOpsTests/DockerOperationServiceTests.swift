@@ -142,9 +142,11 @@ struct DockerComposeServiceTests {
         let listed = """
         [{"Name":"web","Status":"running(1)","ConfigFiles":"/listed/compose.yml"}]
         """
+        // swiftlint:disable line_length
         let containers = """
         {"ID":"c1","Image":"api:1","Names":"web-api-1","State":"running","Status":"Up","Ports":"8080/tcp","Labels":"com.docker.compose.project=web,com.docker.compose.project.config_files=/srv/web/compose.yml,com.docker.compose.project.working_dir=/srv/custom,com.docker.compose.service=api"}
         """
+        // swiftlint:enable line_length
         let session = RecordingSSHSession(execResults: [
             .init(exitCode: 0, stdout: Data(listed.utf8), stderr: Data()),
             .init(exitCode: 0, stdout: Data(containers.utf8), stderr: Data()),

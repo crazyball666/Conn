@@ -160,10 +160,12 @@ struct DockerOperationCommandTests {
         )
 
         #expect(DockerCommand.pull(reference: "repo;$(whoami)", sudo: false) == "docker pull 'repo;$(whoami)'")
+        // swiftlint:disable line_length
         #expect(
             DockerCommand.run(run, sudo: true)
                 == "sudo -n docker run --name 'web app' --detach --network 'app net' --hostname 'web-01' --user 'nginx' --workdir '/app' --publish '8080:80/tcp' --env 'APP_MODE=prod;$(whoami)' --mount 'type=volume,src=data vol,dst=/var/lib/app,readonly' --restart 'unless-stopped' --read-only '--cpus=1' '--add-host' 'db:10.0.0.2' 'nginx:1.27' 'nginx' '-g' 'daemon off;'"
         )
+        // swiftlint:enable line_length
         #expect(
             DockerCommand.createVolume(volume, sudo: false)
                 == "docker volume create --driver 'local driver' '--opt' 'type=nfs;' 'app data'"
