@@ -447,6 +447,7 @@
 				DEVELOPMENT_TEAM = 35ZLHHTRAP;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = ConnTerm;
 				INFOPLIST_KEY_NSFaceIDUsageDescription = "Conn uses Face ID to unlock the app when App Lock is enabled.";
 				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Conn needs local network access to connect to your SSH hosts and manage files, processes, and Docker.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -458,7 +459,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 1.0.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.crazyball.Conn;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
@@ -481,6 +482,7 @@
 				DEVELOPMENT_TEAM = 35ZLHHTRAP;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = ConnTerm;
 				INFOPLIST_KEY_NSFaceIDUsageDescription = "Conn uses Face ID to unlock the app when App Lock is enabled.";
 				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "Conn needs local network access to connect to your SSH hosts and manage files, processes, and Docker.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -492,7 +494,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 1.0.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.crazyball.Conn;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
