@@ -1,4 +1,4 @@
-# Conn App Store 上架资料草案
+# ConnTerm App Store 上架资料草案
 
 这份资料按当前 MVP 的实际实现整理，适用于 App Store Connect 的首次创建、TestFlight 内测和 App Review 提交。方括号中的内容需要在后台或最终发布前确认；不要把真实服务器地址、用户名、密码或私钥提交到仓库。
 
@@ -6,9 +6,9 @@
 
 | 项目 | 建议值 | 状态 |
 | --- | --- | --- |
-| App 名称 | `Conn` | 需在 App Store Connect 检查重名和商标 |
-| 副标题（中文） | `SSH 与服务器运维终端` | 可直接使用 |
-| Subtitle（English） | `SSH server operations` | 可直接使用 |
+| App 名称 | `ConnTerm` | 需在 App Store Connect 检查重名和商标 |
+| 副标题（中文） | `SSH 服务器运维工作台` | 可直接使用 |
+| Subtitle（English） | `SSH Server Operations` | 可直接使用 |
 | 主类别 | Developer Tools | 后台选择 |
 | 次类别 | Utilities | 后台选择 |
 | 年龄分级 | 4+（按问卷逐项确认） | 后台填写 |
@@ -29,7 +29,7 @@ SSH,服务器,终端,运维,Docker,日志,文件管理,进程,脚本,开发者
 
 **完整描述**
 
-Conn 是面向开发者和运维人员的本地 SSH 服务器管理工具。连接你自己的主机后，可以在手机上完成日常巡检和应急处置。
+ConnTerm 是面向开发者和运维人员的本地 SSH 服务器管理工具。连接你自己的主机后，可以在手机上完成日常巡检和应急处置。
 
 主要功能：
 
@@ -42,9 +42,9 @@ Conn 是面向开发者和运维人员的本地 SSH 服务器管理工具。连�
 - 密钥生成、导入、导出、公钥复制和主机绑定；
 - 深色模式、主题色、中文/英文界面和错误重试反馈。
 
-Conn 不要求注册账号，也不提供自建云服务。主机配置、脚本、操作记录和密钥元数据保存在设备本地；私钥保存在系统 Keychain。应用不会把这些数据上传到 Conn 的服务器。监控采集只在应用使用期间进行，不提供 7×24 后台告警推送。
+ConnTerm 不要求注册账号，也不提供自建云服务。主机配置、脚本、操作记录和密钥元数据保存在设备本地；私钥保存在系统 Keychain。应用不会把这些数据上传到 ConnTerm 的服务器。监控采集只在应用使用期间进行，不提供 7×24 后台告警推送。
 
-使用 Conn 需要你拥有可访问的 SSH 主机，并自行承担远程命令和 Docker 操作的风险。危险操作会要求确认；请在执行前核对主机和命令。
+使用 ConnTerm 需要你拥有可访问的 SSH 主机，并自行承担远程命令和 Docker 操作的风险。危险操作会要求确认；请在执行前核对主机和命令。
 
 ### English listing copy
 
@@ -58,7 +58,7 @@ SSH,server,terminal,DevOps,Docker,logs,SFTP,processes,scripts,developer
 
 **Description**
 
-Conn is a local SSH server operations tool for developers and system administrators. Connect to your own hosts and handle everyday checks and urgent fixes from your phone.
+ConnTerm is a local SSH Server Operations tool for developers and system administrators. Connect to your own hosts and handle everyday checks and urgent fixes from your phone.
 
 Key features:
 
@@ -71,7 +71,7 @@ Key features:
 - SSH key generation, import, export, public-key copy, and host binding;
 - Dark mode, theme colors, Chinese/English localization, and retryable errors.
 
-Conn does not require an account and does not operate a Conn cloud service. Host configuration, scripts, operation history, and key metadata stay on the device; private keys are stored in the system Keychain. Conn does not upload this data to a Conn server. Monitoring runs while the app is in use and does not provide 24/7 background alerts.
+ConnTerm does not require an account and does not operate a ConnTerm cloud service. Host configuration, scripts, operation history, and key metadata stay on the device; private keys are stored in the system Keychain. ConnTerm does not upload this data to a ConnTerm server. Monitoring runs while the app is in use and does not provide 24/7 background alerts.
 
 You need an SSH host that you own or are authorized to access. Review every command and confirm the target before performing destructive operations.
 
@@ -81,7 +81,7 @@ You need an SSH host that you own or are authorized to access. Review every comm
 
 | 问题 | 建议答案 | 依据 |
 | --- | --- | --- |
-| 是否收集数据 | 否 | 没有 Conn 服务端、账号系统、分析 SDK 或广告 SDK |
+| 是否收集数据 | 否 | 没有 ConnTerm 服务端、账号系统、分析 SDK 或广告 SDK |
 | 是否用于跟踪 | 否 | 未接入广告、跨 App 跟踪或行为分析 |
 | 联系信息、用户内容、标识符、诊断、位置、财务信息 | 均不收集 | 数据只用于本机功能，不上传 |
 | 本地网络 | 需要权限 | 通过 SSH 连接用户添加的主机 |
@@ -95,7 +95,7 @@ You need an SSH host that you own or are authorized to access. Review every comm
 
 ## 3. 出口合规（Export Compliance）填写草案
 
-Conn 使用 SSH 以及系统/开源密码学库保护连接和密钥，因此 App Store Connect 的出口合规问卷不能留空。建议按以下方向准备，但最终以 App Store Connect 当前问卷和你的发行主体所在地要求为准：
+ConnTerm 使用 SSH 以及系统/开源密码学库保护连接和密钥，因此 App Store Connect 的出口合规问卷不能留空。建议按以下方向准备，但最终以 App Store Connect 当前问卷和你的发行主体所在地要求为准：
 
 1. 如问“是否使用加密”，应选择“是”；
 2. 说明使用的是 SSH 等标准协议和公开可用的密码学算法，目的是保护远程连接与本地凭据；
@@ -109,13 +109,13 @@ Conn 使用 SSH 以及系统/开源密码学库保护连接和密钥，因此 Ap
 将以下内容粘贴到 Review Notes，再把方括号替换为真实的测试信息。真实凭据只放在 App Store Connect 的审核备注中，不放进 Git。
 
 ```text
-Conn is a local SSH client for servers owned or administered by the user. It does not require an account and has no Conn backend.
+ConnTerm is a local SSH client for servers owned or administered by the user. It does not require an account and has no ConnTerm backend.
 
 Test setup:
-1. Open Conn and tap Add Server.
+1. Open ConnTerm and tap Add Server.
 2. Add the review SSH host below using the supplied test credentials.
 3. Open the host to review Overview, Processes, Files, Docker, and Logs.
-4. Open Terminal to run a harmless command such as `uname -a` or `echo Conn review`.
+4. Open Terminal to run a harmless command such as `uname -a` or `echo ConnTerm review`.
 5. In Docker, review the lists and use read-only details. Do not run destructive actions unless explicitly requested.
 6. Open Settings > Key Manager to review key generation/import UI. No real private key is included in the build.
 
@@ -126,7 +126,7 @@ Review host:
 - Authentication: [temporary password or review key instructions]
 - Access expires: [UTC date/time]
 
-The app stores host configuration and credentials locally. Private keys are kept in the system Keychain. No user data is uploaded to a Conn server. Monitoring is active while the app is in use; this product does not provide background push monitoring.
+The app stores host configuration and credentials locally. Private keys are kept in the system Keychain. No user data is uploaded to a ConnTerm server. Monitoring is active while the app is in use; this product does not provide background push monitoring.
 
 If the host is temporarily unavailable, please contact [review contact email].
 ```
