@@ -1,5 +1,6 @@
 import ConnEditor
 import ConnUI
+import SafariServices
 import SwiftUI
 
 /// 「我的」/设置页——原生 `Form` 分组（Apple 设置页风格）。
@@ -9,6 +10,7 @@ struct MeView: View {
     let dependencies: AppDependencies
     @Environment(LocalizationManager.self) private var localization
     @Environment(SettingsStore.self) private var settings
+    @State private var showsPrivacyPolicy = false
 
     var body: some View {
         @Bindable var localization = localization
@@ -18,34 +20,36 @@ struct MeView: View {
                 Picker(selection: $settings.appearance) {
                     ForEach(AppAppearance.allCases) { Text($0.label).tag($0) }
                 } label: {
-                    Label(L("深浅色"), systemImage: "circle.lefthalf.filled")
+                    settingsLabel(L("深浅色"), systemImage: "circle.lefthalf.filled")
                 }
                 accentRow(selection: $settings.accent)
+                Picker(selection: $localization.language) {
+                    ForEach(AppLanguage.allCases) { Text($0.displayName).tag($0) }
+                } label: {
+                    settingsLabel(L("语言"), systemImage: "globe")
+                }
             }
 
-            Section(L("数据")) {
+            Section(L("偏好设置")) {
                 Picker(selection: $settings.refreshInterval) {
                     ForEach(RefreshInterval.allCases) { Text($0.label).tag($0) }
                 } label: {
-                    Label(L("主页刷新间隔"), systemImage: "arrow.clockwise")
+                    settingsLabel(L("主页刷新间隔"), systemImage: "arrow.clockwise")
                 }
                 Picker(selection: $settings.dockerRefreshInterval) {
                     ForEach(RefreshInterval.allCases) { Text($0.label).tag($0) }
                 } label: {
-                    Label(L("容器刷新间隔"), systemImage: "shippingbox")
+                    settingsLabel(L("容器刷新间隔"), systemImage: "shippingbox")
                 }
-            }
-
-            Section(L("编辑器")) {
                 NavigationLink {
                     CodeEditorSettingsView()
                 } label: {
-                    Label(L("编辑器设置"), systemImage: "curlybraces")
+                    settingsLabel(L("编辑器设置"), systemImage: "curlybraces")
                 }
                 NavigationLink {
                     TerminalSettingsView()
                 } label: {
-                    Label(L("终端设置"), systemImage: "terminal")
+                    settingsLabel(L("终端设置"), systemImage: "terminal")
                 }
             }
 
@@ -54,7 +58,7 @@ struct MeView: View {
                     get: { dependencies.appLock.isEnabled },
                     set: { dependencies.appLock.isEnabled = $0 }
                 )) {
-                    Label(
+                    settingsLabel(
                         String(format: L("应用锁（%@）"), dependencies.appLock.biometryName),
                         systemImage: "lock.fill"
                     )
@@ -62,37 +66,33 @@ struct MeView: View {
                 NavigationLink {
                     KeyManagerView(dependencies: dependencies)
                 } label: {
-                    Label(L("密钥管家"), systemImage: "key.fill")
-                }
-            }
-
-            Section(L("语言")) {
-                Picker(selection: $localization.language) {
-                    ForEach(AppLanguage.allCases) { Text($0.displayName).tag($0) }
-                } label: {
-                    Label(L("语言"), systemImage: "globe")
-                }
-            }
-
-            Section(L("法律与隐私")) {
-                if let privacyPolicyURL = AppLegalLinks.privacyPolicyURL {
-                    Link(destination: privacyPolicyURL) {
-                        Label(L("隐私政策"), systemImage: "hand.raised.fill")
-                    }
-                }
-                NavigationLink {
-                    OpenSourceLicensesView()
-                } label: {
-                    Label(L("开源许可"), systemImage: "doc.text.magnifyingglass")
+                    settingsLabel(L("密钥管家"), systemImage: "key.fill")
                 }
             }
 
             Section {
+                if AppLegalLinks.privacyPolicyURL != nil {
+                    Button {
+                        showsPrivacyPolicy = true
+                    } label: {
+                        settingsLabel(L("隐私政策"), systemImage: "hand.raised.fill")
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                }
+                NavigationLink {
+                    OpenSourceLicensesView()
+                } label: {
+                    settingsLabel(L("开源许可"), systemImage: "doc.text.magnifyingglass")
+                }
                 LabeledContent {
                     Text(appVersion).foregroundStyle(.secondary)
                 } label: {
-                    Label(L("版本"), systemImage: "info.circle")
+                    settingsLabel(L("版本"), systemImage: "info.circle")
                 }
+            } header: {
+                Text(L("关于"))
             } footer: {
                 Text(L("数据仅存本机 · 无账号 · 不上传"))
                     .frame(maxWidth: .infinity)
@@ -100,12 +100,18 @@ struct MeView: View {
             }
         }
         .navigationTitle(L("设置"))
+        .sheet(isPresented: $showsPrivacyPolicy) {
+            if let url = AppLegalLinks.privacyPolicyURL {
+                InAppSafariView(url: url, tintColor: UIColor(ConnTheme.accent))
+                    .ignoresSafeArea()
+            }
+        }
     }
 
     /// 主题色：一行标签 + 一排色卡（选中打勾）。
     private func accentRow(selection: Binding<AppAccent>) -> some View {
         VStack(alignment: .leading, spacing: 12) {
-            Label(L("主题色"), systemImage: "paintpalette.fill")
+            settingsLabel(L("主题色"), systemImage: "paintpalette.fill")
             HStack(spacing: 0) {
                 ForEach(Array(AppAccent.allCases.enumerated()), id: \.element) { index, accent in
                     swatch(accent, selection: selection)
@@ -138,8 +144,35 @@ struct MeView: View {
         .accessibilityAddTraits(selection.wrappedValue == accent ? [.isButton, .isSelected] : .isButton)
     }
 
+    private func settingsLabel(_ title: String, systemImage: String) -> some View {
+        Label {
+            Text(title)
+                .foregroundStyle(.primary)
+        } icon: {
+            Image(systemName: systemImage)
+                .foregroundStyle(.connAccent)
+        }
+    }
+
     private var appVersion: String {
         let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"
         return "v\(version)"
+    }
+}
+
+/// 使用系统 `SFSafariViewController` 在应用内展示公开网页，保留 Safari 的安全信息与分享能力。
+private struct InAppSafariView: UIViewControllerRepresentable {
+    let url: URL
+    let tintColor: UIColor
+
+    func makeUIViewController(context: Context) -> SFSafariViewController {
+        let controller = SFSafariViewController(url: url)
+        controller.dismissButtonStyle = .close
+        controller.preferredControlTintColor = tintColor
+        return controller
+    }
+
+    func updateUIViewController(_ controller: SFSafariViewController, context: Context) {
+        controller.preferredControlTintColor = tintColor
     }
 }

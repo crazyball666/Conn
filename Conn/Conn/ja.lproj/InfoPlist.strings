@@ -1,3 +1,3 @@
 /* ローカルネットワーク権限の説明。 */
-"NSLocalNetworkUsageDescription" = "Conn は SSH ホストへの接続とファイル、プロセス、Docker の管理にローカルネットワークを使用します。";
-"NSFaceIDUsageDescription" = "アプリロックを有効にすると、Conn は Face ID でアプリのロックを解除します。";
+"NSLocalNetworkUsageDescription" = "ConnTerm は SSH ホストへの接続とファイル、プロセス、Docker の管理にローカルネットワークを使用します。";
+"NSFaceIDUsageDescription" = "アプリロックを有効にすると、ConnTerm は Face ID でアプリのロックを解除します。";

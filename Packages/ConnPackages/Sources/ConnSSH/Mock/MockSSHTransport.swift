@@ -343,13 +343,26 @@ extension MockSSHSession {
 final class MockShellChannel: ShellChannel {
     let output: AsyncThrowingStream<Data, Error>
     private let continuation: AsyncThrowingStream<Data, Error>.Continuation
+    private let isMarketingScreenshot =
+        ProcessInfo.processInfo.environment["CONN_SMOKE_TERMINAL_SCREENSHOT"] != nil
 
     init() {
         (output, continuation) = AsyncThrowingStream.makeStream()
-        continuation.yield(Data("demo-host:~$ ".utf8))
+        let prompt = isMarketingScreenshot ? "deploy@ops-node-01:~$ " : "demo-host:~$ "
+        continuation.yield(Data(prompt.utf8))
     }
 
     func write(_ bytes: Data) async throws {
+        if isMarketingScreenshot,
+           String(decoding: bytes, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines) == "ls -a" {
+            continuation.yield(Data("""
+            ls -a\r
+            .  ..  .bash_logout  .bashrc  .config\r
+            apps  logs  scripts\r
+            deploy@ops-node-01:~$
+            """.utf8))
+            return
+        }
         // 真实 PTY 中 Ctrl+U 由 shell 行编辑器处理：清空当前输入并重绘提示符。
         // Mock Shell 也模拟这一语义，避免演示/UI 验收时把控制码原样回显成“无反应”。
         if bytes == Data([0x15]) {

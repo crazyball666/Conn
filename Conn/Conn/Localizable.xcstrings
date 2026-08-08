@@ -1,134 +1,6 @@
 {
   "sourceLanguage" : "zh-Hans",
   "strings" : {
-    "认证未完成，请重试" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Authentication was not completed. Try again."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "認証が完了しませんでした。もう一度お試しください。"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "인증이 완료되지 않았습니다. 다시 시도해 주세요."
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "認證未完成，請重試。"
-          }
-        }
-      }
-    },
-    "设备认证不可用，请在系统设置中启用设备密码或 Face ID" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Device authentication is unavailable. Enable a device passcode or Face ID in Settings."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "デバイス認証を利用できません。設定でデバイスパスコードまたは Face ID を有効にしてください。"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "기기 인증을 사용할 수 없습니다. 설정에서 기기 암호 또는 Face ID를 켜 주세요."
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "無法使用裝置認證，請在設定中啟用裝置密碼或 Face ID。"
-          }
-        }
-      }
-    },
-    "隐私" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Privacy"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "プライバシー"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "개인정보 보호"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "隱私"
-          }
-        }
-      }
-    },
-    "隐私政策" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Privacy Policy"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "プライバシーポリシー"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "개인정보 처리방침"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "隱私權政策"
-          }
-        }
-      }
-    },
-    "法律与隐私" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Legal & Privacy" } },
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "法務とプライバシー" } },
-        "ko" : { "stringUnit" : { "state" : "translated", "value" : "법률 및 개인정보 보호" } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "法律與隱私" } }
-      }
-    },
-    "开源许可" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Open-Source Licenses" } },
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "オープンソースライセンス" } },
-        "ko" : { "stringUnit" : { "state" : "translated", "value" : "오픈 소스 라이선스" } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "開放原始碼授權" } }
-      }
-    },
     "—" : {
       "localizations" : {
         "en" : {
@@ -4103,6 +3975,35 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "儲存"
+          }
+        }
+      }
+    },
+    "偏好设置" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Preferences"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "環境設定"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "환경설정"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "偏好設定"
           }
         }
       }
@@ -9956,6 +9857,35 @@
         }
       }
     },
+    "开源许可" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open-Source Licenses"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "オープンソースライセンス"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "오픈 소스 라이선스"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "開放原始碼授權"
+          }
+        }
+      }
+    },
     "引用容器" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -14389,6 +14319,35 @@
         }
       }
     },
+    "法律与隐私" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Legal & Privacy"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "法務とプライバシー"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "법률 및 개인정보 보호"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "法律與隱私"
+          }
+        }
+      }
+    },
     "浅色" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -17894,6 +17853,64 @@
         }
       }
     },
+    "认证未完成，请重试" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Authentication was not completed. Try again."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "認証が完了しませんでした。もう一度お試しください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "인증이 완료되지 않았습니다. 다시 시도해 주세요."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "認證未完成，請重試。"
+          }
+        }
+      }
+    },
+    "设备认证不可用，请在系统设置中启用设备密码或 Face ID" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Device authentication is unavailable. Enable a device passcode or Face ID in Settings."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "デバイス認証を利用できません。設定でデバイスパスコードまたは Face ID を有効にしてください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "기기 인증을 사용할 수 없습니다. 설정에서 기기 암호 또는 Face ID를 켜 주세요."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法使用裝置認證，請在設定中啟用裝置密碼或 Face ID。"
+          }
+        }
+      }
+    },
     "设置" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -21221,6 +21238,35 @@
         }
       }
     },
+    "隐私" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Privacy"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "プライバシー"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "개인정보 보호"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "隱私"
+          }
+        }
+      }
+    },
     "隐私承诺" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -21246,6 +21292,35 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "隱私承諾"
+          }
+        }
+      }
+    },
+    "隐私政策" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Privacy Policy"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "プライバシーポリシー"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "개인정보 처리방침"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "隱私權政策"
           }
         }
       }

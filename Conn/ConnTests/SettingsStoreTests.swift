@@ -7,12 +7,10 @@ import Testing
 @Suite("SettingsStore — 设置持久化")
 @MainActor
 struct SettingsStoreTests {
-    @Test("隐私政策链接仅使用有效 HTTPS URL")
-    func privacyPolicyLinkIsValidHTTPS() {
+    @Test("隐私政策使用正式官网的 HTTPS 地址")
+    func privacyPolicyLinkUsesPublishedWebsite() {
         let url = AppLegalLinks.privacyPolicyURL
-        #expect(url?.scheme?.lowercased() == "https")
-        #expect(url?.host == "github.com")
-        #expect(url?.path.contains("PRIVACY_POLICY.md") == true)
+        #expect(url?.absoluteString == "https://crazyball.cc/ConnTerm/privacy/")
     }
 
     @Test("首次启动默认使用深色模式和紫色主题")

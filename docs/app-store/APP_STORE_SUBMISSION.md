@@ -11,11 +11,14 @@
 | Subtitle（English） | `SSH Server Operations` | 可直接使用 |
 | 主类别 | Developer Tools | 后台选择 |
 | 次类别 | Utilities | 后台选择 |
-| 年龄分级 | 4+（按问卷逐项确认） | 后台填写 |
-| 支持 URL | `https://github.com/crazyball666/Conn/issues` | 提交前确认公开可访问 |
-| 隐私政策 URL | `https://github.com/crazyball666/Conn/blob/main/docs/app-store/PRIVACY_POLICY.md` | 提交前确认公开可访问 |
+| 年龄分级 | `[按 2026 版问卷生成]` | 必须在 App Information 完成新版问卷，不能手填推断 |
+| 支持 URL | `[部署后的 HTTPS 域名]/support/` | 必须替换为公开地址；页面内要配置有效邮箱及依法需要提供的电话、地址 |
+| 隐私政策 URL | `[部署后的 HTTPS 域名]/privacy/` | 必须替换为公开可访问的绝对 URL；网站源文件见 `docs/website/privacy/` |
 | 营销 URL | `[可选]` | 可选 |
-| 价格 | `[免费 / 付费]` | 当前工程未发现 StoreKit 购买流程，未实现买断前不要配置内购权益 |
+| 价格 | `[免费 / 付费下载]` | 首发建议免费；付费下载可直接配置价格，只有应用内购买或订阅才需要 StoreKit |
+| Copyright | `2026 [个人或公司法定名称]` | 必填，Apple 会自动添加版权符号 |
+| Content Rights | `[按实际权利情况声明]` | 后台填写；用户只能连接其拥有或获授权的主机 |
+| DSA 交易者状态 | `[交易者 / 非交易者]` | 无论是否在欧盟销售都必须声明；交易者需验证公开联系信息 |
 
 ### 中文宣传文案
 
@@ -86,6 +89,8 @@ You need an SSH host that you own or are authorized to access. Review every comm
 | 联系信息、用户内容、标识符、诊断、位置、财务信息 | 均不收集 | 数据只用于本机功能，不上传 |
 | 本地网络 | 需要权限 | 通过 SSH 连接用户添加的主机 |
 
+填写后必须在 App Privacy 页面点击 **Publish**。只保存但未发布，仍不满足提审要求。
+
 工程内已加入：
 
 - `PrivacyInfo.xcprivacy`：声明无跟踪、无收集数据，并声明 UserDefaults 的系统 API 使用理由；
@@ -100,7 +105,8 @@ ConnTerm 使用 SSH 以及系统/开源密码学库保护连接和密钥，因�
 1. 如问“是否使用加密”，应选择“是”；
 2. 说明使用的是 SSH 等标准协议和公开可用的密码学算法，目的是保护远程连接与本地凭据；
 3. 如后台提供“标准加密/豁免”选项，按 Apple 的说明判断是否适用；不要在没有确认前自行声称豁免；
-4. 保留开源依赖清单（GRDB、swift-crypto、swift-nio/Citadel）和许可证，供合规或审核需要时使用。
+4. 若问卷确认无需提交文档，再在工程中设置 `ITSAppUsesNonExemptEncryption = NO`；若需要文档，先上传并使用 Apple 审核后提供的配置值；
+5. 保留开源依赖清单（GRDB、swift-crypto、swift-nio/Citadel）和许可证，供合规或审核需要时使用。
 
 这不是法律意见；出口合规最终以 Apple 后台问卷和发行主体的合规确认结果为准。
 
@@ -120,11 +126,11 @@ Test setup:
 6. Open Settings > Key Manager to review key generation/import UI. No real private key is included in the build.
 
 Review host:
-- Address: [temporary review host]
+- Address: [review host]
 - Port: [port]
 - Username: [username]
-- Authentication: [temporary password or review key instructions]
-- Access expires: [UTC date/time]
+- Authentication: [review password or review key instructions]
+- Availability: This account remains active throughout App Review.
 
 The app stores host configuration and credentials locally. Private keys are kept in the system Keychain. No user data is uploaded to a ConnTerm server. Monitoring is active while the app is in use; this product does not provide background push monitoring.
 
@@ -136,7 +142,7 @@ If the host is temporarily unavailable, please contact [review contact email].
 - 仅包含脱敏、可恢复的测试数据；
 - 提供 Docker 环境时使用不会影响生产的容器/Compose 项目；
 - 账号权限足够展示功能，但不要使用 root 生产账号；
-- 明确过期时间，并在审核结束后立即撤销。
+- 主机和账号在整个审核期间不得过期或停机，审核完成后再撤销。
 
 ## 5. TestFlight / 提交前检查
 
@@ -151,7 +157,7 @@ If the host is temporarily unavailable, please contact [review contact email].
 - [ ] Docker：容器/镜像/卷/网络/Compose 列表、详情、日志、创建表单和危险操作确认；
 - [ ] 密钥：生成、导入、改名、复制公钥、导出、删除，以及 Keychain 与本地元数据不一致时的恢复；
 - [ ] 中英文切换、深色模式、动态字体、VoiceOver 基本导航；
-- [ ] iPhone 和 iPad 竖屏/横屏布局；
+- [ ] iPhone 支持尺寸的竖屏布局；首发构建不声明 iPad 支持；
 - [ ] 从旧版本升级安装后，主机、脚本、密钥引用和历史记录仍可读取；
 - [ ] 删除应用后确认本地数据库清除；Keychain 行为按最终产品策略复核，不要在商店文案中承诺跨设备同步。
 
@@ -163,14 +169,18 @@ If the host is temporarily unavailable, please contact [review contact email].
 - [ ] `xcodebuild archive`、`-validate-for-store` 和 TestFlight 上传成功；
 - [ ] 检查包内 `PrivacyInfo.xcprivacy`、本地网络权限说明、App icon 和版本号；
 - [ ] 确认第三方依赖许可证和隐私清单随包存在；
+- [ ] 确认提交截图来自 `docs/app-store/screenshots/marketing/app-store-6.9/`，尺寸为 `1320 × 2868` 且不含 Alpha；
 - [ ] 保存归档 dSYM，便于处理崩溃报告。
 
 ## 6. 还需要用户/后台补充的内容
 
-1. 确认支持页和隐私政策 URL 在 App Store Connect 中公开可访问；
-2. App Store Connect 中的 App 名称可用性、价格和销售地区；
-3. 最终商店截图：6.7 英寸 iPhone、6.5 英寸 iPhone，以及需要时的 12.9 英寸 iPad；
-4. 一台临时审核 SSH 主机和审核账号；
-5. 出口合规问卷确认；
-6. 最终版本号和 build number；
-7. 如果要收费或提供买断，先实现并验证 StoreKit 产品、恢复购买和退款后状态处理，再配置价格与审核说明。
+1. 在 `docs/website/support/index.html` 替换支持邮箱、电话、地址和法定主体，并把官网部署到公开 HTTPS 域名；
+2. 将公开的 `/support/`、`/privacy/` 地址填入 App Store Connect；
+3. 后台确认价格、销售地区、Copyright、Content Rights、2026 版年龄分级和 DSA 交易者状态；
+4. 上传 `marketing/app-store-6.9/` 中的中英文截图；首发为仅 iPhone，不需要 iPad 截图；
+5. 准备一台在整个审核期间持续可用的隔离 SSH 主机和审核账号；
+6. 完成并发布 App Privacy 回答；
+7. 完成出口合规问卷，再按问卷结果设置 Info.plist 或上传加密材料；
+8. 确认最终版本号和未被使用的 build number，完成 Archive、Validate App 和构建选择；
+9. 如果选择中国大陆销售，先完成适用的备案/许可信息；否则首发销售地区不包含中国大陆；
+10. 如果未来加入应用内购买或订阅，先实现并验证 StoreKit 产品、恢复购买和退款后状态处理，再提交相应商品审核。

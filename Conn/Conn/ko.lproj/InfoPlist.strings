@@ -1,3 +1,3 @@
 /* 로컬 네트워크 권한 설명. */
-"NSLocalNetworkUsageDescription" = "Conn은 SSH 호스트에 연결하고 파일, 프로세스 및 Docker를 관리하기 위해 로컬 네트워크를 사용합니다.";
-"NSFaceIDUsageDescription" = "앱 잠금을 켜면 Conn은 Face ID를 사용하여 앱 잠금을 해제합니다.";
+"NSLocalNetworkUsageDescription" = "ConnTerm은 SSH 호스트에 연결하고 파일, 프로세스 및 Docker를 관리하기 위해 로컬 네트워크를 사용합니다.";
+"NSFaceIDUsageDescription" = "앱 잠금을 켜면 ConnTerm은 Face ID를 사용하여 앱 잠금을 해제합니다.";

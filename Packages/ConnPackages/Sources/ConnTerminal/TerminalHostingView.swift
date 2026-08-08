@@ -45,7 +45,7 @@
 
     private struct TerminalHostContent: View {
         @StateObject private var controller: TerminalInputController
-        @State private var isKeybarExpanded = false
+        @State private var isKeybarExpanded: Bool
 
         private let configuration: TerminalConfiguration
         private let onChooseCommand: () -> Void
@@ -59,6 +59,9 @@
             onReconnect: @escaping () -> Void
         ) {
             _controller = StateObject(wrappedValue: TerminalInputController(session: session, transcript: transcript))
+            _isKeybarExpanded = State(
+                initialValue: ProcessInfo.processInfo.environment["CONN_SMOKE_TERMINAL_EXPANDED"] != nil
+            )
             self.configuration = configuration
             self.onChooseCommand = onChooseCommand
             self.onReconnect = onReconnect

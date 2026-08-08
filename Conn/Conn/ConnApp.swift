@@ -121,6 +121,12 @@ struct ConnApp: App {
                 }
             } else if ProcessInfo.processInfo.environment["CONN_SMOKE_SNIPPETS"] != nil {
                 NavigationStack { SnippetsView(dependencies: dependencies) }
+            } else if ProcessInfo.processInfo.environment["CONN_SMOKE_SCRIPT_RUN"] != nil {
+                SnippetRunView(
+                    snippet: BuiltinSnippets.load().first
+                        ?? Snippet(title: "System Overview", script: "uname -a; uptime; free -h"),
+                    dependencies: dependencies
+                )
             } else if ProcessInfo.processInfo.environment["CONN_SMOKE_HOSTFORM"] != nil {
                 HostFormView(dependencies: dependencies, initialDraft: HostDraft(), editingHostID: nil) { _ in }
             } else if ProcessInfo.processInfo.environment["CONN_SMOKE_CARDS"] != nil {
@@ -151,7 +157,7 @@ struct ConnApp: App {
         private func smokeTerminalHost(dependencies: AppDependencies) -> Host {
             let host = Host(
                 id: "conn.smoke.terminal",
-                name: "spike-ubuntu24",
+                name: "ops-node-01",
                 address: "127.0.0.1",
                 username: "deploy",
                 port: 2202
@@ -179,6 +185,9 @@ struct ConnApp: App {
 
         /// 终端冒烟可切换成长输出，用同一个入口验证键盘可见区与自动跟随。
         private func smokeTerminalCommand() -> String {
+            if ProcessInfo.processInfo.environment["CONN_SMOKE_TERMINAL_SCREENSHOT"] != nil {
+                return "ls -a"
+            }
             guard ProcessInfo.processInfo.environment["CONN_SMOKE_TERMINAL_LONG_OUTPUT"] != nil else {
                 return "echo '中文渲染测试 你好世界 café 日本語 🚀 制表符'; ls /"
             }

@@ -57,17 +57,17 @@ enum DemoData {
 
         let hosts = [
             Host(name: "web-01", address: "10.20.0.11", username: "root",
-                 groupIDs: [prod.id], tags: ["prod", "web"], note: "主站 Nginx 入口"),
+                 groupIDs: [prod.id], tags: ["prod", "web"]),
             Host(name: "api-02", address: "10.20.0.12", username: "deploy",
                  groupIDs: [prod.id], tags: ["prod", "api"]),
-            Host(name: "db-master", address: faultHostAddress, username: "root",
-                 groupIDs: [prod.id], tags: ["prod", "db"], note: "生产主库，勿直接重启"),
+            Host(name: "db-01", address: faultHostAddress, username: "root",
+                 groupIDs: [prod.id], tags: ["prod", "db"]),
             Host(name: "cache-01", address: "10.20.0.21", username: "deploy",
                  groupIDs: [staging.id], tags: ["staging"]),
             // 同时属于两个分组，用来验证多分组归属。
-            Host(name: "worker-1", address: "10.20.0.31", username: "root",
+            Host(name: "worker-01", address: "10.20.0.31", username: "root",
                  groupIDs: [staging.id, prod.id], tags: ["staging", "batch"]),
-            Host(name: "home-nas", address: "192.168.1.10", username: "admin",
+            Host(name: "nas-01", address: "192.168.1.10", username: "admin",
                  groupIDs: [home.id], tags: ["home"])
         ]
         for host in hosts {

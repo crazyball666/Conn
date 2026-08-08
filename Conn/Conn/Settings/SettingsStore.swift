@@ -68,10 +68,10 @@ enum RefreshInterval: Int, CaseIterable, Identifiable {
     var duration: Duration { .seconds(rawValue) }
 }
 
-/// App Store 公开法律页面。发布前应确保该仓库路径仍公开可访问。
+/// App Store 公开法律页面。必须保持为可公开访问的 HTTPS 地址。
 enum AppLegalLinks {
     static let privacyPolicyURL: URL? = {
-        guard let url = URL(string: "https://github.com/crazyball666/Conn/blob/main/docs/app-store/PRIVACY_POLICY.md"),
+        guard let url = URL(string: "https://crazyball.cc/ConnTerm/privacy/"),
               url.scheme?.lowercased() == "https",
               url.host != nil
         else { return nil }
