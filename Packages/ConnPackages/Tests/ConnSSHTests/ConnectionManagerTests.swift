@@ -201,6 +201,38 @@ struct ConnectionManagerTests {
         #expect(await !manager.hasPooledSession(for: second))
     }
 
+    @Test("同一连接的平台画像只探测一次")
+    func cachesPlatformProfile() async throws {
+        let detector = CountingPlatformDetector(profile: .init(kind: .macOS))
+        let manager = ConnectionManager(
+            transport: MockSSHTransport(),
+            platformDetector: detector
+        )
+        let host = host()
+
+        let first = try await manager.platformProfile(for: host)
+        let second = try await manager.platformProfile(for: host)
+
+        #expect(first == second)
+        #expect(await detector.count == 1)
+    }
+
+    @Test("驱逐连接会同步清除平台画像缓存")
+    func invalidationClearsPlatformProfile() async throws {
+        let detector = CountingPlatformDetector(profile: .init(kind: .linux))
+        let manager = ConnectionManager(
+            transport: MockSSHTransport(),
+            platformDetector: detector
+        )
+        let host = host()
+
+        _ = try await manager.platformProfile(for: host)
+        await manager.invalidate(host: host)
+        _ = try await manager.platformProfile(for: host)
+
+        #expect(await detector.count == 2)
+    }
+
     @Test("握手期间 invalidateAll → 握手成功也不回插，会话被关掉，调用方拿到错误")
     func handshakeFinishedAfterInvalidateAllIsNotReinserted() async throws {
         // 关键：这个 transport 的握手**不响应取消**，模拟 Citadel 的
@@ -269,6 +301,21 @@ private actor ConnectCounter {
     private(set) var count = 0
     func increment() {
         count += 1
+    }
+}
+
+private actor CountingPlatformDetector: RemotePlatformDetecting {
+    private(set) var count = 0
+    private let profile: RemotePlatformProfile
+
+    init(profile: RemotePlatformProfile) {
+        self.profile = profile
+    }
+
+    func detect(on session: any SSHSession) async throws -> RemotePlatformProfile {
+        _ = session
+        count += 1
+        return profile
     }
 }
 

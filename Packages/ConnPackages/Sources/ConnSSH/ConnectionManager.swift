@@ -18,6 +18,7 @@ public actor ConnectionManager {
     private let transport: any SSHTransport
     private let resolveAuth: AuthResolver
     private let resolveJumpChain: JumpChainResolver
+    private let platformDetector: any RemotePlatformDetecting
 
     /// 连接池必须区分配置不同的主机，即使它们暂时指向同一端点。
     ///
@@ -52,6 +53,7 @@ public actor ConnectionManager {
     }
 
     private var entries: [PoolKey: Entry] = [:]
+    private var platformProfiles: [PoolKey: RemotePlatformProfile] = [:]
 
     /// - Parameters:
     ///   - transport: SSH 引擎（已注入其所需的 `HostKeyStore`）。
@@ -68,6 +70,36 @@ public actor ConnectionManager {
         self.transport = transport
         self.resolveAuth = resolveAuth
         self.resolveJumpChain = resolveJumpChain
+        platformDetector = RemotePlatformDetector()
+    }
+
+    /// 测试和上层组合根可注入探测器；保留上方原三参数初始化器的精确签名。
+    public init(
+        transport: any SSHTransport,
+        resolveAuth: @escaping AuthResolver,
+        resolveJumpChain: @escaping JumpChainResolver,
+        platformDetector: any RemotePlatformDetecting
+    ) {
+        self.transport = transport
+        self.resolveAuth = resolveAuth
+        self.resolveJumpChain = resolveJumpChain
+        self.platformDetector = platformDetector
+    }
+
+    /// 只替换平台探测器，其余依赖使用默认实现。
+    public init(
+        transport: any SSHTransport,
+        platformDetector: any RemotePlatformDetecting
+    ) {
+        self.init(
+            transport: transport,
+            resolveAuth: { _ in .password("") },
+            resolveJumpChain: { host in
+                guard host.jumpChain.isEmpty else { throw SSHError.jumpChainUnsupported }
+                return []
+            },
+            platformDetector: platformDetector
+        )
     }
 
     /// 保留旧的两参数构造入口，避免现有调用方因新增跳板解析器而失去
@@ -110,6 +142,7 @@ public actor ConnectionManager {
                 // 被 `dashboardConfig != nil` 收窄到「仪表盘此刻确实在跑」——那道收窄是
                 // 为了不掐断骑在同一条连接上的终端，是对的，只是覆盖不到别的页面。
                 entries[key] = nil
+                platformProfiles[key] = nil
                 // fire-and-forget：对着一条半死的 socket `await close()` 可能把调用方一起卡住。
                 Task { await session.close() }
             case let .connecting(task):
@@ -193,6 +226,7 @@ public actor ConnectionManager {
     /// 关闭在后台 fire-and-forget,避免对死 socket 调 `close()` 卡住调用方。
     public func invalidate(host: ConnKit.Host) {
         let key = poolKey(for: host)
+        platformProfiles[key] = nil
         guard let entry = entries.removeValue(forKey: key) else { return }
         switch entry {
         case let .connected(session):
@@ -223,6 +257,7 @@ public actor ConnectionManager {
     public func invalidateAll() {
         let current = entries
         entries.removeAll()
+        platformProfiles.removeAll()
         for entry in current.values {
             switch entry {
             case let .connected(session):
@@ -236,6 +271,7 @@ public actor ConnectionManager {
     /// 断开并移除某主机的会话。
     public func disconnect(host: ConnKit.Host) async {
         let key = poolKey(for: host)
+        platformProfiles[key] = nil
         guard let entry = entries.removeValue(forKey: key) else { return }
         switch entry {
         case let .connected(session):
@@ -254,6 +290,27 @@ public actor ConnectionManager {
                 false
             }
         }.count
+    }
+
+    /// 返回并缓存当前池化连接对应的平台画像。动态能力状态由各功能自行探测。
+    public func platformProfile(for host: ConnKit.Host) async throws -> RemotePlatformProfile {
+        let key = poolKey(for: host)
+        if let cached = platformProfiles[key] {
+            return cached
+        }
+
+        let session = try await session(for: host)
+        if let cached = platformProfiles[key] {
+            return cached
+        }
+        let profile = try await platformDetector.detect(on: session)
+
+        // 探测期间连接可能被 invalidate；只缓存仍被池认领的同一条会话。
+        guard case let .connected(pooled)? = entries[key], pooled === session else {
+            throw SSHError.channelClosed
+        }
+        platformProfiles[key] = profile
+        return profile
     }
 
     private func poolKey(for host: ConnKit.Host) -> PoolKey {
