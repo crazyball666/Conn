@@ -225,20 +225,27 @@ public enum DarwinMetricParser {
     }
 
     private static func parseTCP(_ section: String) -> TCPStats? {
-        func count(where predicate: (String) -> Bool) -> Int64? {
+        func count(matching pattern: String) -> Int64? {
+            guard let regex = try? NSRegularExpression(
+                pattern: pattern,
+                options: [.caseInsensitive]
+            ) else { return nil }
             for line in section.split(separator: "\n") {
                 let text = String(line).trimmingCharacters(in: .whitespaces)
-                if predicate(text), let value = Int64(text.split(separator: " ").first ?? "") {
-                    return value
-                }
+                let range = NSRange(text.startIndex..., in: text)
+                guard let match = regex.firstMatch(in: text, range: range),
+                      match.numberOfRanges > 1,
+                      let valueRange = Range(match.range(at: 1), in: text)
+                else { continue }
+                return Int64(text[valueRange])
             }
             return nil
         }
-        let active = count { $0.contains("connection") && ($0.contains("initiated") || $0.contains("requests")) }
-        let passive = count { $0.contains("connection") && ($0.contains("accepted") || $0.contains("accepts")) }
-        let failures = count { $0.contains("bad connection attempts") }
-        let sent = count { $0.contains("packets sent") }
-        let retransmitted = count { $0.contains("data packets retransmitted") }
+        let active = count(matching: #"^(\d+)\s+connection (?:requests?|initiated)\b"#)
+        let passive = count(matching: #"^(\d+)\s+connection (?:accepts?|accepted)\b"#)
+        let failures = count(matching: #"^(\d+)\s+bad connection attempts?\b"#)
+        let sent = count(matching: #"^(\d+)\s+packets? sent\b"#)
+        let retransmitted = count(matching: #"^(\d+)\s+data packets?.*\bretransmitted\b"#)
         guard let active, let passive, let failures, let sent, let retransmitted else { return nil }
         let rate = sent > 0 ? Double(retransmitted) / Double(sent) * 100 : 0
         return TCPStats(retransRate: rate, activeOpens: active, passiveOpens: passive, attemptFails: failures)

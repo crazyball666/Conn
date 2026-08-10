@@ -40,19 +40,38 @@ public struct RemotePlatformDetector: RemotePlatformDetecting {
         "echo \(Sentinel.end)",
     ].joined(separator: "; ")
 
-    public static let windowsCommand = """
-    powershell -NoProfile -NonInteractive -Command "$ErrorActionPreference='SilentlyContinue'; \
-    Write-Output '\(Sentinel.windows)'; Write-Output ([System.Environment]::OSVersion.VersionString); \
-    Write-Output '\(Sentinel.architecture)'; Write-Output $env:PROCESSOR_ARCHITECTURE; \
-    Write-Output '\(Sentinel.shell)'; Write-Output 'PowerShell'; Write-Output '\(Sentinel.end)'"
-    """
+    /// 使用 UTF-16LE Base64 传入 PowerShell，避免目标默认 shell（尤其 PowerShell
+    /// 自身）提前展开 `$env:` 和 `$ErrorActionPreference`，导致嵌套命令被改写。
+    public static let windowsCommand: String = {
+        let script = """
+        $ErrorActionPreference='SilentlyContinue'
+        Write-Output '\(Sentinel.windows)'
+        Write-Output ([System.Environment]::OSVersion.VersionString)
+        Write-Output '\(Sentinel.architecture)'
+        Write-Output $env:PROCESSOR_ARCHITECTURE
+        Write-Output '\(Sentinel.shell)'
+        Write-Output 'PowerShell'
+        Write-Output '\(Sentinel.end)'
+        """
+        let encoded = script.data(using: .utf16LittleEndian)?.base64EncodedString() ?? ""
+        return "powershell -NoProfile -NonInteractive -EncodedCommand \(encoded)"
+    }()
 
     public init() {}
 
     public func detect(on session: any SSHSession) async throws -> RemotePlatformProfile {
         let posix = try await session.exec(Self.posixCommand)
         if posix.isSuccess {
-            return Self.parse(posix.stdoutText)
+            let profile = Self.parse(posix.stdoutText)
+            guard profile.kind == .unknown else { return profile }
+
+            // Windows OpenSSH 的默认 shell 可能是 PowerShell。前面的 `echo ...;
+            // uname ...; echo ...` 会因最后一个 echo 而成功退出，却没有 uname 签名；
+            // 此时仍需尝试 Windows 探测。若目标真是未知 POSIX，保留原画像。
+            let windows = try await session.exec(Self.windowsCommand)
+            guard windows.isSuccess else { return profile }
+            let windowsProfile = Self.parse(windows.stdoutText)
+            return windowsProfile.kind == .unknown ? profile : windowsProfile
         }
 
         let windows = try await session.exec(Self.windowsCommand)

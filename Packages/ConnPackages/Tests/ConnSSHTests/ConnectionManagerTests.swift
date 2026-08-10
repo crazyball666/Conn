@@ -233,6 +233,24 @@ struct ConnectionManagerTests {
         #expect(await detector.count == 2)
     }
 
+    @Test("缓存画像前先验证池化连接，死连接会重新握手与探测")
+    func cachedProfileDoesNotBypassDeadSessionCheck() async throws {
+        let detector = CountingPlatformDetector(profile: .init(kind: .macOS))
+        let manager = ConnectionManager(
+            transport: MockSSHTransport(),
+            platformDetector: detector
+        )
+        let host = host()
+
+        let session = try await manager.session(for: host)
+        _ = try await manager.platformProfile(for: host)
+        (session as? MockSSHSession)?.simulateDisconnect()
+        _ = try await manager.platformProfile(for: host)
+
+        #expect(await detector.count == 2)
+        #expect(await manager.activeCount == 1)
+    }
+
     @Test("握手期间 invalidateAll → 握手成功也不回插，会话被关掉，调用方拿到错误")
     func handshakeFinishedAfterInvalidateAllIsNotReinserted() async throws {
         // 关键：这个 transport 的握手**不响应取消**，模拟 Citadel 的

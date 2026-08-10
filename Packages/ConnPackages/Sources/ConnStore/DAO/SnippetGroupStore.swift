@@ -45,6 +45,7 @@ struct SnippetGroupRecord: Codable, FetchableRecord, PersistableRecord, Sendable
     var createdAt: Int64
     var updatedAt: Int64
     var syncDirty: Bool
+    var builtinKey: String?
 
     enum CodingKeys: String, CodingKey {
         case uuid, name
@@ -52,6 +53,7 @@ struct SnippetGroupRecord: Codable, FetchableRecord, PersistableRecord, Sendable
         case createdAt = "created_at"
         case updatedAt = "updated_at"
         case syncDirty = "sync_dirty"
+        case builtinKey = "builtin_key"
     }
 
     init(_ group: SnippetGroup) {
@@ -61,6 +63,7 @@ struct SnippetGroupRecord: Codable, FetchableRecord, PersistableRecord, Sendable
         createdAt = group.createdAt
         updatedAt = group.updatedAt
         syncDirty = group.syncDirty
+        builtinKey = group.builtinKey
     }
 
     func toDomain() -> SnippetGroup {
@@ -70,7 +73,8 @@ struct SnippetGroupRecord: Codable, FetchableRecord, PersistableRecord, Sendable
             sortOrder: sortOrder,
             createdAt: createdAt,
             updatedAt: updatedAt,
-            syncDirty: syncDirty
+            syncDirty: syncDirty,
+            builtinKey: builtinKey
         )
     }
 }

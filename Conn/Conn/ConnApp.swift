@@ -124,7 +124,7 @@ struct ConnApp: App {
             } else if ProcessInfo.processInfo.environment["CONN_SMOKE_SCRIPT_RUN"] != nil {
                 SnippetRunView(
                     snippet: BuiltinSnippets.load().first
-                        ?? Snippet(title: "System Overview", script: "uname -a; uptime; free -h"),
+                        ?? Snippet(title: "System Overview", script: "uname -a; uptime"),
                     dependencies: dependencies
                 )
             } else if ProcessInfo.processInfo.environment["CONN_SMOKE_HOSTFORM"] != nil {

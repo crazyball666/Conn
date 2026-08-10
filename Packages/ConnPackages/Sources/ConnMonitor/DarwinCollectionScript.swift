@@ -27,6 +27,7 @@ public enum DarwinCollectionScript {
 
     public static func command(includeExtended: Bool = true) -> String {
         var parts = [
+            "export LC_ALL=C LANG=C",
             "echo \(Sentinel.top)", "top -l 1 -n 0 2>/dev/null | grep 'CPU usage'",
             "echo \(Sentinel.cores)", "sysctl -n hw.logicalcpu 2>/dev/null",
             "echo \(Sentinel.memsize)", "sysctl -n hw.memsize 2>/dev/null",

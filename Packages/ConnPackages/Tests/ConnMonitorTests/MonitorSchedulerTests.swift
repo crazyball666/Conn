@@ -35,6 +35,20 @@ struct MonitorSchedulerTests {
         #expect(await fixture.log.execs == 1)
     }
 
+    @Test("不支持指标的平台保留健康 SSH 连接且不执行 Linux 命令")
+    func unsupportedMetricsDoNotEvictHealthyConnection() async {
+        let fixture = makeFixture(platform: .windows)
+        let target = host("windows")
+
+        await fixture.scheduler.scanNow(hosts: [target])
+
+        #expect(fixture.scheduler.metrics[target.id] == nil)
+        #expect(fixture.scheduler.errors[target.id]?.contains("windows") == true)
+        #expect(await fixture.log.execs == 0)
+        #expect(await fixture.log.connects == 1)
+        #expect(await fixture.manager.hasPooledSession(for: target))
+    }
+
     @Test("有读数的主机首次 exec 失败会同轮立刻重试，不报错")
     func retriesOnceWithoutSurfacingError() async {
         let (scheduler, log) = makeScheduler()

@@ -455,6 +455,10 @@ public final class MonitorScheduler {
             )
             errors[host.id] = nil
             return nil
+        } catch let error as MetricCollectionError {
+            // 平台不支持是稳定的能力结论，不是传输故障。保留健康 SSH 连接，让终端、
+            // SFTP 等平台无关能力继续复用；也避免每轮仪表盘扫描都重新握手。
+            return error
         } catch {
             // 驱逐可能已死的会话，下次尝试重新握手 → 断网后自愈。
             // 这里只驱逐、不写 errors：一次传输失败还不等于主机故障。

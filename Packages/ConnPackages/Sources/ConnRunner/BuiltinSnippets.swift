@@ -5,8 +5,14 @@ import Foundation
 public enum BuiltinSnippets {
     private struct LibraryDTO: Decodable {
         let version: Int
-        let groups: [String]
+        let groups: [GroupDTO]
         let commands: [CommandDTO]
+    }
+
+    private struct GroupDTO: Decodable {
+        let key: String
+        let title: String
+        let legacyNames: [String]
     }
 
     private struct CommandDTO: Decodable {
@@ -36,7 +42,7 @@ public enum BuiltinSnippets {
     /// 名称在导入时按**当时**的语言定死一次，事后切语言不会重译——
     /// 与改造前行为一致。差别是成员匹配从「按本地化字符串」变成「按 id」，更稳。
     public static func loadGroupNames() -> [String] {
-        (decodeLibrary()?.groups ?? []).map { L($0) }
+        (decodeLibrary()?.groups ?? []).map { L($0.title) }
     }
 
     /// 从打包 JSON 载入内置命令（不含分组归属，归属需要先建分组拿到 id）。
@@ -71,19 +77,50 @@ public enum BuiltinSnippets {
               try store.builtinCatalogVersion() < library.version
         else { return false }
 
-        let existingGroups = try groupStore.allGroups()
-        var idByName: [String: String] = [:]
-        for (index, name) in loadGroupNames().enumerated() {
-            let group: SnippetGroup
-            if let existing = existingGroups.first(where: {
-                $0.name.localizedCaseInsensitiveCompare(name) == .orderedSame
-            }) {
+        var knownGroups = try groupStore.allGroups()
+        let inferredGroupIDs = inferLegacyGroupIDs(
+            library: library,
+            snippets: try store.allSnippets(),
+            knownGroupIDs: Set(knownGroups.map(\.id))
+        )
+        var idByKey: [String: String] = [:]
+        for (index, dto) in library.groups.enumerated() {
+            let localizedName = L(dto.title)
+            var group: SnippetGroup
+            if let existing = knownGroups.first(where: { $0.builtinKey == dto.key }) {
                 group = existing
-            } else {
-                group = SnippetGroup(name: name, sortOrder: index)
+            } else if let inferredID = inferredGroupIDs[dto.key],
+                      let existingIndex = knownGroups.firstIndex(where: {
+                          $0.id == inferredID && $0.builtinKey == nil
+                      }) {
+                // v2 的分组本身没有稳定 key，但其中的内置片段已经有 builtinKey。
+                // 取该类别内置片段成员关系的唯一交集，可在用户改过分组名称后仍
+                // 精确认领原分组，并完整保留用户名称。
+                group = knownGroups[existingIndex]
+                group.builtinKey = dto.key
                 try groupStore.save(group)
+                knownGroups[existingIndex] = group
+            } else if let existingIndex = knownGroups.firstIndex(where: { candidate in
+                guard candidate.builtinKey == nil else { return false }
+                return ([dto.title, localizedName] + dto.legacyNames).contains { name in
+                    candidate.name.localizedCaseInsensitiveCompare(name) == .orderedSame
+                }
+            }) {
+                group = knownGroups[existingIndex]
+                group.builtinKey = dto.key
+                try groupStore.save(group)
+                knownGroups[existingIndex] = group
+            } else {
+                group = SnippetGroup(
+                    id: "builtin-group.\(dto.key)",
+                    name: localizedName,
+                    sortOrder: index,
+                    builtinKey: dto.key
+                )
+                try groupStore.save(group)
+                knownGroups.append(group)
             }
-            idByName[name] = group.id
+            idByKey[dto.key] = group.id
         }
         for (index, dto) in library.commands.enumerated() {
             guard try store.snippet(builtinKey: dto.key) == nil,
@@ -94,7 +131,7 @@ public enum BuiltinSnippets {
                 title: L(dto.title),
                 script: dto.script,
                 interpreter: dto.interpreter ?? .sh,
-                groupIDs: dto.groups.compactMap { idByName[L($0)] },
+                groupIDs: dto.groups.compactMap { idByKey[$0] },
                 pinned: dto.pinned ?? false,
                 danger: dto.danger ?? false,
                 platforms: dto.platforms ?? [],
@@ -105,6 +142,36 @@ public enum BuiltinSnippets {
         }
         try store.setBuiltinCatalogVersion(library.version)
         return true
+    }
+
+    /// 从 v2 已有内置片段的成员关系推断原内置分组。只有全部可见成员的分组交集
+    /// 恰好得到一个已存在分组时才认领；有歧义时退回名称匹配，避免误标用户分组。
+    private static func inferLegacyGroupIDs(
+        library: LibraryDTO,
+        snippets: [Snippet],
+        knownGroupIDs: Set<String>
+    ) -> [String: String] {
+        var snippetByBuiltinKey: [String: Snippet] = [:]
+        for snippet in snippets {
+            guard let key = snippet.builtinKey else { continue }
+            snippetByBuiltinKey[key] = snippet
+        }
+
+        var result: [String: String] = [:]
+        for group in library.groups {
+            let memberships = library.commands
+                .filter { $0.groups.contains(group.key) }
+                .compactMap { snippetByBuiltinKey[$0.key] }
+                .map { Set($0.groupIDs).intersection(knownGroupIDs) }
+            guard var common = memberships.first else { continue }
+            for membership in memberships.dropFirst() {
+                common.formIntersection(membership)
+            }
+            if common.count == 1, let id = common.first {
+                result[group.key] = id
+            }
+        }
+        return result
     }
 
     /// 从旧 UserDefaults 一次性标记迁移：v1 已导入的十条命令没有稳定 key，不能按

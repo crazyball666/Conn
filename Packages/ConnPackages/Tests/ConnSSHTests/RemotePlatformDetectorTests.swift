@@ -100,6 +100,55 @@ struct RemotePlatformDetectorTests {
         #expect(session.commandCount == 2)
     }
 
+    @Test("POSIX 命令成功但签名未知时仍尝试 Windows 探测")
+    func successfulUnknownPOSIXProbeStillTriesWindows() async throws {
+        let session = DetectorFixtureSession(responses: [
+            .init(stdout: """
+            __CONN_UNAME__
+            __CONN_RELEASE__
+            __CONN_ARCH__
+            __CONN_SHELL__
+            __CONN_END__
+            """),
+            .init(stdout: """
+            __CONN_WINDOWS__
+            Microsoft Windows [Version 11.0]
+            __CONN_ARCH__
+            AMD64
+            __CONN_SHELL__
+            PowerShell
+            __CONN_END__
+            """),
+        ])
+
+        let profile = try await RemotePlatformDetector().detect(on: session)
+
+        #expect(profile.kind == .windows)
+        #expect(session.commandCount == 2)
+    }
+
+    @Test("未知 POSIX 平台且 Windows 探测失败时保留 unknown 画像")
+    func successfulUnknownPOSIXProbeRemainsUnknown() async throws {
+        let session = DetectorFixtureSession(responses: [
+            .init(stdout: """
+            __CONN_UNAME__
+            Plan9
+            __CONN_RELEASE__
+            4e
+            __CONN_ARCH__
+            amd64
+            __CONN_END__
+            """),
+            .init(stderr: "powershell: not found", exitCode: 127),
+        ])
+
+        let profile = try await RemotePlatformDetector().detect(on: session)
+
+        #expect(profile.kind == .unknown)
+        #expect(profile.release == "4e")
+        #expect(session.commandCount == 2)
+    }
+
     @Test("两种探测都执行失败时抛探测错误")
     func throwsWhenBothProbesFail() async {
         let session = DetectorFixtureSession(responses: [
@@ -110,6 +159,13 @@ struct RemotePlatformDetectorTests {
         await #expect(throws: RemotePlatformDetectionError.self) {
             _ = try await RemotePlatformDetector().detect(on: session)
         }
+    }
+
+    @Test("Windows 探测脚本使用 EncodedCommand 避免 shell 提前展开 PowerShell 变量")
+    func windowsProbeUsesEncodedCommand() {
+        #expect(RemotePlatformDetector.windowsCommand.contains("-EncodedCommand"))
+        #expect(!RemotePlatformDetector.windowsCommand.contains("$env:"))
+        #expect(!RemotePlatformDetector.windowsCommand.contains("$ErrorActionPreference"))
     }
 }
 

@@ -1,11 +1,11 @@
 {
-  "version": 2,
+  "version": 3,
   "groups": [
-    "系统",
-    "磁盘",
-    "网络",
-    "日志",
-    "Docker"
+    { "key": "system", "title": "系统", "legacyNames": ["系统", "System", "系統", "システム", "시스템"] },
+    { "key": "disk", "title": "磁盘", "legacyNames": ["磁盘", "Disk", "磁碟", "ディスク", "디스크"] },
+    { "key": "network", "title": "网络", "legacyNames": ["网络", "Network", "網路", "ネットワーク", "네트워크"] },
+    { "key": "logs", "title": "日志", "legacyNames": ["日志", "Logs", "日誌", "ログ", "로그"] },
+    { "key": "docker", "title": "Docker", "legacyNames": ["Docker"] }
   ],
   "commands": [
     {
@@ -14,7 +14,7 @@
       "script": "uname -a; echo; uptime; echo; free -h",
       "platforms": ["linux"],
       "pinned": true,
-      "groups": ["系统"]
+      "groups": ["system"]
     },
     {
       "key": "system-overview-macos",
@@ -22,56 +22,57 @@
       "script": "sw_vers; echo; uname -a; echo; uptime; echo; sysctl hw.memsize",
       "platforms": ["macOS"],
       "pinned": true,
-      "groups": ["系统"]
+      "groups": ["system"]
     },
     {
       "key": "cpu-top-linux",
       "title": "CPU 占用 Top 10",
       "script": "ps -eo pid,comm,pcpu --sort=-pcpu | head -11",
       "platforms": ["linux"],
-      "groups": ["系统"]
+      "groups": ["system"]
     },
     {
       "key": "cpu-top-macos",
       "title": "CPU 占用 Top 10",
       "script": "ps -axo pid,comm,%cpu | sort -k3 -nr | head -11",
       "platforms": ["macOS"],
-      "groups": ["系统"]
+      "groups": ["system"]
     },
     {
       "key": "memory-top-linux",
       "title": "内存占用 Top 10",
       "script": "ps -eo pid,comm,pmem --sort=-pmem | head -11",
       "platforms": ["linux"],
-      "groups": ["系统"]
+      "groups": ["system"]
     },
     {
       "key": "memory-top-macos",
       "title": "内存占用 Top 10",
       "script": "ps -axo pid,comm,%mem | sort -k3 -nr | head -11",
       "platforms": ["macOS"],
-      "groups": ["系统"]
+      "groups": ["system"]
     },
     {
       "key": "service-status-linux",
       "title": "服务状态",
       "script": "systemctl status {{unit:nginx}} --no-pager",
       "platforms": ["linux"],
-      "groups": ["系统"]
+      "groups": ["system"]
     },
     {
       "key": "service-status-macos",
       "title": "服务状态",
       "script": "launchctl print system/{{unit:com.apple.sshd}}",
       "platforms": ["macOS"],
-      "groups": ["系统"]
+      "groups": ["system"]
     },
     {
       "key": "disk-usage",
       "title": "磁盘使用",
       "script": "df -h",
+      "platforms": ["linux", "macOS"],
       "pinned": true,
-      "groups": ["磁盘"]
+      "groups": ["disk"]
     },
     {
       "key": "listening-ports-linux",
@@ -79,7 +80,7 @@
       "script": "ss -tulnp",
       "platforms": ["linux"],
       "pinned": true,
-      "groups": ["网络"]
+      "groups": ["network"]
     },
     {
       "key": "listening-ports-macos",
@@ -87,41 +88,44 @@
       "script": "lsof -nP -iTCP -sTCP:LISTEN",
       "platforms": ["macOS"],
       "pinned": true,
-      "groups": ["网络"]
+      "groups": ["network"]
     },
     {
       "key": "connectivity-test",
       "title": "连通性测试",
       "script": "ping -c 4 {{host:8.8.8.8}}",
-      "groups": ["网络"]
+      "platforms": ["linux", "macOS"],
+      "groups": ["network"]
     },
     {
       "key": "system-log-linux",
       "title": "系统日志尾部",
       "script": "journalctl -n 100 --no-pager",
       "platforms": ["linux"],
-      "groups": ["日志"]
+      "groups": ["logs"]
     },
     {
       "key": "system-log-macos",
       "title": "系统日志尾部",
       "script": "/usr/bin/log show --last 1h --style syslog",
       "platforms": ["macOS"],
-      "groups": ["日志"]
+      "groups": ["logs"]
     },
     {
       "key": "container-list",
       "title": "容器列表",
       "script": "docker ps -a",
+      "platforms": ["linux", "macOS"],
       "requiredCapabilities": ["docker"],
-      "groups": ["Docker"]
+      "groups": ["docker"]
     },
     {
       "key": "container-stats",
       "title": "容器资源占用",
       "script": "docker stats --no-stream",
+      "platforms": ["linux", "macOS"],
       "requiredCapabilities": ["docker"],
-      "groups": ["Docker"]
+      "groups": ["docker"]
     }
   ]
 }

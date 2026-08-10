@@ -47,7 +47,7 @@ public struct LogSource: Identifiable, Sendable, Equatable, Hashable {
             return prefix + "tail -n \(tail) -F \(Self.shellQuote(path)) 2>&1"
         case let .unified(predicate):
             let filter = predicate.map { " --predicate \(Self.shellQuote($0))" } ?? ""
-            return prefix + "log stream --style syslog\(filter) 2>&1"
+            return prefix + "/usr/bin/log stream --style syslog\(filter) 2>&1"
         case let .container(id, _, runtime):
             return DockerCommand.logs(
                 id: id,
@@ -111,6 +111,9 @@ public enum LogPresets {
                 lines.append("test -f \(path) && echo \"__FILE__ \(candidate.id)\"")
             }
         }
+        // 探测的退出码不能取决于最后一个候选文件是否存在；调用方会用退出码区分
+        // “没有这些日志源”与“整条发现命令执行失败”。
+        lines.append("true")
         return lines.joined(separator: "; ")
     }
 

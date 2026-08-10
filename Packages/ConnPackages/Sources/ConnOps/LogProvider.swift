@@ -39,6 +39,7 @@ public struct DarwinLogProvider: LogProvider {
         [
             "test -x /usr/bin/log && echo __UNIFIED_LOG__",
             "test -f /var/log/system.log && echo \"__FILE__ system-log\"",
+            "true",
         ].joined(separator: "; ")
     }
 

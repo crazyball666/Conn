@@ -510,6 +510,8 @@ extension DockerView {
             } else {
                 L("Docker 服务未运行。请在目标主机上启动 Docker 后重试。")
             }
+        case .unsupportedPlatform:
+            L("当前平台尚不支持 Docker 管理。")
         case .available:
             ""
         }

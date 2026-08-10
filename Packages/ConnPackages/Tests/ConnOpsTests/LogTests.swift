@@ -52,7 +52,7 @@ struct LogSourceTests {
         let unified = LogSource(
             id: "unified", title: "", subtitle: "", kind: .unified(predicate: nil)
         )
-        #expect(unified.followCommand() == "log stream --style syslog 2>&1")
+        #expect(unified.followCommand() == "/usr/bin/log stream --style syslog 2>&1")
 
         let filteredUnified = LogSource(
             id: "unified-filtered", title: "", subtitle: "",
@@ -60,7 +60,7 @@ struct LogSourceTests {
         )
         #expect(
             filteredUnified.followCommand()
-                == #"log stream --style syslog --predicate 'process == '\''backup agent'\''' 2>&1"#
+                == #"/usr/bin/log stream --style syslog --predicate 'process == '\''backup agent'\''' 2>&1"#
         )
     }
 
@@ -153,6 +153,7 @@ struct LogSourceTests {
 
         #expect(provider?.platform == .linux)
         #expect(provider?.discoveryCommand.contains("journalctl") == true)
+        #expect(provider?.discoveryCommand.hasSuffix("; true") == true)
         #expect(provider?.parseDiscovery("__FILE__ messages").map(\.id) == ["messages"])
     }
 
@@ -163,6 +164,7 @@ struct LogSourceTests {
         #expect(provider.discoveryCommand.contains("/usr/bin/log"))
         #expect(provider.discoveryCommand.contains("/var/log/system.log"))
         #expect(!provider.discoveryCommand.contains("journalctl"))
+        #expect(provider.discoveryCommand.hasSuffix("; true"))
 
         let sources = provider.parseDiscovery("__UNIFIED_LOG__\n__FILE__ system-log")
         #expect(sources.map(\.id) == ["darwin-unified", "system-log"])

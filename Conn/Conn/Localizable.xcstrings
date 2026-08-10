@@ -22070,6 +22070,118 @@
         }
       }
     },
+    "当前平台尚不支持 Docker 管理。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Docker management is not yet supported on this platform."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このプラットフォームでは Docker 管理はまだサポートされていません。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이 플랫폼에서는 아직 Docker 관리를 지원하지 않습니다."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "目前平台尚不支援 Docker 管理。"
+          }
+        }
+      }
+    },
+    "部分主机指标不可用" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Some host metrics are unavailable"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "一部のホストメトリクスを利用できません"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "일부 호스트 지표를 사용할 수 없습니다"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "部分主機指標無法使用"
+          }
+        }
+      }
+    },
+    "主机指标采集暂不可用" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Host metrics collection is temporarily unavailable"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ホストメトリクスの収集は一時的に利用できません"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "호스트 지표 수집을 일시적으로 사용할 수 없습니다"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "主機指標收集暫時無法使用"
+          }
+        }
+      }
+    },
+    "当前主机平台暂不支持指标采集" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Metrics collection is not yet supported on this host platform"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このホストプラットフォームではメトリクス収集はまだサポートされていません"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이 호스트 플랫폼에서는 아직 지표 수집을 지원하지 않습니다"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "目前主機平台尚不支援指標收集"
+          }
+        }
+      }
+    },
     "默认将移除已停止容器、未使用网络、悬空镜像和构建缓存。" : {
       "extractionState" : "stale",
       "localizations" : {

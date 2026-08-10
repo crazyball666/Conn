@@ -21,6 +21,7 @@ public struct DarwinProcessProvider: ProcessProvider {
 
     public var command: String {
         [
+            "export LC_ALL=C LANG=C",
             "echo \(Sentinel.process)",
             "ps -axo pid=PID,ppid=PPID,user=USER,%cpu=%CPU,%mem=%MEM,rss=RSS,state=STAT,etime=ELAPSED,command=COMMAND",
             "conn_process_status=$?",

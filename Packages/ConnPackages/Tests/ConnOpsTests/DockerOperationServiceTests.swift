@@ -11,8 +11,13 @@ struct DockerRuntimeProbeTests {
     @Test("macOS Docker Desktop bundle 路径成为后续运行时")
     func discoversDockerDesktopExecutable() async throws {
         let executable = "/Applications/Docker.app/Contents/Resources/bin/docker"
+        let compose = "/usr/local/bin/docker-compose"
         let session = RecordingSSHSession(execResults: [
-            .init(exitCode: 0, stdout: Data("\(executable)\n".utf8), stderr: Data()),
+            .init(
+                exitCode: 0,
+                stdout: Data("\(executable)\n__CONN_COMPOSE_V1__\(compose)\n".utf8),
+                stderr: Data()
+            ),
             .init(exitCode: 0, stdout: Data("__EXIT__0\n".utf8), stderr: Data()),
         ])
 
@@ -20,7 +25,11 @@ struct DockerRuntimeProbeTests {
 
         #expect(result == DockerProbeResult(
             availability: .available(sudo: false),
-            runtime: DockerRuntimeContext(executable: executable, sudo: false)
+            runtime: DockerRuntimeContext(
+                executable: executable,
+                sudo: false,
+                composeV1Executable: compose
+            )
         ))
         #expect(session.invocations.map(\.command) == [
             DockerRuntimeContext.discoveryCommand(for: .macOS),
@@ -69,6 +78,58 @@ struct DockerRuntimeProbeTests {
         #expect(session.invocations.map(\.command) == [
             DockerRuntimeContext.discoveryCommand(for: .macOS),
         ])
+    }
+
+    @Test("Unknown 与 Windows 不执行 POSIX Docker 探测")
+    func unsupportedPlatformsDoNotRunPOSIXDiscovery() async throws {
+        for platform in [RemotePlatformKind.unknown, .windows] {
+            let session = RecordingSSHSession()
+
+            let result = try await DockerService.probe(
+                on: session,
+                profile: RemotePlatformProfile(kind: platform)
+            )
+
+            #expect(result == DockerProbeResult(availability: .unsupportedPlatform, runtime: nil))
+            #expect(session.invocations.isEmpty)
+        }
+    }
+
+    @Test("Docker 脚本引导函数保留探测路径与 sudo 上下文")
+    func shellBootstrapUsesRuntimeContext() {
+        let direct = DockerRuntimeContext(
+            executable: "/Applications/Docker.app/Contents/Resources/bin/docker",
+            sudo: false
+        )
+        let elevated = DockerRuntimeContext(executable: "/usr/local/bin/docker", sudo: true)
+
+        #expect(
+            direct.shellBootstrapCommand
+                == "docker() { '/Applications/Docker.app/Contents/Resources/bin/docker' \"$@\"; }"
+        )
+        #expect(
+            elevated.shellBootstrapCommand
+                == "docker() { sudo -n '/usr/local/bin/docker' \"$@\"; }"
+        )
+    }
+
+    @Test("Compose v1 使用独立探测路径而不是假定与 docker 同目录")
+    func composeV1UsesIndependentExecutable() {
+        let runtime = DockerRuntimeContext(
+            executable: "/usr/bin/docker",
+            sudo: false,
+            composeV1Executable: "/usr/local/bin/docker-compose"
+        )
+
+        #expect(
+            DockerCommand.composeVersion(.v1, runtime: runtime)
+                == "'/usr/local/bin/docker-compose' version"
+        )
+        #expect(
+            DockerRuntimeContext.parseDiscoveredComposeV1Executable(
+                "/usr/bin/docker\n__CONN_COMPOSE_V1__/usr/local/bin/docker-compose"
+            ) == "/usr/local/bin/docker-compose"
+        )
     }
 }
 

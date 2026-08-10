@@ -128,6 +128,7 @@ public struct SnippetRunner {
     /// 并发执行同一脚本到多台主机。单台失败不会阻塞其他主机，并为每台主机返回独立结果。
     public func runBatchSilently(
         script: String,
+        scriptsByHostID: [String: String] = [:],
         interpreter: ShellInterpreter = .sh,
         on hosts: [ConnKit.Host]
     ) async -> [ScriptBatchResult] {
@@ -135,7 +136,12 @@ public struct SnippetRunner {
             for host in hosts {
                 group.addTask { [self] in
                     do {
-                        let outcome = try await runSilently(script: script, interpreter: interpreter, on: host)
+                        let preparedScript = scriptsByHostID[host.id] ?? script
+                        let outcome = try await runSilently(
+                            script: preparedScript,
+                            interpreter: interpreter,
+                            on: host
+                        )
                         return ScriptBatchResult(hostID: host.id, hostName: host.name, outcome: outcome)
                     } catch {
                         return ScriptBatchResult(

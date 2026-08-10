@@ -21,11 +21,20 @@ struct SchemaV2Tests {
                 """,
                 arguments: ["legacy", "旧片段", "uptime", "sh", 1, 1]
             )
+            try db.execute(
+                sql: """
+                INSERT INTO snippet_group
+                    (uuid, name, created_at, updated_at)
+                VALUES (?, ?, ?, ?)
+                """,
+                arguments: ["legacy-group", "System", 1, 1]
+            )
         }
 
         var upgraded = DatabaseMigrator()
         SchemaV1.register(in: &upgraded)
         SchemaV2.register(in: &upgraded)
+        SchemaV3.register(in: &upgraded)
         try upgraded.migrate(queue)
         let store = try SnippetStore(database: AppDatabase(queue))
         let loaded = try store.snippet(id: "legacy")
@@ -34,6 +43,15 @@ struct SchemaV2Tests {
         #expect(snippet.platforms.isEmpty)
         #expect(snippet.requiredCapabilities.isEmpty)
         #expect(snippet.builtinKey == nil)
+
+        let legacyGroupKey: String? = try queue.read { db in
+            try Row.fetchOne(
+                db,
+                sql: "SELECT builtin_key FROM snippet_group WHERE uuid = ?",
+                arguments: ["legacy-group"]
+            )?["builtin_key"]
+        }
+        #expect(legacyGroupKey == nil)
     }
 
     @Test("内置 key 唯一且删除后写入 suppression")
@@ -61,5 +79,18 @@ struct SchemaV2Tests {
         #expect(try store.builtinCatalogVersion() == 0)
         try store.setBuiltinCatalogVersion(2)
         #expect(try store.builtinCatalogVersion() == 2)
+    }
+
+    @Test("内置分组 key 持久化且唯一")
+    func persistsUniqueBuiltinGroupKey() throws {
+        let database = try AppDatabase.inMemory()
+        let groups = SnippetGroupStore(database: database)
+        try groups.save(SnippetGroup(name: "系统", builtinKey: "system"))
+
+        let loaded = try #require(groups.allGroups().first)
+        #expect(loaded.builtinKey == "system")
+        #expect(throws: (any Error).self) {
+            try groups.save(SnippetGroup(name: "另一个系统", builtinKey: "system"))
+        }
     }
 }

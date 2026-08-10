@@ -39,19 +39,37 @@ final class HostOverviewViewModel {
     /// 本次采集结果（读 `monitor.metrics` → 在 body 中被 Observation 追踪，实时刷新）。
     var latest: HostMetrics? { monitor.metrics[host.id] }
     var errorText: String? { monitor.errors[host.id] }
+    var capabilityMessage: String? {
+        guard let state = latest?.capabilityState else { return nil }
+        switch state {
+        case .supported:
+            nil
+        case .degraded:
+            L("部分主机指标不可用")
+        case .unavailable:
+            L("主机指标采集暂不可用")
+        case .unsupported:
+            L("当前主机平台暂不支持指标采集")
+        }
+    }
 
-    /// 每来一次新采样，把各指标追加进历史（缺失记 0）。View 在 `latest` 变化时调用。
+    /// 每来一次新采样，只记录实际采集到的指标。缺失值不能伪装成 0，
+    /// 否则平台能力降级会在图表中表现为不存在的瞬时归零。
     func record() {
         guard let metrics = latest else { return }
-        append(&cpuHistory, metrics.cpu ?? 0)
+        if let cpu = metrics.cpu { append(&cpuHistory, cpu) }
         recordPerCore(metrics.cpuPerCore)
         recordCPUBreakdown(metrics.cpuBreakdown)
-        append(&memHistory, metrics.mem ?? 0)
+        if let mem = metrics.mem { append(&memHistory, mem) }
         recordMemBreakdown(metrics)
-        append(&netRxHistory, metrics.netRxRate ?? 0)
-        append(&netTxHistory, metrics.netTxRate ?? 0)
-        append(&ioReadHistory, metrics.ioReadRate ?? 0)
-        append(&ioWriteHistory, metrics.ioWriteRate ?? 0)
+        if let rx = metrics.netRxRate, let tx = metrics.netTxRate {
+            append(&netRxHistory, rx)
+            append(&netTxHistory, tx)
+        }
+        if let read = metrics.ioReadRate, let write = metrics.ioWriteRate {
+            append(&ioReadHistory, read)
+            append(&ioWriteHistory, write)
+        }
     }
 
     private func recordCPUBreakdown(_ breakdown: CPUBreakdown?) {
@@ -70,9 +88,10 @@ final class HostOverviewViewModel {
     }
 
     private func recordMemBreakdown(_ metrics: HostMetrics) {
-        guard let total = metrics.memTotalBytes, total > 0 else { return }
-        let cache = metrics.memBuffersCache ?? 0
-        let free = metrics.memFree ?? 0
+        guard let total = metrics.memTotalBytes, total > 0,
+              let cache = metrics.memBuffersCache,
+              let free = metrics.memFree
+        else { return }
         let used = max(0, total - cache - free)
         append(&memUsedHistory, used / total * 100)
         append(&memCacheHistory, cache / total * 100)

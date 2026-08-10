@@ -31,6 +31,9 @@ struct SnippetRunView: View {
     @State private var hostGroups: [HostGroup] = []
     @State private var selectedHostIDs: Set<String> = []
     @State private var compatibilityByHostID: [String: HostCompatibilityState] = [:]
+    @State private var dockerRuntimeByHostID: [String: DockerRuntimeContext] = [:]
+    /// 选择状态变化后使旧异步探测结果失效，避免取消选择后被迟到任务写回。
+    @State private var compatibilityGenerationByHostID: [String: UInt64] = [:]
     @State private var isHostPickerExpanded = false
     @State private var expandedHostGroupIDs: Set<String> = []
     @State private var values: [String: String] = [:]
@@ -374,7 +377,7 @@ struct SnippetRunView: View {
     private func toggleHost(_ host: Host) {
         if selectedHostIDs.contains(host.id) {
             selectedHostIDs.remove(host.id)
-            compatibilityByHostID[host.id] = nil
+            invalidateCompatibility(for: host.id)
         } else {
             selectedHostIDs.insert(host.id)
             scheduleCompatibilityCheck(for: host)
@@ -385,7 +388,9 @@ struct SnippetRunView: View {
         let ids = Set(members.map(\.id))
         if ids.isSubset(of: selectedHostIDs) {
             selectedHostIDs.subtract(ids)
-            for id in ids { compatibilityByHostID[id] = nil }
+            for id in ids {
+                invalidateCompatibility(for: id)
+            }
         } else {
             let added = members.filter { !selectedHostIDs.contains($0.id) }
             selectedHostIDs.formUnion(ids)
@@ -410,17 +415,20 @@ struct SnippetRunView: View {
     }
 
     private func scheduleCompatibilityCheck(for host: Host) {
+        let generation = nextCompatibilityGeneration(for: host.id)
+        dockerRuntimeByHostID[host.id] = nil
         guard !snippet.platforms.isEmpty || !snippet.requiredCapabilities.isEmpty else {
             compatibilityByHostID[host.id] = .compatible
             return
         }
         compatibilityByHostID[host.id] = .checking
-        Task { await resolveCompatibility(for: host) }
+        Task { await resolveCompatibility(for: host, generation: generation) }
     }
 
-    private func resolveCompatibility(for host: Host) async {
+    private func resolveCompatibility(for host: Host, generation: UInt64) async {
         do {
             let profile = try await dependencies.connectionManager.platformProfile(for: host)
+            guard isCompatibilityCurrent(for: host.id, generation: generation) else { return }
             guard snippet.platforms.isEmpty || snippet.platforms.contains(profile.kind) else {
                 compatibilityByHostID[host.id] = .incompatible(L("此脚本不支持该主机平台"))
                 return
@@ -429,12 +437,16 @@ struct SnippetRunView: View {
             var availableCapabilities: Set<RemoteCapability> = []
             if snippet.requiredCapabilities.contains(.docker) {
                 let session = try await dependencies.connectionManager.session(for: host)
+                guard isCompatibilityCurrent(for: host.id, generation: generation) else { return }
                 let probe = try await DockerService.probe(on: session, profile: profile)
-                if probe.availability.isUsable {
+                guard isCompatibilityCurrent(for: host.id, generation: generation) else { return }
+                if probe.availability.isUsable, let runtime = probe.runtime {
                     availableCapabilities.insert(.docker)
+                    dockerRuntimeByHostID[host.id] = runtime
                 }
             }
 
+            guard isCompatibilityCurrent(for: host.id, generation: generation) else { return }
             switch snippet.compatibility(
                 with: profile.kind,
                 availableCapabilities: availableCapabilities
@@ -450,10 +462,28 @@ struct SnippetRunView: View {
                 )
             }
         } catch {
+            guard isCompatibilityCurrent(for: host.id, generation: generation) else { return }
             compatibilityByHostID[host.id] = .incompatible(
                 String(format: L("检查脚本兼容性失败：%@"), error.friendlyDiagnosis)
             )
         }
+    }
+
+    private func nextCompatibilityGeneration(for hostID: String) -> UInt64 {
+        let generation = (compatibilityGenerationByHostID[hostID] ?? 0) &+ 1
+        compatibilityGenerationByHostID[hostID] = generation
+        return generation
+    }
+
+    private func invalidateCompatibility(for hostID: String) {
+        _ = nextCompatibilityGeneration(for: hostID)
+        compatibilityByHostID[hostID] = nil
+        dockerRuntimeByHostID[hostID] = nil
+    }
+
+    private func isCompatibilityCurrent(for hostID: String, generation: UInt64) -> Bool {
+        selectedHostIDs.contains(hostID)
+            && compatibilityGenerationByHostID[hostID] == generation
     }
 
     /// 任意一台生产主机命中风险，就要求整批二次确认。
@@ -476,7 +506,11 @@ struct SnippetRunView: View {
             Task { await runSilently(on: selectedHosts) }
         case .terminal:
             guard let host = selectedHosts.first, selectedHosts.count == 1 else { return }
-            terminalRoute = TerminalRoute(host: host, script: renderedScript, interpreter: snippet.interpreter)
+            terminalRoute = TerminalRoute(
+                host: host,
+                script: preparedScript(for: host),
+                interpreter: snippet.interpreter
+            )
         }
     }
 
@@ -487,7 +521,15 @@ struct SnippetRunView: View {
         batchResults = []
         defer { isRunning = false }
         let runner = SnippetRunner(connectionManager: dependencies.connectionManager, runHistory: dependencies.runHistory)
-        let results = await runner.runBatchSilently(script: renderedScript, interpreter: snippet.interpreter, on: hosts)
+        let scriptsByHostID = Dictionary(uniqueKeysWithValues: hosts.map {
+            ($0.id, preparedScript(for: $0))
+        })
+        let results = await runner.runBatchSilently(
+            script: renderedScript,
+            scriptsByHostID: scriptsByHostID,
+            interpreter: snippet.interpreter,
+            on: hosts
+        )
         if results.count == 1, let only = results.first {
             batchResults = []
             outcome = only.outcome
@@ -496,6 +538,13 @@ struct SnippetRunView: View {
             outcome = nil
             batchResults = results
         }
+    }
+
+    private func preparedScript(for host: Host) -> String {
+        guard snippet.requiredCapabilities.contains(.docker),
+              let runtime = dockerRuntimeByHostID[host.id]
+        else { return renderedScript }
+        return "\(runtime.shellBootstrapCommand)\n\(renderedScript)"
     }
 
     private var dangerBinding: Binding<Bool> {

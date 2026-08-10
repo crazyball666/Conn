@@ -42,7 +42,7 @@ struct DarwinMetricParserTests {
         80 connection accepts
         5 bad connection attempts
         1000 packets sent
-        20 data packets retransmitted
+        20 data packets (24000 bytes) retransmitted
     __CONN_DARWIN_IOREG__
       | |   "Statistics" = {"Bytes (Read)"=104857600,"Bytes (Write)"=52428800}
       | |   "Statistics" = {"Bytes (Read)"=1024,"Bytes (Write)"=2048}
@@ -119,5 +119,10 @@ struct DarwinMetricParserTests {
             return
         }
         #expect(issues.contains { $0.code == .partialData && $0.fields.contains("cpuPerCore") })
+    }
+
+    @Test("采集命令固定 C locale，避免本地化输出破坏解析")
+    func commandUsesStableLocale() {
+        #expect(DarwinCollectionScript.command().hasPrefix("export LC_ALL=C LANG=C; "))
     }
 }

@@ -12,6 +12,8 @@ public enum DockerAvailability: Sendable, Equatable {
     case permissionDenied
     /// 装了、有权限，但 Docker 守护进程没在跑。
     case daemonNotRunning
+    /// 当前尚无对应平台的 Docker CLI 适配器。
+    case unsupportedPlatform
 
     /// 直接可用时用的 sudo 前缀标志；不可用时 false。
     public var sudo: Bool {
@@ -79,14 +81,24 @@ public enum DockerService {
         on session: any SSHSession,
         profile: RemotePlatformProfile
     ) async throws -> DockerProbeResult {
+        guard profile.kind == .linux || profile.kind == .macOS else {
+            return DockerProbeResult(availability: .unsupportedPlatform, runtime: nil)
+        }
         let discovery = try await session.exec(
             DockerRuntimeContext.discoveryCommand(for: profile.kind)
         )
         guard let executable = DockerRuntimeContext.parseDiscoveredExecutable(discovery.stdoutText) else {
             return DockerProbeResult(availability: .notInstalled, runtime: nil)
         }
+        let composeV1Executable = DockerRuntimeContext.parseDiscoveredComposeV1Executable(
+            discovery.stdoutText
+        )
 
-        let directRuntime = DockerRuntimeContext(executable: executable, sudo: false)
+        let directRuntime = DockerRuntimeContext(
+            executable: executable,
+            sudo: false,
+            composeV1Executable: composeV1Executable
+        )
         let direct = try await session.exec(
             DockerCommand.availabilityProbe(runtime: directRuntime)
         ).stdoutText

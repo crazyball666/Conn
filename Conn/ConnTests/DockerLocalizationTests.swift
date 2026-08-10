@@ -103,6 +103,7 @@ struct DockerLocalizationTests {
         "Docker 删除镜像",
         "Docker 启动容器",
         "Docker 当前不可用",
+        "当前平台尚不支持 Docker 管理。",
         "Docker 拉取镜像",
         "Docker 清理悬空镜像",
         "Docker 系统清理",

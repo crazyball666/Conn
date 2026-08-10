@@ -8,6 +8,7 @@ struct DarwinProcessProviderTests {
     func commandUsesBSDPS() {
         let command = DarwinProcessProvider().command
 
+        #expect(command.hasPrefix("export LC_ALL=C LANG=C; "))
         #expect(command.contains("ps -axo"))
         #expect(!command.contains("--sort"))
         #expect(!command.contains("nlwp"))

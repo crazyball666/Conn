@@ -231,21 +231,36 @@ final class DockerViewModel {
             // 新保存的脚本挂在「Docker」分组下，方便按主机类型筛选
             groupIDs: dockerSnippetGroupID().map { [$0] } ?? [],
             pinned: false,
-            danger: true
+            danger: true,
+            platforms: [.linux, .macOS],
+            requiredCapabilities: [.docker]
         )
         try snippetRepository.save(snippet)
     }
 
-    /// 查找名为"Docker"的脚本分组 id；不存在则自动创建。这样首启保存也不至于
-    /// 让脚本变成「未分组」——Docker run 脚本跟 SSH 脚本混在一起太难找。
+    /// 优先按稳定 key 查找 Docker 分组；兼容旧版本按本地化名称创建的分组并当场
+    /// 认领。不存在则自动创建，避免 Docker run 脚本落入「未分组」。
     private func dockerSnippetGroupID() -> String? {
         let groups = (try? snippetGroupRepository.allGroups()) ?? []
-        if let existing = groups.first(where: { $0.name == L("Docker") }) {
+        if let existing = groups.first(where: { $0.builtinKey == "docker" }) {
             return existing.id
         }
+        if var legacy = groups.first(where: {
+            $0.builtinKey == nil && $0.name.localizedCaseInsensitiveCompare(L("Docker")) == .orderedSame
+        }) {
+            legacy.builtinKey = "docker"
+            do {
+                try snippetGroupRepository.save(legacy)
+                return legacy.id
+            } catch {
+                return nil
+            }
+        }
         let group = SnippetGroup(
+            id: "builtin-group.docker",
             name: L("Docker"),
-            sortOrder: (groups.map(\.sortOrder).max() ?? -1) + 1
+            sortOrder: (groups.map(\.sortOrder).max() ?? -1) + 1,
+            builtinKey: "docker"
         )
         do {
             try snippetGroupRepository.save(group)

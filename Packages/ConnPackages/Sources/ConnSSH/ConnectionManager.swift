@@ -295,10 +295,8 @@ public actor ConnectionManager {
     /// 返回并缓存当前池化连接对应的平台画像。动态能力状态由各功能自行探测。
     public func platformProfile(for host: ConnKit.Host) async throws -> RemotePlatformProfile {
         let key = poolKey(for: host)
-        if let cached = platformProfiles[key] {
-            return cached
-        }
-
+        // 即使已有画像也先经过 session(for:) 的存活检查。否则缓存会绕过死连接
+        // 驱逐，重连后的目标甚至可能已换成另一种平台却继续沿用旧画像。
         let session = try await session(for: host)
         if let cached = platformProfiles[key] {
             return cached

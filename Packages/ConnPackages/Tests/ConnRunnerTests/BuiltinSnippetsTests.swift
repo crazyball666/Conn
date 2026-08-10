@@ -64,13 +64,22 @@ struct BuiltinSnippetsTests {
         #expect(BuiltinSnippets.catalogVersion > 0)
     }
 
-    @Test("Docker 片段按能力而不是操作系统过滤")
+    @Test("Docker 片段要求 Docker 能力且只在已适配的 POSIX 平台执行")
     func dockerEntriesRequireCapability() {
         let docker = BuiltinSnippets.load().filter { $0.script.hasPrefix("docker ") }
 
         #expect(!docker.isEmpty)
-        #expect(docker.allSatisfy { $0.platforms.isEmpty })
+        #expect(docker.allSatisfy { $0.platforms == [.linux, .macOS] })
         #expect(docker.allSatisfy { $0.requiredCapabilities == [.docker] })
+    }
+
+    @Test("通用 POSIX 片段不会误标为 Windows 兼容")
+    func posixEntriesExcludeWindows() throws {
+        let disk = try #require(BuiltinSnippets.load().first { $0.builtinKey == "disk-usage" })
+        let ping = try #require(BuiltinSnippets.load().first { $0.builtinKey == "connectivity-test" })
+
+        #expect(disk.platforms == [.linux, .macOS])
+        #expect(ping.platforms == [.linux, .macOS])
     }
 
     @Test("内置 JSON 同时声明有序分组")
@@ -103,6 +112,42 @@ struct BuiltinSnippetsTests {
         #expect(overview.groupIDs == [systemGroupID])
         let known = Set(try groups.allGroups().map(\.id))
         #expect(store.snippets.allSatisfy { $0.groupIDs.allSatisfy(known.contains) })
+    }
+
+    @Test("目录用稳定 key 认领旧语言名称，切换语言不重复创建")
+    func adoptsLocalizedLegacyGroupByStableKey() throws {
+        let store = StubBuiltinSnippetRepository()
+        let groups = StubBuiltinGroupRepository()
+        groups.groups = [SnippetGroup(id: "legacy-system", name: "System")]
+
+        try BuiltinSnippets.importIfNeeded(into: store, groups: groups)
+
+        #expect(groups.groups.filter { $0.builtinKey == "system" }.count == 1)
+        #expect(groups.groups.first { $0.builtinKey == "system" }?.id == "legacy-system")
+        #expect(groups.groups.count == BuiltinSnippets.loadGroupNames().count)
+    }
+
+    @Test("v2 内置分组被重命名后按片段成员关系认领，不创建重复分组")
+    func adoptsRenamedV2GroupFromBuiltinMemberships() throws {
+        let store = StubBuiltinSnippetRepository()
+        let groups = StubBuiltinGroupRepository()
+        try BuiltinSnippets.importIfNeeded(into: store, groups: groups)
+
+        let original = try #require(groups.groups.first { $0.builtinKey == "system" })
+        let originalCount = groups.groups.count
+        groups.groups = groups.groups.map { group in
+            var legacy = group
+            legacy.builtinKey = nil
+            if legacy.id == original.id { legacy.name = "运维" }
+            return legacy
+        }
+        store.catalogVersion = 2
+
+        try BuiltinSnippets.importIfNeeded(into: store, groups: groups)
+
+        #expect(groups.groups.count == originalCount)
+        #expect(groups.groups.first { $0.id == original.id }?.name == "运维")
+        #expect(groups.groups.first { $0.id == original.id }?.builtinKey == "system")
     }
 
     @Test("重复导入不新增也不覆盖用户编辑")

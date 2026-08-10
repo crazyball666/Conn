@@ -24,9 +24,24 @@ struct AppWideUIConsistencyTests {
         #expect(!runView.contains("if selectedHostIDs.isEmpty, let first = hosts.first"))
         #expect(runView.contains("ConnButton(L(\"执行脚本\"), kind: .primary)"))
         #expect(runView.contains("ConnButton(L(\"进终端\"), kind: .primary)"))
-        #expect(runView.contains(".disabled(selectedHosts.isEmpty || isRunning)"))
-        #expect(runView.contains(".disabled(selectedHosts.count != 1 || isRunning)"))
+        #expect(runView.contains(".disabled(selectedHosts.isEmpty || isRunning || hasCompatibilityBlocker)"))
+        #expect(runView.contains(".disabled(selectedHosts.count != 1 || isRunning || hasCompatibilityBlocker)"))
+        #expect(runView.contains("script: preparedScript(for: host)"))
+        #expect(runView.contains("scriptsByHostID: scriptsByHostID"))
+        #expect(runView.contains("compatibilityGenerationByHostID"))
+        #expect(runView.contains("guard isCompatibilityCurrent"))
         #expect(button.contains("@Environment(\\.isEnabled)"))
+    }
+
+    @Test("主机概览显示指标能力降级且不把缺失采样记录成零")
+    func hostOverviewPreservesMissingMetrics() throws {
+        let viewModel = try appSource("Hosts/HostOverviewViewModel.swift")
+        let view = try appSource("Hosts/HostOverviewView.swift")
+
+        #expect(viewModel.contains("var capabilityMessage: String?"))
+        #expect(!viewModel.contains("metrics.cpu ?? 0"))
+        #expect(!viewModel.contains("metrics.mem ?? 0"))
+        #expect(view.contains("viewModel.capabilityMessage"))
     }
 
     @Test("管理分组页自己承载分组弹窗并居中空状态")
@@ -103,6 +118,7 @@ struct AppWideUIConsistencyTests {
     func dockerCommandSaveLocksAfterSuccess() throws {
         let runForm = try appSource("Hosts/DockerRunFormView.swift")
         let resourceForms = try appSource("Hosts/DockerResourceFormViews.swift")
+        let viewModel = try appSource("Hosts/DockerViewModel.swift")
 
         for source in [runForm, resourceForms] {
             #expect(source.contains("@State private var isCommandSaved = false"))
@@ -112,6 +128,9 @@ struct AppWideUIConsistencyTests {
         }
         #expect(runForm.contains("try onSave(title, command)"))
         #expect(resourceForms.contains("try onSave(title, previewCommand)"))
+        #expect(viewModel.contains("platforms: [.linux, .macOS]"))
+        #expect(viewModel.contains("requiredCapabilities: [.docker]"))
+        #expect(viewModel.contains("$0.builtinKey == \"docker\""))
     }
 
     @Test("密钥详情支持重命名并同步保存")

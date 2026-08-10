@@ -82,6 +82,42 @@ ssh $SSHOPTS -p 2204 -i keys/id_ed25519 -o Ciphers=aes256-cbc deploy@127.0.0.1
 ssh $SSHOPTS -p 2205 -i keys/id_ed25519 deploy@127.0.0.1
 ```
 
+## Real macOS host capability acceptance
+
+`MacHostIntegrationTests` connects to an actual Mac over SSH and validates the
+platform profile plus the Darwin metrics, process, Unified Log and Docker
+adapters. The suite is skipped unless the required environment variables are
+present, so normal local and CI test runs do not depend on a particular Mac.
+
+Enable **Remote Login** on the target Mac, then use either password auth:
+
+```bash
+CONN_MAC_SSH_HOST=192.0.2.10 \
+CONN_MAC_SSH_USER=conn-test \
+CONN_MAC_SSH_PASSWORD='replace-me' \
+CONN_MAC_SSH_EXPECT_DOCKER=1 \
+swift test --package-path Packages/ConnPackages --filter MacHostIntegrationTests
+```
+
+or an unencrypted private key:
+
+```bash
+CONN_MAC_SSH_HOST=192.0.2.10 \
+CONN_MAC_SSH_PORT=22 \
+CONN_MAC_SSH_USER=conn-test \
+CONN_MAC_SSH_KEY_PATH=/absolute/path/to/id_ed25519 \
+CONN_MAC_SSH_KEY_KIND=ed25519 \
+swift test --package-path Packages/ConnPackages --filter MacHostIntegrationTests
+```
+
+`CONN_MAC_SSH_KEY_KIND` accepts `ed25519`, `rsa`, or `ecdsa_p256` and defaults to
+`ed25519`. Set `CONN_MAC_SSH_EXPECT_DOCKER=1` when Docker must be usable on the
+target. Optionally set `CONN_MAC_SSH_EXPECT_DOCKER_PATH` to the exact expected
+CLI path (for example `/Applications/Docker.app/Contents/Resources/bin/docker`);
+providing the path also implies that Docker is required. The checks execute
+read-only remote commands and do not start, stop, or otherwise mutate Docker
+resources.
+
 ### Jump chain (host → bastion → internal)
 
 `conn-internal` has **no published port**; reach it only through the bastion.

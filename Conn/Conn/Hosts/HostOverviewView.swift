@@ -43,6 +43,9 @@ struct HostOverviewView<Header: View>: View {
                 if let error = viewModel.errorText, viewModel.latest == nil {
                     ConnBanner(error, systemImage: "wifi.slash")
                 }
+                if let message = viewModel.capabilityMessage {
+                    ConnBanner(message, systemImage: "exclamationmark.triangle")
+                }
                 systemCard
                 cpuSection
                 memorySection
