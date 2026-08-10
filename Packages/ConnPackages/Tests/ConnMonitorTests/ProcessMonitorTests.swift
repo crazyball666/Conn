@@ -62,6 +62,23 @@ struct ProcessMonitorTests {
         processMonitor.stop()
     }
 
+    @Test("未支持平台显示能力错误且不执行 Linux 进程命令")
+    func unsupportedPlatformIsNotEmptySuccess() async {
+        let fixture = makeFixture(platform: .windows)
+        let monitor = ProcessMonitor(connectionManager: fixture.manager)
+        let host = Host(id: "windows", name: "windows", address: "10.0.0.10", username: "ops")
+
+        await monitor.refresh(host: host)
+
+        #expect(monitor.processes.isEmpty)
+        #expect(monitor.errorText != nil)
+        guard case .unsupported = monitor.capabilityState else {
+            Issue.record("expected unsupported process capability")
+            return
+        }
+        #expect(await fixture.log.execs == 0)
+    }
+
     private func waitUntil(
         maxAttempts: Int = 200,
         condition: () async -> Bool

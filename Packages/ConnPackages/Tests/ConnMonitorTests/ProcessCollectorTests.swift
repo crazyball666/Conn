@@ -1,3 +1,4 @@
+import ConnKit
 import ConnSSH
 import Foundation
 import Testing
@@ -27,6 +28,29 @@ struct ProcessCollectorTests {
         #expect(command.contains("top -bn1"))
         #expect(!command.contains("/proc/stat"))
         #expect(!command.contains("/proc/meminfo"))
+    }
+
+    @Test("collector 按画像选择 Darwin provider")
+    func collectsDarwinProcesses() async throws {
+        let recorder = ProcessCommandRecorder()
+        let session = ProcessFixtureSession(recorder: recorder, output: """
+        __CONN_DARWIN_PROCESS_PS__
+          PID PPID USER %CPU %MEM RSS STAT ELAPSED COMMAND
+          42 1 ops 3.5 1.2 2048 S 00:01:05 /usr/bin/sample --flag
+        __CONN_DARWIN_PROCESS_END__
+        """)
+
+        let result = try await ProcessCollector().collect(
+            session: session, profile: RemotePlatformProfile(kind: .macOS)
+        )
+
+        #expect(result.processes.first?.pid == 42)
+        guard case .degraded = result.capabilityState else {
+            Issue.record("expected degraded Darwin capability")
+            return
+        }
+        let command = try #require(await recorder.commands.first)
+        #expect(command.contains("ps -axo"))
     }
 
     private static let gnuOutput = """

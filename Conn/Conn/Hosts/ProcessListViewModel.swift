@@ -22,6 +22,20 @@ final class ProcessListViewModel {
     var processes: [RemoteProcess] { monitor.processes }
     var errorText: String? { monitor.errorText }
     var isLoading: Bool { monitor.isLoading }
+    var capabilityState: CapabilityState? { monitor.capabilityState }
+
+    var capabilityMessage: String? {
+        switch capabilityState {
+        case .none, .supported:
+            nil
+        case .degraded:
+            L("部分进程详情不可用")
+        case let .unavailable(issue):
+            issue.code == .permissionDenied ? L("没有权限读取完整进程信息") : L("进程采集暂不可用")
+        case .unsupported:
+            L("当前主机平台暂不支持进程采集")
+        }
+    }
 
     func appear() {
         monitor.start(host: host)

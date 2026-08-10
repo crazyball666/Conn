@@ -9,6 +9,7 @@ import Observation
 public final class ProcessMonitor {
     public private(set) var processes: [RemoteProcess] = []
     public private(set) var errorText: String?
+    public private(set) var capabilityState: CapabilityState?
     public private(set) var isLoading = false
     public private(set) var isRefreshing = false
 
@@ -74,10 +75,17 @@ public final class ProcessMonitor {
 
         do {
             let session = try await connectionManager.session(for: host)
-            let result = try await collector.collect(session: session)
+            let profile = try await connectionManager.platformProfile(for: host)
+            let result = try await collector.collect(session: session, profile: profile)
             if isCurrent(scanGeneration) {
-                processes = result
+                processes = result.processes
+                capabilityState = result.capabilityState
                 errorText = nil
+            }
+        } catch let error as ProcessCollectionError {
+            if isCurrent(scanGeneration) {
+                capabilityState = error.capabilityState
+                errorText = error.localizedDescription
             }
         } catch {
             if isCurrent(scanGeneration) {

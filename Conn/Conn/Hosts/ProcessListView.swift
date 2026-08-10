@@ -49,6 +49,13 @@ struct ProcessListView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: ConnSpacing.xs) {
                 eyebrow
+                if let message = viewModel.capabilityMessage {
+                    Label(message, systemImage: "exclamationmark.triangle")
+                        .font(.connCaption)
+                        .foregroundStyle(.connWarn)
+                        .padding(.horizontal, ConnSpacing.cardPadding)
+                        .padding(.vertical, ConnSpacing.xs)
+                }
                 if displayedProcesses.isEmpty {
                     emptyState
                 } else {

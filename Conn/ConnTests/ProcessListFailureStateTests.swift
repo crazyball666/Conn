@@ -29,6 +29,16 @@ struct ProcessListFailureStateTests {
         #expect(!overviewSource.contains("retryProcesses"))
     }
 
+    @Test("进程页展示平台能力降级而不是空白成功")
+    func capabilityStateIsVisible() throws {
+        let listSource = try source(named: "Conn/Hosts/ProcessListView.swift")
+        let modelSource = try source(named: "Conn/Hosts/ProcessListViewModel.swift")
+
+        #expect(modelSource.contains("var capabilityState: CapabilityState?"))
+        #expect(modelSource.contains("var capabilityMessage: String?"))
+        #expect(listSource.contains("viewModel.capabilityMessage"))
+    }
+
     private func source(named relativePath: String) throws -> String {
         let projectURL = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()

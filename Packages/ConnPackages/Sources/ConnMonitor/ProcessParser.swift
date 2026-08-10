@@ -103,7 +103,7 @@ enum ProcessParser {
     }
 
     /// 从完整命令行取展示短名：首段的 basename，去尾随冒号；内核线程 `[…]` 原样保留。
-    private static func displayName(fromArgs args: String) -> String {
+    static func displayName(fromArgs args: String) -> String {
         guard let first = args.split(whereSeparator: { $0 == " " || $0 == "\t" }).first else { return args }
         var token = String(first)
         if token.hasPrefix("[") { return token } // 内核线程 [kworker/…] 原样

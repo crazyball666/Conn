@@ -10,9 +10,14 @@ public enum ProcessCollectionScript {
 
     public static let command = [
         "echo \(Sentinel.ps)",
-        "ps -eo pid,ppid,user,pcpu,pmem,rss,nlwp,stat,etimes,args --sort=-pcpu 2>/dev/null | head -n 500",
+        "conn_ps_output=$(ps -eo pid,ppid,user,pcpu,pmem,rss,nlwp,stat,etimes,args --sort=-pcpu 2>&1)",
+        "conn_ps_status=$?",
+        "printf '%s\\n' \"$conn_ps_output\" | head -n 500",
         "echo \(Sentinel.top)",
-        "top -bn1 2>/dev/null | head -n 24",
-        "echo \(Sentinel.end)"
+        "conn_top_output=$(top -bn1 2>&1)",
+        "conn_top_status=$?",
+        "printf '%s\\n' \"$conn_top_output\" | head -n 24",
+        "echo \(Sentinel.end)",
+        "[ \"$conn_ps_status\" -eq 0 ] || [ \"$conn_top_status\" -eq 0 ]",
     ].joined(separator: "; ")
 }
