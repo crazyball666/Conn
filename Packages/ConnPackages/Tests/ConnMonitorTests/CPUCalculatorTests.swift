@@ -46,4 +46,9 @@ struct HealthEvaluatorTests {
     func unknown() {
         #expect(HealthEvaluator.severity(cpu: nil, mem: nil, disk: nil) == .unknown)
     }
+
+    @Test("部分核心指标缺失且其余正常 → unknown，不冒充健康")
+    func partialIsUnknown() {
+        #expect(HealthEvaluator.severity(cpu: 30, mem: 40, disk: nil) == .unknown)
+    }
 }

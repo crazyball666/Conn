@@ -2,6 +2,17 @@ import ConnKit
 import ConnSSH
 import Foundation
 
+public enum MetricCollectionError: Error, LocalizedError, Sendable, Equatable {
+    case unsupportedPlatform(RemotePlatformKind)
+
+    public var errorDescription: String? {
+        switch self {
+        case let .unsupportedPlatform(platform):
+            "暂不支持采集 \(platform.rawValue) 主机指标"
+        }
+    }
+}
+
 /// 采集器：在一条已建立的会话上跑采集脚本、解析、跨样本差分 CPU。
 ///
 /// 用 actor 而非 struct，因为它要跨调用保留每主机上次的 CPU jiffies 快照
@@ -43,14 +54,18 @@ public actor MetricCollector {
     public func collect(
         host: ConnKit.Host,
         session: any SSHSession,
+        profile: RemotePlatformProfile = RemotePlatformProfile(kind: .linux),
         includeExtended: Bool = true
     ) async throws -> HostMetrics {
-        let command = CollectionScript.command(includeExtended: includeExtended)
+        guard let provider = MetricsProviderRegistry.provider(for: profile.kind) else {
+            throw MetricCollectionError.unsupportedPlatform(profile.kind)
+        }
+        let command = provider.command(includeExtended: includeExtended)
         let result = try await session.exec(command)
-        let parsed = MetricParser.parse(result.stdoutText)
+        let parsed = provider.parse(result.stdoutText)
 
-        // CPU：jiffies 自归一,无需时钟。
-        var cpuUsage: Double?
+        // Linux 用 jiffies 差分；Darwin 的 `top` 单次即提供利用率。
+        var cpuUsage = parsed.cpuInstantPercent
         if let current = parsed.cpu {
             if let previous = previousCPU[host.id] {
                 cpuUsage = CPUCalculator.usage(previous: previous, current: current)
@@ -59,7 +74,8 @@ public actor MetricCollector {
         }
 
         // CPU 各类占比：汇总时间片跨样本差分。
-        let breakdown = cpuBreakdown(host: host, current: parsed.cpuTimes)
+        let breakdown = parsed.cpuBreakdownInstant
+            ?? cpuBreakdown(host: host, current: parsed.cpuTimes)
 
         // 各核利用率：逐核 jiffies 差分。
         let perCore = perCoreUsage(host: host, current: parsed.cpuPerCore)
@@ -73,6 +89,8 @@ public actor MetricCollector {
         let diskPercent = parsed.diskPercent
         return HostMetrics(
             hostID: host.id,
+            platformProfile: profile,
+            capabilityState: parsed.capabilityState,
             cpu: cpuUsage,
             cpuCores: parsed.cpuCores,
             cpuPerCore: perCore,

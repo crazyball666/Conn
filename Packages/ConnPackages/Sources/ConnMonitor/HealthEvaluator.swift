@@ -20,12 +20,14 @@ public enum HealthEvaluator {
     /// 越过此值转危险。
     public static let critThreshold = 92.0
 
-    /// 取 CPU/内存/磁盘中最严重的一项。全部缺失时 `.unknown`。
+    /// 取 CPU/内存/磁盘中最严重的一项。危险读数优先；读数正常但任一核心指标
+    /// 缺失时返回 `.unknown`，避免把不完整采集误报成健康。
     public static func severity(cpu: Double?, mem: Double?, disk: Double?) -> MetricSeverity {
         let values = [cpu, mem, disk].compactMap { $0 }
         guard !values.isEmpty else { return .unknown }
         if values.contains(where: { $0 > critThreshold }) { return .crit }
         if values.contains(where: { $0 > warnThreshold }) { return .warn }
+        guard values.count == 3 else { return .unknown }
         return .ok
     }
 }

@@ -9,7 +9,10 @@ struct ProcessMonitorTests {
     @Test("基础指标采集阻塞时进程采集仍独立完成并复用连接")
     func processCollectionDoesNotWaitForMetrics() async {
         let log = SplitCollectionLog()
-        let manager = ConnectionManager(transport: SplitCollectionTransport(log: log))
+        let manager = ConnectionManager(
+            transport: SplitCollectionTransport(log: log),
+            platformDetector: FixturePlatformDetector(profile: RemotePlatformProfile(kind: .linux))
+        )
         let metricsMonitor = MonitorScheduler(connectionManager: manager, collectDeadline: .seconds(600))
         let processMonitor = ProcessMonitor(connectionManager: manager)
         let host = Host(id: "split", name: "split", address: "10.0.0.8", username: "root")
@@ -38,7 +41,10 @@ struct ProcessMonitorTests {
     @Test("旧采集未结束时返回进程页会在旧轮结束后立即补采")
     func returningWhilePreviousCollectionIsInFlightQueuesRefresh() async {
         let log = SplitCollectionLog()
-        let manager = ConnectionManager(transport: SplitCollectionTransport(log: log))
+        let manager = ConnectionManager(
+            transport: SplitCollectionTransport(log: log),
+            platformDetector: FixturePlatformDetector(profile: RemotePlatformProfile(kind: .linux))
+        )
         let processMonitor = ProcessMonitor(connectionManager: manager)
         let host = Host(id: "return", name: "return", address: "10.0.0.9", username: "root")
 

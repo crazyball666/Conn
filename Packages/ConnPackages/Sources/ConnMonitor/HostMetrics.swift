@@ -13,7 +13,11 @@ import Foundation
 /// （免受客户端时钟漂移与网络延迟影响）；首采无基线时为 nil。
 public struct HostMetrics: Sendable, Equatable {
     public let hostID: String
-    /// CPU 使用率 0–100。首次采集（无上次快照可差分）时为 nil。
+    /// 本次采集所用的平台画像。
+    public let platformProfile: RemotePlatformProfile
+    /// 本次指标能力状态，可区分完整、降级和不支持。
+    public let capabilityState: CapabilityState
+    /// CPU 使用率 0–100。Linux 首采无差分基线时为 nil；macOS 可由 `top` 单次得到。
     public let cpu: Double?
     /// CPU 逻辑核心数（`/proc/stat` 里 `cpuN` 行计数）。
     public let cpuCores: Int?
@@ -61,6 +65,8 @@ public struct HostMetrics: Sendable, Equatable {
 
     public init(
         hostID: String,
+        platformProfile: RemotePlatformProfile = RemotePlatformProfile(kind: .linux),
+        capabilityState: CapabilityState = .supported,
         cpu: Double?,
         cpuCores: Int? = nil,
         cpuPerCore: [Double]? = nil,
@@ -94,6 +100,8 @@ public struct HostMetrics: Sendable, Equatable {
         severity: MetricSeverity
     ) {
         self.hostID = hostID
+        self.platformProfile = platformProfile
+        self.capabilityState = capabilityState
         self.cpu = cpu
         self.cpuCores = cpuCores
         self.cpuPerCore = cpuPerCore
@@ -132,7 +140,8 @@ public struct HostMetrics: Sendable, Equatable {
     public func carryingOver(_ previous: HostMetrics?, keepExtended: Bool) -> HostMetrics {
         guard let previous, keepExtended else { return self }
         return HostMetrics(
-            hostID: hostID, cpu: cpu, cpuCores: cpuCores, cpuPerCore: cpuPerCore, cpuBreakdown: cpuBreakdown,
+            hostID: hostID, platformProfile: platformProfile, capabilityState: capabilityState,
+            cpu: cpu, cpuCores: cpuCores, cpuPerCore: cpuPerCore, cpuBreakdown: cpuBreakdown,
             cpuModel: keepExtended ? previous.cpuModel : cpuModel,
             osName: keepExtended ? previous.osName : osName,
             mem: mem, memTotalBytes: memTotalBytes, memUsedBytes: memUsedBytes,

@@ -1,3 +1,4 @@
+import ConnKit
 import Foundation
 
 /// 采集脚本原始输出解析后的中间结果。
@@ -8,6 +9,10 @@ import Foundation
 public struct ParsedMetrics: Sendable, Equatable {
     public var cpu: CPUJiffies?
     public var cpuTimes: CPUTimes?
+    /// 单次采样即可得到的 CPU 使用率；Darwin `top` 使用，Linux 保持 nil 并继续做差分。
+    public var cpuInstantPercent: Double?
+    /// 单次采样的 CPU 分类占比；Darwin `top` 使用。
+    public var cpuBreakdownInstant: CPUBreakdown?
     public var cpuPerCore: [CPUJiffies]
     public var cpuCores: Int?
     public var cpuModel: String?
@@ -32,10 +37,14 @@ public struct ParsedMetrics: Sendable, Equatable {
     public var ioReadBytes: Int64?
     public var ioWriteBytes: Int64?
     public var uptimeSeconds: Double?
+    /// 本次指标采集的能力状态；字段缺失时不再静默伪装成完整成功。
+    public var capabilityState: CapabilityState
 
     public init(
         cpu: CPUJiffies? = nil,
         cpuTimes: CPUTimes? = nil,
+        cpuInstantPercent: Double? = nil,
+        cpuBreakdownInstant: CPUBreakdown? = nil,
         cpuPerCore: [CPUJiffies] = [],
         cpuCores: Int? = nil,
         cpuModel: String? = nil,
@@ -59,10 +68,13 @@ public struct ParsedMetrics: Sendable, Equatable {
         tcp: TCPStats? = nil,
         ioReadBytes: Int64? = nil,
         ioWriteBytes: Int64? = nil,
-        uptimeSeconds: Double? = nil
+        uptimeSeconds: Double? = nil,
+        capabilityState: CapabilityState = .supported
     ) {
         self.cpu = cpu
         self.cpuTimes = cpuTimes
+        self.cpuInstantPercent = cpuInstantPercent
+        self.cpuBreakdownInstant = cpuBreakdownInstant
         self.cpuPerCore = cpuPerCore
         self.cpuCores = cpuCores
         self.cpuModel = cpuModel
@@ -87,6 +99,7 @@ public struct ParsedMetrics: Sendable, Equatable {
         self.ioReadBytes = ioReadBytes
         self.ioWriteBytes = ioWriteBytes
         self.uptimeSeconds = uptimeSeconds
+        self.capabilityState = capabilityState
     }
 
     /// 磁盘使用率 0–100。总量缺失或为 0 时返回 nil。

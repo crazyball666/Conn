@@ -24,6 +24,17 @@ struct MonitorSchedulerTests {
         #expect(await log.execs == 1)
     }
 
+    @Test("调度器按连接的平台画像选择采集能力")
+    func routesByDetectedPlatform() async {
+        let fixture = makeFixture(platform: .macOS)
+        let target = host()
+
+        await fixture.scheduler.scanNow(hosts: [target])
+
+        #expect(fixture.scheduler.metrics[target.id]?.platformProfile.kind == .macOS)
+        #expect(await fixture.log.execs == 1)
+    }
+
     @Test("有读数的主机首次 exec 失败会同轮立刻重试，不报错")
     func retriesOnceWithoutSurfacingError() async {
         let (scheduler, log) = makeScheduler()

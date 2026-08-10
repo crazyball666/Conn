@@ -100,6 +100,14 @@ final class FlakyTransport: SSHTransport {
     }
 }
 
+struct FixturePlatformDetector: RemotePlatformDetecting {
+    let profile: RemotePlatformProfile
+
+    func detect(on session: any SSHSession) async throws -> RemotePlatformProfile {
+        profile
+    }
+}
+
 final class FlakySession: SSHSession {
     private let log: CallLog
     private let address: String
@@ -160,10 +168,16 @@ struct SchedulerFixture {
 ///   值——**测试里绝不能真的睡满生产 deadline**。
 @MainActor
 func makeFixture(
-    execFailures: Int = 0, now: (() -> Date)? = nil, collectDeadline: Duration? = nil
+    execFailures: Int = 0,
+    now: (() -> Date)? = nil,
+    collectDeadline: Duration? = nil,
+    platform: RemotePlatformKind = .linux
 ) -> SchedulerFixture {
     let log = CallLog(execFailures: execFailures)
-    let manager = ConnectionManager(transport: FlakyTransport(log: log))
+    let manager = ConnectionManager(
+        transport: FlakyTransport(log: log),
+        platformDetector: FixturePlatformDetector(profile: RemotePlatformProfile(kind: platform))
+    )
     // `collectDeadline` 为 nil 时**必须一个字也不提**，而不是在这里写一份 `.seconds(90)`。
     // 抄一份生产默认值会让 `makeScheduler()`（注释说「不传 → 用生产默认值」）拿到的其实是
     // 测试助手自己塞的那个数，与 `MonitorScheduler.init` 的默认值再无关系——

@@ -443,8 +443,10 @@ public final class MonitorScheduler {
         phases[host.id] = (needsHandshake && metrics[host.id] != nil) ? .reconnecting : .collecting
         do {
             let session = try await connectionManager.session(for: host)
+            let profile = try await connectionManager.platformProfile(for: host)
             let result = try await collector.collect(
-                host: host, session: session, includeExtended: includeExtended
+                host: host, session: session, profile: profile,
+                includeExtended: includeExtended
             )
             guard isCurrent(scanGeneration) else { return nil }
             // 本轮没采概览详情段时沿用上次值，切回来不闪空。
