@@ -224,6 +224,11 @@ struct SnippetsView: View {
                         Text(snippet.interpreter.displayName)
                             .font(.connData(.caption2))
                             .foregroundStyle(.connMuted)
+                        if let platformLabel = platformLabel(for: snippet) {
+                            Text(platformLabel)
+                                .font(.connData(.caption2))
+                                .foregroundStyle(.connAccent)
+                        }
                     }
                     Text(snippet.script)
                         .font(.system(size: 11.5, design: .monospaced))
@@ -251,6 +256,21 @@ struct SnippetsView: View {
             }
         }
         .connSurface(cornerRadius: ConnRadius.card)
+    }
+
+    private func platformLabel(for snippet: Snippet) -> String? {
+        guard !snippet.platforms.isEmpty else { return nil }
+        return snippet.platforms
+            .map { platform in
+                switch platform {
+                case .linux: "Linux"
+                case .macOS: "macOS"
+                case .windows: "Windows"
+                case .unknown: L("未知")
+                }
+            }
+            .sorted()
+            .joined(separator: " / ")
     }
 
     @ViewBuilder

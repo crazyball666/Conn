@@ -4,6 +4,50 @@ import Testing
 
 @Suite("Snippet 变量解析")
 struct SnippetTests {
+    @Test("用户片段默认适用于全部平台且没有内置 key")
+    func userSnippetDefaultsToUniversal() {
+        let snippet = Snippet(title: "自定义", script: "uptime")
+
+        #expect(snippet.platforms.isEmpty)
+        #expect(snippet.requiredCapabilities.isEmpty)
+        #expect(snippet.builtinKey == nil)
+        #expect(snippet.isCompatible(with: .linux, availableCapabilities: []))
+        #expect(snippet.isCompatible(with: .macOS, availableCapabilities: []))
+        #expect(snippet.isCompatible(with: .windows, availableCapabilities: []))
+    }
+
+    @Test("旧版 JSON 缺少平台元数据时按全平台解码")
+    func legacyJSONDefaultsToUniversal() throws {
+        let json = """
+        {
+          "id":"legacy", "title":"旧片段", "script":"uptime", "interpreter":"sh",
+          "groupIDs":[], "pinned":false, "danger":false, "sortOrder":0,
+          "createdAt":1, "updatedAt":1, "syncDirty":false
+        }
+        """
+
+        let snippet = try JSONDecoder().decode(Snippet.self, from: Data(json.utf8))
+
+        #expect(snippet.platforms.isEmpty)
+        #expect(snippet.requiredCapabilities.isEmpty)
+        #expect(snippet.builtinKey == nil)
+    }
+
+    @Test("平台与能力共同决定内置片段兼容性")
+    func evaluatesPlatformAndCapabilities() {
+        let linux = Snippet(
+            title: "服务", script: "systemctl status nginx", platforms: [.linux]
+        )
+        let docker = Snippet(
+            title: "容器", script: "docker ps", requiredCapabilities: [.docker]
+        )
+
+        #expect(linux.isCompatible(with: .linux, availableCapabilities: []))
+        #expect(!linux.isCompatible(with: .macOS, availableCapabilities: []))
+        #expect(!docker.isCompatible(with: .macOS, availableCapabilities: []))
+        #expect(docker.isCompatible(with: .macOS, availableCapabilities: [.docker]))
+    }
+
     @Test("解析无默认值的变量")
     func parsesBareVariable() {
         let vars = Snippet.parseVariables(from: "systemctl restart {{service}}")

@@ -1,4 +1,5 @@
 import ConnKit
+import ConnOps
 import ConnRunner
 import ConnSSH
 import ConnTerminal
@@ -13,6 +14,12 @@ struct SnippetRunView: View {
 
     private enum Mode { case silent, terminal }
 
+    private enum HostCompatibilityState: Equatable {
+        case checking
+        case compatible
+        case incompatible(String)
+    }
+
     private struct TerminalRoute: Hashable, Identifiable {
         let host: Host
         let script: String
@@ -23,6 +30,7 @@ struct SnippetRunView: View {
     @State private var hosts: [Host] = []
     @State private var hostGroups: [HostGroup] = []
     @State private var selectedHostIDs: Set<String> = []
+    @State private var compatibilityByHostID: [String: HostCompatibilityState] = [:]
     @State private var isHostPickerExpanded = false
     @State private var expandedHostGroupIDs: Set<String> = []
     @State private var values: [String: String] = [:]
@@ -209,6 +217,10 @@ struct SnippetRunView: View {
                     Text(host.displayAddress)
                         .font(.connData(.caption2))
                         .foregroundStyle(.connMuted)
+                    if selectedHostIDs.contains(host.id),
+                       let state = compatibilityByHostID[host.id] {
+                        compatibilityLabel(for: state)
+                    }
                 }
                 Spacer()
                 Image(systemName: selectedHostIDs.contains(host.id)
@@ -242,14 +254,19 @@ struct SnippetRunView: View {
         VStack(alignment: .leading, spacing: ConnSpacing.xs) {
             HStack(spacing: ConnSpacing.sm) {
                 ConnButton(L("执行脚本"), kind: .primary) { attempt(.silent) }
-                    .disabled(selectedHosts.isEmpty || isRunning)
+                    .disabled(selectedHosts.isEmpty || isRunning || hasCompatibilityBlocker)
                 ConnButton(L("进终端"), kind: .primary) { attempt(.terminal) }
-                    .disabled(selectedHosts.count != 1 || isRunning)
+                    .disabled(selectedHosts.count != 1 || isRunning || hasCompatibilityBlocker)
             }
             if selectedHosts.count > 1 {
                 Text(L("已选择多台主机，批量执行仅支持静默执行。"))
                     .font(.connFootnote)
                     .foregroundStyle(.connMuted)
+            }
+            if let message = compatibilityMessage {
+                Text(message)
+                    .font(.connFootnote)
+                    .foregroundStyle(.connCrit)
             }
         }
     }
@@ -310,6 +327,22 @@ struct SnippetRunView: View {
         hosts.filter { selectedHostIDs.contains($0.id) }
     }
 
+    private var hasCompatibilityBlocker: Bool {
+        selectedHosts.contains { compatibilityByHostID[$0.id] != .compatible }
+    }
+
+    private var compatibilityMessage: String? {
+        for host in selectedHosts {
+            if case let .incompatible(message)? = compatibilityByHostID[host.id] {
+                return "\(host.name)：\(message)"
+            }
+        }
+        if selectedHosts.contains(where: { compatibilityByHostID[$0.id] == .checking }) {
+            return L("正在检查脚本兼容性…")
+        }
+        return nil
+    }
+
     private var ungroupedHosts: [Host] {
         let knownGroupIDs = Set(hostGroups.map(\.id))
         return hosts.filter { host in
@@ -339,19 +372,93 @@ struct SnippetRunView: View {
     }
 
     private func toggleHost(_ host: Host) {
-        if selectedHostIDs.contains(host.id) { selectedHostIDs.remove(host.id) }
-        else { selectedHostIDs.insert(host.id) }
+        if selectedHostIDs.contains(host.id) {
+            selectedHostIDs.remove(host.id)
+            compatibilityByHostID[host.id] = nil
+        } else {
+            selectedHostIDs.insert(host.id)
+            scheduleCompatibilityCheck(for: host)
+        }
     }
 
     private func toggleHosts(_ members: [Host]) {
         let ids = Set(members.map(\.id))
-        if ids.isSubset(of: selectedHostIDs) { selectedHostIDs.subtract(ids) }
-        else { selectedHostIDs.formUnion(ids) }
+        if ids.isSubset(of: selectedHostIDs) {
+            selectedHostIDs.subtract(ids)
+            for id in ids { compatibilityByHostID[id] = nil }
+        } else {
+            let added = members.filter { !selectedHostIDs.contains($0.id) }
+            selectedHostIDs.formUnion(ids)
+            for host in added { scheduleCompatibilityCheck(for: host) }
+        }
+    }
+
+    @ViewBuilder
+    private func compatibilityLabel(for state: HostCompatibilityState) -> some View {
+        switch state {
+        case .checking:
+            Text(L("正在检查脚本兼容性…"))
+                .font(.connData(.caption2))
+                .foregroundStyle(.connMuted)
+        case .compatible:
+            EmptyView()
+        case let .incompatible(message):
+            Text(message)
+                .font(.connData(.caption2))
+                .foregroundStyle(.connCrit)
+        }
+    }
+
+    private func scheduleCompatibilityCheck(for host: Host) {
+        guard !snippet.platforms.isEmpty || !snippet.requiredCapabilities.isEmpty else {
+            compatibilityByHostID[host.id] = .compatible
+            return
+        }
+        compatibilityByHostID[host.id] = .checking
+        Task { await resolveCompatibility(for: host) }
+    }
+
+    private func resolveCompatibility(for host: Host) async {
+        do {
+            let profile = try await dependencies.connectionManager.platformProfile(for: host)
+            guard snippet.platforms.isEmpty || snippet.platforms.contains(profile.kind) else {
+                compatibilityByHostID[host.id] = .incompatible(L("此脚本不支持该主机平台"))
+                return
+            }
+
+            var availableCapabilities: Set<RemoteCapability> = []
+            if snippet.requiredCapabilities.contains(.docker) {
+                let session = try await dependencies.connectionManager.session(for: host)
+                let probe = try await DockerService.probe(on: session, profile: profile)
+                if probe.availability.isUsable {
+                    availableCapabilities.insert(.docker)
+                }
+            }
+
+            switch snippet.compatibility(
+                with: profile.kind,
+                availableCapabilities: availableCapabilities
+            ) {
+            case .compatible:
+                compatibilityByHostID[host.id] = .compatible
+            case .unsupportedPlatform:
+                compatibilityByHostID[host.id] = .incompatible(L("此脚本不支持该主机平台"))
+            case let .missingCapabilities(capabilities):
+                let names = capabilities.map(\.rawValue).sorted().joined(separator: ", ")
+                compatibilityByHostID[host.id] = .incompatible(
+                    String(format: L("该主机缺少脚本所需能力：%@"), names)
+                )
+            }
+        } catch {
+            compatibilityByHostID[host.id] = .incompatible(
+                String(format: L("检查脚本兼容性失败：%@"), error.friendlyDiagnosis)
+            )
+        }
     }
 
     /// 任意一台生产主机命中风险，就要求整批二次确认。
     private func attempt(_ mode: Mode) {
-        guard !selectedHosts.isEmpty else { return }
+        guard !selectedHosts.isEmpty, !hasCompatibilityBlocker else { return }
         let production = selectedHosts.contains { $0.isProduction }
         let verdict = DangerCommandRules.evaluate(renderedScript, isProduction: production)
         if snippet.danger || verdict.needsConfirmation {
@@ -363,7 +470,7 @@ struct SnippetRunView: View {
     }
 
     private func execute(_ mode: Mode) {
-        guard !selectedHosts.isEmpty else { return }
+        guard !selectedHosts.isEmpty, !hasCompatibilityBlocker else { return }
         switch mode {
         case .silent:
             Task { await runSilently(on: selectedHosts) }

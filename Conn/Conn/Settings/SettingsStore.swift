@@ -154,10 +154,8 @@ final class SettingsStore {
         didSet { defaults.set(terminalKeybarEnabled, forKey: Key.terminalKeybarEnabled) }
     }
 
-    /// 内置命令库是否已导入过。
-    ///
-    /// 取代旧的「数墓碑」判定——改真删除后墓碑不存在，
-    /// 用户删光默认命令后不能再被重新灌回。
+    /// v1 内置命令库是否曾导入；仅供版本化目录首次迁移使用。
+    /// 新目录进度与 suppression 已迁入 SQLite，不再以此布尔值作为导入 gate。
     var builtinSnippetsImported: Bool {
         didSet { defaults.set(builtinSnippetsImported, forKey: Key.builtinSnippetsImported) }
     }

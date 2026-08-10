@@ -1,5 +1,6 @@
 import ConnKit
 import Foundation
+import GRDB
 import Testing
 @testable import ConnStore
 
@@ -25,6 +26,40 @@ struct SnippetStoreTests {
         try store.save(Snippet(title: "a", script: "a"))
         try store.save(Snippet(title: "b", script: "b"))
         #expect(try store.count() == 2)
+    }
+
+    @Test("平台、能力与内置 key 持久化往返")
+    func platformMetadataRoundTrips() throws {
+        let store = try makeStore()
+        let snippet = Snippet(
+            title: "Mac 日志",
+            script: "log show --last 1h",
+            platforms: [.macOS],
+            requiredCapabilities: [.logs],
+            builtinKey: "system-log-macos"
+        )
+
+        try store.save(snippet)
+        let stored = try store.snippet(id: snippet.id)
+        let loaded = try #require(stored)
+
+        #expect(loaded.platforms == [.macOS])
+        #expect(loaded.requiredCapabilities == [.logs])
+        #expect(loaded.builtinKey == "system-log-macos")
+    }
+
+    @Test("内置 key 在数据库中唯一")
+    func builtinKeyIsUnique() throws {
+        let store = try makeStore()
+        try store.save(Snippet(
+            id: "one", title: "一", script: "one", builtinKey: "stable-key"
+        ))
+
+        #expect(throws: DatabaseError.self) {
+            try store.save(Snippet(
+                id: "two", title: "二", script: "two", builtinKey: "stable-key"
+            ))
+        }
     }
 
     @Test("删除后不再出现")

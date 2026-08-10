@@ -42,6 +42,7 @@ public struct AppDatabase: @unchecked Sendable {
             migrator.eraseDatabaseOnSchemaChange = true
         #endif
         SchemaV1.register(in: &migrator)
+        SchemaV2.register(in: &migrator)
         return migrator
     }
 

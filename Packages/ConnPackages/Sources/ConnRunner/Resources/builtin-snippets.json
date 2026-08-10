@@ -1,4 +1,5 @@
 {
+  "version": 2,
   "groups": [
     "系统",
     "磁盘",
@@ -8,77 +9,119 @@
   ],
   "commands": [
     {
+      "key": "system-overview-linux",
       "title": "系统概览",
       "script": "uname -a; echo; uptime; echo; free -h",
+      "platforms": ["linux"],
       "pinned": true,
-      "groups": [
-        "系统"
-      ]
+      "groups": ["系统"]
     },
     {
+      "key": "system-overview-macos",
+      "title": "系统概览",
+      "script": "sw_vers; echo; uname -a; echo; uptime; echo; sysctl hw.memsize",
+      "platforms": ["macOS"],
+      "pinned": true,
+      "groups": ["系统"]
+    },
+    {
+      "key": "cpu-top-linux",
       "title": "CPU 占用 Top 10",
       "script": "ps -eo pid,comm,pcpu --sort=-pcpu | head -11",
-      "groups": [
-        "系统"
-      ]
+      "platforms": ["linux"],
+      "groups": ["系统"]
     },
     {
+      "key": "cpu-top-macos",
+      "title": "CPU 占用 Top 10",
+      "script": "ps -axo pid,comm,%cpu | sort -k3 -nr | head -11",
+      "platforms": ["macOS"],
+      "groups": ["系统"]
+    },
+    {
+      "key": "memory-top-linux",
       "title": "内存占用 Top 10",
       "script": "ps -eo pid,comm,pmem --sort=-pmem | head -11",
-      "groups": [
-        "系统"
-      ]
+      "platforms": ["linux"],
+      "groups": ["系统"]
     },
     {
+      "key": "memory-top-macos",
+      "title": "内存占用 Top 10",
+      "script": "ps -axo pid,comm,%mem | sort -k3 -nr | head -11",
+      "platforms": ["macOS"],
+      "groups": ["系统"]
+    },
+    {
+      "key": "service-status-linux",
       "title": "服务状态",
       "script": "systemctl status {{unit:nginx}} --no-pager",
-      "groups": [
-        "系统"
-      ]
+      "platforms": ["linux"],
+      "groups": ["系统"]
     },
     {
+      "key": "service-status-macos",
+      "title": "服务状态",
+      "script": "launchctl print system/{{unit:com.apple.sshd}}",
+      "platforms": ["macOS"],
+      "groups": ["系统"]
+    },
+    {
+      "key": "disk-usage",
       "title": "磁盘使用",
       "script": "df -h",
       "pinned": true,
-      "groups": [
-        "磁盘"
-      ]
+      "groups": ["磁盘"]
     },
     {
+      "key": "listening-ports-linux",
       "title": "监听端口",
       "script": "ss -tulnp",
+      "platforms": ["linux"],
       "pinned": true,
-      "groups": [
-        "网络"
-      ]
+      "groups": ["网络"]
     },
     {
+      "key": "listening-ports-macos",
+      "title": "监听端口",
+      "script": "lsof -nP -iTCP -sTCP:LISTEN",
+      "platforms": ["macOS"],
+      "pinned": true,
+      "groups": ["网络"]
+    },
+    {
+      "key": "connectivity-test",
       "title": "连通性测试",
       "script": "ping -c 4 {{host:8.8.8.8}}",
-      "groups": [
-        "网络"
-      ]
+      "groups": ["网络"]
     },
     {
+      "key": "system-log-linux",
       "title": "系统日志尾部",
       "script": "journalctl -n 100 --no-pager",
-      "groups": [
-        "日志"
-      ]
+      "platforms": ["linux"],
+      "groups": ["日志"]
     },
     {
+      "key": "system-log-macos",
+      "title": "系统日志尾部",
+      "script": "/usr/bin/log show --last 1h --style syslog",
+      "platforms": ["macOS"],
+      "groups": ["日志"]
+    },
+    {
+      "key": "container-list",
       "title": "容器列表",
       "script": "docker ps -a",
-      "groups": [
-        "Docker"
-      ]
+      "requiredCapabilities": ["docker"],
+      "groups": ["Docker"]
     },
     {
+      "key": "container-stats",
       "title": "容器资源占用",
       "script": "docker stats --no-stream",
-      "groups": [
-        "Docker"
-      ]
+      "requiredCapabilities": ["docker"],
+      "groups": ["Docker"]
     }
   ]
 }

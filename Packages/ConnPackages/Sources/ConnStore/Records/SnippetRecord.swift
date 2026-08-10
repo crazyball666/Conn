@@ -12,6 +12,9 @@ struct SnippetRecord: Codable, FetchableRecord, PersistableRecord, Sendable {
     var interpreter: ShellInterpreter
     var pinned: Bool
     var danger: Bool
+    var platformsJSON: String?
+    var requiredCapabilitiesJSON: String?
+    var builtinKey: String?
     var sortOrder: Int
     var createdAt: Int64
     var updatedAt: Int64
@@ -19,6 +22,9 @@ struct SnippetRecord: Codable, FetchableRecord, PersistableRecord, Sendable {
 
     enum CodingKeys: String, CodingKey {
         case uuid, title, script, interpreter, pinned, danger
+        case platformsJSON = "platforms_json"
+        case requiredCapabilitiesJSON = "required_capabilities_json"
+        case builtinKey = "builtin_key"
         case sortOrder = "sort_order"
         case createdAt = "created_at"
         case updatedAt = "updated_at"
@@ -34,6 +40,9 @@ extension SnippetRecord {
         interpreter = snippet.interpreter
         pinned = snippet.pinned
         danger = snippet.danger
+        platformsJSON = Self.encodeRawValues(snippet.platforms)
+        requiredCapabilitiesJSON = Self.encodeRawValues(snippet.requiredCapabilities)
+        builtinKey = snippet.builtinKey
         sortOrder = snippet.sortOrder
         createdAt = snippet.createdAt
         updatedAt = snippet.updatedAt
@@ -49,10 +58,30 @@ extension SnippetRecord {
             groupIDs: groupIDs,
             pinned: pinned,
             danger: danger,
+            platforms: Self.decodeRawValues(platformsJSON),
+            requiredCapabilities: Self.decodeRawValues(requiredCapabilitiesJSON),
+            builtinKey: builtinKey,
             sortOrder: sortOrder,
             createdAt: createdAt,
             updatedAt: updatedAt,
             syncDirty: syncDirty
         )
+    }
+
+    private static func encodeRawValues<Value: RawRepresentable>(_ values: Set<Value>) -> String?
+    where Value.RawValue == String {
+        guard !values.isEmpty else { return nil }
+        let rawValues = values.map(\.rawValue).sorted()
+        guard let data = try? JSONEncoder().encode(rawValues) else { return nil }
+        return String(decoding: data, as: UTF8.self)
+    }
+
+    private static func decodeRawValues<Value: RawRepresentable & Hashable>(
+        _ json: String?
+    ) -> Set<Value> where Value.RawValue == String {
+        guard let json,
+              let rawValues = try? JSONDecoder().decode([String].self, from: Data(json.utf8))
+        else { return [] }
+        return Set(rawValues.compactMap(Value.init(rawValue:)))
     }
 }

@@ -433,18 +433,18 @@ struct AppDependencies {
         return base.appendingPathComponent("Conn/conn.sqlite")
     }
 
-    /// 仅首次启动时把内置 JSON 中的分组和命令写入数据库。
-    /// 首启导入内置命令库。
-    ///
-    /// 用 UserDefaults 标记而非数据行数——改真删除后墓碑不存在，
-    /// 数行数会把「用户删光默认命令」误判为「从未导入」并重新灌回去。
+    /// 按数据库中的目录版本和稳定 key 导入内置命令。旧 UserDefaults 标记只作为
+    /// v1 → v2 的迁移输入：先 suppression 原十条 key，避免随机 id 遗留项被复制。
     private static func importBuiltinSnippetsIfNeeded(
         _ store: SnippetStore,
         _ groups: SnippetGroupStore
     ) throws {
         let defaults = UserDefaults.standard
-        guard !defaults.bool(forKey: SettingsStore.builtinSnippetsImportedKey) else { return }
-        try BuiltinSnippets.importIfNeeded(into: store, groups: groups)
+        if defaults.bool(forKey: SettingsStore.builtinSnippetsImportedKey),
+           try store.builtinCatalogVersion() == 0 {
+            try BuiltinSnippets.adoptLegacyImport(in: store)
+        }
+        _ = try BuiltinSnippets.importIfNeeded(into: store, groups: groups)
         defaults.set(true, forKey: SettingsStore.builtinSnippetsImportedKey)
     }
 }
