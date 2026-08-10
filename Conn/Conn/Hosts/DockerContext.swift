@@ -3,16 +3,16 @@ import ConnOps
 import ConnSSH
 import Foundation
 
-/// 四个资源模型与写操作模型共享的依赖：取会话、当前是否需 sudo、上报与定向刷新。
+/// 四个资源模型与写操作模型共享的依赖：取会话、Docker 运行时、上报与定向刷新。
 ///
 /// 用一个轻量上下文而不是让每个子模型各自持有 `ConnectionManager` + `Host` +
 /// `DockerOperationsModel` 直接接收 `hostUUID` 与 `RunHistoryRepository`，避免读模型
-/// 看到原始命令或 `ExecResult` 审计接口。sudo 标志由可用性探测决定、只有外壳知道。
+/// 看到原始命令或 `ExecResult` 审计接口。运行时由可用性探测决定、只有外壳知道。
 @MainActor
 struct DockerContext {
     let session: () async throws -> any SSHSession
-    /// 当前是否需 sudo -n 前缀。由可用性探测决定。
-    var sudo: Bool
+    /// 已探测到的 Docker CLI 路径与提权方式。
+    var runtime: DockerRuntimeContext
     /// 当前 Docker 是否可用。由可用性探测决定，探测晚于上下文构造，外壳要回填。
     var isUsable: Bool
     /// 上报一条给用户看的结果（外壳统一弹 alert）。
@@ -28,7 +28,7 @@ struct DockerContext {
 
     init(
         session: @escaping () async throws -> any SSHSession,
-        sudo: Bool,
+        runtime: DockerRuntimeContext,
         isUsable: Bool,
         report: @escaping (String) -> Void,
         refresh: @escaping (DockerRefreshScope) async -> Void,
@@ -36,11 +36,32 @@ struct DockerContext {
         preserveComposeProject: @escaping (DockerComposeProject) -> Void = { _ in }
     ) {
         self.session = session
-        self.sudo = sudo
+        self.runtime = runtime
         self.isUsable = isUsable
         self.report = report
         self.refresh = refresh
         self.reprobe = reprobe
         self.preserveComposeProject = preserveComposeProject
+    }
+
+    /// 兼容既有测试和调用；新代码应传入包含可执行路径的 `runtime`。
+    init(
+        session: @escaping () async throws -> any SSHSession,
+        sudo: Bool,
+        isUsable: Bool,
+        report: @escaping (String) -> Void,
+        refresh: @escaping (DockerRefreshScope) async -> Void,
+        reprobe: @escaping () async -> Void,
+        preserveComposeProject: @escaping (DockerComposeProject) -> Void = { _ in }
+    ) {
+        self.init(
+            session: session,
+            runtime: DockerRuntimeContext(executable: "docker", sudo: sudo),
+            isUsable: isUsable,
+            report: report,
+            refresh: refresh,
+            reprobe: reprobe,
+            preserveComposeProject: preserveComposeProject
+        )
     }
 }

@@ -69,7 +69,7 @@ final class DockerComposeModel {
         do {
             let session = try await context.session()
             guard let detected = try await DockerService.composeDialect(
-                on: session, sudo: context.sudo
+                on: session, runtime: context.runtime
             ) else {
                 dialect = nil
                 errorMessage = L("未检测到 Docker Compose")
@@ -79,7 +79,7 @@ final class DockerComposeModel {
             }
             dialect = detected
             let projects = try await DockerService.listComposeProjects(
-                dialect: detected, on: session, sudo: context.sudo
+                dialect: detected, on: session, runtime: context.runtime
             )
             registry.replaceDiscovered(projects)
             items = registry.projects
@@ -107,7 +107,7 @@ final class DockerComposeModel {
             if let dialect {
                 detected = dialect
             } else if let probed = try await DockerService.composeDialect(
-                on: session, sudo: context.sudo
+                on: session, runtime: context.runtime
             ) {
                 detected = probed
                 dialect = probed
@@ -116,7 +116,7 @@ final class DockerComposeModel {
                 return false
             }
             let services = try await DockerService.composeServices(
-                project, dialect: detected, on: session, sudo: context.sudo
+                project, dialect: detected, on: session, runtime: context.runtime
             )
             var validated = project
             validated.serviceCount = services.count
@@ -155,7 +155,7 @@ final class DockerComposeModel {
             project,
             dialect: dialect,
             on: context.session(),
-            sudo: context.sudo
+            runtime: context.runtime
         )
     }
 

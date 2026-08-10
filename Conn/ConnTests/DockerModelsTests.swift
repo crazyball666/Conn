@@ -162,6 +162,24 @@ struct DockerModelsTests {
     func loadImagesWithUsageSkipsRefreshOnContainerFetchFailure() async {
         let host = Host(name: "web-01", address: "10.20.0.11", username: "root")
         let session = ScriptedSession()
+        session.setResponse(
+            RemotePlatformDetector.posixCommand,
+            stdout: """
+            __CONN_UNAME__
+            Linux
+            __CONN_RELEASE__
+            6.8
+            __CONN_ARCH__
+            arm64
+            __CONN_SHELL__
+            /bin/sh
+            __CONN_END__
+            """
+        )
+        session.setResponse(
+            DockerRuntimeContext.discoveryCommand(for: .linux),
+            stdout: "docker\n"
+        )
         session.setResponse(DockerCommand.availabilityProbe(sudo: false), stdout: "__EXIT__0")
         session.setResponse(
             DockerCommand.images(sudo: false),

@@ -75,7 +75,12 @@ struct DockerView: View {
                 host: host, dependencies: dependencies,
                 source: LogSource(
                     id: "container-\(container.id)", title: container.name,
-                    subtitle: container.image, kind: .container(id: container.id, name: container.name)
+                    subtitle: container.image,
+                    kind: .container(
+                        id: container.id,
+                        name: container.name,
+                        runtime: viewModel.runtime
+                    )
                 ),
                 sudo: viewModel.usesSudo
             )
@@ -486,11 +491,25 @@ extension DockerView {
     private func unavailableView(_ availability: DockerAvailability) -> some View {
         let text: String = switch availability {
         case .notInstalled:
-            L("未检测到 Docker CLI。请确认该服务器已安装 Docker。")
+            if viewModel.platformKind == .macOS {
+                L("未检测到 Docker CLI。请确认这台 Mac 已安装 Docker Desktop。")
+            } else {
+                L("未检测到 Docker CLI。请确认该主机已安装 Docker。")
+            }
         case .permissionDenied:
-            L("当前用户无权访问 Docker。\n将用户加入 docker 组：\nsudo usermod -aG docker $USER\n然后重新登录后重试。")
+            if viewModel.platformKind == .linux {
+                L("当前用户无权访问 Docker。\n将用户加入 docker 组：\nsudo usermod -aG docker $USER\n然后重新登录后重试。")
+            } else {
+                L("当前用户无权访问 Docker。请检查 Docker Desktop 或 Docker socket 的访问权限。")
+            }
         case .daemonNotRunning:
-            L("Docker 守护进程未运行。\n请在服务器上启动：\nsudo systemctl start docker")
+            if viewModel.platformKind == .macOS {
+                L("Docker Desktop 未运行。请在这台 Mac 上启动 Docker Desktop 后重试。")
+            } else if viewModel.platformKind == .linux {
+                L("Docker 守护进程未运行。\n请在服务器上启动：\nsudo systemctl start docker")
+            } else {
+                L("Docker 服务未运行。请在目标主机上启动 Docker 后重试。")
+            }
         case .available:
             ""
         }

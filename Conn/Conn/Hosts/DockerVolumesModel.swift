@@ -34,8 +34,8 @@ final class DockerVolumesModel {
         do {
             let session = try await context.session()
             // 两条命令并行：徽标不该让列表多等一个往返
-            async let list = DockerService.listVolumes(on: session, sudo: context.sudo)
-            async let dangling = DockerService.danglingVolumeNames(on: session, sudo: context.sudo)
+            async let list = DockerService.listVolumes(on: session, runtime: context.runtime)
+            async let dangling = DockerService.danglingVolumeNames(on: session, runtime: context.runtime)
             items = try await list
             unusedNames = try await dangling
             error = nil
@@ -47,14 +47,14 @@ final class DockerVolumesModel {
 
     func detail(for volume: VolumeInfo) async throws -> VolumeDetail {
         try await DockerService.volumeDetail(
-            name: volume.name, on: context.session(), sudo: context.sudo
+            name: volume.name, on: context.session(), runtime: context.runtime
         )
     }
 
     /// 引用该卷的容器。只在打开详情页时才跑。
     func containersUsing(_ volume: VolumeInfo) async throws -> [ContainerInfo] {
         try await DockerService.containersUsingVolume(
-            name: volume.name, on: context.session(), sudo: context.sudo
+            name: volume.name, on: context.session(), runtime: context.runtime
         )
     }
 

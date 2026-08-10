@@ -1,3 +1,4 @@
+import ConnKit
 import ConnSSH
 import Foundation
 
@@ -32,13 +33,13 @@ public enum DockerService {
     /// 默认就是 10 秒，容器自带更长的 `--stop-timeout`（或 restart = stop + start）
     /// 时轻易越过 30 秒；镜像层多的 `docker rmi` 也要等磁盘删完。
     /// 取 2 分钟：够覆盖正常的优雅停机，又不至于让一次误操作把 UI 挂太久。
-    private static let writeTimeout: Duration = .seconds(120)
+    static let writeTimeout: Duration = .seconds(120)
 
     /// 拉取镜像的超时。
     ///
     /// 拉取的镜像层大小和网络状况均不可预知；5 分钟内仍属正常范围。调用方用流式
     /// 输出展示进度，并在最终 `ExecResult` 到达后判定已知成功或失败。
-    private static let pullTimeout: Duration = .seconds(300)
+    static let pullTimeout: Duration = .seconds(300)
 
     /// 清理类操作（prune）的超时。
     ///
@@ -46,7 +47,7 @@ public enum DockerService {
     /// 在镜像多、磁盘慢的主机上跑几分钟很常见——这属于正常执行，不该被判成失败
     /// （何况超时并不会终止远端的删除，见 `CitadelSession.exec`，半路「失败」只会让
     /// 用户以为没清理成功）。取 5 分钟。
-    private static let pruneTimeout: Duration = .seconds(300)
+    static let pruneTimeout: Duration = .seconds(300)
 
     /// 探测可用性：先试直连，permission denied 再试 `sudo -n`。
     public static func probe(on session: any SSHSession) async throws -> DockerAvailability {
@@ -70,6 +71,54 @@ public enum DockerService {
             return .daemonNotRunning
         }
         return .permissionDenied
+    }
+
+    /// 平台感知的 Docker 探测。先解析 CLI 的真实路径，再用同一路径验证 daemon 与
+    /// 权限；成功返回的 `runtime` 必须贯穿该页面生命周期内的所有 Docker 调用。
+    public static func probe(
+        on session: any SSHSession,
+        profile: RemotePlatformProfile
+    ) async throws -> DockerProbeResult {
+        let discovery = try await session.exec(
+            DockerRuntimeContext.discoveryCommand(for: profile.kind)
+        )
+        guard let executable = DockerRuntimeContext.parseDiscoveredExecutable(discovery.stdoutText) else {
+            return DockerProbeResult(availability: .notInstalled, runtime: nil)
+        }
+
+        let directRuntime = DockerRuntimeContext(executable: executable, sudo: false)
+        let direct = try await session.exec(
+            DockerCommand.availabilityProbe(runtime: directRuntime)
+        ).stdoutText
+        if direct.contains("__EXIT__0") {
+            return DockerProbeResult(
+                availability: .available(sudo: false),
+                runtime: directRuntime
+            )
+        }
+
+        let elevatedRuntime = directRuntime.withSudo(true)
+        let elevated = try await session.exec(
+            DockerCommand.availabilityProbe(runtime: elevatedRuntime)
+        ).stdoutText
+        if elevated.contains("__EXIT__0") {
+            return DockerProbeResult(
+                availability: .available(sudo: true),
+                runtime: elevatedRuntime
+            )
+        }
+
+        let diagnostic = direct.lowercased()
+        if diagnostic.contains("cannot connect")
+            || diagnostic.contains("daemon running")
+            || diagnostic.contains("docker desktop running") {
+            return DockerProbeResult(availability: .daemonNotRunning, runtime: nil)
+        }
+        if diagnostic.contains("permission denied")
+            || diagnostic.contains("operation not permitted") {
+            return DockerProbeResult(availability: .permissionDenied, runtime: nil)
+        }
+        return DockerProbeResult(availability: .permissionDenied, runtime: nil)
     }
 
     /// 列容器：并行拉 ps 与 stats 后合并。
@@ -337,7 +386,7 @@ public enum DockerService {
         try await session.execStream(DockerCommand.logs(id: id, tail: tail, sudo: sudo))
     }
 
-    private static func requireComposeSuccess(_ result: ExecResult) throws {
+    static func requireComposeSuccess(_ result: ExecResult) throws {
         guard result.exitCode == 0 else {
             throw DockerComposeError.commandFailed(
                 exitCode: result.exitCode,

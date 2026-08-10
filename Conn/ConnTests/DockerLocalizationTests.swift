@@ -206,6 +206,8 @@ struct DockerLocalizationTests {
         "高风险配置",
         "；审计未保存",
         "Docker 守护进程未运行。\n请在服务器上启动：\nsudo systemctl start docker",
+        "Docker Desktop 未运行。请在这台 Mac 上启动 Docker Desktop 后重试。",
+        "Docker 服务未运行。请在目标主机上启动 Docker 后重试。",
         "Docker 操作",
         "Docker 预置，不可删除",
         "主机",
@@ -232,6 +234,7 @@ struct DockerLocalizationTests {
         "层历史",
         "引用容器",
         "当前用户无权访问 Docker。\n将用户加入 docker 组：\nsudo usermod -aG docker $USER\n然后重新登录后重试。",
+        "当前用户无权访问 Docker。请检查 Docker Desktop 或 Docker socket 的访问权限。",
         "执行历史",
         "挂载点",
         "接入容器",
@@ -246,6 +249,8 @@ struct DockerLocalizationTests {
         "是",
         "未使用",
         "未检测到 Docker CLI。请确认该服务器已安装 Docker。",
+        "未检测到 Docker CLI。请确认该主机已安装 Docker。",
+        "未检测到 Docker CLI。请确认这台 Mac 已安装 Docker Desktop。",
         "架构",
         "标签",
         "概要",
@@ -425,7 +430,8 @@ extension DockerLocalizationTests {
         #expect(dockerView.contains("Label(L(\"手动添加项目\"), systemImage: \"plus\")"))
         #expect(!composeViews.contains("addManual"))
         #expect(composeViews.contains(".composeDown(project: project, dialect: dialect)"))
-        #expect(composeViews.contains("kind: .compose(project: project, dialect: dialect, service: nil)"))
+        #expect(composeViews.contains("kind: .compose("))
+        #expect(composeViews.contains("runtime: viewModel.runtime"))
         #expect(!runForm.contains("DockerRunReviewView"))
         #expect(!runForm.contains("showsReview"))
         #expect(runForm.contains("DockerCommand.run(state.draft, sudo: false)"))

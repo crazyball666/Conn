@@ -62,20 +62,20 @@ final class DockerOperationsModel {
         on container: ContainerInfo
     ) async -> DockerOperationOutcome {
         let operation = DockerOperation.container(action: action, targetID: container.id)
-        return await execute(operation, label: String(format: L("%@容器"), action.label)) { session, sudo in
-            try await DockerService.perform(action, id: container.id, on: session, sudo: sudo)
+        return await execute(operation, label: String(format: L("%@容器"), action.label)) { session, runtime in
+            try await DockerService.perform(action, id: container.id, on: session, runtime: runtime)
         }
     }
 
     private func removeImageConfirmed(_ image: ImageInfo) async -> DockerOperationOutcome {
-        await execute(.removeImage(targetID: image.id), label: L("删除镜像")) { session, sudo in
-            try await DockerService.removeImage(reference: image.reference, on: session, sudo: sudo)
+        await execute(.removeImage(targetID: image.id), label: L("删除镜像")) { session, runtime in
+            try await DockerService.removeImage(reference: image.reference, on: session, runtime: runtime)
         }
     }
 
     private func pruneImagesConfirmed() async -> DockerOperationOutcome {
-        await execute(.pruneImages, label: L("清理悬空镜像")) { session, sudo in
-            try await DockerService.pruneImages(on: session, sudo: sudo)
+        await execute(.pruneImages, label: L("清理悬空镜像")) { session, runtime in
+            try await DockerService.pruneImages(on: session, runtime: runtime)
         }
     }
 
@@ -88,8 +88,8 @@ final class DockerOperationsModel {
             context.report(message)
             return .rejected(message: message)
         }
-        return await execute(.runContainer, label: L("创建容器")) { session, sudo in
-            try await DockerService.runContainer(draft, on: session, sudo: sudo)
+        return await execute(.runContainer, label: L("创建容器")) { session, runtime in
+            try await DockerService.runContainer(draft, on: session, runtime: runtime)
         }
     }
 
@@ -100,14 +100,14 @@ final class DockerOperationsModel {
             context.report(message)
             return .rejected(message: message)
         }
-        return await execute(.createVolume, label: L("创建卷")) { session, sudo in
-            try await DockerService.createVolume(draft, on: session, sudo: sudo)
+        return await execute(.createVolume, label: L("创建卷")) { session, runtime in
+            try await DockerService.createVolume(draft, on: session, runtime: runtime)
         }
     }
 
     private func removeVolumeConfirmed(name: String) async -> DockerOperationOutcome {
-        await execute(.removeVolume, label: L("删除卷")) { session, sudo in
-            try await DockerService.removeVolume(name: name, on: session, sudo: sudo)
+        await execute(.removeVolume, label: L("删除卷")) { session, runtime in
+            try await DockerService.removeVolume(name: name, on: session, runtime: runtime)
         }
     }
 
@@ -118,20 +118,20 @@ final class DockerOperationsModel {
             context.report(message)
             return .rejected(message: message)
         }
-        return await execute(.createNetwork, label: L("创建网络")) { session, sudo in
-            try await DockerService.createNetwork(draft, on: session, sudo: sudo)
+        return await execute(.createNetwork, label: L("创建网络")) { session, runtime in
+            try await DockerService.createNetwork(draft, on: session, runtime: runtime)
         }
     }
 
     private func removeNetworkConfirmed(name: String) async -> DockerOperationOutcome {
-        await execute(.removeNetwork, label: L("删除网络")) { session, sudo in
-            try await DockerService.removeNetwork(name: name, on: session, sudo: sudo)
+        await execute(.removeNetwork, label: L("删除网络")) { session, runtime in
+            try await DockerService.removeNetwork(name: name, on: session, runtime: runtime)
         }
     }
 
     private func systemPruneConfirmed(_ options: DockerSystemPruneOptions) async -> DockerOperationOutcome {
-        await execute(.systemPrune, label: L("清理 Docker 资源")) { session, sudo in
-            try await DockerService.systemPrune(options, on: session, sudo: sudo)
+        await execute(.systemPrune, label: L("清理 Docker 资源")) { session, runtime in
+            try await DockerService.systemPrune(options, on: session, runtime: runtime)
         }
     }
 
@@ -153,9 +153,9 @@ final class DockerOperationsModel {
         _ project: DockerComposeProject,
         dialect: DockerComposeDialect
     ) async -> DockerOperationOutcome {
-        await execute(.composeUp(projectName: project.name), label: L("启动 Compose 项目")) { session, sudo in
+        await execute(.composeUp(projectName: project.name), label: L("启动 Compose 项目")) { session, runtime in
             try await DockerService.composeUp(
-                project, dialect: dialect, on: session, sudo: sudo
+                project, dialect: dialect, on: session, runtime: runtime
             )
         }
     }
@@ -187,9 +187,9 @@ final class DockerOperationsModel {
         await execute(
             .composeRestart(projectName: project.name, serviceName: service),
             label: service == nil ? L("重启 Compose 项目") : L("重启 Compose 服务")
-        ) { session, sudo in
+        ) { session, runtime in
             try await DockerService.composeRestart(
-                project, service: service, dialect: dialect, on: session, sudo: sudo
+                project, service: service, dialect: dialect, on: session, runtime: runtime
             )
         }
     }
@@ -201,10 +201,10 @@ final class DockerOperationsModel {
         await execute(
             .composeDown(projectName: project.name),
             label: L("停止并移除 Compose 项目")
-        ) { session, sudo in
+        ) { session, runtime in
             context.preserveComposeProject(project)
             return try await DockerService.composeDown(
-                project, dialect: dialect, on: session, sudo: sudo
+                project, dialect: dialect, on: session, runtime: runtime
             )
         }
     }
@@ -251,7 +251,11 @@ final class DockerOperationsModel {
 
         do {
             let session = try await context.session()
-            let stream = try await DockerService.pullImage(reference: reference, on: session, sudo: context.sudo)
+            let stream = try await DockerService.pullImage(
+                reference: reference,
+                on: session,
+                runtime: context.runtime
+            )
             // 输出流故障并不必然代表远端没有终态；仍等待 result()，只要拿到最终
             // ExecResult 就按 known 处理。没有 result 才是 unknown。
             do {
@@ -348,7 +352,7 @@ final class DockerOperationsModel {
     private func execute(
         _ operation: DockerOperation,
         label: String,
-        remote: (any SSHSession, Bool) async throws -> ExecResult
+        remote: (any SSHSession, DockerRuntimeContext) async throws -> ExecResult
     ) async -> DockerOperationOutcome {
         if let rejection = begin(operation) { return rejection }
         defer { activeOperation = nil }
@@ -359,7 +363,7 @@ final class DockerOperationsModel {
         }
         do {
             let session = try await context.session()
-            let result = try await remote(session, context.sudo)
+            let result = try await remote(session, context.runtime)
             let state = DockerOperationResultState.known(exitCode: result.exitCode)
             let outcome = DockerOperationOutcome(result: result)
             let auditSaved = audit.update(

@@ -3,6 +3,35 @@ import Testing
 
 @Suite("Docker 操作草稿与命令")
 struct DockerOperationCommandTests {
+    @Test("探测到的 Docker 可执行路径贯穿查询、Compose 与日志")
+    func usesDiscoveredExecutableEverywhere() {
+        let runtime = DockerRuntimeContext(
+            executable: "/Applications/Docker.app/Contents/Resources/bin/docker",
+            sudo: true
+        )
+
+        #expect(
+            DockerCommand.list(runtime: runtime)
+                == "sudo -n '/Applications/Docker.app/Contents/Resources/bin/docker' ps -a --format '{{json .}}'"
+        )
+        #expect(
+            DockerCommand.stats(runtime: runtime)
+                == "sudo -n '/Applications/Docker.app/Contents/Resources/bin/docker' stats --no-stream --format '{{json .}}'"
+        )
+        #expect(
+            DockerCommand.inspect(id: "abc123", runtime: runtime)
+                == "sudo -n '/Applications/Docker.app/Contents/Resources/bin/docker' inspect abc123"
+        )
+        #expect(
+            DockerCommand.composeVersion(.v2, runtime: runtime)
+                == "sudo -n '/Applications/Docker.app/Contents/Resources/bin/docker' compose version"
+        )
+        #expect(
+            DockerCommand.logs(id: "abc123", runtime: runtime)
+                == "sudo -n '/Applications/Docker.app/Contents/Resources/bin/docker' logs -f --tail 200 abc123 2>&1"
+        )
+    }
+
     @Test("用户值被视为一个 shell 参数而不是代码")
     func quotesShellMetacharacters() {
         #expect(ShellArgument.quote("") == "''")

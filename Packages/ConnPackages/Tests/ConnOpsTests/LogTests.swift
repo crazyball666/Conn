@@ -64,6 +64,28 @@ struct LogSourceTests {
         )
     }
 
+    @Test("容器日志沿用探测到的 Docker 路径")
+    func containerLogsUseRuntimeContext() {
+        let source = LogSource(
+            id: "c",
+            title: "",
+            subtitle: "",
+            kind: .container(
+                id: "abc123",
+                name: "web",
+                runtime: DockerRuntimeContext(
+                    executable: "/Applications/Docker.app/Contents/Resources/bin/docker",
+                    sudo: false
+                )
+            )
+        )
+
+        #expect(
+            source.followCommand()
+                == "'/Applications/Docker.app/Contents/Resources/bin/docker' logs -f --tail 300 abc123 2>&1"
+        )
+    }
+
     @Test("任意文件路径会安全转义")
     func arbitraryFilePathIsQuoted() {
         let file = LogSource(

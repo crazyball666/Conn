@@ -21818,6 +21818,146 @@
         }
       }
     },
+    "Docker Desktop 未运行。请在这台 Mac 上启动 Docker Desktop 后重试。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Docker Desktop is not running. Start Docker Desktop on this Mac and try again."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Docker Desktop が実行されていません。この Mac で Docker Desktop を起動してから再試行してください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Docker Desktop이 실행 중이 아닙니다. 이 Mac에서 Docker Desktop을 시작한 후 다시 시도하세요."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Docker Desktop 未執行。請在這台 Mac 上啟動 Docker Desktop 後重試。"
+          }
+        }
+      }
+    },
+    "Docker 服务未运行。请在目标主机上启动 Docker 后重试。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The Docker service is not running. Start Docker on the target host and try again."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Docker サービスが実行されていません。対象ホストで Docker を起動してから再試行してください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Docker 서비스가 실행 중이 아닙니다. 대상 호스트에서 Docker를 시작한 후 다시 시도하세요."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Docker 服務未執行。請在目標主機上啟動 Docker 後重試。"
+          }
+        }
+      }
+    },
+    "当前用户无权访问 Docker。请检查 Docker Desktop 或 Docker socket 的访问权限。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The current user cannot access Docker. Check access to Docker Desktop or the Docker socket."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "現在のユーザーには Docker へのアクセス権がありません。Docker Desktop または Docker ソケットのアクセス権を確認してください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "현재 사용자는 Docker에 접근할 수 없습니다. Docker Desktop 또는 Docker 소켓 접근 권한을 확인하세요."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "目前使用者無權存取 Docker。請檢查 Docker Desktop 或 Docker socket 的存取權限。"
+          }
+        }
+      }
+    },
+    "未检测到 Docker CLI。请确认该主机已安装 Docker。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Docker CLI not found. Make sure Docker is installed on this host."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Docker CLI が見つかりません。このホストに Docker がインストールされているか確認してください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Docker CLI를 찾을 수 없습니다. 이 호스트에 Docker가 설치되어 있는지 확인하세요."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未偵測到 Docker CLI。請確認該主機已安裝 Docker。"
+          }
+        }
+      }
+    },
+    "未检测到 Docker CLI。请确认这台 Mac 已安装 Docker Desktop。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Docker CLI not found. Make sure Docker Desktop is installed on this Mac."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Docker CLI が見つかりません。この Mac に Docker Desktop がインストールされているか確認してください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Docker CLI를 찾을 수 없습니다. 이 Mac에 Docker Desktop이 설치되어 있는지 확인하세요."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未偵測到 Docker CLI。請確認這台 Mac 已安裝 Docker Desktop。"
+          }
+        }
+      }
+    },
     "默认将移除已停止容器、未使用网络、悬空镜像和构建缓存。" : {
       "extractionState" : "stale",
       "localizations" : {

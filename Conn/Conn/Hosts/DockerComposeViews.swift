@@ -411,7 +411,12 @@ struct DockerComposeProjectDetailView: View {
             id: "compose-\(project.name)-project",
             title: project.name,
             subtitle: L("Compose 项目日志"),
-            kind: .compose(project: project, dialect: dialect, service: nil)
+            kind: .compose(
+                project: project,
+                dialect: dialect,
+                service: nil,
+                runtime: viewModel.runtime
+            )
         )
     }
 }

@@ -47,7 +47,7 @@ final class DockerImagesModel {
     func load() async {
         guard context.isUsable else { return }
         do {
-            items = try await DockerService.listImages(on: context.session(), sudo: context.sudo)
+            items = try await DockerService.listImages(on: context.session(), runtime: context.runtime)
             error = nil
         } catch {
             self.error = error.friendlyDiagnosis
@@ -62,13 +62,13 @@ final class DockerImagesModel {
 
     func detail(for image: ImageInfo) async throws -> ImageDetail {
         try await DockerService.imageDetail(
-            reference: image.reference, on: context.session(), sudo: context.sudo
+            reference: image.reference, on: context.session(), runtime: context.runtime
         )
     }
 
     func history(for image: ImageInfo) async throws -> [ImageLayer] {
         try await DockerService.imageHistory(
-            reference: image.reference, on: context.session(), sudo: context.sudo
+            reference: image.reference, on: context.session(), runtime: context.runtime
         )
     }
 

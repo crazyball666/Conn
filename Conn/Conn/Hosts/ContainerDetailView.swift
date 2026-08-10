@@ -286,7 +286,12 @@ struct ContainerDetailView: View {
                 host: host, dependencies: dependencies,
                 source: LogSource(
                     id: "container-\(container.id)", title: container.name,
-                    subtitle: container.image, kind: .container(id: container.id, name: container.name)
+                    subtitle: container.image,
+                    kind: .container(
+                        id: container.id,
+                        name: container.name,
+                        runtime: viewModel.runtime
+                    )
                 ),
                 sudo: viewModel.usesSudo
             )

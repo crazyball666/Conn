@@ -1,7 +1,76 @@
+import ConnKit
 import ConnSSH
 import Foundation
 import Testing
 @testable import ConnOps
+
+@Suite("DockerService — 跨平台运行时探测")
+struct DockerRuntimeProbeTests {
+    private let macOS = RemotePlatformProfile(kind: .macOS)
+
+    @Test("macOS Docker Desktop bundle 路径成为后续运行时")
+    func discoversDockerDesktopExecutable() async throws {
+        let executable = "/Applications/Docker.app/Contents/Resources/bin/docker"
+        let session = RecordingSSHSession(execResults: [
+            .init(exitCode: 0, stdout: Data("\(executable)\n".utf8), stderr: Data()),
+            .init(exitCode: 0, stdout: Data("__EXIT__0\n".utf8), stderr: Data()),
+        ])
+
+        let result = try await DockerService.probe(on: session, profile: macOS)
+
+        #expect(result == DockerProbeResult(
+            availability: .available(sudo: false),
+            runtime: DockerRuntimeContext(executable: executable, sudo: false)
+        ))
+        #expect(session.invocations.map(\.command) == [
+            DockerRuntimeContext.discoveryCommand(for: .macOS),
+            "'\(executable)' ps -q 2>&1; echo __EXIT__$?",
+        ])
+    }
+
+    @Test("Docker Desktop 未启动与权限不足分别分类")
+    func classifiesDaemonAndPermissionFailures() async throws {
+        let executable = "/usr/local/bin/docker"
+        let daemonSession = RecordingSSHSession(execResults: [
+            .init(exitCode: 0, stdout: Data("\(executable)\n".utf8), stderr: Data()),
+            .init(
+                exitCode: 0,
+                stdout: Data("Cannot connect to the Docker daemon. Is Docker Desktop running?\n__EXIT__1\n".utf8),
+                stderr: Data()
+            ),
+            .init(
+                exitCode: 0,
+                stdout: Data("Cannot connect to the Docker daemon. Is Docker Desktop running?\n__EXIT__1\n".utf8),
+                stderr: Data()
+            ),
+        ])
+        let permissionSession = RecordingSSHSession(execResults: [
+            .init(exitCode: 0, stdout: Data("\(executable)\n".utf8), stderr: Data()),
+            .init(exitCode: 0, stdout: Data("permission denied\n__EXIT__1\n".utf8), stderr: Data()),
+            .init(exitCode: 0, stdout: Data("sudo: a password is required\n__EXIT__1\n".utf8), stderr: Data()),
+        ])
+
+        let daemon = try await DockerService.probe(on: daemonSession, profile: macOS)
+        let permission = try await DockerService.probe(on: permissionSession, profile: macOS)
+
+        #expect(daemon == DockerProbeResult(availability: .daemonNotRunning, runtime: nil))
+        #expect(permission == DockerProbeResult(availability: .permissionDenied, runtime: nil))
+    }
+
+    @Test("找不到 Docker CLI 时不执行可用性命令")
+    func reportsMissingCLI() async throws {
+        let session = RecordingSSHSession(execResults: [
+            .init(exitCode: 0, stdout: Data(), stderr: Data()),
+        ])
+
+        let result = try await DockerService.probe(on: session, profile: macOS)
+
+        #expect(result == DockerProbeResult(availability: .notInstalled, runtime: nil))
+        #expect(session.invocations.map(\.command) == [
+            DockerRuntimeContext.discoveryCommand(for: .macOS),
+        ])
+    }
+}
 
 @Suite("DockerService — 第二期写操作")
 struct DockerOperationServiceTests {

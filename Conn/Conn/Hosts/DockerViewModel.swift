@@ -4,7 +4,7 @@ import ConnSSH
 import Foundation
 import Observation
 
-/// Docker 分段外壳：可用性探测、sudo 标志、共用的结果提示，以及各资源模型。
+/// Docker 分段外壳：可用性探测、运行时上下文、共用的结果提示，以及各资源模型。
 ///
 /// 它**不再直接持有任何资源列表**——容器、镜像、卷、网络各自一个模型，
 /// 各管各的加载与状态。这样加第五类资源时只多一个文件，不动这里。
@@ -26,6 +26,8 @@ final class DockerViewModel {
     /// 失败时保持 nil，UI 显示「—」，**不弹错误**：它只是锦上添花的信息，
     /// 不该让整个页面看起来坏了。
     private(set) var diskUsage: DockerDiskUsage?
+    /// 用于不可用状态下给出平台对应的恢复指引。
+    private(set) var platformKind: RemotePlatformKind = .unknown
 
     // 下面这些隐式解包可选值并非疏忽：`context` 的 report/refresh/reprobe 闭包要弱引用
     // 捕获 self，而 `containers`/`images`/`volumes`/`networks` 又是拿 `context`
@@ -66,7 +68,7 @@ final class DockerViewModel {
         let registry = composeRegistry
         context = DockerContext(
             session: { try await manager.session(for: currentHost) },
-            sudo: false,
+            runtime: .default,
             isUsable: false,
             report: { [weak self] message in self?.actionMessage = message },
             refresh: { [weak self] scope in
@@ -94,8 +96,9 @@ final class DockerViewModel {
         compose = DockerComposeModel(context: context, registry: composeRegistry)
     }
 
-    /// 当前是否需 sudo（供容器日志沿用同一提权）。
-    var usesSudo: Bool { availability.sudo }
+    /// 当前 Docker 运行时（供容器与 Compose 日志沿用同一路径和提权）。
+    var runtime: DockerRuntimeContext { context.runtime }
+    var usesSudo: Bool { context.runtime.sudo }
     /// 读取始终可用，写入口则需要 Docker 可用且共享 gate 空闲。
     var canWrite: Bool { context.isUsable && !operations.isBusy }
 
@@ -112,14 +115,16 @@ final class DockerViewModel {
         hasLoaded = true
         loadState = .loading
         do {
+            let profile = try await connectionManager.platformProfile(for: host)
+            platformKind = profile.kind
             let session = try await connectionManager.session(for: host)
-            let probe = try await DockerService.probe(on: session)
-            availability = probe
-            guard probe.isUsable else {
-                loadState = .unavailable(probe)
+            let probe = try await DockerService.probe(on: session, profile: profile)
+            availability = probe.availability
+            guard probe.availability.isUsable else {
+                loadState = .unavailable(probe.availability)
                 return
             }
-            // 探测晚于上下文构造，sudo / isUsable 标志要回填给全部子模型
+            // 探测晚于上下文构造，CLI 路径 / sudo / isUsable 要回填给全部子模型
             propagateAvailability(probe)
             // 本次探测已经取过 session，直接传给容器加载，避免同一次 load() 里
             // 取两次会话（重构前的原行为：探测与列表共用一次 session）。
@@ -163,11 +168,11 @@ final class DockerViewModel {
     func loadDiskUsage() async {
         guard case .ready = loadState else { return }
         diskUsage = try? await DockerService.diskUsage(
-            on: connectionManager.session(for: host), sudo: availability.sudo
+            on: connectionManager.session(for: host), runtime: context.runtime
         )
     }
 
-    /// 回填 sudo / isUsable 标志——同时会重建全部子模型和写操作模型（`DockerContext` 是
+    /// 回填 Docker runtime / isUsable——同时会重建全部子模型和写操作模型（`DockerContext` 是
     /// `struct`，`session` / `report` / `refresh` / `reprobe` 均为值闭包，无法就地
     /// 改后传播，只能重建持有者）。
     ///
@@ -175,10 +180,11 @@ final class DockerViewModel {
     /// 若未来在列表已加载后调用此方法，会悄悄清空用户正在看的数据。
     /// 目前唯一调用点在 `load()` 里、紧邻探测之后、`containers.load()` 之前，
     /// 正好满足这个前提。
-    private func propagateAvailability(_ probe: DockerAvailability) {
+    private func propagateAvailability(_ probe: DockerProbeResult) {
         guard !operations.isBusy else { return }
-        context.sudo = probe.sudo
-        context.isUsable = probe.isUsable
+        guard let runtime = probe.runtime else { return }
+        context.runtime = runtime
+        context.isUsable = probe.availability.isUsable
         operations = DockerOperationsModel(
             context: context,
             hostUUID: host.id,

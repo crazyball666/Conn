@@ -10,12 +10,17 @@ public struct LogSource: Identifiable, Sendable, Equatable, Hashable {
         /// macOS Unified Logging；predicate 为空时跟随整机日志。
         case unified(predicate: String?)
         /// Docker 容器日志（复用 docker logs 通道）。
-        case container(id: String, name: String)
+        case container(
+            id: String,
+            name: String,
+            runtime: DockerRuntimeContext = .default
+        )
         /// Docker Compose 项目或单个服务日志。
         case compose(
             project: DockerComposeProject,
             dialect: DockerComposeDialect,
-            service: String?
+            service: String?,
+            runtime: DockerRuntimeContext = .default
         )
     }
 
@@ -43,15 +48,19 @@ public struct LogSource: Identifiable, Sendable, Equatable, Hashable {
         case let .unified(predicate):
             let filter = predicate.map { " --predicate \(Self.shellQuote($0))" } ?? ""
             return prefix + "log stream --style syslog\(filter) 2>&1"
-        case let .container(id, _):
-            return prefix + "docker logs -f --tail \(tail) \(id) 2>&1"
-        case let .compose(project, dialect, service):
+        case let .container(id, _, runtime):
+            return DockerCommand.logs(
+                id: id,
+                tail: tail,
+                runtime: runtime.withSudo(runtime.sudo || sudo)
+            )
+        case let .compose(project, dialect, service, runtime):
             return DockerCommand.composeLogs(
                 project,
                 service: service,
                 tail: tail,
                 dialect: dialect,
-                sudo: sudo
+                runtime: runtime.withSudo(runtime.sudo || sudo)
             ) + " 2>&1"
         }
     }
