@@ -46,7 +46,12 @@
 - 常用可执行文件是否存在及其路径。
 - Docker、日志、进程和基础指标能力的初步状态。
 
-探测失败不应把主机自动当成 Linux。Unknown 平台进入明确的降级状态，避免再次执行一整套 Linux 命令造成误导。
+需要区分两种结果：
+
+- SSH/exec/权限错误：探测本身失败，继续走现有连接错误和重试路径，不生成可缓存的画像。
+- 命令成功但签名无法识别：生成 `kind == .unknown` 的画像和 `unsupportedPlatform` 能力状态，禁止执行 Linux fallback。
+
+Unknown 平台进入明确的降级状态，避免再次执行一整套 Linux 命令造成误导。
 
 ## 4. 核心抽象
 
@@ -72,11 +77,28 @@ public enum RemoteCapability: String, Codable, Sendable, Hashable {
     case terminal
 }
 
+public enum CapabilityReasonCode: String, Codable, Sendable, Hashable {
+    case unsupportedPlatform
+    case executableMissing
+    case permissionDenied
+    case daemonNotRunning
+    case partialData
+    case queryFailed
+    case unknown
+}
+
+public struct CapabilityIssue: Codable, Sendable, Equatable, Hashable {
+    public let code: CapabilityReasonCode
+    public let detail: String?
+    /// 缺失或降级的统一字段名，例如 `cpu`, `mem`, `threadCount`。
+    public let fields: [String]
+}
+
 public enum CapabilityState: Codable, Sendable, Equatable {
     case supported
-    case degraded(reason: String)
-    case unavailable(reason: String)
-    case unsupported(reason: String)
+    case degraded(issues: [CapabilityIssue])
+    case unavailable(issue: CapabilityIssue)
+    case unsupported(issue: CapabilityIssue)
 }
 
 public struct RemotePlatformProfile: Codable, Sendable, Equatable {
@@ -84,8 +106,12 @@ public struct RemotePlatformProfile: Codable, Sendable, Equatable {
     public let release: String?
     public let architecture: String?
     public let shell: ShellInterpreter?
-    public let capabilities: [RemoteCapability: CapabilityState]
-    public let executables: [String: String]
+}
+
+/// 能力探测结果是动态状态，不和平台事实一起长期缓存。
+public struct RemoteCapabilityReport: Codable, Sendable, Equatable {
+    public let states: [RemoteCapability: CapabilityState]
+    public let observedAt: Date
 }
 ```
 
@@ -93,7 +119,7 @@ public struct RemotePlatformProfile: Codable, Sendable, Equatable {
 
 ### 4.2 平台探测和缓存
 
-在 `ConnSSH` 增加 `RemotePlatformDetector`，并由 `ConnectionManager` 提供按主机缓存的画像访问入口：
+在 `ConnSSH` 增加 `RemotePlatformDetector`，并由 `ConnectionManager` 提供按主机缓存的平台事实访问入口：
 
 ```swift
 public protocol RemotePlatformDetecting: Sendable {
@@ -112,11 +138,21 @@ extension ConnectionManager {
 - `invalidate(host:)`、`invalidateAll()` 和连接失败时清除画像缓存。
 - 探测命令只读、短小，并使用固定 sentinel；不得把用户输入拼进命令。
 
-`RemotePlatformDetector` 的默认实现负责 Linux、Darwin 和 Unknown；Windows 只返回 `windows` 或 `unknown` 的画像，不提供具体采集器。
+`RemotePlatformDetector` 的默认实现负责 Linux、Darwin 和 Unknown；Windows 只返回 `windows` 或 `unknown` 的画像，不提供具体采集器。`detect` 只有在 SSH/exec 失败时抛错；命令成功但无法识别时返回 `.unknown` 画像。动态 capability report 不由 `ConnectionManager` 永久缓存，由各 provider 或服务按需探测并使用短期缓存。
 
 ### 4.3 能力提供者
 
-每个功能模块定义自己的窄接口，接口只依赖统一的平台画像和该模块的输出模型：
+每个功能模块定义自己的窄接口，接口只依赖统一的平台画像和该模块的输出模型。不存在跨功能的中央 Provider Registry：
+
+- `ConnKit` 只拥有平台值类型、能力状态和 `RemotePlatformProfile`。
+- `ConnSSH` 只拥有探测器和 `ConnectionManager` 的 profile 缓存。
+- `ConnMonitor` 拥有 `MetricsProvider`/`ProcessProvider` 协议及 `MetricsProviderRegistry`/`ProcessProviderRegistry`。
+- `ConnOps` 拥有 `LogProvider`、Docker 环境 provider 和各自 registry。
+- `ConnRunner` 拥有 `CommandCatalogProvider` 及其私有的 `PlatformSnippet` 定义。
+
+这样各 feature target 只依赖 `ConnKit`、`ConnSSH`，不依赖彼此，也不会形成新的包循环。
+
+示意接口如下：
 
 ```swift
 public protocol MetricsProvider: Sendable {
@@ -143,7 +179,7 @@ public protocol CommandCatalogProvider: Sendable {
 }
 ```
 
-这些接口只表示“如何采集/解析”，不负责调度、连接重试、UI 状态或持久化。各模块通过 `ProviderRegistry` 根据 `RemotePlatformProfile.kind` 选择实现：
+这些接口只表示“如何采集/解析”，不负责调度、连接重试、UI 状态或持久化。各模块的本地 registry 根据 `RemotePlatformProfile.kind` 选择实现：
 
 - `ConnMonitor`: `LinuxMetricsProvider`、`DarwinMetricsProvider`、`LinuxProcessProvider`、`DarwinProcessProvider`。
 - `ConnOps`: `LinuxLogProvider`、`DarwinLogProvider`、Docker 环境提供者。
@@ -161,7 +197,7 @@ Linux 适配器先从现有 `CollectionScript`、`MetricParser`、`ProcParsers`�
 - 趋势图只有在存在真实样本时绘制；不支持或未采集不转换为 0。
 - 进程、日志、Docker 页面使用 `CapabilityState` 显示明确的降级说明，并保留重试入口。
 
-`CapabilityState` 是能力级状态，不替代命令的具体退出码。权限不足、命令不存在、守护进程未运行和平台不支持必须保持可区分。
+`CapabilityState` 是能力级状态，不替代命令的具体退出码。权限不足、命令不存在、守护进程未运行、平台不支持和字段级部分缺失必须通过稳定的 `CapabilityReasonCode` 保持可区分；`CapabilityIssue.fields` 用于说明受影响的统一字段。
 
 ## 5. Linux 适配器
 
@@ -224,6 +260,8 @@ Docker 的容器模型和 JSON 输出保持跨宿主机通用，但 macOS provid
 - 区分 Docker Desktop 未运行、CLI 未安装和权限不足。
 - 将 macOS 的启动引导改为 Docker Desktop 相关提示；Linux 才显示 `systemctl`。
 
+探测结果必须包含可复用的 `DockerRuntimeContext`（可执行文件绝对路径、是否使用 `sudo -n`、可用性和 daemon 状态）。后续 `DockerService`、`DockerCommand`、Compose、容器日志和流式操作都接收同一 context；`DockerCommand` 不再在内部固定拼接裸 `docker`。这样非交互 SSH 下 PATH 不完整时，probe 成功和后续操作使用的是同一个可执行文件。
+
 ## 7. 内置命令和持久化
 
 内置 JSON 增加稳定的 `id` 和 `platforms` 字段，例如 `linux`、`macOS`、`all`。命令目录 provider 负责按远端平台提供可执行的内置命令：
@@ -232,12 +270,14 @@ Docker 的容器模型和 JSON 输出保持跨宿主机通用，但 macOS provid
 - Docker 片段标记为 Docker capability，而不是简单按操作系统过滤。
 - 用户自定义片段的 `platforms` 默认为 `all`，不改变已有脚本。
 
-由于内置片段已经写入 SQLite，`Snippet` 和 `snippet` 表增加可选平台元数据，并提供 schema migration：
+由于内置片段已经写入 SQLite，`Snippet` 和 `snippet` 表增加可选平台元数据、稳定的 `builtinKey` 和来源信息，并提供 schema migration：
 
-- 旧数据迁移为 `all`。
-- 现有用户编辑/删除/排序行为不变。
-- 导入逻辑以稳定 id 幂等，避免新增平台片段时重复导入。
+- 旧的随机 ID 记录不尝试反推或覆盖，`builtinKey == nil` 的旧记录全部视为 legacy/user-owned；平台元数据为空时按 `all` 处理。
+- 新目录使用稳定 `builtinKey`，数据库以 key 做幂等匹配，不依赖随机 UUID。
+- 现有 `SettingsStore.builtinSnippetsImported` 只负责兼容旧版本的首次导入；新增目录使用持久化的 catalog version，并且不覆盖用户编辑过的标题、脚本、分组、置顶和危险标记。
+- 用户删除一个带 `builtinKey` 的片段时写入 suppression/tombstone；后续目录升级不得自动恢复它。用户编辑保留在原记录上，目录只插入不存在且未 suppressed 的 key。
 - 片段列表可以显示“当前主机不可用”的状态，但不删除用户的其他平台片段。
+- 数据库迁移覆盖 `platforms_json`、`builtin_key`、catalog version 和 suppression 表，并为旧数据提供 `all` 默认值。
 
 `ShellInterpreter` 目前只有 `sh`、`bash`、`zsh`。macOS 首期继续支持现有三种；Windows 适配阶段再扩展 PowerShell/CMD，并在独立迁移中处理脚本执行和危险命令规则。
 
@@ -245,15 +285,15 @@ Docker 的容器模型和 JSON 输出保持跨宿主机通用，但 macOS provid
 
 ### 8.1 监控调度
 
-`MonitorScheduler` 在采集前通过 `ConnectionManager.platformProfile(for:)` 获取画像，将 profile 传给 `MetricCollector`。`MetricCollector` 只调用选中的 `MetricsProvider`，保留现有 CPU、网卡和 IO 跨样本基线。
+`MonitorScheduler` 在采集前通过 `ConnectionManager.platformProfile(for:)` 获取画像，将 profile 传给 `MetricCollector`。`MetricCollector` 只调用选中的 `MetricsProvider`，保留现有 CPU、网卡和 IO 跨样本基线。探测抛错时沿用连接错误；探测得到 Unknown 时返回能力为 `unsupportedPlatform` 的结果，不执行 Linux provider。
 
-`ProcessMonitor` 使用同一画像选择 `ProcessProvider`。平台探测失败时不执行 Linux fallback，而是把失败原因交给 `ProcessListViewModel` 展示。
+`ProcessMonitor` 使用同一画像选择 `ProcessProvider`。平台探测抛错时沿用连接错误；画像为 Unknown/Windows 且没有 provider 时把 `unsupportedPlatform` 交给 `ProcessListViewModel` 展示。
 
 ### 8.2 日志和 Docker
 
 `LogCenterViewModel` 不再直接调用静态 `LogPresets.discoveryCommand`，而是请求适配器生成 discovery command 和 sources。`LogSource.followCommand` 继续负责流式命令，但 unified log 由自身的 kind 生成。
 
-`DockerViewModel` 继续复用 `DockerService`，但 probe 需要消费平台画像中的 executable path、privilege strategy 和 Docker capability 状态。UI 的不可用文案按平台选择，不再固定显示 `systemctl`。
+`DockerViewModel` 继续复用 `DockerService`，但 probe 需要消费并保存 `DockerRuntimeContext`；该 context 必须传给容器、镜像、卷、网络、Compose 和日志模型。UI 的不可用文案按平台选择，不再固定显示 `systemctl`。
 
 ### 8.3 能力状态展示
 
