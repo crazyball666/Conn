@@ -7,6 +7,8 @@ public struct LogSource: Identifiable, Sendable, Equatable, Hashable {
         case journal(unit: String)
         /// 普通日志文件。
         case file(path: String)
+        /// macOS Unified Logging；predicate 为空时跟随整机日志。
+        case unified(predicate: String?)
         /// Docker 容器日志（复用 docker logs 通道）。
         case container(id: String, name: String)
         /// Docker Compose 项目或单个服务日志。
@@ -38,6 +40,9 @@ public struct LogSource: Identifiable, Sendable, Equatable, Hashable {
             return prefix + "journalctl \(scope)-n \(tail) -f --no-pager -o short-iso 2>&1"
         case let .file(path):
             return prefix + "tail -n \(tail) -F \(Self.shellQuote(path)) 2>&1"
+        case let .unified(predicate):
+            let filter = predicate.map { " --predicate \(Self.shellQuote($0))" } ?? ""
+            return prefix + "log stream --style syslog\(filter) 2>&1"
         case let .container(id, _):
             return prefix + "docker logs -f --tail \(tail) \(id) 2>&1"
         case let .compose(project, dialect, service):

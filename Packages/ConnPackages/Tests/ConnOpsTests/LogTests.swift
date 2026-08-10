@@ -1,3 +1,4 @@
+import ConnKit
 import Testing
 @testable import ConnOps
 
@@ -47,6 +48,20 @@ struct LogSourceTests {
 
         let container = LogSource(id: "c", title: "", subtitle: "", kind: .container(id: "abc123", name: "web"))
         #expect(container.followCommand() == "docker logs -f --tail 300 abc123 2>&1")
+
+        let unified = LogSource(
+            id: "unified", title: "", subtitle: "", kind: .unified(predicate: nil)
+        )
+        #expect(unified.followCommand() == "log stream --style syslog 2>&1")
+
+        let filteredUnified = LogSource(
+            id: "unified-filtered", title: "", subtitle: "",
+            kind: .unified(predicate: "process == 'backup agent'")
+        )
+        #expect(
+            filteredUnified.followCommand()
+                == #"log stream --style syslog --predicate 'process == '\''backup agent'\''' 2>&1"#
+        )
     }
 
     @Test("任意文件路径会安全转义")
@@ -108,5 +123,38 @@ struct LogSourceTests {
         let sources = LogPresets.parseDiscovery(output)
         #expect(!sources.contains { $0.id == "journal-system" })
         #expect(sources.map(\.id) == ["messages"])
+    }
+
+    @Test("Linux provider 保留 journal 与文件探测")
+    func linuxProviderKeepsExistingBehavior() {
+        let provider = LogProviderRegistry.provider(for: .linux)
+
+        #expect(provider?.platform == .linux)
+        #expect(provider?.discoveryCommand.contains("journalctl") == true)
+        #expect(provider?.parseDiscovery("__FILE__ messages").map(\.id) == ["messages"])
+    }
+
+    @Test("Darwin provider 探测 Unified Logging 与 system.log")
+    func darwinDiscovery() throws {
+        let provider = try #require(LogProviderRegistry.provider(for: .macOS))
+
+        #expect(provider.discoveryCommand.contains("/usr/bin/log"))
+        #expect(provider.discoveryCommand.contains("/var/log/system.log"))
+        #expect(!provider.discoveryCommand.contains("journalctl"))
+
+        let sources = provider.parseDiscovery("__UNIFIED_LOG__\n__FILE__ system-log")
+        #expect(sources.map(\.id) == ["darwin-unified", "system-log"])
+        guard case .unified(predicate: nil) = sources[0].kind else {
+            Issue.record("expected unified log source")
+            return
+        }
+        #expect(sources[1].kind == .file(path: "/var/log/system.log"))
+        #expect(provider.capabilityState(for: "__FILE__ system-log") != .supported)
+    }
+
+    @Test("未支持平台没有日志 provider")
+    func unsupportedPlatforms() {
+        #expect(LogProviderRegistry.provider(for: .windows) == nil)
+        #expect(LogProviderRegistry.provider(for: .unknown) == nil)
     }
 }

@@ -17,6 +17,7 @@ final class LogCenterViewModel {
 
     private(set) var loadState: LoadState = .loading
     private(set) var sources: [LogSource] = []
+    private(set) var capabilityState: CapabilityState?
     /// 首次加载后置真——切换分段时不再自动重探（日志源基本静态）。
     private(set) var hasLoaded = false
 
@@ -39,15 +40,43 @@ final class LogCenterViewModel {
         loadState = .loading
         do {
             let session = try await connectionManager.session(for: host)
-            let output = try await session.exec(LogPresets.discoveryCommand).stdoutText
-            sources = LogPresets.parseDiscovery(output)
+            let profile = try await connectionManager.platformProfile(for: host)
+            guard let provider = LogProviderRegistry.provider(for: profile.kind) else {
+                throw LogProviderError.unsupportedPlatform(profile.kind)
+            }
+            let result = try await session.exec(provider.discoveryCommand)
+            guard result.isSuccess else {
+                throw LogProviderError.discoveryFailed(CapabilityIssue(
+                    code: .queryFailed,
+                    detail: result.stderrText,
+                    fields: ["logs"]
+                ))
+            }
+            sources = provider.parseDiscovery(result.stdoutText)
+            capabilityState = provider.capabilityState(for: result.stdoutText)
             loadState = .ready
+        } catch let error as LogProviderError {
+            capabilityState = error.capabilityState
+            loadState = .failed(error.localizedDescription)
         } catch {
             if let sshError = error as? SSHError {
                 loadState = .failed(sshError.diagnosis.split(separator: "\n").first.map(String.init) ?? L("连接失败"))
             } else {
                 loadState = .failed(error.friendlyDiagnosis)
             }
+        }
+    }
+
+    var capabilityMessage: String? {
+        switch capabilityState {
+        case .none, .supported:
+            nil
+        case .degraded:
+            L("部分日志来源不可用")
+        case let .unavailable(issue):
+            issue.code == .permissionDenied ? L("没有权限读取日志") : L("日志采集暂不可用")
+        case .unsupported:
+            L("当前主机平台暂不支持日志采集")
         }
     }
 }
@@ -92,6 +121,13 @@ struct LogCenterView: View {
     private var sourceList: some View {
         ScrollView {
             VStack(spacing: ConnSpacing.sm) {
+                if let message = viewModel.capabilityMessage {
+                    Label(message, systemImage: "exclamationmark.triangle")
+                        .font(.connCaption)
+                        .foregroundStyle(.connWarn)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, ConnSpacing.cardPadding)
+                }
                 if viewModel.sources.isEmpty {
                     Text(L("未发现常见日志源。\n可在终端里直接查看自定义路径。"))
                         .font(.connSubheadline).foregroundStyle(.connMuted).multilineTextAlignment(.center)
@@ -128,6 +164,7 @@ struct LogCenterView: View {
         switch kind {
         case .journal: "list.bullet.rectangle"
         case .file: "doc.text"
+        case .unified: "waveform.path.ecg.rectangle"
         case .container: "shippingbox"
         case .compose: "square.stack.3d.up"
         }
