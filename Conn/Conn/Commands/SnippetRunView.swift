@@ -11,8 +11,6 @@ struct SnippetRunView: View {
     let dependencies: AppDependencies
     @Environment(\.dismiss) private var dismiss
 
-    private enum Mode { case silent, terminal }
-
     private enum HostCompatibilityState: Equatable {
         case checking
         case compatible(warning: String?)
@@ -24,29 +22,6 @@ struct SnippetRunView: View {
         }
     }
 
-    private struct TerminalRoute: Hashable, Identifiable {
-        let host: Host
-        let preparedCommand: String
-        var id: String { "\(host.id)#\(preparedCommand)" }
-    }
-
-    private struct ExecutionRequest {
-        let mode: Mode
-        let hosts: [Host]
-        let plansByHostID: [String: SnippetExecutionPlan]
-    }
-
-    private enum ExecutionPlanningError: LocalizedError {
-        case missingPreparation(hostName: String)
-
-        var errorDescription: String? {
-            switch self {
-            case let .missingPreparation(hostName):
-                "\(hostName)：\(L("执行失败"))"
-            }
-        }
-    }
-
     @State private var hosts: [Host] = []
     @State private var hostGroups: [HostGroup] = []
     @State private var selectedHostIDs: Set<String> = []
@@ -54,6 +29,7 @@ struct SnippetRunView: View {
     @State private var preparationByHostID: [String: SnippetHostPreparation] = [:]
     /// 选择状态变化后使旧异步探测结果失效，避免取消选择后被迟到任务写回。
     @State private var compatibilityGenerationByHostID: [String: UInt64] = [:]
+    @State private var compatibilityTasks = SnippetCompatibilityTaskRegistry()
     @State private var isHostPickerExpanded = false
     @State private var expandedHostGroupIDs: Set<String> = []
     @State private var values: [String: String] = [:]
@@ -61,9 +37,9 @@ struct SnippetRunView: View {
     @State private var batchResults: [ScriptBatchResult] = []
     @State private var isRunning = false
     @State private var errorText: String?
-    @State private var pendingExecution: ExecutionRequest?
+    @State private var pendingExecution: SnippetExecutionRequest?
     @State private var pendingReason: String?
-    @State private var terminalRoute: TerminalRoute?
+    @State private var terminalRoute: SnippetTerminalRoute?
 
     var body: some View {
         NavigationStack {
@@ -89,6 +65,7 @@ struct SnippetRunView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .topBarTrailing) { Button(L("完成")) { dismiss() } } }
             .task { loadHosts() }
+            .onDisappear { compatibilityTasks.cancelAll() }
             .fullScreenCover(item: $terminalRoute) { route in
                 TerminalScreen(
                     host: route.host,
@@ -456,7 +433,9 @@ struct SnippetRunView: View {
         let generation = nextCompatibilityGeneration(for: host.id)
         preparationByHostID[host.id] = nil
         compatibilityByHostID[host.id] = .checking
-        Task { await resolveCompatibility(for: host, generation: generation) }
+        compatibilityTasks.replace(hostID: host.id) {
+            await resolveCompatibility(for: host, generation: generation)
+        }
     }
 
     private func resolveCompatibility(for host: Host, generation: UInt64) async {
@@ -507,6 +486,7 @@ struct SnippetRunView: View {
     }
 
     private func invalidateCompatibility(for hostID: String) {
+        compatibilityTasks.cancel(hostID: hostID)
         _ = nextCompatibilityGeneration(for: hostID)
         compatibilityByHostID[hostID] = nil
         preparationByHostID[hostID] = nil
@@ -527,24 +507,19 @@ struct SnippetRunView: View {
     }
 
     /// 任意一台生产主机命中风险，就要求整批二次确认。
-    private func attempt(_ mode: Mode) {
+    private func attempt(_ mode: SnippetExecutionMode) {
         guard !selectedHosts.isEmpty, !hasCompatibilityBlocker else { return }
+        SnippetExecutionAttemptFeedback.begin(errorText: &errorText)
         let hosts = selectedHosts
         let userScript = snippet.render(values: values)
-        let request: ExecutionRequest
+        let request: SnippetExecutionRequest
         do {
-            var plansByHostID: [String: SnippetExecutionPlan] = [:]
-            for host in hosts {
-                guard let preparation = preparationByHostID[host.id] else {
-                    throw ExecutionPlanningError.missingPreparation(hostName: host.name)
-                }
-                plansByHostID[host.id] = try dependencies.snippetExecutionPlanner
-                    .makeExecutionPlan(renderedScript: userScript, from: preparation)
-            }
-            request = ExecutionRequest(
+            request = try SnippetExecutionRequestBuilder.build(
                 mode: mode,
                 hosts: hosts,
-                plansByHostID: plansByHostID
+                preparationByHostID: preparationByHostID,
+                renderedScript: userScript,
+                planner: dependencies.snippetExecutionPlanner
             )
         } catch {
             errorText = error.friendlyDiagnosis
@@ -561,23 +536,16 @@ struct SnippetRunView: View {
         }
     }
 
-    private func execute(_ request: ExecutionRequest) {
+    private func execute(_ request: SnippetExecutionRequest) {
         switch request.mode {
         case .silent:
             Task { await runSilently(request) }
         case .terminal:
-            guard let host = request.hosts.first,
-                  request.hosts.count == 1,
-                  let plan = request.plansByHostID[host.id]
-            else { return }
-            terminalRoute = TerminalRoute(
-                host: host,
-                preparedCommand: plan.preparedCommand
-            )
+            terminalRoute = request.terminalRoute
         }
     }
 
-    private func runSilently(_ request: ExecutionRequest) async {
+    private func runSilently(_ request: SnippetExecutionRequest) async {
         isRunning = true
         errorText = nil
         outcome = nil

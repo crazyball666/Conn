@@ -71,7 +71,7 @@ public struct SnippetHostPreparation: Sendable {
     public let interpreter: ShellInterpreter
     public let executionProvider: any RemoteScriptExecutionProvider
 
-    public init(
+    init(
         platformProfile: RemotePlatformProfile,
         capabilityReport: RemoteCapabilityReport,
         scriptPreludes: [String],
@@ -93,7 +93,7 @@ public struct SnippetExecutionPlan: Sendable, Equatable {
     public let interpreter: ShellInterpreter
     public let capabilityReport: RemoteCapabilityReport
 
-    public init(
+    init(
         auditScript: String,
         preparedCommand: String,
         interpreter: ShellInterpreter,
