@@ -81,56 +81,19 @@ public enum DockerService {
         on session: any SSHSession,
         profile: RemotePlatformProfile
     ) async throws -> DockerProbeResult {
-        guard profile.kind == .linux || profile.kind == .macOS else {
+        try await probe(on: session, profile: profile, registry: .default)
+    }
+
+    /// 可注入平台注册表的 Docker 探测入口。找不到 provider 时不执行任何 SSH 命令。
+    public static func probe(
+        on session: any SSHSession,
+        profile: RemotePlatformProfile,
+        registry: DockerEnvironmentProviderRegistry
+    ) async throws -> DockerProbeResult {
+        guard let provider = registry.provider(for: profile.kind) else {
             return DockerProbeResult(availability: .unsupportedPlatform, runtime: nil)
         }
-        let discovery = try await session.exec(
-            DockerRuntimeContext.discoveryCommand(for: profile.kind)
-        )
-        guard let executable = DockerRuntimeContext.parseDiscoveredExecutable(discovery.stdoutText) else {
-            return DockerProbeResult(availability: .notInstalled, runtime: nil)
-        }
-        let composeV1Executable = DockerRuntimeContext.parseDiscoveredComposeV1Executable(
-            discovery.stdoutText
-        )
-
-        let directRuntime = DockerRuntimeContext(
-            executable: executable,
-            sudo: false,
-            composeV1Executable: composeV1Executable
-        )
-        let direct = try await session.exec(
-            DockerCommand.availabilityProbe(runtime: directRuntime)
-        ).stdoutText
-        if direct.contains("__EXIT__0") {
-            return DockerProbeResult(
-                availability: .available(sudo: false),
-                runtime: directRuntime
-            )
-        }
-
-        let elevatedRuntime = directRuntime.withSudo(true)
-        let elevated = try await session.exec(
-            DockerCommand.availabilityProbe(runtime: elevatedRuntime)
-        ).stdoutText
-        if elevated.contains("__EXIT__0") {
-            return DockerProbeResult(
-                availability: .available(sudo: true),
-                runtime: elevatedRuntime
-            )
-        }
-
-        let diagnostic = direct.lowercased()
-        if diagnostic.contains("cannot connect")
-            || diagnostic.contains("daemon running")
-            || diagnostic.contains("docker desktop running") {
-            return DockerProbeResult(availability: .daemonNotRunning, runtime: nil)
-        }
-        if diagnostic.contains("permission denied")
-            || diagnostic.contains("operation not permitted") {
-            return DockerProbeResult(availability: .permissionDenied, runtime: nil)
-        }
-        return DockerProbeResult(availability: .permissionDenied, runtime: nil)
+        return try await provider.probe(on: session)
     }
 
     /// 列容器：并行拉 ps 与 stats 后合并。

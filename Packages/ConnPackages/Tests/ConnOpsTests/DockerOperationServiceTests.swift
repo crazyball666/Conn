@@ -6,10 +6,53 @@ import Testing
 
 @Suite("DockerService — 跨平台运行时探测")
 struct DockerRuntimeProbeTests {
+    private let linux = RemotePlatformProfile(kind: .linux)
     private let macOS = RemotePlatformProfile(kind: .macOS)
 
-    @Test("macOS Docker Desktop bundle 路径成为后续运行时")
-    func discoversDockerDesktopExecutable() async throws {
+    @Test("默认注册表为 Linux 与 Darwin 选择不同 provider")
+    func defaultRegistrySelectsPlatformProviders() throws {
+        let registry = DockerEnvironmentProviderRegistry.default
+
+        #expect(registry.provider(for: .linux) is LinuxDockerEnvironmentProvider)
+        #expect(registry.provider(for: .macOS) is DarwinDockerEnvironmentProvider)
+        #expect(registry.provider(for: .windows) == nil)
+        #expect(registry.provider(for: .unknown) == nil)
+    }
+
+    @Test("Linux 发现包含系统路径但不包含 Docker Desktop bundle")
+    func linuxDiscoveryUsesLinuxCandidates() async throws {
+        let session = RecordingSSHSession(execResults: [
+            .init(exitCode: 0, stdout: Data(), stderr: Data()),
+        ])
+
+        let result = try await LinuxDockerEnvironmentProvider().probe(on: session)
+
+        #expect(result == DockerProbeResult(availability: .notInstalled, runtime: nil))
+        let command = try #require(session.invocations.first?.command)
+        #expect(session.invocations.count == 1)
+        #expect(command.contains("/usr/bin/docker"))
+        #expect(command.contains("/usr/local/bin/docker"))
+        #expect(!command.contains("/Applications/Docker.app"))
+    }
+
+    @Test("Darwin 发现包含 Homebrew 与 Docker Desktop 候选路径")
+    func darwinDiscoveryUsesHomebrewAndDesktopCandidates() async throws {
+        let session = RecordingSSHSession(execResults: [
+            .init(exitCode: 0, stdout: Data(), stderr: Data()),
+        ])
+
+        let result = try await DarwinDockerEnvironmentProvider().probe(on: session)
+
+        #expect(result == DockerProbeResult(availability: .notInstalled, runtime: nil))
+        let command = try #require(session.invocations.first?.command)
+        #expect(session.invocations.count == 1)
+        #expect(command.contains("/usr/local/bin/docker"))
+        #expect(command.contains("/opt/homebrew/bin/docker"))
+        #expect(command.contains("/Applications/Docker.app/Contents/Resources/bin/docker"))
+    }
+
+    @Test("直接探测成功保留路径与 Compose，并只执行发现和一次可用性探测")
+    func directSuccessPreservesRuntimeAndUsesTwoCommands() async throws {
         let executable = "/Applications/Docker.app/Contents/Resources/bin/docker"
         let compose = "/usr/local/bin/docker-compose"
         let session = RecordingSSHSession(execResults: [
@@ -31,10 +74,29 @@ struct DockerRuntimeProbeTests {
                 composeV1Executable: compose
             )
         ))
-        #expect(session.invocations.map(\.command) == [
-            DockerRuntimeContext.discoveryCommand(for: .macOS),
-            "'\(executable)' ps -q 2>&1; echo __EXIT__$?",
+        #expect(session.invocations.count == 2)
+        #expect(session.invocations[0].command.contains("/Applications/Docker.app"))
+        #expect(session.invocations[1].command == "'\(executable)' ps -q 2>&1; echo __EXIT__$?")
+    }
+
+    @Test("直连失败后 sudo 成功只增加一次可用性探测")
+    func sudoSuccessPreservesRuntimeAndUsesThreeCommands() async throws {
+        let executable = "/usr/bin/docker"
+        let session = RecordingSSHSession(execResults: [
+            .init(exitCode: 0, stdout: Data("\(executable)\n".utf8), stderr: Data()),
+            .init(exitCode: 0, stdout: Data("permission denied\n__EXIT__1\n".utf8), stderr: Data()),
+            .init(exitCode: 0, stdout: Data("__EXIT__0\n".utf8), stderr: Data()),
         ])
+
+        let result = try await DockerService.probe(on: session, profile: linux)
+
+        #expect(result == DockerProbeResult(
+            availability: .available(sudo: true),
+            runtime: DockerRuntimeContext(executable: executable, sudo: true)
+        ))
+        #expect(session.invocations.count == 3)
+        #expect(session.invocations[1].command == "'\(executable)' ps -q 2>&1; echo __EXIT__$?")
+        #expect(session.invocations[2].command == "sudo -n '\(executable)' ps -q 2>&1; echo __EXIT__$?")
     }
 
     @Test("Docker Desktop 未启动与权限不足分别分类")
@@ -64,6 +126,8 @@ struct DockerRuntimeProbeTests {
 
         #expect(daemon == DockerProbeResult(availability: .daemonNotRunning, runtime: nil))
         #expect(permission == DockerProbeResult(availability: .permissionDenied, runtime: nil))
+        #expect(daemonSession.invocations.count == 3)
+        #expect(permissionSession.invocations.count == 3)
     }
 
     @Test("找不到 Docker CLI 时不执行可用性命令")
@@ -75,9 +139,8 @@ struct DockerRuntimeProbeTests {
         let result = try await DockerService.probe(on: session, profile: macOS)
 
         #expect(result == DockerProbeResult(availability: .notInstalled, runtime: nil))
-        #expect(session.invocations.map(\.command) == [
-            DockerRuntimeContext.discoveryCommand(for: .macOS),
-        ])
+        #expect(session.invocations.count == 1)
+        #expect(session.invocations[0].command.contains("/Applications/Docker.app"))
     }
 
     @Test("Unknown 与 Windows 不执行 POSIX Docker 探测")
@@ -93,6 +156,27 @@ struct DockerRuntimeProbeTests {
             #expect(result == DockerProbeResult(availability: .unsupportedPlatform, runtime: nil))
             #expect(session.invocations.isEmpty)
         }
+    }
+
+    @Test("DockerService 通过注入注册表委派 provider")
+    func serviceDelegatesToInjectedRegistry() async throws {
+        let expected = DockerProbeResult(
+            availability: .available(sudo: false),
+            runtime: DockerRuntimeContext(executable: "injected-docker", sudo: false)
+        )
+        let registry = DockerEnvironmentProviderRegistry(providers: [
+            StubDockerEnvironmentProvider(platform: .windows, result: expected),
+        ])
+        let session = RecordingSSHSession()
+
+        let result = try await DockerService.probe(
+            on: session,
+            profile: RemotePlatformProfile(kind: .windows),
+            registry: registry
+        )
+
+        #expect(result == expected)
+        #expect(session.invocations.isEmpty)
     }
 
     @Test("Docker 脚本引导函数保留探测路径与 sudo 上下文")
@@ -125,11 +209,15 @@ struct DockerRuntimeProbeTests {
             DockerCommand.composeVersion(.v1, runtime: runtime)
                 == "'/usr/local/bin/docker-compose' version"
         )
-        #expect(
-            DockerRuntimeContext.parseDiscoveredComposeV1Executable(
-                "/usr/bin/docker\n__CONN_COMPOSE_V1__/usr/local/bin/docker-compose"
-            ) == "/usr/local/bin/docker-compose"
-        )
+    }
+}
+
+private struct StubDockerEnvironmentProvider: DockerEnvironmentProvider {
+    let platform: RemotePlatformKind
+    let result: DockerProbeResult
+
+    func probe(on session: any SSHSession) async throws -> DockerProbeResult {
+        result
     }
 }
 
