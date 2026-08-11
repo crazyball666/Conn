@@ -1,6 +1,398 @@
 {
   "sourceLanguage" : "zh-Hans",
   "strings" : {
+    "当前主机平台不支持执行此片段。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The current host platform does not support running this snippet."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "現在のホストプラットフォームではこのスニペットを実行できません。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "현재 호스트 플랫폼에서는 이 스니펫을 실행할 수 없습니다."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "目前主機平台不支援執行此片段。"
+          }
+        }
+      }
+    },
+    "远程主机缺少执行此片段所需的命令。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The remote host is missing a command required to run this snippet."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "リモートホストに、このスニペットの実行に必要なコマンドがありません。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "원격 호스트에 이 스니펫을 실행하는 데 필요한 명령이 없습니다."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "遠端主機缺少執行此片段所需的命令。"
+          }
+        }
+      }
+    },
+    "当前用户没有执行此片段所需的权限。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The current user does not have permission to run this snippet."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "現在のユーザーには、このスニペットの実行に必要な権限がありません。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "현재 사용자에게 이 스니펫을 실행하는 데 필요한 권한이 없습니다."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "目前使用者沒有執行此片段所需的權限。"
+          }
+        }
+      }
+    },
+    "执行此片段所需的服务未运行。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A service required to run this snippet is not running."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このスニペットの実行に必要なサービスが起動していません。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이 스니펫을 실행하는 데 필요한 서비스가 실행 중이 아닙니다."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "執行此片段所需的服務未執行。"
+          }
+        }
+      }
+    },
+    "远程主机未提供执行此片段所需的完整数据。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The remote host did not provide all data required to run this snippet."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "リモートホストから、このスニペットの実行に必要なデータをすべて取得できませんでした。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "원격 호스트에서 이 스니펫을 실행하는 데 필요한 전체 데이터를 제공하지 않았습니다."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "遠端主機未提供執行此片段所需的完整資料。"
+          }
+        }
+      }
+    },
+    "无法确认远程主机是否满足片段要求。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Could not confirm whether the remote host meets the snippet requirements."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "リモートホストがスニペットの要件を満たしているか確認できませんでした。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "원격 호스트가 스니펫 요구 사항을 충족하는지 확인할 수 없습니다."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法確認遠端主機是否符合片段要求。"
+          }
+        }
+      }
+    },
+    "远程主机暂时无法满足片段要求。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The remote host cannot currently meet the snippet requirements."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "リモートホストは現在、スニペットの要件を満たせません。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "원격 호스트가 현재 스니펫 요구 사항을 충족할 수 없습니다."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "遠端主機暫時無法符合片段要求。"
+          }
+        }
+      }
+    },
+    "当前主机平台仅支持此片段的部分能力，仍可继续执行。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The current host platform supports only some capabilities required by this snippet, but it can still run."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "現在のホストプラットフォームは、このスニペットの一部の機能のみをサポートしていますが、実行は続行できます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "현재 호스트 플랫폼은 이 스니펫의 일부 기능만 지원하지만 계속 실행할 수 있습니다."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "目前主機平台僅支援此片段的部分能力，仍可繼續執行。"
+          }
+        }
+      }
+    },
+    "远程主机缺少部分可选命令，片段仍可继续执行。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The remote host is missing some optional commands, but the snippet can still run."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "リモートホストに一部のオプションコマンドがありませんが、スニペットは実行できます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "원격 호스트에 일부 선택적 명령이 없지만 스니펫은 계속 실행할 수 있습니다."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "遠端主機缺少部分選用命令，片段仍可繼續執行。"
+          }
+        }
+      }
+    },
+    "部分片段能力受权限限制，仍可继续执行。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Some snippet capabilities are permission-restricted, but the snippet can still run."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "スニペットの一部の機能は権限により制限されていますが、実行は続行できます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "일부 스니펫 기능이 권한으로 제한되지만 계속 실행할 수 있습니다."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "部分片段能力受權限限制，仍可繼續執行。"
+          }
+        }
+      }
+    },
+    "部分片段能力依赖的服务未运行，仍可继续执行。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A service used by some snippet capabilities is not running, but the snippet can still run."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "スニペットの一部の機能が使用するサービスは起動していませんが、実行は続行できます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "일부 스니펫 기능에 필요한 서비스가 실행 중이 아니지만 계속 실행할 수 있습니다."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "部分片段能力所依賴的服務未執行，仍可繼續執行。"
+          }
+        }
+      }
+    },
+    "部分远程能力数据不可用，片段仍可继续执行。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Some remote capability data is unavailable, but the snippet can still run."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "一部のリモート機能データを利用できませんが、スニペットは実行できます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "일부 원격 기능 데이터를 사용할 수 없지만 스니펫은 계속 실행할 수 있습니다."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "部分遠端能力資料無法使用，片段仍可繼續執行。"
+          }
+        }
+      }
+    },
+    "部分片段要求无法确认，仍可继续执行。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Some snippet requirements could not be confirmed, but the snippet can still run."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "スニペットの一部の要件を確認できませんが、実行は続行できます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "일부 스니펫 요구 사항을 확인할 수 없지만 계속 실행할 수 있습니다."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "部分片段要求無法確認，仍可繼續執行。"
+          }
+        }
+      }
+    },
+    "部分片段能力状态未知，仍可继续执行。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The status of some snippet capabilities is unknown, but the snippet can still run."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "スニペットの一部の機能の状態は不明ですが、実行は続行できます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "일부 스니펫 기능의 상태를 알 수 없지만 계속 실행할 수 있습니다."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "部分片段能力狀態未知，仍可繼續執行。"
+          }
+        }
+      }
+    },
     "—" : {
       "localizations" : {
         "en" : {

@@ -5,6 +5,23 @@ import Testing
 
 @Suite("Snippet capability presentation")
 struct SnippetCapabilityPresentationTests {
+    private static let messageKeys = [
+        "当前主机平台不支持执行此片段。",
+        "远程主机缺少执行此片段所需的命令。",
+        "当前用户没有执行此片段所需的权限。",
+        "执行此片段所需的服务未运行。",
+        "远程主机未提供执行此片段所需的完整数据。",
+        "无法确认远程主机是否满足片段要求。",
+        "远程主机暂时无法满足片段要求。",
+        "当前主机平台仅支持此片段的部分能力，仍可继续执行。",
+        "远程主机缺少部分可选命令，片段仍可继续执行。",
+        "部分片段能力受权限限制，仍可继续执行。",
+        "部分片段能力依赖的服务未运行，仍可继续执行。",
+        "部分远程能力数据不可用，片段仍可继续执行。",
+        "部分片段要求无法确认，仍可继续执行。",
+        "部分片段能力状态未知，仍可继续执行。",
+    ]
+
     @Test("script execution blocker has priority over capability blockers")
     func prioritizesScriptExecutionBlocker() {
         let report = RemoteCapabilityReport(states: [
@@ -79,22 +96,66 @@ struct SnippetCapabilityPresentationTests {
         #expect(presentation.degradedMessage == nil)
     }
 
-    @Test("presentation has no Docker implementation type coupling")
-    func hasNoDockerTypeCoupling() throws {
-        let source = try source(named: "Conn/Commands/SnippetCapabilityPresentation.swift")
+    @Test("all presentation messages are translated in every supported locale")
+    func catalogCoversPresentationMessages() throws {
+        let catalog = try JSONDecoder().decode(
+            StringCatalog.self,
+            from: Data(contentsOf: projectURL.appending(path: "Conn/Localizable.xcstrings"))
+        )
 
-        #expect(!source.contains("import ConnOps"))
-        #expect(!source.contains("DockerAvailability"))
+        #expect(catalog.sourceLanguage == "zh-Hans")
+        for key in Self.messageKeys {
+            for locale in ["en", "ja", "ko", "zh-Hant"] {
+                let stringUnit = try #require(
+                    catalog.strings[key]?.localizations?[locale]?.stringUnit,
+                    "Missing \(locale) translation for \(key)"
+                )
+                #expect(stringUnit.state == "translated")
+                #expect(!stringUnit.value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            }
+        }
+    }
+
+    @Test("presentation imports only ConnKit and has no Docker-specific identifiers")
+    func hasOnlyReportLayerCoupling() throws {
+        let source = try source(named: "Conn/Commands/SnippetCapabilityPresentation.swift")
+        let imports = source.split(whereSeparator: \Character.isNewline)
+            .map(String.init)
+            .filter { $0.hasPrefix("import ") }
+
+        #expect(imports == ["import ConnKit"])
+        #expect(source.range(of: "docker", options: .caseInsensitive) == nil)
     }
 
     private func unavailable(_ code: CapabilityReasonCode) -> CapabilityState {
         .unavailable(issue: CapabilityIssue(code: code))
     }
 
+    private var projectURL: URL {
+        URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+    }
+
     private func source(named relativePath: String) throws -> String {
-        let projectURL = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
         return try String(contentsOf: projectURL.appending(path: relativePath), encoding: .utf8)
     }
+}
+
+private struct StringCatalog: Decodable {
+    let sourceLanguage: String
+    let strings: [String: StringCatalogEntry]
+}
+
+private struct StringCatalogEntry: Decodable {
+    let localizations: [String: StringCatalogLocalization]?
+}
+
+private struct StringCatalogLocalization: Decodable {
+    let stringUnit: StringCatalogUnit?
+}
+
+private struct StringCatalogUnit: Decodable {
+    let state: String
+    let value: String
 }

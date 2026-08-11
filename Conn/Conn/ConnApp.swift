@@ -280,6 +280,18 @@ struct AppDependencies {
     /// 应用锁。默认关闭，设置页开启（Phase 5）。
     let appLock: AppLockController
 
+    private static func makeSnippetExecutionPlanner(
+        connectionManager: ConnectionManager
+    ) -> SnippetExecutionPlanner {
+        SnippetExecutionPlanner(
+            connectionManager: connectionManager,
+            executionProviderRegistry: .default,
+            requirementAdapterRegistry: SnippetRequirementAdapterRegistry(adapters: [
+                DockerSnippetRequirementAdapter(registry: .default),
+            ])
+        )
+    }
+
     /// 生产依赖：GRDB 落盘库 + Citadel 引擎 + 持久化 TOFU 指纹库。
     static func live() throws -> AppDependencies {
             let database = try AppDatabase.onDisk(at: databaseURL())
@@ -350,12 +362,8 @@ struct AppDependencies {
                 hostRepository: hostStore,
                 connectionManager: connectionManager
             )
-            let snippetExecutionPlanner = SnippetExecutionPlanner(
-                connectionManager: connectionManager,
-                executionProviderRegistry: .default,
-                requirementAdapterRegistry: SnippetRequirementAdapterRegistry(adapters: [
-                    DockerSnippetRequirementAdapter(registry: .default),
-                ])
+            let snippetExecutionPlanner = makeSnippetExecutionPlanner(
+                connectionManager: connectionManager
             )
 
             // 监控栈：采集调度。指标为纯内存态，不落库。
@@ -410,12 +418,8 @@ struct AppDependencies {
                 hostRepository: hostStore,
                 connectionManager: connectionManager
             )
-            let snippetExecutionPlanner = SnippetExecutionPlanner(
-                connectionManager: connectionManager,
-                executionProviderRegistry: .default,
-                requirementAdapterRegistry: SnippetRequirementAdapterRegistry(adapters: [
-                    DockerSnippetRequirementAdapter(registry: .default),
-                ])
+            let snippetExecutionPlanner = makeSnippetExecutionPlanner(
+                connectionManager: connectionManager
             )
             let monitor = MonitorScheduler(connectionManager: connectionManager)
             let snippetStore = SnippetStore(database: database)
