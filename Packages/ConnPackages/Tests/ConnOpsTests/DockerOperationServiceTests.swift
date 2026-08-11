@@ -9,6 +9,20 @@ struct DockerRuntimeProbeTests {
     private let linux = RemotePlatformProfile(kind: .linux)
     private let macOS = RemotePlatformProfile(kind: .macOS)
 
+    @Test("Docker 探测公开入口必须要求平台上下文")
+    func publicProbeAPIRequiresPlatformContext() throws {
+        let source = try String(
+            contentsOf: packageRoot.appending(path: "Sources/ConnOps/DockerService.swift"),
+            encoding: .utf8
+        )
+        let platformBlindProbe = #"public\s+static\s+func\s+probe\s*\(\s*on\s+session:\s*any\s+SSHSession\s*\)"#
+
+        #expect(
+            source.range(of: platformBlindProbe, options: .regularExpression) == nil,
+            "Docker probing must go through a platform profile/provider"
+        )
+    }
+
     @Test("默认注册表为 Linux 与 Darwin 选择不同 provider")
     func defaultRegistrySelectsPlatformProviders() throws {
         let registry = DockerEnvironmentProviderRegistry.default
@@ -209,6 +223,13 @@ struct DockerRuntimeProbeTests {
             DockerCommand.composeVersion(.v1, runtime: runtime)
                 == "'/usr/local/bin/docker-compose' version"
         )
+    }
+
+    private var packageRoot: URL {
+        URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
     }
 }
 

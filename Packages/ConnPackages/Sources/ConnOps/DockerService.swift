@@ -51,30 +51,6 @@ public enum DockerService {
     /// 用户以为没清理成功）。取 5 分钟。
     static let pruneTimeout: Duration = .seconds(300)
 
-    /// 探测可用性：先试直连，permission denied 再试 `sudo -n`。
-    public static func probe(on session: any SSHSession) async throws -> DockerAvailability {
-        let direct = try await session.exec(DockerCommand.availabilityProbe(sudo: false)).stdoutText
-        if direct.contains("__EXIT__0") {
-            return .available(sudo: false)
-        }
-        if direct.contains("not found") || direct.contains("command not found") {
-            return .notInstalled
-        }
-        let elevated = try await session.exec(DockerCommand.availabilityProbe(sudo: true)).stdoutText
-        if elevated.contains("__EXIT__0") {
-            return .available(sudo: true)
-        }
-        // #20：守护进程没跑 vs 权限不足要分开——两者都提「docker daemon」，
-        // 但守护进程停机是「Cannot connect / Is the docker daemon running」，权限是「permission denied」。
-        if direct.contains("permission denied") {
-            return .permissionDenied
-        }
-        if direct.contains("Cannot connect to the Docker daemon") || direct.contains("daemon running") {
-            return .daemonNotRunning
-        }
-        return .permissionDenied
-    }
-
     /// 平台感知的 Docker 探测。先解析 CLI 的真实路径，再用同一路径验证 daemon 与
     /// 权限；成功返回的 `runtime` 必须贯穿该页面生命周期内的所有 Docker 调用。
     public static func probe(
