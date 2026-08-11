@@ -44,10 +44,10 @@ struct MockSSHTransportTests {
         #expect(result.stdoutText == "Linux")
     }
 
-    @Test("execScript 解包解释器后仍命中假引擎脚本")
-    func execScriptUsesInterpreterWrapper() async throws {
+    @Test("假引擎自身可解包解释器命令并命中内置脚本")
+    func mockUnwrapsInterpreterWrapper() async throws {
         let session = try await connect(MockSSHTransport())
-        let result = try await session.execScript("uname -s", interpreter: .bash, timeout: .seconds(30))
+        let result = try await session.exec("bash -c 'uname -s'", timeout: .seconds(30))
         #expect(result.isSuccess)
         #expect(result.stdoutText == "Linux")
     }

@@ -18,12 +18,4 @@ public enum ShellInterpreter: String, Codable, Sendable, CaseIterable, Hashable,
         case .zsh: "Zsh"
         }
     }
-
-    /// 将脚本包装为解释器的 `-c` 调用。
-    ///
-    /// 单引号转义采用 POSIX 通用写法，换行、变量和 Shell 特殊字符都会作为
-    /// 同一个脚本文本传给解释器，而不是被外层 SSH 命令拆成多条命令。
-    public func invocation(for script: String) -> String {
-        "\(rawValue) -c '\(script.replacingOccurrences(of: "'", with: "'\\''"))'"
-    }
 }

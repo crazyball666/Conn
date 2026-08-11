@@ -5,6 +5,7 @@ import Foundation
 public enum SnippetRunnerError: LocalizedError, Equatable {
     case auditUnavailable
     case auditUpdateFailed
+    case missingExecutionPlan
 
     public var errorDescription: String? {
         switch self {
@@ -12,6 +13,8 @@ public enum SnippetRunnerError: LocalizedError, Equatable {
             L("无法保存执行记录，未执行脚本")
         case .auditUpdateFailed:
             L("脚本已执行，但执行记录保存失败")
+        case .missingExecutionPlan:
+            L("执行失败")
         }
     }
 }
@@ -63,16 +66,15 @@ public struct SnippetRunner {
     /// 上限只用来兜「会话已死、读取永不返回」，不用来限制命令本身该跑多久。
     private static let silentRunTimeout: Duration = .seconds(600)
 
-    /// 静默执行最终脚本并写审计。脚本应已由 `Snippet.render(values:)` 填充完变量。
+    /// 静默执行主机计划并写审计。准备命令只发送到 SSH，审计始终保留用户脚本。
     public func runSilently(
-        script: String,
-        interpreter: ShellInterpreter = .sh,
+        plan: SnippetExecutionPlan,
         on host: ConnKit.Host
     ) async throws -> RunOutcome {
         let pending = RunHistoryEntry(
             hostUUID: host.id,
-            script: script,
-            interpreter: interpreter,
+            script: plan.auditScript,
+            interpreter: plan.interpreter,
             state: .pending
         )
         do {
@@ -83,14 +85,13 @@ public struct SnippetRunner {
 
         do {
             let session = try await connectionManager.session(for: host)
-            let result = try await session.execScript(
-                script,
-                interpreter: interpreter,
+            let result = try await session.exec(
+                plan.preparedCommand,
                 timeout: Self.silentRunTimeout
             )
             let outcome = RunOutcome(
-                script: script,
-                interpreter: interpreter,
+                script: plan.auditScript,
+                interpreter: plan.interpreter,
                 exitCode: result.exitCode,
                 stdout: result.stdoutText,
                 stderr: result.stderrText
@@ -125,21 +126,20 @@ public struct SnippetRunner {
         }
     }
 
-    /// 并发执行同一脚本到多台主机。单台失败不会阻塞其他主机，并为每台主机返回独立结果。
+    /// 并发执行每台主机自己的计划。缺失计划与单台失败都不会阻塞其他主机。
     public func runBatchSilently(
-        script: String,
-        scriptsByHostID: [String: String] = [:],
-        interpreter: ShellInterpreter = .sh,
+        plansByHostID: [String: SnippetExecutionPlan],
         on hosts: [ConnKit.Host]
     ) async -> [ScriptBatchResult] {
         await withTaskGroup(of: ScriptBatchResult.self, returning: [ScriptBatchResult].self) { group in
             for host in hosts {
                 group.addTask { [self] in
                     do {
-                        let preparedScript = scriptsByHostID[host.id] ?? script
+                        guard let plan = plansByHostID[host.id] else {
+                            throw SnippetRunnerError.missingExecutionPlan
+                        }
                         let outcome = try await runSilently(
-                            script: preparedScript,
-                            interpreter: interpreter,
+                            plan: plan,
                             on: host
                         )
                         return ScriptBatchResult(hostID: host.id, hostName: host.name, outcome: outcome)

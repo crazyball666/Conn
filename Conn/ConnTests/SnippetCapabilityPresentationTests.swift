@@ -142,6 +142,39 @@ struct SnippetCapabilityPresentationTests {
     }
 }
 
+@Suite("Snippet compatibility result acceptance")
+struct SnippetCompatibilityAcceptanceTests {
+    @Test("accepts only a selected host with the current generation")
+    func acceptsCurrentSelectedHost() {
+        #expect(SnippetCompatibilityAcceptance.shouldAccept(
+            hostID: "host",
+            selectedHostIDs: ["host"],
+            capturedGeneration: 7,
+            currentGeneration: 7
+        ))
+    }
+
+    @Test("rejects a result after host deselection")
+    func rejectsDeselectedHost() {
+        #expect(!SnippetCompatibilityAcceptance.shouldAccept(
+            hostID: "host",
+            selectedHostIDs: [],
+            capturedGeneration: 7,
+            currentGeneration: 7
+        ))
+    }
+
+    @Test("rejects a stale generation for a still-selected host")
+    func rejectsStaleGeneration() {
+        #expect(!SnippetCompatibilityAcceptance.shouldAccept(
+            hostID: "host",
+            selectedHostIDs: ["host"],
+            capturedGeneration: 6,
+            currentGeneration: 7
+        ))
+    }
+}
+
 private struct StringCatalog: Decodable {
     let sourceLanguage: String
     let strings: [String: StringCatalogEntry]

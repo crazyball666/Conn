@@ -96,18 +96,6 @@ public extension SSHSession {
     func exec(_ command: String) async throws -> ExecResult {
         try await exec(command, timeout: .seconds(30))
     }
-
-    /// 使用指定解释器执行完整 Shell 脚本。
-    ///
-    /// 通过 `-c` 将脚本作为一个整体交给解释器，避免多行脚本被 SSH 外层
-    /// 命令拆开执行。解释器由受限枚举提供，不接受任意字符串。
-    func execScript(
-        _ script: String,
-        interpreter: ShellInterpreter = .sh,
-        timeout: Duration
-    ) async throws -> ExecResult {
-        try await exec(interpreter.invocation(for: script), timeout: timeout)
-    }
 }
 
 /// 交互式 shell 通道（Phase 4 终端用）。

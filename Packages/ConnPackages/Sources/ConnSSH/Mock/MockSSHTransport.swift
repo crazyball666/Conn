@@ -254,8 +254,8 @@ final class MockSSHSession: SSHSession, @unchecked Sendable {
         if let custom = behavior.commandResponses[trimmed] {
             return custom
         }
-        // `SSHSession.execScript` 会把脚本包装成 `sh/bash/zsh -c '…'`。
-        // 演示模式仍应按脚本内容命中确定性假输出，而不是把解释器本身当成未知命令。
+        // 解释器包装的解包是 Mock 自身的确定性匹配行为，不是 SSHSession 公共 API。
+        // 演示模式按脚本内容命中假输出，而不是把解释器本身当成未知命令。
         if let script = unwrapInterpreterInvocation(trimmed) {
             return resolve(script)
         }

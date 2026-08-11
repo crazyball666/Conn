@@ -124,7 +124,13 @@ struct SnippetTests {
         let snippet = Snippet(title: "健康检查", script: "hostname\nuptime", interpreter: .zsh)
         #expect(snippet.script.contains("\n"))
         #expect(snippet.interpreter == .zsh)
-        let expected = "bash -c 'printf '\\''ok'\\''" + "\n'"
-        #expect(ShellInterpreter.bash.invocation(for: "printf 'ok'\n") == expected)
+    }
+
+    @Test("解释器持久化值与显示名称保持稳定")
+    func interpreterPersistedValuesRemainStable() {
+        #expect(ShellInterpreter.allCases.map(\.rawValue) == ["sh", "bash", "zsh"])
+        #expect(ShellInterpreter.sh.displayName == "POSIX sh")
+        #expect(ShellInterpreter.bash.displayName == "Bash")
+        #expect(ShellInterpreter.zsh.displayName == "Zsh")
     }
 }

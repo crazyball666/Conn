@@ -1,5 +1,4 @@
 import ConnKit
-import ConnOps
 import ConnRunner
 import ConnSSH
 import ConnTerminal
@@ -16,22 +15,43 @@ struct SnippetRunView: View {
 
     private enum HostCompatibilityState: Equatable {
         case checking
-        case compatible
+        case compatible(warning: String?)
         case incompatible(String)
+
+        var allowsExecution: Bool {
+            if case .compatible = self { return true }
+            return false
+        }
     }
 
     private struct TerminalRoute: Hashable, Identifiable {
         let host: Host
-        let script: String
-        let interpreter: ShellInterpreter
-        var id: String { "\(host.id)#\(interpreter.rawValue)#\(script)" }
+        let preparedCommand: String
+        var id: String { "\(host.id)#\(preparedCommand)" }
+    }
+
+    private struct ExecutionRequest {
+        let mode: Mode
+        let hosts: [Host]
+        let plansByHostID: [String: SnippetExecutionPlan]
+    }
+
+    private enum ExecutionPlanningError: LocalizedError {
+        case missingPreparation(hostName: String)
+
+        var errorDescription: String? {
+            switch self {
+            case let .missingPreparation(hostName):
+                "\(hostName)：\(L("执行失败"))"
+            }
+        }
     }
 
     @State private var hosts: [Host] = []
     @State private var hostGroups: [HostGroup] = []
     @State private var selectedHostIDs: Set<String> = []
     @State private var compatibilityByHostID: [String: HostCompatibilityState] = [:]
-    @State private var dockerRuntimeByHostID: [String: DockerRuntimeContext] = [:]
+    @State private var preparationByHostID: [String: SnippetHostPreparation] = [:]
     /// 选择状态变化后使旧异步探测结果失效，避免取消选择后被迟到任务写回。
     @State private var compatibilityGenerationByHostID: [String: UInt64] = [:]
     @State private var isHostPickerExpanded = false
@@ -41,7 +61,7 @@ struct SnippetRunView: View {
     @State private var batchResults: [ScriptBatchResult] = []
     @State private var isRunning = false
     @State private var errorText: String?
-    @State private var pendingMode: Mode?
+    @State private var pendingExecution: ExecutionRequest?
     @State private var pendingReason: String?
     @State private var terminalRoute: TerminalRoute?
 
@@ -75,7 +95,7 @@ struct SnippetRunView: View {
                     dependencies: dependencies,
                     launchPolicy: .createNew,
                     source: .script(title: snippet.title),
-                    initialCommand: route.interpreter.invocation(for: route.script)
+                    initialCommand: route.preparedCommand
                 )
             }
             .confirmationDialog(
@@ -84,10 +104,10 @@ struct SnippetRunView: View {
                 titleVisibility: .visible
             ) {
                 Button(L("仍要执行"), role: .destructive) {
-                    if let mode = pendingMode { execute(mode) }
-                    pendingMode = nil
+                    if let request = pendingExecution { execute(request) }
+                    pendingExecution = nil
                 }
-                Button(L("取消"), role: .cancel) { pendingMode = nil }
+                Button(L("取消"), role: .cancel) { pendingExecution = nil }
             }
         }
     }
@@ -266,10 +286,14 @@ struct SnippetRunView: View {
                     .font(.connFootnote)
                     .foregroundStyle(.connMuted)
             }
-            if let message = compatibilityMessage {
+            if let message = compatibilityBlockerMessage {
                 Text(message)
                     .font(.connFootnote)
                     .foregroundStyle(.connCrit)
+            } else if let message = compatibilityWarningMessage {
+                Text(message)
+                    .font(.connFootnote)
+                    .foregroundStyle(.connWarn)
             }
         }
     }
@@ -331,10 +355,10 @@ struct SnippetRunView: View {
     }
 
     private var hasCompatibilityBlocker: Bool {
-        selectedHosts.contains { compatibilityByHostID[$0.id] != .compatible }
+        selectedHosts.contains { compatibilityByHostID[$0.id]?.allowsExecution != true }
     }
 
-    private var compatibilityMessage: String? {
+    private var compatibilityBlockerMessage: String? {
         for host in selectedHosts {
             if case let .incompatible(message)? = compatibilityByHostID[host.id] {
                 return "\(host.name)：\(message)"
@@ -342,6 +366,16 @@ struct SnippetRunView: View {
         }
         if selectedHosts.contains(where: { compatibilityByHostID[$0.id] == .checking }) {
             return L("正在检查脚本兼容性…")
+        }
+        return nil
+    }
+
+    private var compatibilityWarningMessage: String? {
+        for host in selectedHosts {
+            if case let .compatible(warning)? = compatibilityByHostID[host.id],
+               let warning {
+                return "\(host.name)：\(warning)"
+            }
         }
         return nil
     }
@@ -405,8 +439,12 @@ struct SnippetRunView: View {
             Text(L("正在检查脚本兼容性…"))
                 .font(.connData(.caption2))
                 .foregroundStyle(.connMuted)
-        case .compatible:
-            EmptyView()
+        case let .compatible(warning):
+            if let warning {
+                Text(warning)
+                    .font(.connData(.caption2))
+                    .foregroundStyle(.connWarn)
+            }
         case let .incompatible(message):
             Text(message)
                 .font(.connData(.caption2))
@@ -416,49 +454,33 @@ struct SnippetRunView: View {
 
     private func scheduleCompatibilityCheck(for host: Host) {
         let generation = nextCompatibilityGeneration(for: host.id)
-        dockerRuntimeByHostID[host.id] = nil
-        guard !snippet.platforms.isEmpty || !snippet.requiredCapabilities.isEmpty else {
-            compatibilityByHostID[host.id] = .compatible
-            return
-        }
+        preparationByHostID[host.id] = nil
         compatibilityByHostID[host.id] = .checking
         Task { await resolveCompatibility(for: host, generation: generation) }
     }
 
     private func resolveCompatibility(for host: Host, generation: UInt64) async {
         do {
-            let profile = try await dependencies.connectionManager.platformProfile(for: host)
+            let result = try await dependencies.snippetExecutionPlanner.prepare(
+                snippet: snippet,
+                on: host
+            )
             guard isCompatibilityCurrent(for: host.id, generation: generation) else { return }
-            guard snippet.platforms.isEmpty || snippet.platforms.contains(profile.kind) else {
-                compatibilityByHostID[host.id] = .incompatible(L("此脚本不支持该主机平台"))
-                return
-            }
-
-            var availableCapabilities: Set<RemoteCapability> = []
-            if snippet.requiredCapabilities.contains(.docker) {
-                let session = try await dependencies.connectionManager.session(for: host)
-                guard isCompatibilityCurrent(for: host.id, generation: generation) else { return }
-                let probe = try await DockerService.probe(on: session, profile: profile)
-                guard isCompatibilityCurrent(for: host.id, generation: generation) else { return }
-                if probe.availability.isUsable, let runtime = probe.runtime {
-                    availableCapabilities.insert(.docker)
-                    dockerRuntimeByHostID[host.id] = runtime
-                }
-            }
-
-            guard isCompatibilityCurrent(for: host.id, generation: generation) else { return }
-            switch snippet.compatibility(
-                with: profile.kind,
-                availableCapabilities: availableCapabilities
-            ) {
-            case .compatible:
-                compatibilityByHostID[host.id] = .compatible
-            case .unsupportedPlatform:
-                compatibilityByHostID[host.id] = .incompatible(L("此脚本不支持该主机平台"))
-            case let .missingCapabilities(capabilities):
-                let names = capabilities.map(\.rawValue).sorted().joined(separator: ", ")
+            switch result {
+            case let .ready(preparation):
+                let presentation = SnippetCapabilityPresentation(
+                    report: preparation.capabilityReport
+                )
+                preparationByHostID[host.id] = preparation
+                compatibilityByHostID[host.id] = .compatible(
+                    warning: presentation.degradedMessage
+                )
+            case let .blocked(report):
+                let presentation = SnippetCapabilityPresentation(report: report)
+                preparationByHostID[host.id] = nil
                 compatibilityByHostID[host.id] = .incompatible(
-                    String(format: L("该主机缺少脚本所需能力：%@"), names)
+                    presentation.blockerMessage
+                        ?? L("无法确认远程主机是否满足片段要求。")
                 )
             }
         } catch {
@@ -478,57 +500,79 @@ struct SnippetRunView: View {
     private func invalidateCompatibility(for hostID: String) {
         _ = nextCompatibilityGeneration(for: hostID)
         compatibilityByHostID[hostID] = nil
-        dockerRuntimeByHostID[hostID] = nil
+        preparationByHostID[hostID] = nil
     }
 
     private func isCompatibilityCurrent(for hostID: String, generation: UInt64) -> Bool {
-        selectedHostIDs.contains(hostID)
-            && compatibilityGenerationByHostID[hostID] == generation
+        SnippetCompatibilityAcceptance.shouldAccept(
+            hostID: hostID,
+            selectedHostIDs: selectedHostIDs,
+            capturedGeneration: generation,
+            currentGeneration: compatibilityGenerationByHostID[hostID]
+        )
     }
 
     /// 任意一台生产主机命中风险，就要求整批二次确认。
     private func attempt(_ mode: Mode) {
         guard !selectedHosts.isEmpty, !hasCompatibilityBlocker else { return }
-        let production = selectedHosts.contains { $0.isProduction }
-        let verdict = DangerCommandRules.evaluate(renderedScript, isProduction: production)
+        let hosts = selectedHosts
+        let userScript = snippet.render(values: values)
+        let request: ExecutionRequest
+        do {
+            var plansByHostID: [String: SnippetExecutionPlan] = [:]
+            for host in hosts {
+                guard let preparation = preparationByHostID[host.id] else {
+                    throw ExecutionPlanningError.missingPreparation(hostName: host.name)
+                }
+                plansByHostID[host.id] = try dependencies.snippetExecutionPlanner
+                    .makeExecutionPlan(renderedScript: userScript, from: preparation)
+            }
+            request = ExecutionRequest(
+                mode: mode,
+                hosts: hosts,
+                plansByHostID: plansByHostID
+            )
+        } catch {
+            errorText = error.friendlyDiagnosis
+            return
+        }
+
+        let production = hosts.contains { $0.isProduction }
+        let verdict = DangerCommandRules.evaluate(userScript, isProduction: production)
         if snippet.danger || verdict.needsConfirmation {
             pendingReason = verdict.reason ?? (snippet.danger ? L("该脚本被标记为危险") : nil)
-            pendingMode = mode
+            pendingExecution = request
         } else {
-            execute(mode)
+            execute(request)
         }
     }
 
-    private func execute(_ mode: Mode) {
-        guard !selectedHosts.isEmpty, !hasCompatibilityBlocker else { return }
-        switch mode {
+    private func execute(_ request: ExecutionRequest) {
+        switch request.mode {
         case .silent:
-            Task { await runSilently(on: selectedHosts) }
+            Task { await runSilently(request) }
         case .terminal:
-            guard let host = selectedHosts.first, selectedHosts.count == 1 else { return }
+            guard let host = request.hosts.first,
+                  request.hosts.count == 1,
+                  let plan = request.plansByHostID[host.id]
+            else { return }
             terminalRoute = TerminalRoute(
                 host: host,
-                script: preparedScript(for: host),
-                interpreter: snippet.interpreter
+                preparedCommand: plan.preparedCommand
             )
         }
     }
 
-    private func runSilently(on hosts: [Host]) async {
+    private func runSilently(_ request: ExecutionRequest) async {
         isRunning = true
         errorText = nil
         outcome = nil
         batchResults = []
         defer { isRunning = false }
         let runner = SnippetRunner(connectionManager: dependencies.connectionManager, runHistory: dependencies.runHistory)
-        let scriptsByHostID = Dictionary(uniqueKeysWithValues: hosts.map {
-            ($0.id, preparedScript(for: $0))
-        })
         let results = await runner.runBatchSilently(
-            script: renderedScript,
-            scriptsByHostID: scriptsByHostID,
-            interpreter: snippet.interpreter,
-            on: hosts
+            plansByHostID: request.plansByHostID,
+            on: request.hosts
         )
         if results.count == 1, let only = results.first {
             batchResults = []
@@ -540,14 +584,10 @@ struct SnippetRunView: View {
         }
     }
 
-    private func preparedScript(for host: Host) -> String {
-        guard snippet.requiredCapabilities.contains(.docker),
-              let runtime = dockerRuntimeByHostID[host.id]
-        else { return renderedScript }
-        return "\(runtime.shellBootstrapCommand)\n\(renderedScript)"
-    }
-
     private var dangerBinding: Binding<Bool> {
-        Binding(get: { pendingMode != nil }, set: { if !$0 { pendingMode = nil } })
+        Binding(
+            get: { pendingExecution != nil },
+            set: { if !$0 { pendingExecution = nil } }
+        )
     }
 }
