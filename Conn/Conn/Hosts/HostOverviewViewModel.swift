@@ -43,13 +43,13 @@ final class HostOverviewViewModel {
         guard let state = latest?.capabilityState else { return nil }
         switch state {
         case .supported:
-            nil
+            return nil
         case .degraded:
-            L("部分主机指标不可用")
+            return L("部分主机指标不可用")
         case .unavailable:
-            L("主机指标采集暂不可用")
+            return L("主机指标采集暂不可用")
         case .unsupported:
-            L("当前主机平台暂不支持指标采集")
+            return L("当前主机平台暂不支持指标采集")
         }
     }
 

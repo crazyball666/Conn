@@ -27,13 +27,13 @@ final class ProcessListViewModel {
     var capabilityMessage: String? {
         switch capabilityState {
         case .none, .supported:
-            nil
+            return nil
         case .degraded:
-            L("部分进程详情不可用")
+            return L("部分进程详情不可用")
         case let .unavailable(issue):
-            issue.code == .permissionDenied ? L("没有权限读取完整进程信息") : L("进程采集暂不可用")
+            return issue.code == .permissionDenied ? L("没有权限读取完整进程信息") : L("进程采集暂不可用")
         case .unsupported:
-            L("当前主机平台暂不支持进程采集")
+            return L("当前主机平台暂不支持进程采集")
         }
     }
 

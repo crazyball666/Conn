@@ -70,13 +70,13 @@ final class LogCenterViewModel {
     var capabilityMessage: String? {
         switch capabilityState {
         case .none, .supported:
-            nil
+            return nil
         case .degraded:
-            L("部分日志来源不可用")
+            return L("部分日志来源不可用")
         case let .unavailable(issue):
-            issue.code == .permissionDenied ? L("没有权限读取日志") : L("日志采集暂不可用")
+            return issue.code == .permissionDenied ? L("没有权限读取日志") : L("日志采集暂不可用")
         case .unsupported:
-            L("当前主机平台暂不支持日志采集")
+            return L("当前主机平台暂不支持日志采集")
         }
     }
 }
