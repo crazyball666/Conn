@@ -9,12 +9,12 @@ struct SnippetCompatibilityTaskRegistryTests {
         let registry = SnippetCompatibilityTaskRegistry()
         let probe = CompatibilityTaskProbe()
 
-        registry.replace(hostID: "host") {
+        registry.replace(hostID: "host") { _ in
             await probe.run("old")
         }
         await probe.waitUntilStarted("old")
 
-        registry.replace(hostID: "host") {
+        registry.replace(hostID: "host") { _ in
             await probe.run("new")
         }
         await probe.waitUntilStarted("new")
@@ -35,10 +35,10 @@ struct SnippetCompatibilityTaskRegistryTests {
         let registry = SnippetCompatibilityTaskRegistry()
         let probe = CompatibilityTaskProbe()
 
-        registry.replace(hostID: "host-a") {
+        registry.replace(hostID: "host-a") { _ in
             await probe.run("host-a")
         }
-        registry.replace(hostID: "host-b") {
+        registry.replace(hostID: "host-b") { _ in
             await probe.run("host-b")
         }
         await probe.waitUntilStarted("host-a")
@@ -60,7 +60,7 @@ struct SnippetCompatibilityTaskRegistryTests {
         let probe = CompatibilityTaskProbe()
 
         for hostID in ["host-a", "host-b"] {
-            registry.replace(hostID: hostID) {
+            registry.replace(hostID: hostID) { _ in
                 await probe.run(hostID)
             }
             await probe.waitUntilStarted(hostID)
@@ -72,6 +72,130 @@ struct SnippetCompatibilityTaskRegistryTests {
 
         #expect(await probe.wasCancelled("host-a"))
         #expect(await probe.wasCancelled("host-b"))
+    }
+
+    @Test("cancelAll suppresses a late result from an operation that ignores cancellation")
+    func cancelAllRejectsLatePublication() async {
+        let registry = SnippetCompatibilityTaskRegistry()
+        let operation = CancellationIgnoringOperation(value: "late-value")
+        var publishedValues: [String] = []
+        var publishedErrors: [String] = []
+
+        registry.replace(hostID: "host") { claim in
+            let value = await operation.waitForRelease()
+            if let accepted = registry.accept(value, for: claim) {
+                publishedValues.append(accepted.value)
+            }
+            if let accepted = registry.accept("late-error", for: claim) {
+                publishedErrors.append(accepted.value)
+            }
+            await operation.markFinished()
+        }
+        await operation.waitUntilStarted()
+
+        registry.cancelAll()
+        await operation.release()
+        await operation.waitUntilFinished()
+
+        #expect(publishedValues.isEmpty)
+        #expect(publishedErrors.isEmpty)
+    }
+
+    @Test("replacement suppresses the old late result and accepts the new owner")
+    func replacementRejectsOldPublication() async {
+        let registry = SnippetCompatibilityTaskRegistry()
+        let oldOperation = CancellationIgnoringOperation(value: "old-value")
+        let replacementFinished = AsyncTestSignal()
+        var published: [String] = []
+
+        registry.replace(hostID: "host") { claim in
+            let value = await oldOperation.waitForRelease()
+            if let accepted = registry.accept(value, for: claim) {
+                published.append(accepted.value)
+            }
+            await oldOperation.markFinished()
+        }
+        await oldOperation.waitUntilStarted()
+
+        registry.replace(hostID: "host") { claim in
+            if let accepted = registry.accept("new-value", for: claim) {
+                published.append(accepted.value)
+            }
+            await replacementFinished.fire()
+        }
+        await replacementFinished.wait()
+        await oldOperation.release()
+        await oldOperation.waitUntilFinished()
+
+        #expect(published == ["new-value"])
+    }
+}
+
+private actor CancellationIgnoringOperation {
+    private let value: String
+    private var releaseContinuation: CheckedContinuation<String, Never>?
+    private var started = false
+    private var finished = false
+    private var startWaiters: [CheckedContinuation<Void, Never>] = []
+    private var finishWaiters: [CheckedContinuation<Void, Never>] = []
+
+    init(value: String) {
+        self.value = value
+    }
+
+    func waitForRelease() async -> String {
+        started = true
+        let waiters = startWaiters
+        startWaiters.removeAll()
+        for waiter in waiters { waiter.resume() }
+        return await withCheckedContinuation { continuation in
+            releaseContinuation = continuation
+        }
+    }
+
+    func waitUntilStarted() async {
+        if started { return }
+        await withCheckedContinuation { continuation in
+            startWaiters.append(continuation)
+        }
+    }
+
+    func release() {
+        releaseContinuation?.resume(returning: value)
+        releaseContinuation = nil
+    }
+
+    func markFinished() {
+        finished = true
+        let waiters = finishWaiters
+        finishWaiters.removeAll()
+        for waiter in waiters { waiter.resume() }
+    }
+
+    func waitUntilFinished() async {
+        if finished { return }
+        await withCheckedContinuation { continuation in
+            finishWaiters.append(continuation)
+        }
+    }
+}
+
+private actor AsyncTestSignal {
+    private var fired = false
+    private var waiters: [CheckedContinuation<Void, Never>] = []
+
+    func fire() {
+        fired = true
+        let currentWaiters = waiters
+        waiters.removeAll()
+        for waiter in currentWaiters { waiter.resume() }
+    }
+
+    func wait() async {
+        if fired { return }
+        await withCheckedContinuation { continuation in
+            waiters.append(continuation)
+        }
     }
 }
 

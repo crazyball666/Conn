@@ -433,20 +433,31 @@ struct SnippetRunView: View {
         let generation = nextCompatibilityGeneration(for: host.id)
         preparationByHostID[host.id] = nil
         compatibilityByHostID[host.id] = .checking
-        compatibilityTasks.replace(hostID: host.id) {
-            await resolveCompatibility(for: host, generation: generation)
+        compatibilityTasks.replace(hostID: host.id) { claim in
+            await resolveCompatibility(
+                for: host,
+                generation: generation,
+                claim: claim
+            )
         }
     }
 
-    private func resolveCompatibility(for host: Host, generation: UInt64) async {
+    private func resolveCompatibility(
+        for host: Host,
+        generation: UInt64,
+        claim: SnippetCompatibilityTaskRegistry.Claim
+    ) async {
         do {
             let result = try await dependencies.snippetExecutionPlanner.prepare(
                 snippet: snippet,
                 on: host
             )
+            guard let claimed = compatibilityTasks.accept(result, for: claim) else {
+                return
+            }
             guard let accepted = acceptCompatibilityResult(
-                result,
-                from: host.id,
+                claimed.value,
+                from: claimed.hostID,
                 generation: generation
             ) else { return }
             switch accepted.value {
@@ -467,9 +478,15 @@ struct SnippetRunView: View {
                 )
             }
         } catch {
-            guard let accepted = acceptCompatibilityResult(
+            guard let claimed = compatibilityTasks.accept(
                 error.friendlyDiagnosis,
-                from: host.id,
+                for: claim
+            ) else {
+                return
+            }
+            guard let accepted = acceptCompatibilityResult(
+                claimed.value,
+                from: claimed.hostID,
                 generation: generation
             ) else { return }
             preparationByHostID[accepted.hostID] = nil
