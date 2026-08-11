@@ -10,6 +10,7 @@ public enum RemotePlatformKind: String, Codable, Sendable, Hashable {
 
 /// 上层可按平台提供或降级的远端能力。
 public enum RemoteCapability: String, Codable, Sendable, Hashable {
+    case scriptExecution
     case hostMetrics
     case processes
     case logs

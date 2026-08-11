@@ -27,6 +27,14 @@ struct RemotePlatformTests {
         #expect(decoded == profile)
     }
 
+    @Test("脚本执行能力 Codable 往返无损")
+    func scriptExecutionCapabilityRoundTrip() throws {
+        let data = try JSONEncoder().encode(RemoteCapability.scriptExecution)
+        let decoded = try JSONDecoder().decode(RemoteCapability.self, from: data)
+
+        #expect(decoded == .scriptExecution)
+    }
+
     @Test("降级原因保留稳定原因码与缺失字段")
     func degradedFields() {
         let issue = CapabilityIssue(
