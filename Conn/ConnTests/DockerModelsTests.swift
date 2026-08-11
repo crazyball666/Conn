@@ -2,6 +2,7 @@ import ConnCrypto
 import ConnKit
 import ConnMonitor
 import ConnOps
+import ConnRunner
 import ConnSSH
 import ConnTerminal
 import Foundation
@@ -217,6 +218,11 @@ struct DockerModelsTests {
             keyRepository: StubSSHKeyRepository(),
             credentialStore: InMemoryCredentialStore(),
             connectionManager: connectionManager,
+            snippetExecutionPlanner: SnippetExecutionPlanner(
+                connectionManager: connectionManager,
+                executionProviderRegistry: .default,
+                requirementAdapterRegistry: SnippetRequirementAdapterRegistry(adapters: [])
+            ),
             diagnosticsTransport: transport,
             monitor: MonitorScheduler(connectionManager: connectionManager),
             runHistory: StubRunHistoryRepository(),

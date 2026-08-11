@@ -263,6 +263,8 @@ struct AppDependencies {
     let credentialStore: any CredentialStore
     /// 连接池管理器。主机详情、监控采集、Docker/日志、片段执行都经它取会话。
     let connectionManager: ConnectionManager
+    /// 片段执行准备器。复用连接池，并在 App 边界组合平台执行与能力适配器。
+    let snippetExecutionPlanner: SnippetExecutionPlanner
     /// 连接测试用的传输层（与 connectionManager 同引擎，供诊断树直接调用）。
     let diagnosticsTransport: any SSHTransport
     /// 监控采集调度（Phase 7）。仪表盘 30s / 详情 3s。
@@ -348,6 +350,13 @@ struct AppDependencies {
                 hostRepository: hostStore,
                 connectionManager: connectionManager
             )
+            let snippetExecutionPlanner = SnippetExecutionPlanner(
+                connectionManager: connectionManager,
+                executionProviderRegistry: .default,
+                requirementAdapterRegistry: SnippetRequirementAdapterRegistry(adapters: [
+                    DockerSnippetRequirementAdapter(registry: .default),
+                ])
+            )
 
             // 监控栈：采集调度。指标为纯内存态，不落库。
             let monitor = MonitorScheduler(connectionManager: connectionManager)
@@ -366,6 +375,7 @@ struct AppDependencies {
                 keyRepository: keyStore,
                 credentialStore: credentialStore,
                 connectionManager: connectionManager,
+                snippetExecutionPlanner: snippetExecutionPlanner,
                 diagnosticsTransport: transport,
                 monitor: monitor,
                 runHistory: runHistoryStore,
@@ -400,6 +410,13 @@ struct AppDependencies {
                 hostRepository: hostStore,
                 connectionManager: connectionManager
             )
+            let snippetExecutionPlanner = SnippetExecutionPlanner(
+                connectionManager: connectionManager,
+                executionProviderRegistry: .default,
+                requirementAdapterRegistry: SnippetRequirementAdapterRegistry(adapters: [
+                    DockerSnippetRequirementAdapter(registry: .default),
+                ])
+            )
             let monitor = MonitorScheduler(connectionManager: connectionManager)
             let snippetStore = SnippetStore(database: database)
             let snippetGroupStore = SnippetGroupStore(database: database)
@@ -413,6 +430,7 @@ struct AppDependencies {
                 keyRepository: keyStore,
                 credentialStore: credentialStore,
                 connectionManager: connectionManager,
+                snippetExecutionPlanner: snippetExecutionPlanner,
                 diagnosticsTransport: transport,
                 monitor: monitor,
                 runHistory: runHistoryStore,
