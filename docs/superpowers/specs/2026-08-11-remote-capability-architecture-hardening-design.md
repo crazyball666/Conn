@@ -348,6 +348,7 @@ JSON 是数据目录，不包含平台行为，因此本轮不增加 `CommandCat
 - provider 不存在、解释器缺失和未注册 requirement 分别得到明确状态。
 - blocked 结果不携带 execution provider，并保留已观察的 capability report；提前阻断的 requirement 状态保持缺失。
 - `requiredCapabilities` 中显式出现 `.scriptExecution` 时使用 intrinsic 状态，不查 adapter。
+- capability 匹配但 `RemoteScriptFamily` 不匹配的 adapter 被忽略，该 requirement 返回 unsupported 且不贡献 prelude。
 - `.supported`/`.degraded` 可执行，`.unavailable`/`.unsupported` 阻止。
 - 多个 requirement 的 prelude 按稳定顺序拼接。
 - 变量变化使用同一 preparation 生成新命令，不重复 probe。
