@@ -177,7 +177,7 @@ struct DockerModelsTests {
             """
         )
         session.setResponse(
-            DockerRuntimeContext.discoveryCommand(for: .linux),
+            containing: "conn_docker_path=$(command -v docker 2>/dev/null || true)",
             stdout: "docker\n"
         )
         session.setResponse(DockerCommand.availabilityProbe(sudo: false), stdout: "__EXIT__0")
@@ -243,6 +243,7 @@ private final class ScriptedSession: SSHSession, @unchecked Sendable {
 
     private let lock = NSLock()
     private var responses: [String: String] = [:]
+    private var partialResponses: [(fragment: String, stdout: String)] = []
     private var failingCommands: Set<String> = []
 
     init() {
@@ -254,6 +255,10 @@ private final class ScriptedSession: SSHSession, @unchecked Sendable {
         lock.withLock { responses[command] = stdout }
     }
 
+    func setResponse(containing fragment: String, stdout: String) {
+        lock.withLock { partialResponses.append((fragment, stdout)) }
+    }
+
     /// 登记后，这条命令每次被 exec 都会抛错（模拟持续失败，而非只失败一次）。
     func fail(_ command: String) {
         lock.withLock { failingCommands.insert(command) }
@@ -262,7 +267,10 @@ private final class ScriptedSession: SSHSession, @unchecked Sendable {
     func exec(_ command: String, timeout: Duration) async throws -> ExecResult {
         let shouldFail = lock.withLock { failingCommands.contains(command) }
         if shouldFail { throw SSHError.channelClosed }
-        let stdout = lock.withLock { responses[command] } ?? ""
+        let stdout = lock.withLock {
+            responses[command]
+                ?? partialResponses.first(where: { command.contains($0.fragment) })?.stdout
+        } ?? ""
         return ExecResult(exitCode: 0, stdout: Data(stdout.utf8), stderr: Data())
     }
 
