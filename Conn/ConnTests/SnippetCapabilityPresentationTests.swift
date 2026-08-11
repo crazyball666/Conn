@@ -146,32 +146,100 @@ struct SnippetCapabilityPresentationTests {
 struct SnippetCompatibilityAcceptanceTests {
     @Test("accepts only a selected host with the current generation")
     func acceptsCurrentSelectedHost() {
-        #expect(SnippetCompatibilityAcceptance.shouldAccept(
+        let accepted = SnippetCompatibilityAcceptance.accept(
             hostID: "host",
+            value: "preparation",
             selectedHostIDs: ["host"],
             capturedGeneration: 7,
             currentGeneration: 7
-        ))
+        )
+
+        #expect(accepted?.hostID == "host")
+        #expect(accepted?.value == "preparation")
     }
 
     @Test("rejects a result after host deselection")
     func rejectsDeselectedHost() {
-        #expect(!SnippetCompatibilityAcceptance.shouldAccept(
+        #expect(SnippetCompatibilityAcceptance.accept(
             hostID: "host",
+            value: "preparation",
             selectedHostIDs: [],
             capturedGeneration: 7,
             currentGeneration: 7
-        ))
+        ) == nil)
     }
 
     @Test("rejects a stale generation for a still-selected host")
     func rejectsStaleGeneration() {
-        #expect(!SnippetCompatibilityAcceptance.shouldAccept(
+        #expect(SnippetCompatibilityAcceptance.accept(
             hostID: "host",
+            value: "preparation",
             selectedHostIDs: ["host"],
             capturedGeneration: 6,
             currentGeneration: 7
-        ))
+        ) == nil)
+    }
+
+    @Test("out-of-order preparations remain keyed by their originating host")
+    func preservesOriginatingHostForOutOfOrderPreparations() async {
+        let completions = ControlledPreparationCompletions()
+        let selectedHostIDs: Set<String> = ["host-a", "host-b"]
+        let generations = ["host-a": UInt64(1), "host-b": UInt64(1)]
+        var preparationsByHostID: [String: String] = [:]
+
+        await withTaskGroup(
+            of: SnippetCompatibilityAcceptance.Accepted<String>?.self
+        ) { group in
+            for hostID in ["host-a", "host-b"] {
+                group.addTask {
+                    let preparation = await completions.preparation(for: hostID)
+                    return SnippetCompatibilityAcceptance.accept(
+                        hostID: hostID,
+                        value: preparation,
+                        selectedHostIDs: selectedHostIDs,
+                        capturedGeneration: 1,
+                        currentGeneration: generations[hostID]
+                    )
+                }
+            }
+
+            await completions.complete(hostID: "host-b", value: "preparation-b")
+            if let accepted = await group.next() ?? nil {
+                preparationsByHostID[accepted.hostID] = accepted.value
+            }
+
+            await completions.complete(hostID: "host-a", value: "preparation-a")
+            if let accepted = await group.next() ?? nil {
+                preparationsByHostID[accepted.hostID] = accepted.value
+            }
+        }
+
+        #expect(preparationsByHostID == [
+            "host-a": "preparation-a",
+            "host-b": "preparation-b",
+        ])
+    }
+}
+
+private actor ControlledPreparationCompletions {
+    private var completedValues: [String: String] = [:]
+    private var waiters: [String: CheckedContinuation<String, Never>] = [:]
+
+    func preparation(for hostID: String) async -> String {
+        if let value = completedValues.removeValue(forKey: hostID) {
+            return value
+        }
+        return await withCheckedContinuation { continuation in
+            waiters[hostID] = continuation
+        }
+    }
+
+    func complete(hostID: String, value: String) {
+        if let waiter = waiters.removeValue(forKey: hostID) {
+            waiter.resume(returning: value)
+        } else {
+            completedValues[hostID] = value
+        }
     }
 }
 

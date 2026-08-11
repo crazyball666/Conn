@@ -465,28 +465,37 @@ struct SnippetRunView: View {
                 snippet: snippet,
                 on: host
             )
-            guard isCompatibilityCurrent(for: host.id, generation: generation) else { return }
-            switch result {
+            guard let accepted = acceptCompatibilityResult(
+                result,
+                from: host.id,
+                generation: generation
+            ) else { return }
+            switch accepted.value {
             case let .ready(preparation):
                 let presentation = SnippetCapabilityPresentation(
                     report: preparation.capabilityReport
                 )
-                preparationByHostID[host.id] = preparation
-                compatibilityByHostID[host.id] = .compatible(
+                preparationByHostID[accepted.hostID] = preparation
+                compatibilityByHostID[accepted.hostID] = .compatible(
                     warning: presentation.degradedMessage
                 )
             case let .blocked(report):
                 let presentation = SnippetCapabilityPresentation(report: report)
-                preparationByHostID[host.id] = nil
-                compatibilityByHostID[host.id] = .incompatible(
+                preparationByHostID[accepted.hostID] = nil
+                compatibilityByHostID[accepted.hostID] = .incompatible(
                     presentation.blockerMessage
                         ?? L("无法确认远程主机是否满足片段要求。")
                 )
             }
         } catch {
-            guard isCompatibilityCurrent(for: host.id, generation: generation) else { return }
-            compatibilityByHostID[host.id] = .incompatible(
-                String(format: L("检查脚本兼容性失败：%@"), error.friendlyDiagnosis)
+            guard let accepted = acceptCompatibilityResult(
+                error.friendlyDiagnosis,
+                from: host.id,
+                generation: generation
+            ) else { return }
+            preparationByHostID[accepted.hostID] = nil
+            compatibilityByHostID[accepted.hostID] = .incompatible(
+                String(format: L("检查脚本兼容性失败：%@"), accepted.value)
             )
         }
     }
@@ -503,9 +512,14 @@ struct SnippetRunView: View {
         preparationByHostID[hostID] = nil
     }
 
-    private func isCompatibilityCurrent(for hostID: String, generation: UInt64) -> Bool {
-        SnippetCompatibilityAcceptance.shouldAccept(
+    private func acceptCompatibilityResult<Value: Sendable>(
+        _ value: Value,
+        from hostID: String,
+        generation: UInt64
+    ) -> SnippetCompatibilityAcceptance.Accepted<Value>? {
+        SnippetCompatibilityAcceptance.accept(
             hostID: hostID,
+            value: value,
             selectedHostIDs: selectedHostIDs,
             capturedGeneration: generation,
             currentGeneration: compatibilityGenerationByHostID[hostID]
