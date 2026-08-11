@@ -135,10 +135,14 @@ public protocol DockerEnvironmentProvider: Sendable {
 一次 Docker requirement 准备必须同时产生：
 
 - Docker `CapabilityState`；
-- `DockerRuntimeContext`；
-- 注入用户脚本前的 Docker bootstrap。
+- 可用状态下的 `DockerRuntimeContext`；
+- 可用状态下注入用户脚本前的 Docker bootstrap。
 
 同一次准备不得先通过通用 capability probe 探测 Docker，再由 planner 第二次探测以获取 runtime。容器、镜像、卷、网络、Compose、日志和片段继续复用同一个 `DockerRuntimeContext`。
+
+`DockerRuntimeContext` 和 bootstrap 只在 `DockerAvailability.isUsable` 且 runtime 非 nil 时存在。CLI 缺失、平台不支持、daemon 未运行和权限不足时，adapter 只返回对应的不可用状态，prelude 为 nil。若 availability 声称可用但 runtime 缺失，则按 `.unavailable(.queryFailed)` 处理，不能生成一个不完整的执行计划。
+
+片段 adapter 在一次 probe 内使用 `DockerRuntimeContext` 生成 bootstrap，通用 `SnippetHostPreparation` 只保留生成后的受信任 prelude，不跨模块持有 Docker 类型。Docker 页面继续按现有方式持有完整 runtime；二者都来自各自一次 provider probe，不要求共享跨页面缓存。
 
 ## 6. 片段 Requirement Adapter 与 Planner
 
@@ -166,16 +170,18 @@ App 组合层注册具体 adapter。首期只有 Docker adapter；它包装 `Doc
 
 required capability 没有注册 adapter 时，planner 为该能力生成 `.unsupported`，不能忽略或乐观通过。adapter 按 capability raw value 的稳定顺序执行和拼接 prelude，避免 `Set` 遍历顺序影响最终命令。
 
+`scriptPrelude` 由受信任的内置 adapter 生成，不接受用户文本。prelude 必须是完整的 POSIX 脚本片段：只声明函数/变量，或在自身初始化失败时显式 `exit` 非零。planner 按稳定顺序用换行连接 prelude，随后连接用户脚本；不得全局注入 `set -e`，以免改变用户脚本语义。
+
 ### 6.2 准备结果
 
 planner 分为网络准备与纯命令生成两步：
 
 ```swift
-public struct SnippetHostPreparation: Sendable, Equatable {
+public struct SnippetHostPreparation: Sendable {
     public let platformProfile: RemotePlatformProfile
     public let capabilityReport: RemoteCapabilityReport
     public let scriptPreludes: [String]
-    public let providerID: String
+    public let executionProvider: any RemoteScriptExecutionProvider
 }
 
 public struct SnippetExecutionPlan: Sendable, Equatable {
@@ -183,6 +189,11 @@ public struct SnippetExecutionPlan: Sendable, Equatable {
     public let preparedCommand: String
     public let interpreter: ShellInterpreter
     public let capabilityReport: RemoteCapabilityReport
+}
+
+public enum SnippetHostPreparationResult: Sendable {
+    case ready(SnippetHostPreparation)
+    case blocked(RemoteCapabilityReport)
 }
 ```
 
@@ -194,19 +205,21 @@ public struct SnippetExecutionPlan: Sendable, Equatable {
 - `preparedCommand` 包含稳定排序的 prelude 和脚本 provider 包装，只用于远端执行；
 - 静默和终端模式必须消费同一个 `preparedCommand`。
 
-`providerID` 不持久化，仅用于从同一注入 registry 重新取得命令构造 provider。实现也可以将 provider 选择结果表达为内部枚举，只要 preparation 保持 `Sendable` 且不持有 session。
+`SnippetHostPreparation` 直接持有已选择的无状态、`Sendable` execution provider，不需要用字符串 ID 从可能变化的 registry 重新查找。它不要求 `Equatable`，也不持有 SSH session。blocked 结果始终携带 report，使 UI 只消费一种结构化错误模型。
 
 ### 6.3 数据流
 
 主机被选择后：
 
 1. `SnippetExecutionPlanner` 从 `ConnectionManager` 获取 session 和缓存的平台画像。
-2. 检查 snippet 的作者平台限制。
-3. 从 script registry 选择当前平台/解释器 provider；没有匹配项时停止。
-4. 执行解释器存在性探测。
-5. 仅对 `requiredCapabilities` 调用已注入的 requirement adapter。
-6. 生成包含脚本执行状态和 required capability 状态的 `RemoteCapabilityReport`。
-7. 将可用 preparation 交给 UI；失败则交付结构化原因。
+2. 初始化至少包含 `.scriptExecution` 的 capability states。
+3. 检查 snippet 的作者平台限制；不满足时将 `.scriptExecution` 记为 `.unsupported(.unsupportedPlatform)` 并返回 blocked report。
+4. 从 script registry 选择当前平台/解释器 provider；没有匹配项时写入同样的 unsupported 状态并返回 blocked report。
+5. 执行解释器存在性探测；不可用时写入 `.unavailable` 并返回 blocked report。
+6. 将 `.scriptExecution` 记为 `.supported`。
+7. 仅对 `requiredCapabilities` 中除 `.scriptExecution` 外的能力调用已注入的 requirement adapter。
+8. 合并所有状态；任一 required capability 为 unavailable/unsupported 时返回 blocked report。
+9. 只有全部要求可用时才返回带 execution provider 和 preludes 的 ready preparation。
 
 用户点击执行后：
 
@@ -233,6 +246,8 @@ public struct SnippetExecutionPlan: Sendable, Equatable {
 - 探测命令成功但结果异常：`.unavailable(.queryFailed)`。
 
 新增 enum case 不改变数据库结构；现有 snippet 不需要显式声明 `.scriptExecution`，因为每次片段准备都会隐式检查。
+
+`.scriptExecution` 是 planner 内建的 intrinsic capability，不通过 requirement adapter registry 查找。若未来或手工数据把它写入 `requiredCapabilities`，planner 使用同一个内建状态满足或阻止要求，不把它误判为“未注册 adapter”。
 
 ### 7.2 错误边界
 
@@ -271,6 +286,8 @@ public struct SnippetExecutionPlan: Sendable, Equatable {
 - 执行时若 daemon、权限或远端环境已变化，以实际命令结果为准；UI 提供重新检查入口。
 - 首期不引入 TTL、后台定时刷新或全局 capability cache，避免在没有测量依据时增加缓存一致性复杂度。
 
+preparation 持有无状态 execution provider 和已生成 prelude，不持有 `DockerRuntimeContext`、session 或可关闭资源。
+
 ## 9. 内置命令与持久化
 
 内置命令继续由 JSON 提供：
@@ -281,6 +298,8 @@ public struct SnippetExecutionPlan: Sendable, Equatable {
 - 新平台命令通过新增 JSON 条目提供。
 
 JSON 是数据目录，不包含平台行为，因此本轮不增加 `CommandCatalogProvider`。平台行为由 script provider 和 requirement adapter 承担。
+
+未来 PowerShell 支持应新增 `ShellInterpreter` raw value 和 Windows execution provider，并继续复用现有 `interpreter` 文本列；本轮不预先增加 PowerShell case。若未来需要表达 execution policy 而不只是解释器，再由该阶段单独设计迁移，不能在本轮猜测需求。
 
 数据库保持现状：
 
@@ -322,6 +341,7 @@ JSON 是数据目录，不包含平台行为，因此本轮不增加 `CommandCat
 - 多个 requirement 的 prelude 按稳定顺序拼接。
 - 变量变化使用同一 preparation 生成新命令，不重复 probe。
 - Docker 等内部 prelude 不进入 `auditScript`。
+- prelude 用换行稳定拼接，adapter 自己保证初始化失败时退出；planner 不注入 `set -e`。
 - 静默执行执行 prepared command，但 run history 和 `RunOutcome` 保留用户脚本。
 
 ### 10.5 App 层
@@ -331,6 +351,7 @@ JSON 是数据目录，不包含平台行为，因此本轮不增加 `CommandCat
 - generation 失效后迟到结果不写回。
 - 静默和终端模式使用同一 prepared command。
 - Windows/Unknown 的空平台集合片段显示不支持且按钮不可执行。
+- 每个 `DockerAvailability` 到 capability state/prelude 的 App 组合层映射均有测试；不可用状态不得产生 prelude。
 
 ### 10.6 真实 macOS SSH 集成
 
@@ -338,10 +359,10 @@ JSON 是数据目录，不包含平台行为，因此本轮不增加 `CommandCat
 
 - SFTP：打开子系统并列出配置的 home 路径或 `.`；
 - PTY：打开 80×24 shell，发送带唯一 sentinel 的只读 `uname`/`printf` 命令，读到 sentinel 后关闭；
-- 日志流：为 Unified Logging 或 system.log 建立短时 stream，确认通道可建立并可安全取消；
+- 日志流：使用专用 SSH session 为 Unified Logging 或 system.log 建立短时 stream，确认通道可建立；测试结束或超时时关闭整条专用 session，以此作为远端命令通道的确定性清理；
 - 继续覆盖平台、两轮指标、进程、日志 discovery 和 Docker probe。
 
-测试必须设置明确的超时并在成功、失败、取消路径关闭 SFTP/PTY/stream 资源。缺少真实主机环境变量时 suite 保持明确 skipped，不能作为真实兼容通过。
+测试必须设置明确的超时并在成功、失败、取消路径关闭 SFTP、PTY 和专用 SSH session。当前 `execStream` 没有显式 stream handle，本轮不扩展传输 API；仅取消本地 consumer 不算完成清理，必须关闭该测试独占的 session。缺少真实主机环境变量时 suite 保持明确 skipped，不能作为真实兼容通过。
 
 项目模拟器约束保持不变：不创建、切换、启动、重启或关闭其他模拟器。
 
@@ -353,6 +374,7 @@ JSON 是数据目录，不包含平台行为，因此本轮不增加 `CommandCat
 - `SnippetRunView` 不包含 Docker 探测、Docker runtime 或脚本 bootstrap 逻辑。
 - `RemoteCapabilityReport` 在生产片段准备链路中实际使用。
 - Docker requirement 一次准备最多调用一次 Docker environment probe。
+- Docker 不可用时不产生 runtime/prelude；可用但 runtime 缺失时按 queryFailed 阻止。
 - run history 不记录内部 bootstrap，只记录变量渲染后的用户脚本。
 - 静默与终端执行使用同一 provider 生成的 prepared command。
 - 真实 macOS 环境变量可用时，平台、指标、进程、日志、Docker、SFTP 和 PTY 验收全部通过。
