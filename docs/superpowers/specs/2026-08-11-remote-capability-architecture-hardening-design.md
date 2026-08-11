@@ -72,7 +72,12 @@
 在 `ConnSSH` 定义：
 
 ```swift
+public enum RemoteScriptFamily: String, Sendable, Hashable {
+    case posix
+}
+
 public protocol RemoteScriptExecutionProvider: Sendable {
+    var family: RemoteScriptFamily { get }
     var supportedPlatforms: Set<RemotePlatformKind> { get }
     var supportedInterpreters: Set<ShellInterpreter> { get }
 
@@ -89,6 +94,7 @@ provider 只描述“如何检查和构造命令”，不持有 session、不负
 
 `POSIXScriptExecutionProvider`：
 
+- family 为 `.posix`；
 - 支持 `.linux`、`.macOS`；
 - 支持 `.sh`、`.bash`、`.zsh`；
 - 使用 `command -v <固定枚举值>` 或等价只读命令检查解释器；
@@ -153,6 +159,7 @@ public protocol DockerEnvironmentProvider: Sendable {
 ```swift
 public protocol SnippetRequirementAdapter: Sendable {
     var capability: RemoteCapability { get }
+    var scriptFamily: RemoteScriptFamily { get }
 
     func prepare(
         on session: any SSHSession,
@@ -166,11 +173,11 @@ public struct SnippetRequirementResolution: Sendable, Equatable {
 }
 ```
 
-App 组合层注册具体 adapter。首期只有 Docker adapter；它包装 `DockerEnvironmentProvider`，把完整探测结果压缩成统一状态和可选 prelude。未来新增 requirement 时注册新 adapter，不修改 `SnippetRunView`。
+App 组合层按 `(capability, scriptFamily)` 注册具体 adapter。首期只有 POSIX Docker adapter；它包装 `DockerEnvironmentProvider`，把完整探测结果压缩成统一状态和可选 POSIX prelude。未来新增 requirement 或脚本家族时注册匹配的 adapter，不修改 `SnippetRunView`。
 
-required capability 没有注册 adapter 时，planner 为该能力生成 `.unsupported`，不能忽略或乐观通过。adapter 按 capability raw value 的稳定顺序执行和拼接 prelude，避免 `Set` 遍历顺序影响最终命令。
+required capability 没有注册与当前 execution provider family 匹配的 adapter 时，planner 为该能力生成 `.unsupported`，不能忽略、乐观通过或复用其他脚本家族的 prelude。adapter 按 capability raw value 的稳定顺序执行和拼接 prelude，避免 `Set` 遍历顺序影响最终命令。
 
-`scriptPrelude` 由受信任的内置 adapter 生成，不接受用户文本。prelude 必须是完整的 POSIX 脚本片段：只声明函数/变量，或在自身初始化失败时显式 `exit` 非零。planner 按稳定顺序用换行连接 prelude，随后连接用户脚本；不得全局注入 `set -e`，以免改变用户脚本语义。
+`scriptPrelude` 由受信任的内置 adapter 生成，不接受用户文本。prelude 必须是当前 `RemoteScriptFamily` 的完整脚本片段：只声明函数/变量，或在自身初始化失败时显式终止并返回非零。当前 `.posix` planner 按稳定顺序用换行连接 prelude，随后连接用户脚本；不得全局注入 `set -e`，以免改变用户脚本语义。
 
 ### 6.2 准备结果
 
@@ -217,9 +224,11 @@ public enum SnippetHostPreparationResult: Sendable {
 4. 从 script registry 选择当前平台/解释器 provider；没有匹配项时写入同样的 unsupported 状态并返回 blocked report。
 5. 执行解释器存在性探测；不可用时写入 `.unavailable` 并返回 blocked report。
 6. 将 `.scriptExecution` 记为 `.supported`。
-7. 仅对 `requiredCapabilities` 中除 `.scriptExecution` 外的能力调用已注入的 requirement adapter。
+7. 仅对 `requiredCapabilities` 中除 `.scriptExecution` 外的能力，调用与 execution provider family 匹配的 requirement adapter。
 8. 合并所有状态；任一 required capability 为 unavailable/unsupported 时返回 blocked report。
 9. 只有全部要求可用时才返回带 execution provider 和 preludes 的 ready preparation。
+
+如果作者平台限制、provider 或解释器检查提前阻断，尚未探测的 required capability 不写入 report；字典中缺少该 key 明确表示“本次未观察”，不能伪造为 unsupported/unavailable。UI 优先展示已经确定的 `.scriptExecution` 阻断原因。进入 requirement 阶段后，planner 应完成全部已声明 requirement 的探测并汇总状态，以便一次展示完整结果。
 
 用户点击执行后：
 
@@ -299,7 +308,7 @@ preparation 持有无状态 execution provider 和已生成 prelude，不持有 
 
 JSON 是数据目录，不包含平台行为，因此本轮不增加 `CommandCatalogProvider`。平台行为由 script provider 和 requirement adapter 承担。
 
-未来 PowerShell 支持应新增 `ShellInterpreter` raw value 和 Windows execution provider，并继续复用现有 `interpreter` 文本列；本轮不预先增加 PowerShell case。若未来需要表达 execution policy 而不只是解释器，再由该阶段单独设计迁移，不能在本轮猜测需求。
+未来 PowerShell 支持应新增 `ShellInterpreter` raw value、`RemoteScriptFamily.powerShell`、Windows execution provider，以及每个需要 prelude 的 `(capability, .powerShell)` requirement adapter，并继续复用现有 `interpreter` 文本列。没有 PowerShell adapter 的 requirement 必须保持 unsupported，绝不能复用 POSIX prelude。本轮不预先增加 PowerShell interpreter/family case。若未来需要表达 execution policy 而不只是解释器，再由该阶段单独设计迁移，不能在本轮猜测需求。
 
 数据库保持现状：
 
@@ -315,7 +324,7 @@ JSON 是数据目录，不包含平台行为，因此本轮不增加 `CommandCat
 
 - `RemoteCapability.scriptExecution` raw value 和 Codable 往返。
 - 空 `platforms` 仍表示无作者限制。
-- report 同时保存 script execution 与 required capability 状态。
+- report 保存所有已实际观察的 script execution/required capability 状态；提前阻断时未探测项保持缺失。
 
 ### 10.2 ConnSSH
 
@@ -337,6 +346,8 @@ JSON 是数据目录，不包含平台行为，因此本轮不增加 `CommandCat
 
 - 无 metadata 的片段仍检查 script provider。
 - provider 不存在、解释器缺失和未注册 requirement 分别得到明确状态。
+- blocked 结果不携带 execution provider，并保留已观察的 capability report；提前阻断的 requirement 状态保持缺失。
+- `requiredCapabilities` 中显式出现 `.scriptExecution` 时使用 intrinsic 状态，不查 adapter。
 - `.supported`/`.degraded` 可执行，`.unavailable`/`.unsupported` 阻止。
 - 多个 requirement 的 prelude 按稳定顺序拼接。
 - 变量变化使用同一 preparation 生成新命令，不重复 probe。
@@ -352,6 +363,7 @@ JSON 是数据目录，不包含平台行为，因此本轮不增加 `CommandCat
 - 静默和终端模式使用同一 prepared command。
 - Windows/Unknown 的空平台集合片段显示不支持且按钮不可执行。
 - 每个 `DockerAvailability` 到 capability state/prelude 的 App 组合层映射均有测试；不可用状态不得产生 prelude。
+- Docker adapter 测试断言每次 preparation 只调用一次 environment provider probe。
 
 ### 10.6 真实 macOS SSH 集成
 
