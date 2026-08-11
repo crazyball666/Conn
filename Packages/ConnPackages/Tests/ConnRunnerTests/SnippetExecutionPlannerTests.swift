@@ -526,6 +526,36 @@ struct SnippetExecutionPlannerTests {
         #expect(invocations.values == ["echo never-runs"])
     }
 
+    @Test("planner 用同一 atomic context 的 session 探测 profile 和解释器")
+    func plannerUsesOneSessionForProfileAndInterpreterProbes() async throws {
+        let detectedSessions = StringRecorder()
+        let probedSessions = StringRecorder()
+        let transport = IdentityTrackingTransport(probeRecorder: probedSessions)
+        let manager = ConnectionManager(
+            transport: transport,
+            platformDetector: IdentityRecordingPlatformDetector(
+                recorder: detectedSessions
+            )
+        )
+        let host = host()
+        _ = try await manager.session(for: host)
+        let planner = SnippetExecutionPlanner(
+            connectionManager: manager,
+            executionProviderRegistry: .init(providers: [
+                FixtureScriptExecutionProvider(identifier: "linux"),
+            ]),
+            requirementAdapterRegistry: .init(adapters: [])
+        )
+
+        let result = try await planner.prepare(snippet: snippet(), on: host)
+        let preparation = try #require(readyPreparation(from: result))
+
+        #expect(detectedSessions.values == ["session-1"])
+        #expect(probedSessions.values == ["session-1"])
+        #expect(preparation.platformProfile.release == "session-1")
+        #expect(transport.connectCount == 1)
+    }
+
     @Test("多主机 preparation 独立保留 profile、report、provider 和 preludes")
     func multipleHostsRetainIndependentPreparationState() async throws {
         let detector = SequentialPlatformDetector(profiles: [
@@ -784,6 +814,118 @@ private struct FixtureRequirementAdapter: SnippetRequirementAdapter {
 private enum FixtureError: Error, Equatable {
     case invocationFailed
     case missingProfile
+}
+
+private struct IdentityRecordingPlatformDetector: RemotePlatformDetecting {
+    let recorder: StringRecorder
+
+    func detect(on session: any SSHSession) async throws -> RemotePlatformProfile {
+        let identifier = (session as? IdentityTrackingSession)?.identifier ?? "unexpected"
+        recorder.append(identifier)
+        return RemotePlatformProfile(kind: .linux, release: identifier)
+    }
+}
+
+private final class IdentityTrackingTransport: SSHTransport, @unchecked Sendable {
+    private let lock = NSLock()
+    private var connections = 0
+    private let probeRecorder: StringRecorder
+
+    var connectCount: Int {
+        lock.withLock { connections }
+    }
+
+    init(probeRecorder: StringRecorder) {
+        self.probeRecorder = probeRecorder
+    }
+
+    func connect(
+        _ endpoint: SSHEndpoint,
+        username: String,
+        auth: SSHAuth,
+        hostKeyPolicy: HostKeyPolicy
+    ) async throws -> any SSHSession {
+        let connectionNumber = lock.withLock {
+            connections += 1
+            return connections
+        }
+        let identifier = "session-\(connectionNumber)"
+        let base = try await MockSSHTransport(behavior: .init(dynamicResponder: { _, _ in
+            .init(stdout: "/bin/sh")
+        })).connect(
+            endpoint,
+            username: username,
+            auth: auth,
+            hostKeyPolicy: hostKeyPolicy
+        )
+        return IdentityTrackingSession(
+            identifier: identifier,
+            base: base,
+            livenessResponses: connectionNumber == 1 ? [true, false] : [true],
+            probeRecorder: probeRecorder
+        )
+    }
+}
+
+private final class IdentityTrackingSession: SSHSession, @unchecked Sendable {
+    let identifier: String
+    private let base: any SSHSession
+    private let lock = NSLock()
+    private var livenessResponses: [Bool]
+    private let probeRecorder: StringRecorder
+
+    init(
+        identifier: String,
+        base: any SSHSession,
+        livenessResponses: [Bool],
+        probeRecorder: StringRecorder
+    ) {
+        self.identifier = identifier
+        self.base = base
+        self.livenessResponses = livenessResponses
+        self.probeRecorder = probeRecorder
+    }
+
+    var state: AsyncStream<SSHSessionState> { base.state }
+
+    var isConnected: Bool {
+        lock.withLock {
+            guard !livenessResponses.isEmpty else { return base.isConnected }
+            return livenessResponses.removeFirst()
+        }
+    }
+
+    func exec(_ command: String, timeout: Duration) async throws -> ExecResult {
+        probeRecorder.append(identifier)
+        return try await base.exec(command, timeout: timeout)
+    }
+
+    func execStream(_ command: String) async throws -> AsyncThrowingStream<Data, Error> {
+        try await base.execStream(command)
+    }
+
+    func execCommandStream(
+        _ command: String,
+        timeout: Duration
+    ) async throws -> SSHCommandStream {
+        try await base.execCommandStream(command, timeout: timeout)
+    }
+
+    func openShell(term: TermSize) async throws -> any ShellChannel {
+        try await base.openShell(term: term)
+    }
+
+    func sftp() async throws -> any RemoteFileSystem {
+        try await base.sftp()
+    }
+
+    func openTunnel(to target: SSHEndpoint) async throws -> any SSHTunnel {
+        try await base.openTunnel(to: target)
+    }
+
+    func close() async {
+        await base.close()
+    }
 }
 
 private struct ExecFailingTransport: SSHTransport {

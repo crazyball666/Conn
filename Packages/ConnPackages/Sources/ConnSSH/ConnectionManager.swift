@@ -8,6 +8,23 @@ import Foundation
 public typealias AuthResolver = @Sendable (ConnKit.Host) async throws -> SSHAuth
 public typealias JumpChainResolver = @Sendable (ConnKit.Host) async throws -> [SSHJumpHop]
 
+/// 同一次连接池校验得到的 SSH 会话与平台画像。
+///
+/// 两个字段始终属于同一条、返回时仍被连接池认领的会话；之后若会话失效，
+/// 具体操作继续显式传播传输错误，不在此值上做隐式回退。
+public struct RemotePlatformContext: Sendable {
+    public let session: any SSHSession
+    public let profile: RemotePlatformProfile
+
+    init(
+        session: any SSHSession,
+        profile: RemotePlatformProfile
+    ) {
+        self.session = session
+        self.profile = profile
+    }
+}
+
 /// 全局唯一的连接池管理器（技术方案 §4.1）。
 ///
 /// 每主机复用 1 条 SSH 连接；并发请求同一主机只握手一次。经 Environment 注入，
@@ -292,14 +309,17 @@ public actor ConnectionManager {
         }.count
     }
 
-    /// 返回并缓存当前池化连接对应的平台画像。动态能力状态由各功能自行探测。
-    public func platformProfile(for host: ConnKit.Host) async throws -> RemotePlatformProfile {
+    /// 原子返回当前池化会话及其平台画像。动态能力状态由各功能自行探测。
+    public func platformContext(for host: ConnKit.Host) async throws -> RemotePlatformContext {
         let key = poolKey(for: host)
         // 即使已有画像也先经过 session(for:) 的存活检查。否则缓存会绕过死连接
         // 驱逐，重连后的目标甚至可能已换成另一种平台却继续沿用旧画像。
         let session = try await session(for: host)
         if let cached = platformProfiles[key] {
-            return cached
+            guard case let .connected(pooled)? = entries[key], pooled === session else {
+                throw SSHError.channelClosed
+            }
+            return RemotePlatformContext(session: session, profile: cached)
         }
         let profile = try await platformDetector.detect(on: session)
 
@@ -308,7 +328,12 @@ public actor ConnectionManager {
             throw SSHError.channelClosed
         }
         platformProfiles[key] = profile
-        return profile
+        return RemotePlatformContext(session: session, profile: profile)
+    }
+
+    /// 返回并缓存当前池化连接对应的平台画像。保留原 API，并复用原子上下文校验。
+    public func platformProfile(for host: ConnKit.Host) async throws -> RemotePlatformProfile {
+        try await platformContext(for: host).profile
     }
 
     private func poolKey(for host: ConnKit.Host) -> PoolKey {

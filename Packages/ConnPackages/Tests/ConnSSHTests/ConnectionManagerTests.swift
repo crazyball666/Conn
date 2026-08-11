@@ -251,6 +251,41 @@ struct ConnectionManagerTests {
         #expect(await manager.activeCount == 1)
     }
 
+    @Test("平台探测期间重连不会返回混合 session/profile context")
+    func platformContextRejectsSessionReplacedDuringDetection() async throws {
+        let detector = BlockingIdentityPlatformDetector()
+        let manager = ConnectionManager(
+            transport: MockSSHTransport(),
+            platformDetector: detector
+        )
+        let host = host()
+        let firstSession = try await manager.session(for: host)
+        let pending = Task { try await manager.platformContext(for: host) }
+
+        await detector.waitUntilFirstDetectionStarts()
+        await manager.invalidate(host: host)
+        let replacementSession = try await manager.session(for: host)
+        await detector.releaseFirstDetection()
+
+        do {
+            _ = try await pending.value
+            Issue.record("Expected invalidated platform context to fail")
+        } catch {
+            #expect(error as? SSHError == .channelClosed)
+        }
+
+        let replacementContext = try await manager.platformContext(for: host)
+        let detectedSessionIDs = await detector.detectedSessionIDs
+
+        #expect(firstSession !== replacementSession)
+        #expect(replacementContext.session === replacementSession)
+        #expect(replacementContext.profile.release == "profile-2")
+        #expect(detectedSessionIDs == [
+            ObjectIdentifier(firstSession),
+            ObjectIdentifier(replacementSession),
+        ])
+    }
+
     @Test("握手期间 invalidateAll → 握手成功也不回插，会话被关掉，调用方拿到错误")
     func handshakeFinishedAfterInvalidateAllIsNotReinserted() async throws {
         // 关键：这个 transport 的握手**不响应取消**，模拟 Citadel 的
@@ -334,6 +369,45 @@ private actor CountingPlatformDetector: RemotePlatformDetecting {
         _ = session
         count += 1
         return profile
+    }
+}
+
+private actor BlockingIdentityPlatformDetector: RemotePlatformDetecting {
+    private(set) var detectedSessionIDs: [ObjectIdentifier] = []
+    private var firstDetectionStarted = false
+    private var startWaiters: [CheckedContinuation<Void, Never>] = []
+    private var firstDetectionRelease: CheckedContinuation<Void, Never>?
+
+    func detect(on session: any SSHSession) async throws -> RemotePlatformProfile {
+        detectedSessionIDs.append(ObjectIdentifier(session))
+        let detectionNumber = detectedSessionIDs.count
+
+        if detectionNumber == 1 {
+            firstDetectionStarted = true
+            let waiters = startWaiters
+            startWaiters.removeAll()
+            for waiter in waiters { waiter.resume() }
+            await withCheckedContinuation { continuation in
+                firstDetectionRelease = continuation
+            }
+        }
+
+        return RemotePlatformProfile(
+            kind: .linux,
+            release: "profile-\(detectionNumber)"
+        )
+    }
+
+    func waitUntilFirstDetectionStarts() async {
+        guard !firstDetectionStarted else { return }
+        await withCheckedContinuation { continuation in
+            startWaiters.append(continuation)
+        }
+    }
+
+    func releaseFirstDetection() {
+        firstDetectionRelease?.resume()
+        firstDetectionRelease = nil
     }
 }
 

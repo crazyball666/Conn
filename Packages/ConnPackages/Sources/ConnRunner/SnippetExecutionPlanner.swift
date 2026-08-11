@@ -131,8 +131,9 @@ public struct SnippetExecutionPlanner: Sendable {
         snippet: Snippet,
         on host: ConnKit.Host
     ) async throws -> SnippetHostPreparationResult {
-        let session = try await connectionManager.session(for: host)
-        let profile = try await connectionManager.platformProfile(for: host)
+        let platformContext = try await connectionManager.platformContext(for: host)
+        let session = platformContext.session
+        let profile = platformContext.profile
 
         guard snippet.platforms.isEmpty || snippet.platforms.contains(profile.kind) else {
             return blockedScriptExecution(reason: .unsupportedPlatform)
