@@ -22,14 +22,19 @@ public enum RemoteScriptExecutionError: Error, Sendable, Equatable {
 
 /// Linux 和 macOS 上的 POSIX Shell 脚本执行器。
 public struct POSIXScriptExecutionProvider: RemoteScriptExecutionProvider {
+    public static let supportedInterpreterWhitelist: Set<ShellInterpreter> = [.sh, .bash, .zsh]
+
     public let family = RemoteScriptFamily.posix
     public let supportedPlatforms: Set<RemotePlatformKind> = [.linux, .macOS]
     public let supportedInterpreters: Set<ShellInterpreter>
 
     public init(
-        supportedInterpreters: Set<ShellInterpreter> = Set(ShellInterpreter.allCases)
+        supportedInterpreters: Set<ShellInterpreter> = POSIXScriptExecutionProvider
+            .supportedInterpreterWhitelist
     ) {
-        self.supportedInterpreters = supportedInterpreters
+        self.supportedInterpreters = supportedInterpreters.intersection(
+            POSIXScriptExecutionProvider.supportedInterpreterWhitelist
+        )
     }
 
     public func interpreterProbeCommand(for interpreter: ShellInterpreter) -> String {

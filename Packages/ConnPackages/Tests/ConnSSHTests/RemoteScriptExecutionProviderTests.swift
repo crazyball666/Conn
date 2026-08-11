@@ -1,7 +1,7 @@
 import ConnKit
+import ConnSSH
 import Foundation
 import Testing
-@testable import ConnSSH
 
 @Suite("Remote script execution providers")
 struct RemoteScriptExecutionProviderTests {
@@ -10,7 +10,7 @@ struct RemoteScriptExecutionProviderTests {
         let registry = RemoteScriptExecutionProviderRegistry.default
 
         for platform in [RemotePlatformKind.linux, .macOS] {
-            for interpreter in ShellInterpreter.allCases {
+            for interpreter in POSIXScriptExecutionProvider.supportedInterpreterWhitelist {
                 let provider = try #require(registry.provider(
                     for: platform,
                     interpreter: interpreter
@@ -32,6 +32,19 @@ struct RemoteScriptExecutionProviderTests {
         }
     }
 
+    @Test("POSIX provider 使用固定解释器白名单并限制注入集合")
+    func posixInterpreterSupportIsPinned() {
+        let whitelist: Set<ShellInterpreter> = [.sh, .bash, .zsh]
+        let provider = POSIXScriptExecutionProvider(
+            supportedInterpreters: Set(ShellInterpreter.allCases)
+        )
+
+        #expect(POSIXScriptExecutionProvider.supportedInterpreterWhitelist == whitelist)
+        #expect(POSIXScriptExecutionProvider().supportedInterpreters == whitelist)
+        #expect(provider.supportedInterpreters == whitelist)
+        #expect(provider.supportedInterpreters.isSubset(of: whitelist))
+    }
+
     @Test("注入 registry 时同时按平台和解释器选择 provider")
     func injectedRegistryMatchesPlatformAndInterpreter() throws {
         let provider = TestScriptExecutionProvider(
@@ -49,7 +62,7 @@ struct RemoteScriptExecutionProviderTests {
     func posixInterpreterProbePreservesDiscoveredPath() throws {
         let provider = POSIXScriptExecutionProvider()
 
-        for interpreter in ShellInterpreter.allCases {
+        for interpreter in POSIXScriptExecutionProvider.supportedInterpreterWhitelist {
             let command = provider.interpreterProbeCommand(for: interpreter)
             #expect(command.contains("command -v \(interpreter.rawValue)"))
             #expect(!command.contains("/dev/null"))
