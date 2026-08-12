@@ -44,6 +44,7 @@ public struct AppDatabase: @unchecked Sendable {
         SchemaV1.register(in: &migrator)
         SchemaV2.register(in: &migrator)
         SchemaV3.register(in: &migrator)
+        SchemaV4.register(in: &migrator)
         return migrator
     }
 
