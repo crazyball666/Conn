@@ -66,15 +66,15 @@
 - Create: `Packages/ConnPackages/Sources/ConnMultiplexer/TmuxStateReducer.swift`
 - Create: `Packages/ConnPackages/Tests/ConnMultiplexerTests/TmuxStateReducerTests.swift`
 
-- [ ] **Step 1: Write failing generation tests** proving stale snapshots/events are discarded and a server-token change invalidates all old IDs.
-- [ ] **Step 2: Write failing mutation tests** for Session/Window rename, current Window, active Pane, and independent Pane metadata freshness updates.
-- [ ] **Step 3: Write failing revision tests** proving every applied change increments `revision`, while ordinary title/path/command metadata does not increment `impactRevision`; names, topology, groups, Panes, and clients do.
-- [ ] **Step 4: Write failing reconciliation tests** proving layout, add/close/link/group/client-dirty, unknown notification, missing targets, and invalid relationships do not partially corrupt state and instead return a scoped reconciliation request.
-- [ ] **Step 5: Run RED:** `swift test --package-path Packages/ConnPackages --filter TmuxStateReducerTests` must fail because reducer types do not exist.
-- [ ] **Step 6: Implement a pure `TmuxStateReducer`** that owns one generation/token and validated snapshot. Apply only events carrying sufficient typed data; return `.reconcile(scope:)` for incomplete topology information.
-- [ ] **Step 7: Keep Pane output out of snapshot state** and keep protocol parsing out of the reducer.
-- [ ] **Step 8: Run GREEN** and all `ConnMultiplexerTests`.
-- [ ] **Step 9: Commit:** `feat: reduce tmux snapshot events`.
+- [x] **Step 1: Write failing generation tests** proving stale snapshots/events are discarded and a server-token change invalidates all old IDs.
+- [x] **Step 2: Write failing mutation tests** for Session/Window rename, current Window, active Pane, and independent Pane metadata freshness updates.
+- [x] **Step 3: Write failing revision tests** proving every applied change increments `revision`, while ordinary title/path/command metadata does not increment `impactRevision`; names, topology, groups, Panes, and clients do.
+- [x] **Step 4: Write failing reconciliation tests** proving layout, add/close/link/group/client-dirty, unknown notification, missing targets, and invalid relationships do not partially corrupt state and instead return a scoped reconciliation request.
+- [x] **Step 5: Run RED:** `swift test --package-path Packages/ConnPackages --filter TmuxStateReducerTests` must fail because reducer types do not exist.
+- [x] **Step 6: Implement a pure `TmuxStateReducer`** that owns one generation/token and validated snapshot. Apply only events carrying sufficient typed data; return `.reconcile(scope:)` for incomplete topology information.
+- [x] **Step 7: Keep Pane output out of snapshot state** and keep protocol parsing out of the reducer.
+- [x] **Step 8: Run GREEN** and all `ConnMultiplexerTests`.
+- [x] **Step 9: Commit:** `feat: reduce tmux snapshot events`.
 
 ## Completion gate
 
