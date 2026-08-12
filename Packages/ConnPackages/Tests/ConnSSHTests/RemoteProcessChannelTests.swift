@@ -47,6 +47,115 @@ struct RemoteProcessChannelTests {
         }
         #expect(session.openShellCallCount == 0)
     }
+
+    @Test("bounded bridge 在容量内严格保序")
+    func boundedBridgePreservesOrder() async throws {
+        let bridge = RemoteProcessOutputBridge(maxBufferedChunks: 3)
+        let expected: [RemoteProcessOutput] = [
+            .stdout(Data("one".utf8)),
+            .stderr(Data("two".utf8)),
+            .stdout(Data("three".utf8)),
+        ]
+
+        for output in expected {
+            #expect(bridge.yield(output))
+        }
+        bridge.finish()
+
+        var received: [RemoteProcessOutput] = []
+        for try await output in bridge.stream {
+            received.append(output)
+        }
+        #expect(received == expected)
+    }
+
+    @Test("bounded bridge 首次溢出后报错且不再接受输出")
+    func boundedBridgeFailsOnOverflow() async {
+        let counter = TerminationCounter()
+        let bridge = RemoteProcessOutputBridge(maxBufferedChunks: 2) {
+            counter.increment()
+        }
+        let first = RemoteProcessOutput.stdout(Data("one".utf8))
+        let second = RemoteProcessOutput.stderr(Data("two".utf8))
+
+        #expect(bridge.yield(first))
+        #expect(bridge.yield(second))
+        #expect(!bridge.yield(.stdout(Data("overflow".utf8))))
+        #expect(!bridge.yield(.stdout(Data("late".utf8))))
+
+        var received: [RemoteProcessOutput] = []
+        do {
+            for try await output in bridge.stream {
+                received.append(output)
+            }
+            Issue.record("overflow stream 应抛出结构化错误")
+        } catch {
+            #expect(error as? RemoteProcessError == .outputBufferOverflow(maxBufferedChunks: 2))
+        }
+        #expect(received == [first, second])
+        #expect(counter.value == 1)
+    }
+
+    @Test("bounded bridge 的任意结束路径只回调一次")
+    func boundedBridgeTerminatesExactlyOnce() async {
+        let normalCounter = TerminationCounter()
+        let normal = RemoteProcessOutputBridge(maxBufferedChunks: 1) {
+            normalCounter.increment()
+        }
+        normal.finish()
+        normal.finish()
+        normal.finish(throwing: SSHError.channelClosed)
+        #expect(normalCounter.value == 1)
+
+        let failedCounter = TerminationCounter()
+        let failed = RemoteProcessOutputBridge(maxBufferedChunks: 1) {
+            failedCounter.increment()
+        }
+        failed.finish(throwing: SSHError.channelClosed)
+        failed.finish()
+        #expect(failedCounter.value == 1)
+
+        let cancelledCounter = TerminationCounter()
+        let cancelled = RemoteProcessOutputBridge(maxBufferedChunks: 1) {
+            cancelledCounter.increment()
+        }
+        let consumer = Task {
+            do {
+                for try await _ in cancelled.stream {}
+            } catch {}
+        }
+        await Task.yield()
+        consumer.cancel()
+        await consumer.value
+        #expect(await waitUntil { cancelledCounter.value == 1 })
+        cancelled.finish()
+        #expect(cancelledCounter.value == 1)
+    }
+}
+
+private final class TerminationCounter: @unchecked Sendable {
+    private let lock = NSLock()
+    private var count = 0
+
+    var value: Int {
+        lock.withLock { count }
+    }
+
+    func increment() {
+        lock.withLock { count += 1 }
+    }
+}
+
+private func waitUntil(
+    timeout: Duration = .seconds(1),
+    condition: @escaping @Sendable () -> Bool
+) async -> Bool {
+    let deadline = ContinuousClock.now.advanced(by: timeout)
+    while ContinuousClock.now < deadline {
+        if condition() { return true }
+        try? await Task.sleep(for: .milliseconds(5))
+    }
+    return condition()
 }
 
 private final class UnsupportedProcessSession: SSHSession, @unchecked Sendable {
