@@ -34,14 +34,14 @@
 - Create: `Packages/ConnPackages/Sources/ConnMultiplexer/TmuxSnapshotCodec.swift`
 - Create: `Packages/ConnPackages/Tests/ConnMultiplexerTests/TmuxSnapshotCodecTests.swift`
 
-- [ ] **Step 1: Write failing quoted-codec tests** for empty fields, Unicode, spaces, quotes, backslashes, tabs, embedded newlines, multiple records, arbitrary chunk-derived output lines, and strict field counts.
-- [ ] **Step 2: Write failing rejection tests** for unterminated quotes/escapes, invalid UTF-8, unexpected bytes between fields, field/record/output limits, and malformed records.
-- [ ] **Step 3: Run RED:** `swift test --package-path Packages/ConnPackages --filter TmuxSnapshotCodecTests` must fail because the codecs do not exist.
-- [ ] **Step 4: Implement `TmuxQuotedSnapshotCodec`** as a byte lexer for records rendered as `"#{q:field}"`; a backslash quotes exactly the following byte, including a physical LF, while only an unescaped LF outside a field ends a record.
-- [ ] **Step 5: Implement `TmuxLegacySnapshotCodec`** for one independently queried untrusted text field by joining command-output lines with LF. It must never split multiple untrusted fields on a delimiter.
-- [ ] **Step 6: Bound every pending/output/field/record collection** and decode UTF-8 only after framing is complete.
-- [ ] **Step 7: Run GREEN** and `git diff --check`.
-- [ ] **Step 8: Commit:** `feat: decode tmux snapshot fields`.
+- [x] **Step 1: Write failing quoted-codec tests** for empty fields, Unicode, spaces, quotes, backslashes, tabs, embedded newlines, multiple records, arbitrary chunk-derived output lines, and strict field counts.
+- [x] **Step 2: Write failing rejection tests** for unterminated quotes/escapes, invalid UTF-8, unexpected bytes between fields, field/record/output limits, and malformed records.
+- [x] **Step 3: Run RED:** `swift test --package-path Packages/ConnPackages --filter TmuxSnapshotCodecTests` must fail because the codecs do not exist.
+- [x] **Step 4: Implement `TmuxQuotedSnapshotCodec`** as a byte lexer for records rendered as `"#{q:field}"`; a backslash quotes exactly the following byte, including a physical LF, while only an unescaped LF outside a field ends a record.
+- [x] **Step 5: Implement `TmuxLegacySnapshotCodec`** for one independently queried untrusted text field by joining command-output lines with LF. It must never split multiple untrusted fields on a delimiter.
+- [x] **Step 6: Bound every pending/output/field/record collection** and decode UTF-8 only after framing is complete.
+- [x] **Step 7: Run GREEN** and `git diff --check`.
+- [x] **Step 8: Commit:** `feat: decode tmux snapshot fields`.
 
 ### Task 3: Add a validated normalized tmux snapshot graph
 
