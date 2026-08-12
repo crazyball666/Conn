@@ -232,10 +232,16 @@ public enum RemoteProcessOutput: Sendable, Equatable {
     case stderr(Data)
 }
 
+public struct RemoteProcessExit: Sendable, Equatable {
+    public let exitCode: Int32?
+    public let signal: String?
+}
+
 public protocol RemoteProcessChannel: AnyObject, Sendable {
     var output: AsyncThrowingStream<RemoteProcessOutput, Error> { get }
     func write(_ data: Data) async throws
     func resize(_ size: TermSize) async throws
+    func result() async throws -> RemoteProcessExit
     func close() async
 }
 ```
@@ -253,6 +259,7 @@ func openProcess(_ request: RemoteProcessRequest) async throws -> any RemoteProc
 - 是否申请 PTY 由 request 明确决定；tmux 数据面和 Control Mode 都可以申请 PTY，但不依赖提示符、alias 或交互式 rc；
 - `openProcess` 只有在 channel、PTY request（如有）、exec request 和 writer 都就绪后返回；
 - stdout/stderr 在无 PTY 时保持区分；PTY 合并输出时实现可以统一映射为 stdout；
+- `result()` 等待同一远程进程的 exit-status/exit-signal；server 未提供时字段为 nil，不为了结果累计无限 stdout/stderr；
 - 远端 EOF、通道错误、本地关闭只完成一次；
 - `close()` 只关闭当前 SSH channel，不关闭共享 `SSHSession`；
 - 创建任务不响应 cancellation 时，采用现有 generation/claim 思路阻止迟到 channel 泄漏；
@@ -395,7 +402,9 @@ public struct TmuxAttachmentDescriptor: Sendable, Equatable {
 - `refresh-client -t <target-client>` 调整 client flag/尺寸策略；
 - 区分 Conn 自己与外部 desktop client。
 
-握手帧不得进入 transcript，nonce 不落盘。超时、格式错误或 tmux 返回的 client 列表中找不到该 PTY 时，终端仍可 pass-through 使用，但原生 Window/Pane 切换和动态尺寸隔离标记 degraded，不能猜测 target-client。
+握手帧不得进入 transcript，nonce 不落盘。取得 PTY 后，backend 用同一 profile 的 `list-clients` 验证该 target-client 已 Attach 到 requested Session；验证成功才把 Tab 提交给 `TerminalSessionStore`。进程在 readiness deadline 前退出时使用 `RemoteProcessExit` 和有界 stderr 诊断返回启动失败，不能先创建一张 disconnected Tab。
+
+握手超时、格式错误但远程进程仍在运行时，可以在 readiness deadline 后进入 pass-through degraded 模式；此时隐藏原生 Window/Pane 切换和动态尺寸隔离，不能猜测 target-client。握手成功但 client 明确 Attach 到错误 Session 时必须关闭该 data channel 并报错，不能降级继续。
 
 ### 12.2 与现有 TerminalSession 的接线
 
@@ -450,6 +459,8 @@ Control Client 使用 `RemoteProcessChannel` 直接启动 `tmux -CC attach-sessi
 
 `tmux -CC` 会发送官方 DSC 起始标记。Control Client 在看到该标记前处于 `awaitingProtocolMarker`，只收集有上限的 preamble 诊断，不解析 `%` 消息；看到标记后才进入协议解析。超过时间/字节上限仍未出现标记时关闭该 Control Client 并降级，避免 `.zshenv`、系统 banner 或错误文本被误解析为 tmux 事件。
 
+关闭 Control Client 时遵循 `wait-exit` 握手：请求 Detach 后等待 `%exit`，收到后发送空行确认并等待进程/通道 EOF；任一步超过关闭 deadline 才强制关闭当前 channel。该流程只结束控制 client，不 Kill Session，也不关闭交互 data client 或共享 SSHSession。
+
 Control Client 必须可写，因为它需要执行管理命令；不能设置 `read-only`。只读 Attach 是后续独立产品能力，不与首期管理通道混用。
 
 ### 13.3 Session Catalog 与实时观察
@@ -486,6 +497,7 @@ idle
   → ready
 
 任何状态 → terminalFailure
+任何活动状态 → closing → closed
 任何状态 → closed
 ```
 
@@ -495,6 +507,7 @@ idle
 - `ready`：应用事件、接受操作；
 - `recovering`：协议缺口、channel 断开或 snapshot dirty，按有界退避重连；
 - `terminalFailure`：明确不可恢复的版本、权限、socket 或协议错误；
+- `closing`：完成 `wait-exit` Detach/acknowledgement，超时后只强制关闭当前 channel；
 - 每一代 channel 有 generation，旧代次迟到事件和命令结果全部丢弃。
 
 ### 14.2 字节流解析
@@ -809,6 +822,7 @@ updated_at             TEXT NOT NULL
 - reducer 的 add/rename/close/select/layout/zoom/client count 事件；
 - generation 丢弃迟到事件、快照和命令结果；
 - command timeout 后 dirty/reconciliation；
+- `wait-exit` 正常 Detach/acknowledgement 与关闭超时强制收尾；
 - provider registry 的 Linux/macOS 命中与 Windows/Unknown 拒绝；
 - profile 的 default/`-L`/`-S` 互斥与配置版本；
 - data/control plane 独立失败；
@@ -826,7 +840,9 @@ Parser 使用 fuzz/property tests 生成随机分块；相同完整协议输入�
 - 可写 stdin、持续读取 stdout/stderr；
 - PTY 可选申请和 resize；
 - tmux 数据面握手帧能取得并验证远端 PTY 名称，且不会进入终端 transcript；
-- 握手超时或 client 不匹配时只降级原生切换，不阻断 pass-through 终端；
+- 握手 marker 不可用但进程持续运行时只降级原生切换，不阻断 pass-through 终端；
+- 已验证 client Attach 到错误 Session 时关闭 channel 并判定启动失败；
+- 远程进程在 readiness 前非零退出不会产生 TerminalTab，exit-status/exit-signal 可被诊断；
 - writer 未就绪前不返回；
 - 正常 EOF、远端失败、本地 close 和并发 close 只结束一次；
 - 关闭一个 process channel 不影响同一 SSHSession 的其它 PTY/exec；
