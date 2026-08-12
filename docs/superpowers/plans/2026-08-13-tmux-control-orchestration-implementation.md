@@ -19,11 +19,11 @@
 - Create: `Packages/ConnPackages/Sources/ConnMultiplexer/TmuxControlCommandMachine.swift`
 - Create: `Packages/ConnPackages/Tests/ConnMultiplexerTests/TmuxControlCommandMachineTests.swift`
 
-- [ ] Write failing tests for protocol readiness, one in-flight command, begin/output/end/error correlation, notifications before/between commands, and bounded output.
-- [ ] Write failing tests proving invalid ordering and guard mismatch fail closed.
-- [ ] Implement a pure state machine with local command IDs and typed command outcomes.
-- [ ] Run focused tests and all `ConnMultiplexerTests`.
-- [ ] Commit: `feat: correlate tmux control commands`.
+- [x] Write failing tests for protocol readiness, one in-flight command, begin/output/end/error correlation, notifications before/between commands, and bounded output.
+- [x] Write failing tests proving invalid ordering and guard mismatch fail closed.
+- [x] Implement a pure state machine with local command IDs and typed command outcomes.
+- [x] Run focused tests and all `ConnMultiplexerTests`.
+- [x] Commit: `feat: correlate tmux control commands`.
 
 ### Task 2: Quarantine timeouts and require reconciliation
 
