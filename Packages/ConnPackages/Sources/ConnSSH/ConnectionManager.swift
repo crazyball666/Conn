@@ -331,11 +331,6 @@ public actor ConnectionManager {
         return RemotePlatformContext(session: session, profile: profile)
     }
 
-    /// 返回并缓存当前池化连接对应的平台画像。保留原 API，并复用原子上下文校验。
-    public func platformProfile(for host: ConnKit.Host) async throws -> RemotePlatformProfile {
-        try await platformContext(for: host).profile
-    }
-
     private func poolKey(for host: ConnKit.Host) -> PoolKey {
         PoolKey(host: host)
     }

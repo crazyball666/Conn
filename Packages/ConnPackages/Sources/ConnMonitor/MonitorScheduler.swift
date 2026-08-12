@@ -442,10 +442,9 @@ public final class MonitorScheduler {
         guard isCurrent(scanGeneration) else { return nil }
         phases[host.id] = (needsHandshake && metrics[host.id] != nil) ? .reconnecting : .collecting
         do {
-            let session = try await connectionManager.session(for: host)
-            let profile = try await connectionManager.platformProfile(for: host)
+            let context = try await connectionManager.platformContext(for: host)
             let result = try await collector.collect(
-                host: host, session: session, profile: profile,
+                host: host, session: context.session, profile: context.profile,
                 includeExtended: includeExtended
             )
             guard isCurrent(scanGeneration) else { return nil }

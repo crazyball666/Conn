@@ -115,10 +115,12 @@ final class DockerViewModel {
         hasLoaded = true
         loadState = .loading
         do {
-            let profile = try await connectionManager.platformProfile(for: host)
-            platformKind = profile.kind
-            let session = try await connectionManager.session(for: host)
-            let probe = try await DockerService.probe(on: session, profile: profile)
+            let platformContext = try await connectionManager.platformContext(for: host)
+            platformKind = platformContext.profile.kind
+            let probe = try await DockerService.probe(
+                on: platformContext.session,
+                profile: platformContext.profile
+            )
             availability = probe.availability
             guard probe.availability.isUsable else {
                 loadState = .unavailable(probe.availability)
@@ -128,7 +130,7 @@ final class DockerViewModel {
             propagateAvailability(probe)
             // 本次探测已经取过 session，直接传给容器加载，避免同一次 load() 里
             // 取两次会话（重构前的原行为：探测与列表共用一次 session）。
-            try await containers.load(using: session)
+            try await containers.load(using: platformContext.session)
             loadState = .ready
         } catch {
             loadState = .failed(error.friendlyDiagnosis)

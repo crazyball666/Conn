@@ -74,9 +74,11 @@ public final class ProcessMonitor {
         isRefreshing = !processes.isEmpty
 
         do {
-            let session = try await connectionManager.session(for: host)
-            let profile = try await connectionManager.platformProfile(for: host)
-            let result = try await collector.collect(session: session, profile: profile)
+            let context = try await connectionManager.platformContext(for: host)
+            let result = try await collector.collect(
+                session: context.session,
+                profile: context.profile
+            )
             if isCurrent(scanGeneration) {
                 processes = result.processes
                 capabilityState = result.capabilityState

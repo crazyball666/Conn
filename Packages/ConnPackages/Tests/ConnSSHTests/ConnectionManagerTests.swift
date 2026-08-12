@@ -210,8 +210,8 @@ struct ConnectionManagerTests {
         )
         let host = host()
 
-        let first = try await manager.platformProfile(for: host)
-        let second = try await manager.platformProfile(for: host)
+        let first = try await manager.platformContext(for: host).profile
+        let second = try await manager.platformContext(for: host).profile
 
         #expect(first == second)
         #expect(await detector.count == 1)
@@ -226,9 +226,9 @@ struct ConnectionManagerTests {
         )
         let host = host()
 
-        _ = try await manager.platformProfile(for: host)
+        _ = try await manager.platformContext(for: host)
         await manager.invalidate(host: host)
-        _ = try await manager.platformProfile(for: host)
+        _ = try await manager.platformContext(for: host)
 
         #expect(await detector.count == 2)
     }
@@ -243,9 +243,9 @@ struct ConnectionManagerTests {
         let host = host()
 
         let session = try await manager.session(for: host)
-        _ = try await manager.platformProfile(for: host)
+        _ = try await manager.platformContext(for: host)
         (session as? MockSSHSession)?.simulateDisconnect()
-        _ = try await manager.platformProfile(for: host)
+        _ = try await manager.platformContext(for: host)
 
         #expect(await detector.count == 2)
         #expect(await manager.activeCount == 1)

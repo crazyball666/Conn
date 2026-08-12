@@ -39,12 +39,11 @@ final class LogCenterViewModel {
         hasLoaded = true
         loadState = .loading
         do {
-            let session = try await connectionManager.session(for: host)
-            let profile = try await connectionManager.platformProfile(for: host)
-            guard let provider = LogProviderRegistry.provider(for: profile.kind) else {
-                throw LogProviderError.unsupportedPlatform(profile.kind)
+            let context = try await connectionManager.platformContext(for: host)
+            guard let provider = LogProviderRegistry.provider(for: context.profile.kind) else {
+                throw LogProviderError.unsupportedPlatform(context.profile.kind)
             }
-            let result = try await session.exec(provider.discoveryCommand)
+            let result = try await context.session.exec(provider.discoveryCommand)
             guard result.isSuccess else {
                 throw LogProviderError.discoveryFailed(CapabilityIssue(
                     code: .queryFailed,
