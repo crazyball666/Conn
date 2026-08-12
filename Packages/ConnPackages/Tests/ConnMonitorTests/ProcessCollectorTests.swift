@@ -18,7 +18,11 @@ struct ProcessCollectorTests {
         let recorder = ProcessCommandRecorder()
         let session = ProcessFixtureSession(recorder: recorder, output: Self.gnuOutput)
 
-        let processes = try await ProcessCollector().collect(session: session)
+        let result = try await ProcessCollector().collect(
+            session: session,
+            profile: RemotePlatformProfile(kind: .linux)
+        )
+        let processes = result.processes
 
         #expect(processes.count == 2)
         #expect(processes.first?.pid == 1)

@@ -29,7 +29,7 @@ final class DockerOperationsModel {
     }
 
     var isBusy: Bool { activeOperation != nil }
-    var isWriteAvailable: Bool { context.isUsable && !isBusy }
+    var isWriteAvailable: Bool { context.isUsable && context.runtime != nil && !isBusy }
     var activeOperationDescription: String? {
         guard let activeOperation else { return nil }
         return "\(activeOperation.auditOperation.historyLabel) · \(L("执行中…"))"
@@ -251,10 +251,11 @@ final class DockerOperationsModel {
 
         do {
             let session = try await context.session()
+            let runtime = try context.requireRuntime()
             let stream = try await DockerService.pullImage(
                 reference: reference,
                 on: session,
-                runtime: context.runtime
+                runtime: runtime
             )
             // 输出流故障并不必然代表远端没有终态；仍等待 result()，只要拿到最终
             // ExecResult 就按 known 处理。没有 result 才是 unknown。
@@ -363,7 +364,8 @@ final class DockerOperationsModel {
         }
         do {
             let session = try await context.session()
-            let result = try await remote(session, context.runtime)
+            let runtime = try context.requireRuntime()
+            let result = try await remote(session, runtime)
             let state = DockerOperationResultState.known(exitCode: result.exitCode)
             let outcome = DockerOperationOutcome(result: result)
             let auditSaved = audit.update(
@@ -397,7 +399,7 @@ final class DockerOperationsModel {
     }
 
     private func begin(_ operation: DockerOperation) -> DockerOperationOutcome? {
-        guard context.isUsable else {
+        guard context.isUsable, context.runtime != nil else {
             let message = L("Docker 当前不可用")
             context.report(message)
             return .rejected(message: message)

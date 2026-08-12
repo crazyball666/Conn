@@ -9,6 +9,8 @@ import Foundation
 import Testing
 @testable import Conn
 
+private let testDockerRuntime = DockerRuntimeContext(executable: "docker", sudo: false)
+
 /// App 层新增的四个 `@Observable` Docker 资源模型（`DockerContainersModel` /
 /// `DockerImagesModel` / `DockerVolumesModel` / `DockerNetworksModel`）此前一行
 /// 测试都没有——`95f5260` 那次纯重构就悄悄丢过三个行为，靠人肉复查才捞回来。
@@ -16,6 +18,23 @@ import Testing
 /// `SSHTransport`，把命令映射到确定性输出，不连真实网络。
 @MainActor
 struct DockerModelsTests {
+    @Test("探测完成前 Docker 上下文没有隐式 PATH runtime")
+    func runtimeMustComeFromProbe() {
+        let context = DockerContext(
+            session: { throw SSHError.channelClosed },
+            runtime: nil,
+            isUsable: false,
+            report: { _ in },
+            refresh: { _ in },
+            reprobe: {}
+        )
+
+        #expect(context.runtime == nil)
+        #expect(throws: DockerContextError.runtimeUnavailable) {
+            _ = try context.requireRuntime()
+        }
+    }
+
     /// 直接构造 `DockerContext`，不经 `DockerViewModel`——测容器 / 镜像 / 网络
     /// 三个子模型各自的行为时，不需要走完整的可用性探测流程。
     private func makeContext(
@@ -23,7 +42,9 @@ struct DockerModelsTests {
         isUsable: Bool
     ) -> DockerContext {
         DockerContext(
-            session: session, sudo: false, isUsable: isUsable,
+            session: session,
+            runtime: DockerRuntimeContext(executable: "docker", sudo: false),
+            isUsable: isUsable,
             report: { _ in }, refresh: { _ in }, reprobe: {}
         )
     }
@@ -37,7 +58,7 @@ struct DockerModelsTests {
     func networksUnusedNamesExcludesPredefined() async {
         let session = ScriptedSession()
         session.setResponse(
-            DockerCommand.networks(sudo: false),
+            DockerCommand.networks(runtime: testDockerRuntime),
             stdout: [
                 #"{"ID":"n1","Name":"bridge","Driver":"bridge","Scope":"local"}"#,
                 #"{"ID":"n2","Name":"app-net","Driver":"bridge","Scope":"local"}"#
@@ -45,7 +66,10 @@ struct DockerModelsTests {
         )
         // bridge 与 app-net 都「无容器接入」，但 bridge 是预置网络，不该出现在
         // 最终的 unusedNames 里。
-        session.setResponse(DockerCommand.danglingNetworks(sudo: false), stdout: "bridge\napp-net")
+        session.setResponse(
+            DockerCommand.danglingNetworks(runtime: testDockerRuntime),
+            stdout: "bridge\napp-net"
+        )
 
         let context = makeContext(session: { session }, isUsable: true)
         let operations = DockerOperationsModel(
@@ -68,7 +92,8 @@ struct DockerModelsTests {
         let flags = Flags()
         let context = DockerContext(
             session: { flags.sessionRequested = true; throw SSHError.channelClosed },
-            sudo: false, isUsable: false,
+            runtime: nil,
+            isUsable: false,
             report: { _ in }, refresh: { _ in }, reprobe: { flags.reprobed = true }
         )
         let operations = DockerOperationsModel(
@@ -110,18 +135,21 @@ struct DockerModelsTests {
     func resourceDeletionAvailabilityRules() async throws {
         let session = ScriptedSession()
         session.setResponse(
-            DockerCommand.volumes(sudo: false),
+            DockerCommand.volumes(runtime: testDockerRuntime),
             stdout: #"{"Name":"cache","Driver":"local","Scope":"local","Mountpoint":"/var/lib/docker/volumes/cache/_data"}"#
         )
-        session.setResponse(DockerCommand.danglingVolumes(sudo: false), stdout: "cache")
+        session.setResponse(DockerCommand.danglingVolumes(runtime: testDockerRuntime), stdout: "cache")
         session.setResponse(
-            DockerCommand.networks(sudo: false),
+            DockerCommand.networks(runtime: testDockerRuntime),
             stdout: [
                 #"{"ID":"bridge","Name":"bridge","Driver":"bridge","Scope":"local"}"#,
                 #"{"ID":"app","Name":"app-net","Driver":"bridge","Scope":"local"}"#
             ].joined(separator: "\n")
         )
-        session.setResponse(DockerCommand.danglingNetworks(sudo: false), stdout: "bridge\napp-net")
+        session.setResponse(
+            DockerCommand.danglingNetworks(runtime: testDockerRuntime),
+            stdout: "bridge\napp-net"
+        )
         let context = makeContext(session: { session }, isUsable: true)
         let operations = DockerOperationsModel(
             context: context, hostUUID: "h1", runHistory: StubRunHistoryRepository()
@@ -181,14 +209,17 @@ struct DockerModelsTests {
             containing: "conn_docker_path=$(command -v docker 2>/dev/null || true)",
             stdout: "docker\n"
         )
-        session.setResponse(DockerCommand.availabilityProbe(sudo: false), stdout: "__EXIT__0")
         session.setResponse(
-            DockerCommand.images(sudo: false),
+            DockerCommand.availabilityProbe(runtime: testDockerRuntime),
+            stdout: "__EXIT__0"
+        )
+        session.setResponse(
+            DockerCommand.images(runtime: testDockerRuntime),
             stdout: #"{"ID":"aaa111222333","Repository":"myapp","Tag":"1.0","Size":"10MB","CreatedSince":"1 day ago"}"#
         )
-        session.setResponse(DockerCommand.stats(sudo: false), stdout: "")
+        session.setResponse(DockerCommand.stats(runtime: testDockerRuntime), stdout: "")
         // `docker ps -a` 一直失败——模拟容器取数持续失败（瞬时网络问题、会话半死等）。
-        session.fail(DockerCommand.list(sudo: false))
+        session.fail(DockerCommand.list(runtime: testDockerRuntime))
 
         let viewModel = DockerViewModel(host: host, dependencies: makeDependencies(session: session))
 

@@ -3,6 +3,17 @@ import ConnOps
 import ConnSSH
 import Foundation
 
+enum DockerContextError: Error, LocalizedError, Equatable {
+    case runtimeUnavailable
+
+    var errorDescription: String? {
+        switch self {
+        case .runtimeUnavailable:
+            L("Docker 运行环境尚未探测完成")
+        }
+    }
+}
+
 /// 四个资源模型与写操作模型共享的依赖：取会话、Docker 运行时、上报与定向刷新。
 ///
 /// 用一个轻量上下文而不是让每个子模型各自持有 `ConnectionManager` + `Host` +
@@ -12,7 +23,7 @@ import Foundation
 struct DockerContext {
     let session: () async throws -> any SSHSession
     /// 已探测到的 Docker CLI 路径与提权方式。
-    var runtime: DockerRuntimeContext
+    var runtime: DockerRuntimeContext?
     /// 当前 Docker 是否可用。由可用性探测决定，探测晚于上下文构造，外壳要回填。
     var isUsable: Bool
     /// 上报一条给用户看的结果（外壳统一弹 alert）。
@@ -28,7 +39,7 @@ struct DockerContext {
 
     init(
         session: @escaping () async throws -> any SSHSession,
-        runtime: DockerRuntimeContext,
+        runtime: DockerRuntimeContext?,
         isUsable: Bool,
         report: @escaping (String) -> Void,
         refresh: @escaping (DockerRefreshScope) async -> Void,
@@ -44,24 +55,8 @@ struct DockerContext {
         self.preserveComposeProject = preserveComposeProject
     }
 
-    /// 兼容既有测试和调用；新代码应传入包含可执行路径的 `runtime`。
-    init(
-        session: @escaping () async throws -> any SSHSession,
-        sudo: Bool,
-        isUsable: Bool,
-        report: @escaping (String) -> Void,
-        refresh: @escaping (DockerRefreshScope) async -> Void,
-        reprobe: @escaping () async -> Void,
-        preserveComposeProject: @escaping (DockerComposeProject) -> Void = { _ in }
-    ) {
-        self.init(
-            session: session,
-            runtime: DockerRuntimeContext(executable: "docker", sudo: sudo),
-            isUsable: isUsable,
-            report: report,
-            refresh: refresh,
-            reprobe: reprobe,
-            preserveComposeProject: preserveComposeProject
-        )
+    func requireRuntime() throws -> DockerRuntimeContext {
+        guard let runtime else { throw DockerContextError.runtimeUnavailable }
+        return runtime
     }
 }

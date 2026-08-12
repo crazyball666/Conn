@@ -162,7 +162,10 @@ struct DockerVolumeFormView: View {
     }
 
     private var previewCommand: String {
-        DockerCommand.createVolume(state.draft, sudo: false)
+        DockerCommand.createVolume(
+            state.draft,
+            runtime: DockerRuntimeContext(executable: "docker", sudo: false)
+        )
     }
 
     private func submit() {
@@ -308,7 +311,10 @@ struct DockerNetworkFormView: View {
     }
 
     private var previewCommand: String {
-        DockerCommand.createNetwork(state.draft, sudo: false)
+        DockerCommand.createNetwork(
+            state.draft,
+            runtime: DockerRuntimeContext(executable: "docker", sudo: false)
+        )
     }
 
     private func submit() {

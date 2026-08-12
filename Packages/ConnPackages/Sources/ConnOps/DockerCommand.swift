@@ -6,22 +6,22 @@ import Foundation
 public enum DockerCommand {
     // MARK: - 第三期 Compose
 
-    public static func composeVersion(_ dialect: DockerComposeDialect, sudo: Bool) -> String {
+    static func composeVersion(_ dialect: DockerComposeDialect, sudo: Bool) -> String {
         prefix(sudo) + dialect.command + " version"
     }
 
-    public static func composeProjects(sudo: Bool) -> String {
+    static func composeProjects(sudo: Bool) -> String {
         prefix(sudo) + "docker compose ls --all --format json"
     }
 
-    public static func composeContainers(projectName: String? = nil, sudo: Bool) -> String {
+    static func composeContainers(projectName: String? = nil, sudo: Bool) -> String {
         let label = projectName.map { "label=com.docker.compose.project=\($0)" }
             ?? "label=com.docker.compose.project"
         return prefix(sudo)
             + "docker ps -a --filter \(ShellArgument.quote(label)) --format '{{json .}}'"
     }
 
-    public static func composeUp(
+    static func composeUp(
         _ project: DockerComposeProject,
         dialect: DockerComposeDialect,
         sudo: Bool
@@ -29,7 +29,7 @@ public enum DockerCommand {
         composeBase(project, dialect: dialect, sudo: sudo) + " up -d"
     }
 
-    public static func composeDown(
+    static func composeDown(
         _ project: DockerComposeProject,
         dialect: DockerComposeDialect,
         sudo: Bool
@@ -37,7 +37,7 @@ public enum DockerCommand {
         composeBase(project, dialect: dialect, sudo: sudo) + " down"
     }
 
-    public static func composeRestart(
+    static func composeRestart(
         _ project: DockerComposeProject,
         service: String? = nil,
         dialect: DockerComposeDialect,
@@ -47,7 +47,7 @@ public enum DockerCommand {
         return composeBase(project, dialect: dialect, sudo: sudo) + " restart" + target
     }
 
-    public static func composeLogs(
+    static func composeLogs(
         _ project: DockerComposeProject,
         service: String?,
         tail: Int = 300,
@@ -59,7 +59,7 @@ public enum DockerCommand {
             + " logs --no-color --tail \(tail) -f" + target
     }
 
-    public static func composeConfigServices(
+    static func composeConfigServices(
         _ project: DockerComposeProject,
         dialect: DockerComposeDialect,
         sudo: Bool
@@ -70,12 +70,12 @@ public enum DockerCommand {
     // MARK: - 第二期写操作
 
     /// 拉取一个镜像引用。
-    public static func pull(reference: String, sudo: Bool) -> String {
+    static func pull(reference: String, sudo: Bool) -> String {
         prefix(sudo) + "docker pull \(ShellArgument.quote(reference))"
     }
 
     /// 根据本地已校验的草稿构造 `docker run`。动态参数均是独立 shell argv。
-    public static func run(_ draft: DockerRunDraft, sudo: Bool) -> String {
+    static func run(_ draft: DockerRunDraft, sudo: Bool) -> String {
         var arguments: [String] = []
         if let name = draft.name {
             arguments += ["--name", ShellArgument.quote(name)]
@@ -117,7 +117,7 @@ public enum DockerCommand {
     }
 
     /// 创建 Docker 卷。
-    public static func createVolume(_ draft: DockerVolumeDraft, sudo: Bool) -> String {
+    static func createVolume(_ draft: DockerVolumeDraft, sudo: Bool) -> String {
         let arguments = ([draft.driver] + draft.otherOptionTokens + [draft.name])
             .map(ShellArgument.quote)
             .joined(separator: " ")
@@ -125,12 +125,12 @@ public enum DockerCommand {
     }
 
     /// 删除 Docker 卷。
-    public static func removeVolume(name: String, sudo: Bool) -> String {
+    static func removeVolume(name: String, sudo: Bool) -> String {
         prefix(sudo) + "docker volume rm \(ShellArgument.quote(name))"
     }
 
     /// 创建 Docker 网络。
-    public static func createNetwork(_ draft: DockerNetworkDraft, sudo: Bool) -> String {
+    static func createNetwork(_ draft: DockerNetworkDraft, sudo: Bool) -> String {
         var arguments: [String] = []
         if draft.isInternal {
             arguments.append("--internal")
@@ -144,12 +144,12 @@ public enum DockerCommand {
     }
 
     /// 删除 Docker 网络。
-    public static func removeNetwork(name: String, sudo: Bool) -> String {
+    static func removeNetwork(name: String, sudo: Bool) -> String {
         prefix(sudo) + "docker network rm \(ShellArgument.quote(name))"
     }
 
     /// 清理未使用 Docker 资源；`-f` 始终存在，避免远端交互确认。
-    public static func systemPrune(_ options: DockerSystemPruneOptions, sudo: Bool) -> String {
+    static func systemPrune(_ options: DockerSystemPruneOptions, sudo: Bool) -> String {
         var command = prefix(sudo) + "docker system prune -f"
         if options.allUnusedImages {
             command += " -a"
@@ -161,90 +161,90 @@ public enum DockerCommand {
     }
 
     /// 全部容器（含已停），JSON 每行一个。
-    public static func list(sudo: Bool) -> String {
+    static func list(sudo: Bool) -> String {
         prefix(sudo) + "docker ps -a --format '{{json .}}'"
     }
 
     /// 运行中容器的资源占用快照，JSON 每行一个。
-    public static func stats(sudo: Bool) -> String {
+    static func stats(sudo: Bool) -> String {
         prefix(sudo) + "docker stats --no-stream --format '{{json .}}'"
     }
 
     /// 对容器执行写操作。
-    public static func action(_ action: ContainerAction, id: String, sudo: Bool) -> String {
+    static func action(_ action: ContainerAction, id: String, sudo: Bool) -> String {
         prefix(sudo) + "docker \(action.verb) \(id)"
     }
 
     /// 容器详情（`docker inspect`，返回 JSON 数组）。
-    public static func inspect(id: String, sudo: Bool) -> String {
+    static func inspect(id: String, sudo: Bool) -> String {
         prefix(sudo) + "docker inspect \(id)"
     }
 
     /// 进入容器控制台：在 PTY 里 exec，优先 bash 回退 sh（Alpine 等仅 sh）。
-    public static func console(id: String, sudo: Bool) -> String {
+    static func console(id: String, sudo: Bool) -> String {
         prefix(sudo) + "docker exec -it \(id) sh -c 'command -v bash >/dev/null 2>&1 && exec bash || exec sh'"
     }
 
     /// 全部镜像，JSON 每行一个。
-    public static func images(sudo: Bool) -> String {
+    static func images(sudo: Bool) -> String {
         prefix(sudo) + "docker images --format '{{json .}}'"
     }
 
     /// 删除镜像（`reference` 为 `repo:tag` 或镜像 ID）。
-    public static func removeImage(reference: String, sudo: Bool) -> String {
+    static func removeImage(reference: String, sudo: Bool) -> String {
         prefix(sudo) + "docker rmi \(reference)"
     }
 
     /// 清理悬空镜像（无 tag）。
-    public static func pruneImages(sudo: Bool) -> String {
+    static func pruneImages(sudo: Bool) -> String {
         prefix(sudo) + "docker image prune -f"
     }
 
     /// 镜像详情（JSON 数组）。
-    public static func imageInspect(reference: String, sudo: Bool) -> String {
+    static func imageInspect(reference: String, sudo: Bool) -> String {
         prefix(sudo) + "docker image inspect \(reference)"
     }
 
     /// 镜像层历史，JSON 每行一个。`--no-trunc` 不加：指令过长在手机上没法读，
     /// docker 默认的截断正合适。
-    public static func imageHistory(reference: String, sudo: Bool) -> String {
+    static func imageHistory(reference: String, sudo: Bool) -> String {
         prefix(sudo) + "docker history \(reference) --format '{{json .}}'"
     }
 
     /// 磁盘占用明细。**这条在镜像/卷多的主机上要数秒**，调用方须单独异步取，
     /// 不可与列表串在一起。`--format json` 在较老 docker 上不支持，
     /// 那时输出是表格文本，解析器会返回 nil，上层显示「—」。
-    public static func diskUsage(sudo: Bool) -> String {
+    static func diskUsage(sudo: Bool) -> String {
         prefix(sudo) + "docker system df -v --format '{{json .}}'"
     }
 
     // MARK: - 卷
 
     /// 全部卷，JSON 每行一个。
-    public static func volumes(sudo: Bool) -> String {
+    static func volumes(sudo: Bool) -> String {
         prefix(sudo) + "docker volume ls --format '{{json .}}'"
     }
 
     /// 无任何容器引用的卷名。对卷而言 `dangling` 的定义就是「没被引用」，
     /// 与我们要表达的「未使用」一致，故直接用它而不在客户端比对容器列表。
-    public static func danglingVolumes(sudo: Bool) -> String {
+    static func danglingVolumes(sudo: Bool) -> String {
         prefix(sudo) + "docker volume ls --filter dangling=true -q"
     }
 
     /// 卷详情（JSON 数组）。
-    public static func volumeInspect(name: String, sudo: Bool) -> String {
+    static func volumeInspect(name: String, sudo: Bool) -> String {
         prefix(sudo) + "docker volume inspect \(name)"
     }
 
     /// 引用某个卷的容器（含已停止的——它引用着就删不掉该卷）。
-    public static func containersUsingVolume(name: String, sudo: Bool) -> String {
+    static func containersUsingVolume(name: String, sudo: Bool) -> String {
         prefix(sudo) + "docker ps -a --filter volume=\(name) --format '{{json .}}'"
     }
 
     // MARK: - 网络
 
     /// 全部网络，JSON 每行一个。
-    public static func networks(sudo: Bool) -> String {
+    static func networks(sudo: Bool) -> String {
         prefix(sudo) + "docker network ls --format '{{json .}}'"
     }
 
@@ -253,23 +253,23 @@ public enum DockerCommand {
     ///
     /// 用 `--format '{{.Name}}'` 而非 `-q`：`-q` 给的是网络 ID，而列表项与
     /// inspect 都以名字为键，取 ID 还要再映射一次。
-    public static func danglingNetworks(sudo: Bool) -> String {
+    static func danglingNetworks(sudo: Bool) -> String {
         prefix(sudo) + "docker network ls --filter dangling=true --format '{{.Name}}'"
     }
 
     /// 网络详情（JSON 数组）。
-    public static func networkInspect(name: String, sudo: Bool) -> String {
+    static func networkInspect(name: String, sudo: Bool) -> String {
         prefix(sudo) + "docker network inspect \(name)"
     }
 
     /// 跟随容器日志（execStream 用）。合并 stderr。
-    public static func logs(id: String, tail: Int = 200, sudo: Bool) -> String {
+    static func logs(id: String, tail: Int = 200, sudo: Bool) -> String {
         prefix(sudo) + "docker logs -f --tail \(tail) \(id) 2>&1"
     }
 
     /// 可用性探测：跑一次 `docker ps -q`，把退出码回显成 `__EXIT__<n>` 便于解析。
     /// stderr 合并进 stdout 以便读到「permission denied / not found」。
-    public static func availabilityProbe(sudo: Bool) -> String {
+    static func availabilityProbe(sudo: Bool) -> String {
         prefix(sudo) + "docker ps -q 2>&1; echo __EXIT__$?"
     }
 

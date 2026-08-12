@@ -1,4 +1,5 @@
 import ConnKit
+import ConnSSH
 import Foundation
 
 /// 一次 Docker 能力探测得到的稳定执行上下文。
@@ -7,6 +8,8 @@ import Foundation
 /// shell 的 `PATH`。这对 Docker Desktop for Mac 尤其重要：CLI 可能只存在于 App
 /// bundle 内，而不在 SSH 会话的默认 PATH 中。
 public struct DockerRuntimeContext: Sendable, Equatable, Hashable {
+    /// 当前命令渲染、转义、sudo 与 bootstrap 全部采用 POSIX shell 语义。
+    public let scriptFamily = RemoteScriptFamily.posix
     public let executable: String
     public let sudo: Bool
     /// 独立探测到的 Compose v1 CLI；不能假定它与 `docker` 位于同一目录。
@@ -17,9 +20,6 @@ public struct DockerRuntimeContext: Sendable, Equatable, Hashable {
         self.sudo = sudo
         self.composeV1Executable = composeV1Executable
     }
-
-    /// 保留旧接口行为的默认上下文。
-    public static let `default` = DockerRuntimeContext(executable: "docker", sudo: false)
 
     public func withSudo(_ sudo: Bool) -> DockerRuntimeContext {
         DockerRuntimeContext(

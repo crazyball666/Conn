@@ -5,6 +5,8 @@ import Foundation
 import Testing
 @testable import Conn
 
+private let operationsTestDockerRuntime = DockerRuntimeContext(executable: "docker", sudo: false)
+
 @MainActor
 struct DockerOperationsModelTests {
     @Test("旧的容器与镜像入口共用同一写操作闸门")
@@ -204,7 +206,13 @@ struct DockerOperationsModelTests {
         )
         #expect(session.executionCount == 0)
         #expect(await operations.confirmPendingAction(confirmation: "api"))
-        #expect(session.lastCommand == DockerCommand.action(.stop, id: "c1", sudo: false))
+        #expect(
+            session.lastCommand == DockerCommand.action(
+                .stop,
+                id: "c1",
+                runtime: operationsTestDockerRuntime
+            )
+        )
     }
 
     @Test("生产环境重启 Compose 服务必须输入项目和服务名")
@@ -243,7 +251,7 @@ struct DockerOperationsModelTests {
                     project,
                     service: "api",
                     dialect: .v2,
-                    sudo: false
+                    runtime: operationsTestDockerRuntime
                 )
         )
     }
@@ -271,7 +279,13 @@ struct DockerOperationsModelTests {
         let confirmed = await operations.confirmPendingAction(confirmation: "web")
 
         #expect(confirmed)
-        #expect(session.lastCommand == DockerCommand.composeDown(project, dialect: .v2, sudo: false))
+        #expect(
+            session.lastCommand == DockerCommand.composeDown(
+                project,
+                dialect: .v2,
+                runtime: operationsTestDockerRuntime
+            )
+        )
         #expect(refreshes == [.all])
         #expect(history.entries.first?.script == L("Docker Compose 停止并移除项目"))
         #expect(history.entries.first?.script.contains("/srv/web") == false)
@@ -496,7 +510,12 @@ struct DockerOperationsModelTests {
             context: makeContext(session: { session }), hostUUID: "host-1", runHistory: RecordingHistory()
         )
         await operations.runContainer(state.draft)
-        #expect(session.lastCommand == DockerCommand.run(state.draft, sudo: false))
+        #expect(
+            session.lastCommand == DockerCommand.run(
+                state.draft,
+                runtime: operationsTestDockerRuntime
+            )
+        )
     }
 
     @Test("创建容器表单忽略空的重复行，但保留有内容的行")
@@ -550,14 +569,20 @@ struct DockerOperationsModelTests {
         --opt=o=addr=10.0.0.2
         """
         #expect(volume.draft.otherOptionTokens == ["--opt=type=nfs", "--opt=o=addr=10.0.0.2"])
-        #expect(DockerCommand.createVolume(volume.draft, sudo: false).contains("--opt=type=nfs"))
+        #expect(
+            DockerCommand.createVolume(volume.draft, runtime: operationsTestDockerRuntime)
+                .contains("--opt=type=nfs")
+        )
 
         var network = DockerNetworkFormState()
         network.name = "isolated"
         network.isInternal = true
         network.otherOptionsText = "--opt=com.docker.network.bridge.name=br-isolated"
         #expect(network.draft.otherOptionTokens == ["--opt=com.docker.network.bridge.name=br-isolated"])
-        #expect(DockerCommand.createNetwork(network.draft, sudo: false).contains("--internal"))
+        #expect(
+            DockerCommand.createNetwork(network.draft, runtime: operationsTestDockerRuntime)
+                .contains("--internal")
+        )
     }
 
     @Test("非法创建草稿禁用继续，高风险配置会被显式标记")
@@ -654,7 +679,9 @@ struct DockerOperationsModelTests {
         report: @escaping (String) -> Void = { _ in }
     ) -> DockerContext {
         DockerContext(
-            session: session, sudo: false, isUsable: true,
+            session: session,
+            runtime: operationsTestDockerRuntime,
+            isUsable: true,
             report: report, refresh: refresh, reprobe: {}
         )
     }

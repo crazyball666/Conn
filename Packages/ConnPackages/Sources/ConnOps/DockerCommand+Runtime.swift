@@ -2,8 +2,8 @@ import Foundation
 
 /// 基于探测所得 `DockerRuntimeContext` 的命令入口。
 ///
-/// `sudo:` 版本继续保留给既有调用与兼容测试；新代码应使用本文件中的 `runtime:`
-/// 版本，确保 Docker Desktop App bundle 等非 PATH 路径不会在探测后丢失。
+/// 对外只暴露 `runtime:` 版本，确保 Docker Desktop App bundle 等非 PATH 路径
+/// 不会在探测后丢失；`sudo:` 构造器仅作为模块内部的 POSIX 命令模板。
 public extension DockerCommand {
     static func composeVersion(
         _ dialect: DockerComposeDialect,

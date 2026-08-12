@@ -5,6 +5,8 @@ import Foundation
 import Testing
 @testable import Conn
 
+private let composeTestDockerRuntime = DockerRuntimeContext(executable: "docker", sudo: false)
+
 @MainActor
 @Suite("Docker Compose App 模型")
 struct DockerComposeModelTests {
@@ -14,9 +16,9 @@ struct DockerComposeModelTests {
         [{"Name":"auto","Status":"running(1)","ConfigFiles":"/srv/auto/compose.yml"}]
         """
         let session = try await mockSession(responses: [
-            DockerCommand.composeVersion(.v2, sudo: false): .init(stdout: "Docker Compose version v2.0"),
-            DockerCommand.composeProjects(sudo: false): .init(stdout: automaticJSON),
-            DockerCommand.composeContainers(sudo: false): .init(stdout: "")
+            DockerCommand.composeVersion(.v2, runtime: composeTestDockerRuntime): .init(stdout: "Docker Compose version v2.0"),
+            DockerCommand.composeProjects(runtime: composeTestDockerRuntime): .init(stdout: automaticJSON),
+            DockerCommand.composeContainers(runtime: composeTestDockerRuntime): .init(stdout: "")
         ])
         let registry = DockerComposeRegistry()
         let manual = try #require(
@@ -47,11 +49,11 @@ struct DockerComposeModelTests {
             )
         ])
         let session = try await mockSession(responses: [
-            DockerCommand.composeVersion(.v2, sudo: false): .init(stdout: "v2"),
-            DockerCommand.composeProjects(sudo: false): .init(
+            DockerCommand.composeVersion(.v2, runtime: composeTestDockerRuntime): .init(stdout: "v2"),
+            DockerCommand.composeProjects(runtime: composeTestDockerRuntime): .init(
                 stderr: "daemon unavailable", exitCode: 1
             ),
-            DockerCommand.composeContainers(sudo: false): .init(
+            DockerCommand.composeContainers(runtime: composeTestDockerRuntime): .init(
                 stderr: "daemon unavailable", exitCode: 1
             )
         ])
@@ -75,11 +77,11 @@ struct DockerComposeModelTests {
         )
         let project = try #require(draft.project)
         let session = try await mockSession(responses: [
-            DockerCommand.composeVersion(.v2, sudo: false): .init(stdout: "Docker Compose version v2.0"),
-            DockerCommand.composeProjects(sudo: false): .init(stdout: "[]"),
-            DockerCommand.composeContainers(sudo: false): .init(stdout: ""),
-            DockerCommand.composeConfigServices(project, dialect: .v2, sudo: false): .init(stdout: "api\nworker\n"),
-            DockerCommand.composeContainers(projectName: "manual", sudo: false): .init(stdout: "")
+            DockerCommand.composeVersion(.v2, runtime: composeTestDockerRuntime): .init(stdout: "Docker Compose version v2.0"),
+            DockerCommand.composeProjects(runtime: composeTestDockerRuntime): .init(stdout: "[]"),
+            DockerCommand.composeContainers(runtime: composeTestDockerRuntime): .init(stdout: ""),
+            DockerCommand.composeConfigServices(project, dialect: .v2, runtime: composeTestDockerRuntime): .init(stdout: "api\nworker\n"),
+            DockerCommand.composeContainers(projectName: "manual", runtime: composeTestDockerRuntime): .init(stdout: "")
         ])
         let registry = DockerComposeRegistry()
         let model = DockerComposeModel(
@@ -127,7 +129,7 @@ struct DockerComposeModelTests {
     private func makeContext(session: any SSHSession) -> DockerContext {
         DockerContext(
             session: { session },
-            sudo: false,
+            runtime: composeTestDockerRuntime,
             isUsable: true,
             report: { _ in },
             refresh: { _ in },

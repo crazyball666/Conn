@@ -591,7 +591,12 @@ struct DockerRunFormView: View {
 
     private var risks: [DockerRunRisk] { DockerRunRiskDetector.detect(state.draft) }
 
-    private var previewCommand: String { DockerCommand.run(state.draft, sudo: false) }
+    private var previewCommand: String {
+        DockerCommand.run(
+            state.draft,
+            runtime: DockerRuntimeContext(executable: "docker", sudo: false)
+        )
+    }
 
     private func submit() {
         guard state.isValid else { return }

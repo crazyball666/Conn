@@ -108,6 +108,9 @@ struct DockerPullFormView: View {
     }
 
     private var previewCommand: String {
-        DockerCommand.pull(reference: reference, sudo: false)
+        DockerCommand.pull(
+            reference: reference,
+            runtime: DockerRuntimeContext(executable: "docker", sudo: false)
+        )
     }
 }

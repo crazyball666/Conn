@@ -35,6 +35,8 @@ struct LogHighlighterTests {
 }
 
 struct LogSourceTests {
+    private let runtime = DockerRuntimeContext(executable: "docker", sudo: false)
+
     @Test("各类源的跟随命令")
     func followCommands() {
         let journal = LogSource(id: "j", title: "", subtitle: "", kind: .journal(unit: "nginx"))
@@ -46,7 +48,12 @@ struct LogSourceTests {
         let file = LogSource(id: "f", title: "", subtitle: "", kind: .file(path: "/var/log/syslog"))
         #expect(file.followCommand() == "tail -n 300 -F '/var/log/syslog' 2>&1")
 
-        let container = LogSource(id: "c", title: "", subtitle: "", kind: .container(id: "abc123", name: "web"))
+        let container = LogSource(
+            id: "c",
+            title: "",
+            subtitle: "",
+            kind: .container(id: "abc123", name: "web", runtime: runtime)
+        )
         #expect(container.followCommand() == "docker logs -f --tail 300 abc123 2>&1")
 
         let unified = LogSource(
@@ -112,11 +119,16 @@ struct LogSourceTests {
         )
         let projectLog = LogSource(
             id: "compose-web", title: "", subtitle: "",
-            kind: .compose(project: project, dialect: .v2, service: nil)
+            kind: .compose(project: project, dialect: .v2, service: nil, runtime: runtime)
         )
         let serviceLog = LogSource(
             id: "compose-web-api", title: "", subtitle: "",
-            kind: .compose(project: project, dialect: .v1, service: "api service")
+            kind: .compose(
+                project: project,
+                dialect: .v1,
+                service: "api service",
+                runtime: runtime
+            )
         )
 
         #expect(

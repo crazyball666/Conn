@@ -4,6 +4,8 @@ import Foundation
 /// 远端脚本共享调用与转义规则的语言家族。
 public enum RemoteScriptFamily: String, Sendable, Hashable {
     case posix
+    /// Windows 远端命令的扩展键；本轮不注册执行 provider。
+    case powershell
 }
 
 /// 为特定远端平台和解释器构造探测及执行命令。

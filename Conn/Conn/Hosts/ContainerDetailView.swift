@@ -88,13 +88,17 @@ struct ContainerDetailView: View {
         .task { await viewModel.networks.loadIfNeeded() }
         .navigationDestination(item: $route, destination: routeDestination)
         .fullScreenCover(isPresented: $showConsole) {
-            TerminalScreen(
-                host: host, dependencies: dependencies,
-                launchPolicy: .createNew,
-                source: .docker(containerName: container.name),
-                initialCommand: viewModel.containers.consoleCommand(for: container),
-                replayInitialCommandOnReconnect: true
-            )
+            if let command = viewModel.containers.consoleCommand(for: container) {
+                TerminalScreen(
+                    host: host, dependencies: dependencies,
+                    launchPolicy: .createNew,
+                    source: .docker(containerName: container.name),
+                    initialCommand: command,
+                    replayInitialCommandOnReconnect: true
+                )
+            } else {
+                Text(L("Docker 运行环境尚未探测完成"))
+            }
         }
         .alert(L("Docker 操作"), isPresented: messageBinding) {
             Button(L("好"), role: .cancel) { viewModel.actionMessage = nil }
@@ -282,19 +286,23 @@ struct ContainerDetailView: View {
     private func routeDestination(_ route: Route) -> some View {
         switch route {
         case .logs:
-            LogStreamView(
-                host: host, dependencies: dependencies,
-                source: LogSource(
-                    id: "container-\(container.id)", title: container.name,
-                    subtitle: container.image,
-                    kind: .container(
-                        id: container.id,
-                        name: container.name,
-                        runtime: viewModel.runtime
-                    )
-                ),
-                sudo: viewModel.usesSudo
-            )
+            if let runtime = viewModel.runtime {
+                LogStreamView(
+                    host: host, dependencies: dependencies,
+                    source: LogSource(
+                        id: "container-\(container.id)", title: container.name,
+                        subtitle: container.image,
+                        kind: .container(
+                            id: container.id,
+                            name: container.name,
+                            runtime: runtime
+                        )
+                    ),
+                    sudo: viewModel.usesSudo
+                )
+            } else {
+                Text(L("Docker 运行环境尚未探测完成"))
+            }
         case let .volumeDetail(volume):
             VolumeDetailView(
                 volume: volume, viewModel: viewModel, size: viewModel.diskUsage?.volumeSize(volume.name),

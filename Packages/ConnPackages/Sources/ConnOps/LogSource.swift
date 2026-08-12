@@ -13,14 +13,14 @@ public struct LogSource: Identifiable, Sendable, Equatable, Hashable {
         case container(
             id: String,
             name: String,
-            runtime: DockerRuntimeContext = .default
+            runtime: DockerRuntimeContext
         )
         /// Docker Compose 项目或单个服务日志。
         case compose(
             project: DockerComposeProject,
             dialect: DockerComposeDialect,
             service: String?,
-            runtime: DockerRuntimeContext = .default
+            runtime: DockerRuntimeContext
         )
     }
 

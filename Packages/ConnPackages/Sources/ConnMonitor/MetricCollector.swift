@@ -54,7 +54,7 @@ public actor MetricCollector {
     public func collect(
         host: ConnKit.Host,
         session: any SSHSession,
-        profile: RemotePlatformProfile = RemotePlatformProfile(kind: .linux),
+        profile: RemotePlatformProfile,
         includeExtended: Bool = true
     ) async throws -> HostMetrics {
         guard let provider = MetricsProviderRegistry.provider(for: profile.kind) else {

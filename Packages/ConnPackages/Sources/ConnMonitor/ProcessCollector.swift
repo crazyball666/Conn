@@ -50,14 +50,6 @@ public enum ProcessCollectionError: Error, LocalizedError, Sendable, Equatable {
 public struct ProcessCollector: Sendable {
     public init() {}
 
-    /// 旧入口保持 Linux 行为，供现有调用方平滑迁移。
-    public func collect(session: any SSHSession) async throws -> [RemoteProcess] {
-        try await collect(
-            session: session,
-            profile: RemotePlatformProfile(kind: .linux)
-        ).processes
-    }
-
     public func collect(
         session: any SSHSession,
         profile: RemotePlatformProfile

@@ -68,8 +68,9 @@ final class DockerComposeModel {
         }
         do {
             let session = try await context.session()
+            let runtime = try context.requireRuntime()
             guard let detected = try await DockerService.composeDialect(
-                on: session, runtime: context.runtime
+                on: session, runtime: runtime
             ) else {
                 dialect = nil
                 errorMessage = L("未检测到 Docker Compose")
@@ -79,7 +80,7 @@ final class DockerComposeModel {
             }
             dialect = detected
             let projects = try await DockerService.listComposeProjects(
-                dialect: detected, on: session, runtime: context.runtime
+                dialect: detected, on: session, runtime: runtime
             )
             registry.replaceDiscovered(projects)
             items = registry.projects
@@ -103,11 +104,12 @@ final class DockerComposeModel {
         }
         do {
             let session = try await context.session()
+            let runtime = try context.requireRuntime()
             let detected: DockerComposeDialect
             if let dialect {
                 detected = dialect
             } else if let probed = try await DockerService.composeDialect(
-                on: session, runtime: context.runtime
+                on: session, runtime: runtime
             ) {
                 detected = probed
                 dialect = probed
@@ -116,7 +118,7 @@ final class DockerComposeModel {
                 return false
             }
             let services = try await DockerService.composeServices(
-                project, dialect: detected, on: session, runtime: context.runtime
+                project, dialect: detected, on: session, runtime: runtime
             )
             var validated = project
             validated.serviceCount = services.count
@@ -151,11 +153,12 @@ final class DockerComposeModel {
                 message: L("未检测到 Docker Compose")
             )
         }
+        let runtime = try context.requireRuntime()
         return try await DockerService.composeServices(
             project,
             dialect: dialect,
             on: context.session(),
-            runtime: context.runtime
+            runtime: runtime
         )
     }
 

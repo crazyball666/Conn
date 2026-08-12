@@ -1,8 +1,8 @@
 import ConnSSH
 import Foundation
 
-/// 使用已探测 Docker CLI 路径的服务入口。旧 `sudo:` API 仍保留用于源码兼容；
-/// App 与新调用应只传递 `DockerRuntimeContext`。
+/// 使用已探测 Docker CLI 路径的服务入口。所有调用都必须传递
+/// `DockerRuntimeContext`，不能绕过探测只猜测 `sudo` 或 PATH。
 public extension DockerService {
     static func list(
         on session: any SSHSession,

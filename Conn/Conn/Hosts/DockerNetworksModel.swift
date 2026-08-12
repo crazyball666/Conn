@@ -33,8 +33,9 @@ final class DockerNetworksModel {
         guard context.isUsable else { return }
         do {
             let session = try await context.session()
-            async let list = DockerService.listNetworks(on: session, runtime: context.runtime)
-            async let dangling = DockerService.danglingNetworkNames(on: session, runtime: context.runtime)
+            let runtime = try context.requireRuntime()
+            async let list = DockerService.listNetworks(on: session, runtime: runtime)
+            async let dangling = DockerService.danglingNetworkNames(on: session, runtime: runtime)
             let networks = try await list
             let danglingNames = try await dangling
             items = networks
@@ -49,8 +50,9 @@ final class DockerNetworksModel {
 
     /// 网络详情。接入容器由 inspect 直接给出，无需额外命令。
     func detail(for network: NetworkInfo) async throws -> NetworkDetail {
-        try await DockerService.networkDetail(
-            name: network.name, on: context.session(), runtime: context.runtime
+        let runtime = try context.requireRuntime()
+        return try await DockerService.networkDetail(
+            name: network.name, on: context.session(), runtime: runtime
         )
     }
 

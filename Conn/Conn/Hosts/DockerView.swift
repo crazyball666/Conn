@@ -43,13 +43,17 @@ struct DockerView: View {
                 DockerPullProgressView(operations: viewModel.operations)
             }
             .fullScreenCover(item: $consoleContainer) { container in
-                TerminalScreen(
-                    host: host, dependencies: dependencies,
-                    launchPolicy: .createNew,
-                    source: .docker(containerName: container.name),
-                    initialCommand: viewModel.containers.consoleCommand(for: container),
-                    replayInitialCommandOnReconnect: true
-                )
+                if let command = viewModel.containers.consoleCommand(for: container) {
+                    TerminalScreen(
+                        host: host, dependencies: dependencies,
+                        launchPolicy: .createNew,
+                        source: .docker(containerName: container.name),
+                        initialCommand: command,
+                        replayInitialCommandOnReconnect: true
+                    )
+                } else {
+                    Text(L("Docker 运行环境尚未探测完成"))
+                }
             }
             .navigationBarTitleDisplayMode(.inline)
             .searchable(
@@ -71,19 +75,23 @@ struct DockerView: View {
         case let .detail(container):
             ContainerDetailView(host: host, dependencies: dependencies, container: container, viewModel: viewModel)
         case let .logs(container):
-            LogStreamView(
-                host: host, dependencies: dependencies,
-                source: LogSource(
-                    id: "container-\(container.id)", title: container.name,
-                    subtitle: container.image,
-                    kind: .container(
-                        id: container.id,
-                        name: container.name,
-                        runtime: viewModel.runtime
-                    )
-                ),
-                sudo: viewModel.usesSudo
-            )
+            if let runtime = viewModel.runtime {
+                LogStreamView(
+                    host: host, dependencies: dependencies,
+                    source: LogSource(
+                        id: "container-\(container.id)", title: container.name,
+                        subtitle: container.image,
+                        kind: .container(
+                            id: container.id,
+                            name: container.name,
+                            runtime: runtime
+                        )
+                    ),
+                    sudo: viewModel.usesSudo
+                )
+            } else {
+                Text(L("Docker 运行环境尚未探测完成"))
+            }
         case let .volumeDetail(volume):
             // 磁盘占用来自 `viewModel.diskUsage`（Task 7 接入）；查不到时为 nil，
             // 页面按设计显示「—」——它本就是「查不到就退化」的锦上添花字段。

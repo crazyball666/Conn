@@ -27,10 +27,11 @@ struct DockerRuntimeProbeTests {
     func defaultRegistrySelectsPlatformProviders() throws {
         let registry = DockerEnvironmentProviderRegistry.default
 
-        #expect(registry.provider(for: .linux) is LinuxDockerEnvironmentProvider)
-        #expect(registry.provider(for: .macOS) is DarwinDockerEnvironmentProvider)
-        #expect(registry.provider(for: .windows) == nil)
-        #expect(registry.provider(for: .unknown) == nil)
+        #expect(registry.provider(for: .linux, scriptFamily: .posix) is LinuxDockerEnvironmentProvider)
+        #expect(registry.provider(for: .macOS, scriptFamily: .posix) is DarwinDockerEnvironmentProvider)
+        #expect(registry.provider(for: .windows, scriptFamily: .posix) == nil)
+        #expect(registry.provider(for: .unknown, scriptFamily: .posix) == nil)
+        #expect(registry.provider(for: .linux, scriptFamily: .powershell) == nil)
     }
 
     @Test("Linux 发现包含系统路径但不包含 Docker Desktop bundle")
@@ -179,7 +180,11 @@ struct DockerRuntimeProbeTests {
             runtime: DockerRuntimeContext(executable: "injected-docker", sudo: false)
         )
         let registry = DockerEnvironmentProviderRegistry(providers: [
-            StubDockerEnvironmentProvider(platform: .windows, result: expected),
+            StubDockerEnvironmentProvider(
+                platform: .windows,
+                scriptFamily: .posix,
+                result: expected
+            ),
         ])
         let session = RecordingSSHSession()
 
@@ -191,6 +196,41 @@ struct DockerRuntimeProbeTests {
 
         #expect(result == expected)
         #expect(session.invocations.isEmpty)
+    }
+
+    @Test("Docker runtime 与默认 providers 明确声明 POSIX 家族")
+    func runtimeAndProvidersDeclarePOSIXFamily() {
+        let runtime = DockerRuntimeContext(executable: "/usr/bin/docker", sudo: false)
+
+        #expect(runtime.scriptFamily == .posix)
+        #expect(LinuxDockerEnvironmentProvider().scriptFamily == .posix)
+        #expect(DarwinDockerEnvironmentProvider().scriptFamily == .posix)
+    }
+
+    @Test("公开 Docker 操作不存在绕过 runtime 的 sudo 重载或默认 runtime")
+    func publicDockerAPIsRequireDiscoveredRuntime() throws {
+        let serviceSource = try String(
+            contentsOf: packageRoot.appending(path: "Sources/ConnOps/DockerService.swift"),
+            encoding: .utf8
+        )
+        let detailSource = try String(
+            contentsOf: packageRoot.appending(path: "Sources/ConnOps/DockerService+ResourceDetails.swift"),
+            encoding: .utf8
+        )
+        let runtimeSource = try String(
+            contentsOf: packageRoot.appending(path: "Sources/ConnOps/DockerRuntimeContext.swift"),
+            encoding: .utf8
+        )
+        let commandSource = try String(
+            contentsOf: packageRoot.appending(path: "Sources/ConnOps/DockerCommand.swift"),
+            encoding: .utf8
+        )
+
+        let runtimeBypass = #"(?s)public\s+static\s+func\s+\w+\s*\([^)]*sudo:\s*Bool"#
+        #expect(serviceSource.range(of: runtimeBypass, options: .regularExpression) == nil)
+        #expect(detailSource.range(of: runtimeBypass, options: .regularExpression) == nil)
+        #expect(commandSource.range(of: runtimeBypass, options: .regularExpression) == nil)
+        #expect(!runtimeSource.contains("static let `default`"))
     }
 
     @Test("Docker 脚本引导函数保留探测路径与 sudo 上下文")
@@ -235,6 +275,7 @@ struct DockerRuntimeProbeTests {
 
 private struct StubDockerEnvironmentProvider: DockerEnvironmentProvider {
     let platform: RemotePlatformKind
+    let scriptFamily: RemoteScriptFamily
     let result: DockerProbeResult
 
     func probe(on session: any SSHSession) async throws -> DockerProbeResult {
@@ -244,6 +285,9 @@ private struct StubDockerEnvironmentProvider: DockerEnvironmentProvider {
 
 @Suite("DockerService — 第二期写操作")
 struct DockerOperationServiceTests {
+    private let directRuntime = DockerRuntimeContext(executable: "docker", sudo: false)
+    private let elevatedRuntime = DockerRuntimeContext(executable: "docker", sudo: true)
+
     @Test("拉取镜像走命令流并保留非零结果")
     func pullImageStreamsWithFiveMinuteTimeout() async throws {
         let expected = ExecResult(
@@ -255,7 +299,11 @@ struct DockerOperationServiceTests {
             chunks: [Data("layer 1\\n".utf8), Data("layer 2\\n".utf8)], result: expected
         ))
 
-        let stream = try await DockerService.pullImage(reference: "nginx:1.27", on: session, sudo: true)
+        let stream = try await DockerService.pullImage(
+            reference: "nginx:1.27",
+            on: session,
+            runtime: elevatedRuntime
+        )
         var output = Data()
         for try await chunk in stream.output {
             output.append(chunk)
@@ -278,7 +326,11 @@ struct DockerOperationServiceTests {
         let session = RecordingSSHSession(execResults: [expected])
         let draft = DockerRunDraft(image: "nginx:1.27", name: "web app", detached: true)
 
-        let result = try await DockerService.runContainer(draft, on: session, sudo: true)
+        let result = try await DockerService.runContainer(
+            draft,
+            on: session,
+            runtime: elevatedRuntime
+        )
 
         #expect(result == expected)
         #expect(session.invocations == [
@@ -297,9 +349,13 @@ struct DockerOperationServiceTests {
         let session = RecordingSSHSession(execResults: [created, removed])
 
         let createResult = try await DockerService.createVolume(
-            DockerVolumeDraft(name: "app data"), on: session, sudo: false
+            DockerVolumeDraft(name: "app data"), on: session, runtime: directRuntime
         )
-        let removeResult = try await DockerService.removeVolume(name: "app data", on: session, sudo: true)
+        let removeResult = try await DockerService.removeVolume(
+            name: "app data",
+            on: session,
+            runtime: elevatedRuntime
+        )
 
         #expect(createResult == created)
         #expect(removeResult == removed)
@@ -316,9 +372,15 @@ struct DockerOperationServiceTests {
         let session = RecordingSSHSession(execResults: [created, removed])
 
         let createResult = try await DockerService.createNetwork(
-            DockerNetworkDraft(name: "app net", isInternal: true), on: session, sudo: true
+            DockerNetworkDraft(name: "app net", isInternal: true),
+            on: session,
+            runtime: elevatedRuntime
         )
-        let removeResult = try await DockerService.removeNetwork(name: "app net", on: session, sudo: false)
+        let removeResult = try await DockerService.removeNetwork(
+            name: "app net",
+            on: session,
+            runtime: directRuntime
+        )
 
         #expect(createResult == created)
         #expect(removeResult == removed)
@@ -338,7 +400,9 @@ struct DockerOperationServiceTests {
         let session = RecordingSSHSession(execResults: [expected])
 
         let result = try await DockerService.systemPrune(
-            .init(allUnusedImages: true, includeVolumes: true), on: session, sudo: true
+            .init(allUnusedImages: true, includeVolumes: true),
+            on: session,
+            runtime: elevatedRuntime
         )
 
         #expect(result == expected)
@@ -354,6 +418,9 @@ struct DockerOperationServiceTests {
 
 @Suite("DockerService — Compose 第三期")
 struct DockerComposeServiceTests {
+    private let directRuntime = DockerRuntimeContext(executable: "docker", sudo: false)
+    private let elevatedRuntime = DockerRuntimeContext(executable: "docker", sudo: true)
+
     @Test("Compose 探测优先 v2 并在失败后回退 v1")
     func detectsComposeDialectWithFallback() async throws {
         let v1Session = RecordingSSHSession(execResults: [
@@ -361,7 +428,10 @@ struct DockerComposeServiceTests {
             .init(exitCode: 0, stdout: Data("docker-compose version 1.29.2".utf8), stderr: Data()),
         ])
 
-        let dialect = try await DockerService.composeDialect(on: v1Session, sudo: true)
+        let dialect = try await DockerService.composeDialect(
+            on: v1Session,
+            runtime: elevatedRuntime
+        )
 
         #expect(dialect == .v1)
         #expect(v1Session.invocations == [
@@ -373,7 +443,12 @@ struct DockerComposeServiceTests {
             .init(exitCode: 1, stdout: Data(), stderr: Data()),
             .init(exitCode: 127, stdout: Data(), stderr: Data()),
         ])
-        #expect(try await DockerService.composeDialect(on: unavailable, sudo: false) == nil)
+        #expect(
+            try await DockerService.composeDialect(
+                on: unavailable,
+                runtime: directRuntime
+            ) == nil
+        )
     }
 
     @Test("v2 项目列表与容器标签合并项目目录和运行摘要")
@@ -392,7 +467,7 @@ struct DockerComposeServiceTests {
         ])
 
         let projects = try await DockerService.listComposeProjects(
-            dialect: .v2, on: session, sudo: true
+            dialect: .v2, on: session, runtime: elevatedRuntime
         )
 
         #expect(projects.count == 1)
@@ -423,7 +498,7 @@ struct DockerComposeServiceTests {
         ])
 
         let services = try await DockerService.composeServices(
-            project, dialect: .v2, on: session, sudo: false
+            project, dialect: .v2, on: session, runtime: directRuntime
         )
 
         #expect(services.map(\.name) == ["api", "worker"])
@@ -448,7 +523,7 @@ struct DockerComposeServiceTests {
 
         await #expect(throws: DockerComposeError.self) {
             _ = try await DockerService.composeServices(
-                project, dialect: .v2, on: session, sudo: false
+                project, dialect: .v2, on: session, runtime: directRuntime
             )
         }
     }
@@ -461,7 +536,7 @@ struct DockerComposeServiceTests {
 
         await #expect(throws: DockerComposeError.self) {
             _ = try await DockerService.listComposeProjects(
-                dialect: .v2, on: session, sudo: false
+                dialect: .v2, on: session, runtime: directRuntime
             )
         }
     }
@@ -479,10 +554,14 @@ struct DockerComposeServiceTests {
             .init(exitCode: 0, stdout: Data(), stderr: Data()),
         ])
 
-        _ = try await DockerService.composeUp(project, dialect: .v2, on: session, sudo: true)
-        let down = try await DockerService.composeDown(project, dialect: .v2, on: session, sudo: true)
+        _ = try await DockerService.composeUp(
+            project, dialect: .v2, on: session, runtime: elevatedRuntime
+        )
+        let down = try await DockerService.composeDown(
+            project, dialect: .v2, on: session, runtime: elevatedRuntime
+        )
         _ = try await DockerService.composeRestart(
-            project, service: "api", dialect: .v2, on: session, sudo: true
+            project, service: "api", dialect: .v2, on: session, runtime: elevatedRuntime
         )
 
         #expect(down.exitCode == 7)

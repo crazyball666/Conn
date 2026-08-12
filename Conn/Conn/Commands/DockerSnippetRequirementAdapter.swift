@@ -18,7 +18,10 @@ struct DockerSnippetRequirementAdapter: SnippetRequirementAdapter {
         on session: any SSHSession,
         profile: RemotePlatformProfile
     ) async throws -> SnippetRequirementResolution {
-        guard let provider = registry.provider(for: profile.kind) else {
+        guard let provider = registry.provider(
+            for: profile.kind,
+            scriptFamily: scriptFamily
+        ) else {
             return unsupported(.unsupportedPlatform)
         }
 

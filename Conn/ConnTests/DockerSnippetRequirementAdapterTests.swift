@@ -94,7 +94,7 @@ struct DockerSnippetRequirementAdapterTests {
                 platform: .linux,
                 result: DockerProbeResult(
                     availability: .available(sudo: false),
-                    runtime: .default
+                    runtime: DockerRuntimeContext(executable: "docker", sudo: false)
                 ),
                 counter: counter
             ),
@@ -136,6 +136,7 @@ private final class ProbeCounter: @unchecked Sendable {
 
 private struct FixtureDockerEnvironmentProvider: DockerEnvironmentProvider {
     let platform: RemotePlatformKind
+    let scriptFamily: RemoteScriptFamily = .posix
     let result: DockerProbeResult
     let counter: ProbeCounter
 

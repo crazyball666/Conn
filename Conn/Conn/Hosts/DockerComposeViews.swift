@@ -406,7 +406,8 @@ struct DockerComposeProjectDetailView: View {
     }
 
     private func openProjectLogs() {
-        guard let dialect = viewModel.compose.dialect else { return }
+        guard let dialect = viewModel.compose.dialect,
+              let runtime = viewModel.runtime else { return }
         logSource = LogSource(
             id: "compose-\(project.name)-project",
             title: project.name,
@@ -415,7 +416,7 @@ struct DockerComposeProjectDetailView: View {
                 project: project,
                 dialect: dialect,
                 service: nil,
-                runtime: viewModel.runtime
+                runtime: runtime
             )
         )
     }

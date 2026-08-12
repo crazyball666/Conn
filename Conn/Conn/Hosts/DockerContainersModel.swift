@@ -48,7 +48,8 @@ final class DockerContainersModel {
         } else {
             resolvedSession = try await context.session()
         }
-        items = try await DockerService.list(on: resolvedSession, runtime: context.runtime)
+        let runtime = try context.requireRuntime()
+        items = try await DockerService.list(on: resolvedSession, runtime: runtime)
     }
 
     /// 下拉刷新：静默重拉，不切加载态——保留列表、避免闪烁。
@@ -78,13 +79,15 @@ final class DockerContainersModel {
 
     /// 容器详情（inspect）——供详情页加载。
     func detail(for container: ContainerInfo) async throws -> ContainerDetail {
-        try await DockerService.inspect(
-            id: container.id, on: context.session(), runtime: context.runtime
+        let runtime = try context.requireRuntime()
+        return try await DockerService.inspect(
+            id: container.id, on: context.session(), runtime: runtime
         )
     }
 
     /// 进入容器控制台的命令（PTY 里 exec）。
-    func consoleCommand(for container: ContainerInfo) -> String {
-        DockerCommand.console(id: container.id, runtime: context.runtime)
+    func consoleCommand(for container: ContainerInfo) -> String? {
+        guard let runtime = context.runtime else { return nil }
+        return DockerCommand.console(id: container.id, runtime: runtime)
     }
 }
