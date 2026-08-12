@@ -61,15 +61,15 @@
 
 ## Completion gate
 
-- [ ] Every production behavior has a focused RED before implementation.
-- [ ] Every `TmuxOperation` has explicit retry/destructive semantics.
-- [ ] All requests bind connection identity, profile, instance token, and generation.
-- [ ] Linked/grouped topology is represented in impact results without duplicating Window entities.
-- [ ] Kill Session distinguishes removed links from truly destroyed Windows/Panes.
-- [ ] Final-Pane and final-Window cascades include destroyed Sessions and affected clients.
-- [ ] Conn Control Clients and the initiating attachment are excluded from “other client” risk.
-- [ ] Confirmation cannot cross scope, operation, target, context, impact revision, or freshness boundaries.
-- [ ] Metadata-only updates do not invalidate destructive confirmation.
-- [ ] `swift test --package-path Packages/ConnPackages --filter ConnMultiplexerTests` passes.
-- [ ] `swift test --package-path Packages/ConnPackages` passes from current artifacts.
-- [ ] `git diff --check` passes.
+- [x] Every production behavior has a focused RED before implementation.
+- [x] Every `TmuxOperation` has explicit retry/destructive semantics.
+- [x] All requests bind connection identity, profile, instance token, and generation.
+- [x] Linked/grouped topology is represented in impact results without duplicating Window entities.
+- [x] Kill Session distinguishes removed links from truly destroyed Windows/Panes.
+- [x] Final-Pane and final-Window cascades include destroyed Sessions and affected clients.
+- [x] Conn Control Clients and the initiating attachment are excluded from “other client” risk.
+- [x] Confirmation cannot cross scope, operation, target, context, impact revision, or freshness boundaries.
+- [x] Metadata-only updates do not invalidate destructive confirmation.
+- [x] `swift test --package-path Packages/ConnPackages --filter ConnMultiplexerTests` passes.
+- [x] `swift test --package-path Packages/ConnPackages` passes from current artifacts.
+- [x] `git diff --check` passes.
