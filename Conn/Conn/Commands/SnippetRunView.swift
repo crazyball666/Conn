@@ -39,6 +39,7 @@ struct SnippetRunView: View {
     @State private var errorText: String?
     @State private var pendingExecution: SnippetExecutionRequest?
     @State private var pendingReason: String?
+    @State private var batchConfirmationInput = ""
     @State private var terminalRoute: SnippetTerminalRoute?
 
     var body: some View {
@@ -77,14 +78,32 @@ struct SnippetRunView: View {
             }
             .confirmationDialog(
                 pendingReason.map { String(format: L("命中风险：%@。仍要执行？"), $0) } ?? L("确认执行？"),
-                isPresented: dangerBinding,
+                isPresented: singleDangerBinding,
                 titleVisibility: .visible
             ) {
                 Button(L("仍要执行"), role: .destructive) {
-                    if let request = pendingExecution { execute(request) }
-                    pendingExecution = nil
+                    confirmPendingExecution()
                 }
-                Button(L("取消"), role: .cancel) { pendingExecution = nil }
+                Button(L("取消"), role: .cancel) { clearPendingExecution() }
+            }
+            .alert(
+                pendingReason.map { String(format: L("命中风险：%@"), $0) } ?? L("确认批量执行"),
+                isPresented: batchDangerBinding
+            ) {
+                TextField(SnippetDangerConfirmationPolicy.batchPhrase, text: $batchConfirmationInput)
+                    .textInputAutocapitalization(.characters)
+                    .autocorrectionDisabled()
+                Button(L("仍要执行"), role: .destructive) {
+                    confirmPendingExecution()
+                }
+                .disabled(!batchConfirmationAccepted)
+                Button(L("取消"), role: .cancel) { clearPendingExecution() }
+            } message: {
+                Text(String(
+                    format: L("将对 %d 台主机执行。请输入 %@ 以确认。"),
+                    pendingExecution?.hosts.count ?? 0,
+                    SnippetDangerConfirmationPolicy.batchPhrase
+                ))
             }
         }
     }
@@ -547,6 +566,7 @@ struct SnippetRunView: View {
         let verdict = DangerCommandRules.evaluate(userScript, isProduction: production)
         if snippet.danger || verdict.needsConfirmation {
             pendingReason = verdict.reason ?? (snippet.danger ? L("该脚本被标记为危险") : nil)
+            batchConfirmationInput = ""
             pendingExecution = request
         } else {
             execute(request)
@@ -583,10 +603,64 @@ struct SnippetRunView: View {
         }
     }
 
-    private var dangerBinding: Binding<Bool> {
+    private var singleDangerBinding: Binding<Bool> {
         Binding(
-            get: { pendingExecution != nil },
-            set: { if !$0 { pendingExecution = nil } }
+            get: {
+                guard let pendingExecution else { return false }
+                return !SnippetDangerConfirmationPolicy.requiresTypedConfirmation(
+                    hostCount: pendingExecution.hosts.count
+                )
+            },
+            set: { isPresented in
+                guard !isPresented, let pendingExecution else { return }
+                guard !SnippetDangerConfirmationPolicy.requiresTypedConfirmation(
+                    hostCount: pendingExecution.hosts.count
+                ) else { return }
+                clearPendingExecution()
+            }
         )
+    }
+
+    private var batchDangerBinding: Binding<Bool> {
+        Binding(
+            get: {
+                guard let pendingExecution else { return false }
+                return SnippetDangerConfirmationPolicy.requiresTypedConfirmation(
+                    hostCount: pendingExecution.hosts.count
+                )
+            },
+            set: { isPresented in
+                guard !isPresented, let pendingExecution else { return }
+                guard SnippetDangerConfirmationPolicy.requiresTypedConfirmation(
+                    hostCount: pendingExecution.hosts.count
+                ) else { return }
+                clearPendingExecution()
+            }
+        )
+    }
+
+    private var batchConfirmationAccepted: Bool {
+        SnippetDangerConfirmationPolicy.accepts(
+            batchConfirmationInput,
+            hostCount: pendingExecution?.hosts.count ?? 0
+        )
+    }
+
+    private func confirmPendingExecution() {
+        guard let request = pendingExecution else { return }
+        if SnippetDangerConfirmationPolicy.requiresTypedConfirmation(hostCount: request.hosts.count) {
+            guard SnippetDangerConfirmationPolicy.accepts(
+                batchConfirmationInput,
+                hostCount: request.hosts.count
+            ) else { return }
+        }
+        clearPendingExecution()
+        execute(request)
+    }
+
+    private func clearPendingExecution() {
+        pendingExecution = nil
+        pendingReason = nil
+        batchConfirmationInput = ""
     }
 }

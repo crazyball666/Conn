@@ -7,6 +7,16 @@ import Testing
 @Suite("Snippet execution request builder")
 @MainActor
 struct SnippetExecutionRequestBuilderTests {
+    @Test("dangerous batch requires exact RUN while a single host keeps simple confirmation")
+    func dangerousBatchUsesTypedConfirmation() {
+        #expect(!SnippetDangerConfirmationPolicy.requiresTypedConfirmation(hostCount: 1))
+        #expect(SnippetDangerConfirmationPolicy.requiresTypedConfirmation(hostCount: 2))
+        #expect(SnippetDangerConfirmationPolicy.accepts("RUN", hostCount: 2))
+        #expect(!SnippetDangerConfirmationPolicy.accepts("run", hostCount: 2))
+        #expect(!SnippetDangerConfirmationPolicy.accepts(" RUN ", hostCount: 2))
+        #expect(SnippetDangerConfirmationPolicy.accepts("", hostCount: 1))
+    }
+
     @Test("missing second-host preparation produces no request")
     func missingSecondPreparationIsAllOrNothing() async throws {
         let hosts = [host("host-a"), host("host-b")]

@@ -137,29 +137,39 @@ public struct SnippetRunner {
         plansByHostID: [String: SnippetExecutionPlan],
         on hosts: [ConnKit.Host]
     ) async -> [ScriptBatchResult] {
-        await withTaskGroup(of: ScriptBatchResult.self, returning: [ScriptBatchResult].self) { group in
-            for host in hosts {
-                group.addTask { [self] in
-                    do {
-                        guard let plan = plansByHostID[host.id] else {
-                            throw SnippetRunnerError.missingExecutionPlan
-                        }
-                        let outcome = try await runSilently(
-                            plan: plan,
-                            on: host
-                        )
-                        return ScriptBatchResult(hostID: host.id, hostName: host.name, outcome: outcome)
-                    } catch {
-                        return ScriptBatchResult(
-                            hostID: host.id,
-                            hostName: host.name,
-                            errorMessage: Self.errorMessage(for: error)
-                        )
-                    }
+        let executeHost: @Sendable (ConnKit.Host) async -> ScriptBatchResult = { [self] host in
+            do {
+                guard let plan = plansByHostID[host.id] else {
+                    throw SnippetRunnerError.missingExecutionPlan
+                }
+                let outcome = try await runSilently(plan: plan, on: host)
+                return ScriptBatchResult(hostID: host.id, hostName: host.name, outcome: outcome)
+            } catch {
+                return ScriptBatchResult(
+                    hostID: host.id,
+                    hostName: host.name,
+                    errorMessage: Self.errorMessage(for: error)
+                )
+            }
+        }
+
+        return await withTaskGroup(of: ScriptBatchResult.self, returning: [ScriptBatchResult].self) { group in
+            let concurrencyLimit = 6
+            let initialCount = min(concurrencyLimit, hosts.count)
+            for host in hosts.prefix(initialCount) {
+                group.addTask { await executeHost(host) }
+            }
+
+            var nextHostIndex = initialCount
+            var results: [ScriptBatchResult] = []
+            while let result = await group.next() {
+                results.append(result)
+                if nextHostIndex < hosts.count {
+                    let host = hosts[nextHostIndex]
+                    nextHostIndex += 1
+                    group.addTask { await executeHost(host) }
                 }
             }
-            var results: [ScriptBatchResult] = []
-            for await result in group { results.append(result) }
             return results.sorted { $0.hostName.localizedCaseInsensitiveCompare($1.hostName) == .orderedAscending }
         }
     }

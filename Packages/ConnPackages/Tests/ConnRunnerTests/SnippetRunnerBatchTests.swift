@@ -6,6 +6,39 @@ import Testing
 
 @Suite("SnippetRunner — execution plans")
 struct SnippetRunnerBatchTests {
+    @Test("batch limits concurrent SSH executions to six hosts")
+    func batchConcurrencyIsBounded() async {
+        let hosts = (0..<12).map { index in
+            Host(
+                id: "host-\(index)",
+                name: "Host \(index)",
+                address: "10.0.1.\(index + 1)",
+                username: "ops"
+            )
+        }
+        let plans = Dictionary(uniqueKeysWithValues: hosts.map { host in
+            (
+                host.id,
+                makePlan(
+                    for: host,
+                    auditScript: "audit \(host.id)",
+                    preparedCommand: "prepared \(host.id)"
+                )
+            )
+        })
+        let probe = BatchConcurrencyProbe()
+        let runner = SnippetRunner(
+            connectionManager: ConnectionManager(transport: BatchConcurrencyTransport(probe: probe)),
+            runHistory: MemoryRunHistoryRepository()
+        )
+
+        let results = await runner.runBatchSilently(plansByHostID: plans, on: hosts)
+
+        #expect(results.count == hosts.count)
+        #expect(results.allSatisfy { $0.outcome != nil })
+        #expect(await probe.peak == 6)
+    }
+
     @Test("single execution sends preparedCommand but audits only auditScript")
     func singleExecutionUsesPreparedCommandAndAuditMetadata() async throws {
         let host = Host(id: "host", name: "Host", address: "10.0.0.1", username: "ops")
@@ -252,6 +285,86 @@ struct SnippetRunnerBatchTests {
             capabilityReport: RemoteCapabilityReport(states: [.scriptExecution: .supported])
         )
     }
+}
+
+private actor BatchConcurrencyProbe {
+    private(set) var peak = 0
+    private var active = 0
+
+    func begin() {
+        active += 1
+        peak = max(peak, active)
+    }
+
+    func end() {
+        active -= 1
+    }
+}
+
+private struct BatchConcurrencyTransport: SSHTransport {
+    let probe: BatchConcurrencyProbe
+
+    func connect(
+        _ endpoint: SSHEndpoint,
+        username: String,
+        auth: SSHAuth,
+        hostKeyPolicy: HostKeyPolicy
+    ) async throws -> any SSHSession {
+        _ = (endpoint, username, auth, hostKeyPolicy)
+        return BatchConcurrencySession(probe: probe)
+    }
+}
+
+private final class BatchConcurrencySession: SSHSession, @unchecked Sendable {
+    let state: AsyncStream<SSHSessionState>
+    let isConnected = true
+    private let probe: BatchConcurrencyProbe
+    private let continuation: AsyncStream<SSHSessionState>.Continuation
+
+    init(probe: BatchConcurrencyProbe) {
+        self.probe = probe
+        (state, continuation) = AsyncStream.makeStream()
+        continuation.yield(.connected)
+    }
+
+    func exec(_ command: String, timeout: Duration) async throws -> ExecResult {
+        _ = (command, timeout)
+        await probe.begin()
+        do {
+            try await Task.sleep(for: .milliseconds(100))
+            await probe.end()
+            return ExecResult(exitCode: 0, stdout: Data("ok".utf8), stderr: Data())
+        } catch {
+            await probe.end()
+            throw error
+        }
+    }
+
+    func execStream(_ command: String) async throws -> AsyncThrowingStream<Data, Error> {
+        _ = command
+        return AsyncThrowingStream { $0.finish() }
+    }
+
+    func execCommandStream(_ command: String, timeout: Duration) async throws -> SSHCommandStream {
+        _ = (command, timeout)
+        return SSHCommandStream(output: AsyncThrowingStream { $0.finish() }) {
+            ExecResult(exitCode: 0, stdout: Data(), stderr: Data())
+        }
+    }
+
+    func openShell(term: TermSize) async throws -> any ShellChannel {
+        _ = term
+        throw SSHError.channelClosed
+    }
+
+    func sftp() async throws -> any RemoteFileSystem { throw SSHError.channelClosed }
+
+    func openTunnel(to target: SSHEndpoint) async throws -> any SSHTunnel {
+        _ = target
+        throw SSHError.channelClosed
+    }
+
+    func close() async { continuation.finish() }
 }
 
 private final class CommandRecorder: @unchecked Sendable {
