@@ -50,14 +50,14 @@
 - Create: `Packages/ConnPackages/Sources/ConnMultiplexer/TmuxSnapshot.swift`
 - Create: `Packages/ConnPackages/Tests/ConnMultiplexerTests/TmuxSnapshotTests.swift`
 
-- [ ] **Step 1: Write failing construction tests** for one Window linked into multiple Sessions, grouped Sessions, Pane membership, current Window/Pane references, and dictionary-key identity.
-- [ ] **Step 2: Write failing validation tests** for dangling/mismatched IDs, duplicate links, invalid active Pane ownership, missing group members, and a Conn Control Client that incorrectly participates in size.
-- [ ] **Step 3: Write failing client-projection tests** for external, affected, interactive, size-participating, and relative-to-attachment counts. Unknown kind/size must be conservative and the Hub Control Client must be excluded where specified.
-- [ ] **Step 4: Run RED:** `swift test --package-path Packages/ConnPackages --filter TmuxSnapshotTests` must fail because snapshot types do not exist.
-- [ ] **Step 5: Implement** `TmuxServerInstance`, normalized Session/Window/Pane/Link/Client snapshots, metadata freshness, client role/kind/size participation, and throwing graph validation.
-- [ ] **Step 6: Implement graph projections** without copying shared Windows into per-Session trees.
-- [ ] **Step 7: Run GREEN** and all `ConnMultiplexerTests`.
-- [ ] **Step 8: Commit:** `feat: model normalized tmux snapshots`.
+- [x] **Step 1: Write failing construction tests** for one Window linked into multiple Sessions, grouped Sessions, Pane membership, current Window/Pane references, and dictionary-key identity.
+- [x] **Step 2: Write failing validation tests** for dangling/mismatched IDs, duplicate links, invalid active Pane ownership, missing group members, and a Conn Control Client that incorrectly participates in size.
+- [x] **Step 3: Write failing client-projection tests** for external, affected, interactive, size-participating, and relative-to-attachment counts. Unknown kind/size must be conservative and the Hub Control Client must be excluded where specified.
+- [x] **Step 4: Run RED:** `swift test --package-path Packages/ConnPackages --filter TmuxSnapshotTests` must fail because snapshot types do not exist.
+- [x] **Step 5: Implement** `TmuxServerInstance`, normalized Session/Window/Pane/Link/Client snapshots, metadata freshness, client role/kind/size participation, and throwing graph validation.
+- [x] **Step 6: Implement graph projections** without copying shared Windows into per-Session trees.
+- [x] **Step 7: Run GREEN** and all `ConnMultiplexerTests`.
+- [x] **Step 8: Commit:** `feat: model normalized tmux snapshots`.
 
 ### Task 4: Apply safe events with generation-aware reconciliation
 

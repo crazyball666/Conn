@@ -31,7 +31,7 @@ package struct TmuxProtocolDialect: Sendable, Equatable {
     }
 }
 
-package enum TmuxClientFlag: String, Sendable, Hashable, CaseIterable {
+public enum TmuxClientFlag: String, Codable, Sendable, Hashable, CaseIterable {
     case noOutput = "no-output"
     case waitExit = "wait-exit"
     case ignoreSize = "ignore-size"
