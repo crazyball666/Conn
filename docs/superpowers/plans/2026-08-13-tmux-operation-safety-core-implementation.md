@@ -19,12 +19,12 @@
 - Modify: `Packages/ConnPackages/Sources/ConnMultiplexer/TmuxOperation.swift`
 - Create: `Packages/ConnPackages/Tests/ConnMultiplexerTests/TmuxOperationSemanticsTests.swift`
 
-- [ ] **Step 1: Write failing tests** classifying every closed `TmuxOperation` as idempotent mutation, non-idempotent mutation, or destructive, with no unclassified case.
-- [ ] **Step 2: Write failing scope tests** proving a request binds connection identity, profile ID, server instance token, and Hub generation, and rejects an empty/controlled profile ID.
-- [ ] **Step 3: Run RED:** `swift test --package-path Packages/ConnPackages --filter TmuxOperationSemanticsTests` must fail because the new contracts do not exist.
-- [ ] **Step 4: Implement** `TmuxOperationSemantics`, exhaustive metadata on `TmuxOperation`, `TmuxOperationScope`, and `TmuxOperationRequest`.
-- [ ] **Step 5: Run GREEN** plus existing renderer suites; renderers must continue to consume only the typed operation.
-- [ ] **Step 6: Commit:** `feat: classify scoped tmux operations`.
+- [x] **Step 1: Write failing tests** classifying every closed `TmuxOperation` as idempotent mutation, non-idempotent mutation, or destructive, with no unclassified case.
+- [x] **Step 2: Write failing scope tests** proving a request binds connection identity, profile ID, server instance token, and Hub generation, and rejects an empty/controlled profile ID.
+- [x] **Step 3: Run RED:** `swift test --package-path Packages/ConnPackages --filter TmuxOperationSemanticsTests` must fail because the new contracts do not exist.
+- [x] **Step 4: Implement** `TmuxOperationSemantics`, exhaustive metadata on `TmuxOperation`, `TmuxOperationScope`, and `TmuxOperationRequest`.
+- [x] **Step 5: Run GREEN** plus existing renderer suites; renderers must continue to consume only the typed operation.
+- [x] **Step 6: Commit:** `feat: classify scoped tmux operations`.
 
 ### Task 2: Analyze normalized graph and client impact
 
