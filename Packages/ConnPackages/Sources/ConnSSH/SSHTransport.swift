@@ -60,6 +60,10 @@ public protocol SSHSession: AnyObject, Sendable {
     /// 开一个交互式 PTY（终端用，Phase 4 深用）。
     func openShell(term: TermSize) async throws -> any ShellChannel
 
+    /// Open a bidirectional SSH exec channel, optionally with an explicitly requested PTY.
+    /// This must not be implemented by entering an interactive/login shell.
+    func openProcess(_ request: RemoteProcessRequest) async throws -> any RemoteProcessChannel
+
     /// 打开 SFTP 子系统（文件管理，Phase 6）。
     func sftp() async throws -> any RemoteFileSystem
 
@@ -95,6 +99,13 @@ public extension SSHSession {
     /// **传低于 15 秒的值会让那层兜底失效**（详见 ConnSSHCitadel 的 `withTimeout` 说明）。
     func exec(_ command: String) async throws -> ExecResult {
         try await exec(command, timeout: .seconds(30))
+    }
+
+    /// Source-compatible default for transports that predate bidirectional process channels.
+    /// Callers receive an explicit capability failure; there is deliberately no shell fallback.
+    func openProcess(_ request: RemoteProcessRequest) async throws -> any RemoteProcessChannel {
+        _ = request
+        throw RemoteProcessError.unsupported
     }
 }
 
