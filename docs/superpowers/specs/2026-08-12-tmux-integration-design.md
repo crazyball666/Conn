@@ -175,9 +175,10 @@ ConnTerminal
 ├── TerminalSessionCoordinator
 ├── TerminalSessionStore              本地打开的 Tab
 ├── RemoteWorkspaceCatalogStore       UI 展示状态
-└── TerminalInteractiveRenderer
-    ├── PTYRenderer
-    └── ControlModePaneRenderer        后续
+├── TerminalAttachmentBackend
+│   ├── PlainPTYBackend
+│   └── TmuxPassthroughBackend
+└── ControlModePaneRenderer            后续独立渲染面
           │
 ConnMultiplexer                        新增纯 Swift target
 ├── PersistentTerminalProvider
@@ -247,8 +248,9 @@ func openProcess(_ request: RemoteProcessRequest) async throws -> any RemoteProc
 
 ### 8.2 语义要求
 
-- 通过 SSH channel request 精确执行 `request.command`，不先进入登录 Shell；
-- 是否申请 PTY 由 request 明确决定；tmux 数据面和 Control Mode 都可以申请 PTY，但不会读取交互 rc；
+- 通过 SSH channel request 精确执行 `request.command`，不先进入交互式登录 Shell；
+- SSH server 通常仍通过远端用户 Shell 的 `-c` 执行命令；`.zshenv`、`BASH_ENV` 等非交互启动文件可能运行或输出内容，因此机器协议调用方仍必须有起始帧，不能假设首字节就是协议；
+- 是否申请 PTY 由 request 明确决定；tmux 数据面和 Control Mode 都可以申请 PTY，但不依赖提示符、alias 或交互式 rc；
 - `openProcess` 只有在 channel、PTY request（如有）、exec request 和 writer 都就绪后返回；
 - stdout/stderr 在无 PTY 时保持区分；PTY 合并输出时实现可以统一映射为 stdout；
 - 远端 EOF、通道错误、本地关闭只完成一次；
@@ -373,7 +375,7 @@ probe 至少取得：
 
 ### 12.1 启动
 
-`TmuxPTYRenderer` 使用 `RemoteProcessChannel` 直接执行精确 attach 命令，不打开登录 Shell。attachment descriptor 至少包含：
+`TmuxPassthroughBackend` 使用 `RemoteProcessChannel` 直接执行精确 attach 命令，不打开登录 Shell。attachment descriptor 至少包含：
 
 ```swift
 public struct TmuxAttachmentDescriptor: Sendable, Equatable {
@@ -387,7 +389,7 @@ public struct TmuxAttachmentDescriptor: Sendable, Equatable {
 
 首期 `renderMode == .passthroughPTY`。后续增加 `.nativeControlMode`。
 
-交互 tmux client 必须有可被控制面精确定位的 `target-client`。数据面启动时在非登录、非交互 POSIX shell 中先输出带随机 nonce 的有界握手帧和当前 `tty`，随后 `exec tmux attach-session`；renderer 在把输出交给 SwiftTerm 前消费并验证该帧。验证后的 PTY 名称仅保存在当前 attachment runtime 中，用于：
+交互 tmux client 必须有可被控制面精确定位的 `target-client`。数据面启动命令在非登录、非交互 POSIX shell 中输出带随机 nonce 的有界握手帧和当前 `tty`，随后 `exec tmux attach-session`；renderer 在把输出交给 SwiftTerm 前以相同的有界 preamble 规则查找、消费并验证该帧，忽略帧前可能存在的非交互 Shell 启动输出。验证后的 PTY 名称仅保存在当前 attachment runtime 中，用于：
 
 - `switch-client -c <target-client> -t <target-pane>` 精确切换 Conn 这一个 client 的 Session/Window/Pane；
 - `refresh-client -t <target-client>` 调整 client flag/尺寸策略；
@@ -395,7 +397,18 @@ public struct TmuxAttachmentDescriptor: Sendable, Equatable {
 
 握手帧不得进入 transcript，nonce 不落盘。超时、格式错误或 tmux 返回的 client 列表中找不到该 PTY 时，终端仍可 pass-through 使用，但原生 Window/Pane 切换和动态尺寸隔离标记 degraded，不能猜测 target-client。
 
-### 12.2 生命周期
+### 12.2 与现有 TerminalSession 的接线
+
+首期普通 PTY 和 tmux pass-through 最终都是一个字节终端，不重写现有 `TerminalSession`/`TerminalTranscript`：
+
+- `PlainPTYBackend` 继续把 `SSHSession.openShell()` 返回的 `ShellChannel` 交给 `TerminalSession`；
+- `TmuxPassthroughBackend` 用私有 `RemoteProcessShellChannelAdapter` 包装 `RemoteProcessChannel`，消费握手帧后将 PTY 合并输出映射为 `AsyncThrowingStream<Data, Error>`，并转发 write/resize/close；
+- adapter 实现现有 `ShellChannel`，但只位于 `ConnTerminal`，不能让 `ConnSSH` 反向依赖终端模块；
+- `TerminalSessionCoordinator` 根据 launch choice 选择 backend，成功得到 `ShellChannel` 后复用现有 generation、transcript、lifecycle 和 Store 流程；
+- `TerminalTab` 额外保存 attachment descriptor，不能再仅凭 `TerminalSessionSource` 或 initial command 推导重连方式；
+- 首期不创建没有消费者的通用 Renderer 协议。未来全原生 Pane Renderer 复用 `ConnMultiplexer` 的 provider、状态和操作层，并增加新的 tab content/presentation 类型；它不要求修改启动选择器、远端 Catalog、profile 持久化或 tmux command API。
+
+### 12.3 生命周期
 
 - PTY EOF 表示本地 tmux client 退出，不代表远端 Session 被 Kill；
 - 用户关闭 Tab 时关闭 PTY channel，即 Detach self；
@@ -423,7 +436,7 @@ HostConnectionIdentity + TmuxServerProfileID + TmuxServerInstanceToken
 - client topology 与 capability 状态；
 - 重连、退避和 snapshot reconciliation。
 
-同一个远端 Session 被多个 Conn 视图观察时共享一个 Control Client；不同 Session 只有在可见或被显式管理时才保持 Control Client。Session Center 进入时执行一次全局 snapshot；无可见消费者且无 pending operation 时释放临时控制通道，不做全主机后台轮询。
+同一个远端 Session 被多个 Conn 视图观察时共享一个 Control Client；不同 Session 只有在终端/管理视图当前可见或有 pending operation 时才保持 Control Client。仅存在于 `TerminalSessionStore` 但处于后台的 Tab 不持有观察 lease；再次可见时重新取得 lease 并先校准 snapshot。Session Center 进入时执行一次全局 snapshot；无可见消费者且无 pending operation 时释放临时控制通道，不做全主机后台轮询。
 
 ### 13.2 Control Client 启动参数
 
@@ -435,6 +448,8 @@ Control Client 使用 `RemoteProcessChannel` 直接启动 `tmux -CC attach-sessi
 
 `active-pane` 设置在交互 tmux client，不依赖 Control Client 的当前 Pane。Control Client 通过已验证的交互 `target-client` 执行 `switch-client -c ... -t %pane`，否则原生选择会只改变控制通道自身而不会改变实际接收键盘输入的 Pane。
 
+`tmux -CC` 会发送官方 DSC 起始标记。Control Client 在看到该标记前处于 `awaitingProtocolMarker`，只收集有上限的 preamble 诊断，不解析 `%` 消息；看到标记后才进入协议解析。超过时间/字节上限仍未出现标记时关闭该 Control Client 并降级，避免 `.zshenv`、系统 banner 或错误文本被误解析为 tmux 事件。
+
 Control Client 必须可写，因为它需要执行管理命令；不能设置 `read-only`。只读 Attach 是后续独立产品能力，不与首期管理通道混用。
 
 ### 13.3 Session Catalog 与实时观察
@@ -443,7 +458,18 @@ Control Client 必须可写，因为它需要执行管理命令；不能设置 `
 - Control Client 只 Attach 一个 Session，提供该 Session Window/Pane 的实时事件；
 - `%sessions-changed`、session rename 等全局相关事件使 Catalog 标记 dirty，并触发去抖后的重新抓取；
 - 没有 Control Client 时，进入 Session Center、切换 profile、下拉刷新或操作完成后执行 snapshot；
-- 不在正常路径每 2 秒运行 `list-*`；低频轮询只用于 Control Mode 降级模式且仅在管理界面可见时运行。
+- 不在正常路径每 2 秒运行 `list-*`；Control Mode 降级模式只在管理界面可见时每 2 秒刷新，用户离开界面立即停止，并保留手动下拉刷新。
+
+### 13.4 命令路由
+
+`TmuxCommandExecutor` 统一接收 typed operation，UI 不区分底层通道：
+
+- 目标 Session 已有 ready Control Client：通过该 client 串行发送命令并等待 `%end/%error`；
+- 创建第一个 Session、只打开 Session Center、目标 Session 未被观察或 Control Mode 已降级：通过 `SSHSession.exec` 执行同一个 `TmuxCommandEncoder` 生成的短命令；
+- one-shot 命令完成后立即抓取相关 Catalog/Session snapshot；
+- destructive one-shot 超时按“结果未知”处理，禁止自动重发；
+- Control Mode 命令失败不能静默改走 one-shot 重试，因为第一次命令可能已经生效；先 reconciliation，再由用户决定是否重试；
+- 一次 operation 绑定 host connection identity、profile ID、server instance token 和 generation，不能跨重连换通道继续执行。
 
 ## 14. Control Mode 协议状态机
 
@@ -452,6 +478,7 @@ Control Client 必须可写，因为它需要执行管理命令；不能设置 `
 ```text
 idle
   → connecting
+  → awaitingProtocolMarker
   → synchronizing
   → ready
   → recovering
@@ -463,6 +490,7 @@ idle
 ```
 
 - `connecting`：远程进程 channel 与 `-CC` 握手；
+- `awaitingProtocolMarker`：丢弃/隔离有界的 Shell preamble，等待 tmux `-CC` DSC 起始标记；
 - `synchronizing`：读取 server identity、Session/Window/Pane/Client 完整快照；
 - `ready`：应用事件、接受操作；
 - `recovering`：协议缺口、channel 断开或 snapshot dirty，按有界退避重连；
@@ -474,6 +502,7 @@ idle
 `TmuxProtocolParser` 是增量字节解析器：
 
 - 接受任意 Data chunk，不假设一块是一行；
+- 起始 DSC marker 和退出 ST marker 同样支持跨 chunk 识别；
 - 保留半行并限制最大缓冲；
 - 区分 `%begin`、命令输出、`%end`、`%error` 和异步通知；
 - 通知不会插入命令输出块，但解析器不能依赖一次 read 只含一种消息；
@@ -514,7 +543,11 @@ reducer 以新快照原子替换当前 generation 的状态，再继续应用后
 ```swift
 public struct TmuxServerSnapshot: Sendable, Equatable {
     public let instance: TmuxServerInstance
-    public let sessions: [TmuxSessionSnapshot]
+    public let sessions: [TmuxSessionID: TmuxSessionSnapshot]
+    public let windows: [TmuxWindowID: TmuxWindowSnapshot]
+    public let panes: [TmuxPaneID: TmuxPaneSnapshot]
+    public let windowLinks: [TmuxWindowLink]
+    public let clients: [TmuxClientID: TmuxClientSnapshot]
     public let observedAt: Date
     public let revision: UInt64
 }
@@ -522,24 +555,20 @@ public struct TmuxServerSnapshot: Sendable, Equatable {
 public struct TmuxSessionSnapshot: Sendable, Equatable, Identifiable {
     public let id: TmuxSessionID
     public let name: String
-    public let isAttached: Bool
-    public let attachedClientCount: Int
     public let currentWindowID: TmuxWindowID?
-    public let windows: [TmuxWindowSnapshot]
 }
 
 public struct TmuxWindowSnapshot: Sendable, Equatable, Identifiable {
     public let id: TmuxWindowID
-    public let index: Int
     public let name: String
     public let layout: String?
     public let isZoomed: Bool
     public let activePaneID: TmuxPaneID?
-    public let panes: [TmuxPaneSnapshot]
 }
 
 public struct TmuxPaneSnapshot: Sendable, Equatable, Identifiable {
     public let id: TmuxPaneID
+    public let windowID: TmuxWindowID
     public let index: Int
     public let title: String?
     public let currentCommand: String?
@@ -547,9 +576,25 @@ public struct TmuxPaneSnapshot: Sendable, Equatable, Identifiable {
     public let size: TermSize
     public let isDead: Bool
 }
+
+public struct TmuxWindowLink: Sendable, Equatable, Identifiable {
+    public let sessionID: TmuxSessionID
+    public let windowID: TmuxWindowID
+    public let index: Int
+}
+
+public struct TmuxClientSnapshot: Sendable, Equatable, Identifiable {
+    public let id: TmuxClientID
+    public let sessionID: TmuxSessionID
+    public let currentWindowID: TmuxWindowID?
+    public let activePaneID: TmuxPaneID?
+    public let flags: Set<TmuxClientFlag>
+}
 ```
 
-字段无法由某版本安全提供时为 optional 或由 feature set 隐藏，不伪造值。
+tmux Window 可以 link 到多个 Session，因此领域状态必须是规范化图，不能把同一个 Window 复制进多个 Session 树。UI 通过 `windowLinks` 和 Pane 的 `windowID` 投影 Session → Window → Pane。Session 的 attached client 数从 `clients` 推导；同一个 Window 的 rename/layout 事件只更新一份实体。首期虽然不提供 link/unlink UI，也必须正确读取和展示用户已有的 linked windows。
+
+字段无法由某版本安全提供时为 optional 或由 feature set 隐藏，不伪造值。Session 的 current window、Window 的 active pane 与 client-specific 视图必须分开；不能把 Conn 交互 client 的当前状态覆盖成 server 全局状态。
 
 ### 15.2 双 Store
 
@@ -570,8 +615,20 @@ public struct TmuxPaneSnapshot: Sendable, Equatable, Identifiable {
 `TerminalSessionSource` 增加 tmux attachment 来源，但不能把整个 snapshot 存入 Tab：
 
 ```swift
-case tmux(TmuxAttachmentDescriptor)
+case tmux
 ```
+
+重连信息继续与展示来源分离。现有只含 `commandToReplay` 的 `TerminalReconnectDescriptor` 改为显式枚举：
+
+```swift
+public enum TerminalReconnectDescriptor: Sendable, Equatable {
+    case shell
+    case replayCommand(String)              // 现有 Docker console
+    case tmux(TmuxAttachmentDescriptor)
+}
+```
+
+脚本终端创建成功后仍使用 `.shell`，不保存或重放用户脚本；tmux 重连只能消费 `.tmux` descriptor，不能从 alias、source 文案或 initial command 反推。
 
 ## 16. 操作语义
 
@@ -619,6 +676,8 @@ Conn 不 detach 其他客户端，不修改全局 tmux option，不永久写入�
 
 - 支持 `active-pane` 时，Conn 通过已验证的交互 target-client 使用独立 pane focus；
 - 不支持时，原生 Pane 列表的 select 会改变 tmux Window active pane，并可能被其他客户端看到，UI 标记 degraded；
+- `active-pane` 只隔离同一 Window 内的 Pane，不承诺隔离 Session 的 current window；选择另一个 Window 仍遵循远端 tmux 的共享语义，可能让同 Session 的其他 pass-through client 一起切换；
+- UI 在存在其他客户端时对 Window 切换显示共享状态提示，但不阻止操作；这是普通 tmux Attach 的固有语义，只有未来逐 Pane 原生 Renderer 才能完全摆脱共享可见 Window；
 - Zoom 是 Window 级远端状态，即使有 `active-pane` 也可能影响其他客户端；存在其他客户端时始终提示；
 - Conn 退出时不自动 unzoom，避免撤销用户或其他客户端主动设置的状态。
 
@@ -650,7 +709,7 @@ Control Mode 恢复使用有上限的指数退避并加入抖动；仅在存在�
 
 ## 19. 错误模型与降级
 
-建议新增结构化错误：
+新增结构化错误：
 
 ```swift
 public enum PersistentTerminalError: Error, Sendable, Equatable {
@@ -705,8 +764,9 @@ updated_at             TEXT NOT NULL
 
 - `provider_id` 首期为稳定值 `tmux`；
 - `configuration_json` 由对应 provider 按版本解码；未知 provider/config version 保留记录但不执行；
-- 一个 host/provider 最多一个 `is_primary`，它只决定启动器首先查询哪个 socket，不自动跳过启动选择器；
+- 一个 host/provider 最多一个 `is_primary`，由 `(host_id, provider_id) WHERE is_primary = 1` 的唯一部分索引保证；它只决定启动器首先查询哪个 socket，不自动跳过启动选择器；
 - 未配置 profile 时提供隐式的 tmux default socket profile；用户编辑后可物化为记录；
+- 用户禁用隐式 default profile 时物化一条 `is_enabled = 0` 的 default locator 记录，避免“没有记录”再次被解释为启用；
 - `-L`/`-S` profile 可以有多个，但 Conn 只查询用户当前选择或已配置的 profile；
 - host connection identity 改变时 profile 仍属于 host 配置，但所有运行时 snapshot/channel 失效并重新 probe；
 - App 尚未发布也使用正式 schema migration，不在启动代码中临时 ALTER。
@@ -762,6 +822,7 @@ Parser 使用 fuzz/property tests 生成随机分块；相同完整协议输入�
 `ConnSSHCitadelTests` 覆盖 `RemoteProcessChannel`：
 
 - direct exec 不读取登录 rc；
+- Control Mode 在随机 Shell preamble 后仍只从 `-CC` DSC marker 开始解析；marker 缺失/超限时安全降级；
 - 可写 stdin、持续读取 stdout/stderr；
 - PTY 可选申请和 resize；
 - tmux 数据面握手帧能取得并验证远端 PTY 名称，且不会进入终端 transcript；
@@ -836,7 +897,7 @@ Parser 使用 fuzz/property tests 生成随机分块；相同完整协议输入�
 - 使用 `refresh-client -C` 报告每个 Window/Pane 尺寸；
 - 自行处理 tmux 不会发送的 copy/choose mode 画面。
 
-由于 provider、Control Client、ID、snapshot 和 operation 已独立，升级只新增 Renderer 和 pane-output 状态，不改变启动器、Catalog、持久化和操作接口。
+由于 provider、Control Client、ID、snapshot 和 operation 已独立，升级主要新增 Renderer、pane-output 状态和新的 tab content/presentation，不改变启动器、Catalog、profile 持久化和 tmux 操作接口。
 
 ### 23.2 其它 Multiplexer
 
