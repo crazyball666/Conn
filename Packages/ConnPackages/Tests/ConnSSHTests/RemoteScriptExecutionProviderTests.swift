@@ -101,6 +101,43 @@ struct RemoteScriptExecutionProviderTests {
             try provider.invocation(for: "echo test", interpreter: .bash)
         }
     }
+
+    @Test("prepared runtime 固定已验证的绝对解释器路径并安全转义")
+    func preparedRuntimePinsResolvedExecutable() throws {
+        let provider = POSIXScriptExecutionProvider()
+        let runtime = try provider.prepareRuntime(
+            resolvedExecutablePath: "/opt/Ops Tools/owner's sh",
+            interpreter: .sh
+        )
+
+        #expect(runtime.family == .posix)
+        #expect(runtime.interpreter == .sh)
+        #expect(runtime.resolvedExecutablePath == "/opt/Ops Tools/owner's sh")
+        #expect(
+            try runtime.invocation(for: "printf '%s\\n' ok")
+                == "'/opt/Ops Tools/owner'\\''s sh' -c 'printf '\\''%s\\n'\\'' ok'"
+        )
+    }
+
+    @Test("prepared runtime 拒绝不可信或非绝对解释器路径", arguments: [
+        "", "sh", "./sh", "/bin/sh\nmalicious", "/bin/sh\0malicious", "/bin/\tsh",
+    ])
+    func preparedRuntimeRejectsInvalidPath(path: String) {
+        let provider = POSIXScriptExecutionProvider()
+
+        #expect(throws: RemoteScriptExecutionError.invalidResolvedExecutablePath) {
+            try provider.prepareRuntime(resolvedExecutablePath: path, interpreter: .sh)
+        }
+    }
+
+    @Test("prepared runtime 仍受 provider 的解释器白名单约束")
+    func preparedRuntimeRejectsUnsupportedInterpreter() {
+        let provider = POSIXScriptExecutionProvider(supportedInterpreters: [.sh])
+
+        #expect(throws: RemoteScriptExecutionError.unsupportedInterpreter(.bash)) {
+            try provider.prepareRuntime(resolvedExecutablePath: "/bin/bash", interpreter: .bash)
+        }
+    }
 }
 
 private struct TestScriptExecutionProvider: RemoteScriptExecutionProvider {

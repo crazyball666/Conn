@@ -20,6 +20,28 @@ public protocol RemoteScriptExecutionProvider: Sendable {
 
 public enum RemoteScriptExecutionError: Error, Sendable, Equatable {
     case unsupportedInterpreter(ShellInterpreter)
+    case invalidResolvedExecutablePath
+}
+
+/// A machine-protocol runtime pinned to an interpreter path that was already probed.
+public struct PreparedRemoteScriptRuntime: Sendable, Equatable {
+    public let family: RemoteScriptFamily
+    public let interpreter: ShellInterpreter
+    public let resolvedExecutablePath: String
+
+    init(
+        family: RemoteScriptFamily,
+        interpreter: ShellInterpreter,
+        resolvedExecutablePath: String
+    ) {
+        self.family = family
+        self.interpreter = interpreter
+        self.resolvedExecutablePath = resolvedExecutablePath
+    }
+
+    public func invocation(for script: String) throws -> String {
+        "\(POSIXShellArgument.encode(resolvedExecutablePath)) -c \(POSIXShellArgument.encode(script))"
+    }
 }
 
 /// Linux 和 macOS 上的 POSIX Shell 脚本执行器。
@@ -51,8 +73,46 @@ public struct POSIXScriptExecutionProvider: RemoteScriptExecutionProvider {
             throw RemoteScriptExecutionError.unsupportedInterpreter(interpreter)
         }
 
-        let quotedScript = script.replacingOccurrences(of: "'", with: "'\\''")
-        return "\(interpreter.rawValue) -c '\(quotedScript)'"
+        return "\(POSIXShellArgument.encode(interpreter.rawValue)) -c \(POSIXShellArgument.encode(script))"
+    }
+
+    public func prepareRuntime(
+        resolvedExecutablePath: String,
+        interpreter: ShellInterpreter
+    ) throws -> PreparedRemoteScriptRuntime {
+        guard supportedInterpreters.contains(interpreter) else {
+            throw RemoteScriptExecutionError.unsupportedInterpreter(interpreter)
+        }
+        guard Self.isValidResolvedExecutablePath(resolvedExecutablePath) else {
+            throw RemoteScriptExecutionError.invalidResolvedExecutablePath
+        }
+        return PreparedRemoteScriptRuntime(
+            family: family,
+            interpreter: interpreter,
+            resolvedExecutablePath: resolvedExecutablePath
+        )
+    }
+
+    private static func isValidResolvedExecutablePath(_ path: String) -> Bool {
+        guard path.first == "/" else { return false }
+        return !path.unicodeScalars.contains { scalar in
+            scalar.value < 0x20 || (0x7F ... 0x9F).contains(scalar.value)
+        }
+    }
+}
+
+private enum POSIXShellArgument {
+    private static let safeScalars = CharacterSet(
+        charactersIn: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_@%+=:,./-"
+    )
+
+    static func encode(_ value: String) -> String {
+        guard !value.isEmpty,
+              value.unicodeScalars.allSatisfy({ safeScalars.contains($0) })
+        else {
+            return "'\(value.replacingOccurrences(of: "'", with: "'\\''"))'"
+        }
+        return value
     }
 }
 
