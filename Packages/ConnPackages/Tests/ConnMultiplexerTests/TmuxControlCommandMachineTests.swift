@@ -153,6 +153,117 @@ struct TmuxControlCommandMachineTests {
             try mismatch.submit(fixture.killPane)
         }
     }
+
+    @Test("timeout before begin keeps tracking the late block and requires reconciliation")
+    func quarantinesTimeoutBeforeBegin() throws {
+        let fixture = try CommandMachineFixture()
+        var machine = try fixture.readyMachine()
+        let submission = try machine.submit(fixture.killPane)
+        let uncertain = TmuxControlUncertainCommand(
+            commandID: submission.id,
+            generation: 7,
+            semantics: .destructive,
+            output: []
+        )
+
+        #expect(try machine.timeout(submission.id, generation: 7) == .commandTimedOut(uncertain))
+        #expect(machine.isRecovering)
+        #expect(throws: TmuxControlCommandMachineError.reconciliationRequired) {
+            try machine.submit(fixture.renameSession)
+        }
+        #expect(throws: TmuxControlCommandMachineError.commandTerminationPending) {
+            try machine.markReconciled(generation: 7)
+        }
+
+        let guardValue = TmuxCommandGuard(time: 20, commandNumber: 10, flags: 0)
+        #expect(try machine.receive(.commandBegin(guardValue), generation: 7) == .none)
+        #expect(try machine.receive(.commandOutput(Data("late".utf8)), generation: 7) == .none)
+        #expect(try machine.receive(.commandEnd(guardValue), generation: 7) == .lateCommandTerminated(
+            commandID: submission.id,
+            status: .succeeded
+        ))
+        #expect(machine.requiresReconciliation)
+        #expect(!machine.isReady)
+        #expect(throws: TmuxControlCommandMachineError.reconciliationRequired) {
+            try machine.submit(fixture.renameSession)
+        }
+
+        #expect(try machine.markReconciled(generation: 7) == .reconciliationCompleted)
+        #expect(machine.isReady)
+        _ = try machine.submit(fixture.renameSession)
+    }
+
+    @Test("timeout after begin never turns a late error or success into caller completion")
+    func quarantinesTimeoutAfterBegin() throws {
+        let fixture = try CommandMachineFixture()
+        var machine = try fixture.readyMachine()
+        let submission = try machine.submit(fixture.killPane)
+        let guardValue = TmuxCommandGuard(time: 21, commandNumber: 11, flags: 0)
+        _ = try machine.receive(.commandBegin(guardValue), generation: 7)
+        _ = try machine.receive(.commandOutput(Data("partial".utf8)), generation: 7)
+
+        #expect(try machine.timeout(submission.id, generation: 7) == .commandTimedOut(.init(
+            commandID: submission.id,
+            generation: 7,
+            semantics: .destructive,
+            output: [Data("partial".utf8)]
+        )))
+        #expect(try machine.receive(.commandError(guardValue), generation: 7) == .lateCommandTerminated(
+            commandID: submission.id,
+            status: .rejected
+        ))
+        #expect(machine.requiresReconciliation)
+    }
+
+    @Test("channel loss quarantines uncertain mutation until a strictly newer generation")
+    func requiresNewGenerationAfterChannelLoss() throws {
+        let fixture = try CommandMachineFixture()
+        var machine = try fixture.readyMachine()
+        let submission = try machine.submit(fixture.killPane)
+
+        #expect(try machine.channelLost(generation: 7) == .recoveryRequired(.init(
+            commandID: submission.id,
+            generation: 7,
+            semantics: .destructive,
+            output: []
+        )))
+        #expect(machine.isRecovering)
+        #expect(throws: TmuxControlCommandMachineError.generationReplacementRequired) {
+            try machine.markReconciled(generation: 7)
+        }
+        #expect(throws: TmuxControlCommandMachineError.reconciliationRequired) {
+            try machine.submit(fixture.renameSession)
+        }
+
+        #expect(try machine.installGeneration(8) == .generationInstalled(8))
+        #expect(try machine.receive(.protocolStarted, generation: 7) == .discardedStaleGeneration)
+        #expect(!machine.isReady)
+        #expect(try machine.receive(.protocolStarted, generation: 8) == .protocolReady)
+        #expect(machine.isReady)
+        let next = try machine.submit(fixture.renameSession)
+        #expect(next.generation == 8)
+        #expect(next.id.rawValue == 0)
+    }
+
+    @Test("old generations are discarded and future generations cannot corrupt current state")
+    func isolatesEventGenerations() throws {
+        let fixture = try CommandMachineFixture()
+        var machine = try fixture.readyMachine()
+        let notification = TmuxNotification.known(.sessionsChanged, payload: Data())
+
+        #expect(try machine.receive(.notification(notification), generation: 6) == .discardedStaleGeneration)
+        #expect(throws: TmuxControlCommandMachineError.unexpectedGeneration(
+            expected: 7,
+            actual: 8
+        )) {
+            try machine.receive(.notification(notification), generation: 8)
+        }
+        #expect(machine.isReady)
+        #expect(try machine.receive(.notification(notification), generation: 7) == .notification(notification))
+        #expect(throws: TmuxControlCommandMachineError.invalidGenerationReplacement) {
+            try machine.installGeneration(7)
+        }
+    }
 }
 
 private struct CommandMachineFixture {

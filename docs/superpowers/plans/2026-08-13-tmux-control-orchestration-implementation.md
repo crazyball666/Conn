@@ -32,10 +32,10 @@
 - Modify: `Packages/ConnPackages/Sources/ConnMultiplexer/TmuxControlCommandMachine.swift`
 - Modify: `Packages/ConnPackages/Tests/ConnMultiplexerTests/TmuxControlCommandMachineTests.swift`
 
-- [ ] Write failing tests for timeout before/after `%begin`, late `%end/%error`, channel loss, old generation events, and reconciliation barriers.
-- [ ] Implement dirty/recovering states: no subsequent mutation is accepted until the late terminator plus reconciliation, or a strictly newer generation is installed.
-- [ ] Keep timed-out mutation outcome permanently unknown; a late success is diagnostic only.
-- [ ] Run focused/module tests and commit: `feat: quarantine uncertain tmux commands`.
+- [x] Write failing tests for timeout before/after `%begin`, late `%end/%error`, channel loss, old generation events, and reconciliation barriers.
+- [x] Implement dirty/recovering states: no subsequent mutation is accepted until the late terminator plus reconciliation, or a strictly newer generation is installed.
+- [x] Keep timed-out mutation outcome permanently unknown; a late success is diagnostic only.
+- [x] Run focused/module tests and commit: `feat: quarantine uncertain tmux commands`.
 
 ### Task 3: Own an injected process channel in `TmuxControlClient`
 

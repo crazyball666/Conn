@@ -5,6 +5,12 @@ package enum TmuxControlCommandMachineError: Error, Sendable, Equatable {
     case protocolNotReady
     case commandAlreadyInFlight
     case commandIdentifierExhausted
+    case commandNotInFlight
+    case commandOutcomeAlreadyUnknown
+    case reconciliationRequired
+    case commandTerminationPending
+    case generationReplacementRequired
+    case invalidGenerationReplacement
     case unexpectedGeneration(expected: UInt64, actual: UInt64)
     case invalidProtocolSequence
     case guardMismatch(expected: TmuxCommandGuard, actual: TmuxCommandGuard)
@@ -77,11 +83,36 @@ package struct TmuxControlCommandResult: Sendable, Equatable {
     }
 }
 
+package struct TmuxControlUncertainCommand: Sendable, Equatable {
+    package let commandID: TmuxControlCommandID
+    package let generation: UInt64
+    package let semantics: TmuxOperationSemantics
+    package let output: [Data]
+
+    package init(
+        commandID: TmuxControlCommandID,
+        generation: UInt64,
+        semantics: TmuxOperationSemantics,
+        output: [Data]
+    ) {
+        self.commandID = commandID
+        self.generation = generation
+        self.semantics = semantics
+        self.output = output
+    }
+}
+
 package enum TmuxControlCommandMachineAction: Sendable, Equatable {
     case none
     case protocolReady
     case notification(TmuxNotification)
     case commandCompleted(TmuxControlCommandResult)
+    case commandTimedOut(TmuxControlUncertainCommand)
+    case lateCommandTerminated(commandID: TmuxControlCommandID, status: TmuxControlCommandStatus)
+    case reconciliationCompleted
+    case recoveryRequired(TmuxControlUncertainCommand?)
+    case generationInstalled(UInt64)
+    case discardedStaleGeneration
     case protocolEnded
 }
 
@@ -94,17 +125,20 @@ package struct TmuxControlCommandMachine: Sendable {
         var guardValue: TmuxCommandGuard?
         var output: [Data]
         var outputBytes: Int
+        var timedOut: Bool
     }
 
     private enum State: Sendable {
         case awaitingProtocolStart
         case ready
         case pending(PendingCommand)
+        case awaitingReconciliation
+        case awaitingReplacement
         case ended
         case failed
     }
 
-    package let generation: UInt64
+    package private(set) var generation: UInt64
     private let limits: TmuxControlCommandLimits
     private let renderer = TmuxControlCommandRenderer()
     private var nextCommandID: UInt64 = 0
@@ -123,6 +157,28 @@ package struct TmuxControlCommandMachine: Sendable {
         return false
     }
 
+    package var isRecovering: Bool {
+        switch state {
+        case let .pending(pending):
+            pending.timedOut
+        case .awaitingReconciliation, .awaitingReplacement:
+            true
+        case .awaitingProtocolStart, .ready, .ended, .failed:
+            false
+        }
+    }
+
+    package var requiresReconciliation: Bool {
+        switch state {
+        case let .pending(pending):
+            pending.timedOut
+        case .awaitingReconciliation:
+            true
+        case .awaitingProtocolStart, .ready, .awaitingReplacement, .ended, .failed:
+            false
+        }
+    }
+
     package var isTerminalFailure: Bool {
         if case .failed = state { return true }
         return false
@@ -136,8 +192,12 @@ package struct TmuxControlCommandMachine: Sendable {
             throw TmuxControlCommandMachineError.protocolNotReady
         case .ready:
             break
-        case .pending:
-            throw TmuxControlCommandMachineError.commandAlreadyInFlight
+        case let .pending(pending):
+            throw pending.timedOut
+                ? TmuxControlCommandMachineError.reconciliationRequired
+                : TmuxControlCommandMachineError.commandAlreadyInFlight
+        case .awaitingReconciliation, .awaitingReplacement:
+            throw TmuxControlCommandMachineError.reconciliationRequired
         case .ended, .failed:
             throw TmuxControlCommandMachineError.terminalFailure
         }
@@ -158,7 +218,8 @@ package struct TmuxControlCommandMachine: Sendable {
             submission: submission,
             guardValue: nil,
             output: [],
-            outputBytes: 0
+            outputBytes: 0,
+            timedOut: false
         ))
         return submission
     }
@@ -167,6 +228,9 @@ package struct TmuxControlCommandMachine: Sendable {
         _ event: TmuxProtocolEvent,
         generation eventGeneration: UInt64
     ) throws -> TmuxControlCommandMachineAction {
+        if eventGeneration < generation {
+            return .discardedStaleGeneration
+        }
         guard eventGeneration == generation else {
             throw TmuxControlCommandMachineError.unexpectedGeneration(
                 expected: generation,
@@ -188,6 +252,87 @@ package struct TmuxControlCommandMachine: Sendable {
         }
     }
 
+    package mutating func timeout(
+        _ commandID: TmuxControlCommandID,
+        generation eventGeneration: UInt64
+    ) throws -> TmuxControlCommandMachineAction {
+        if eventGeneration < generation { return .discardedStaleGeneration }
+        guard eventGeneration == generation else {
+            throw TmuxControlCommandMachineError.unexpectedGeneration(
+                expected: generation,
+                actual: eventGeneration
+            )
+        }
+        guard case var .pending(pending) = state,
+              pending.submission.id == commandID
+        else {
+            throw TmuxControlCommandMachineError.commandNotInFlight
+        }
+        guard !pending.timedOut else {
+            throw TmuxControlCommandMachineError.commandOutcomeAlreadyUnknown
+        }
+        pending.timedOut = true
+        state = .pending(pending)
+        return .commandTimedOut(uncertainCommand(from: pending))
+    }
+
+    package mutating func markReconciled(
+        generation eventGeneration: UInt64
+    ) throws -> TmuxControlCommandMachineAction {
+        if eventGeneration < generation { return .discardedStaleGeneration }
+        guard eventGeneration == generation else {
+            throw TmuxControlCommandMachineError.unexpectedGeneration(
+                expected: generation,
+                actual: eventGeneration
+            )
+        }
+        switch state {
+        case let .pending(pending) where pending.timedOut:
+            throw TmuxControlCommandMachineError.commandTerminationPending
+        case .awaitingReconciliation:
+            state = .ready
+            return .reconciliationCompleted
+        case .awaitingReplacement:
+            throw TmuxControlCommandMachineError.generationReplacementRequired
+        case .ready:
+            return .reconciliationCompleted
+        case .awaitingProtocolStart, .pending, .ended, .failed:
+            throw TmuxControlCommandMachineError.invalidProtocolSequence
+        }
+    }
+
+    package mutating func channelLost(
+        generation eventGeneration: UInt64
+    ) throws -> TmuxControlCommandMachineAction {
+        if eventGeneration < generation { return .discardedStaleGeneration }
+        guard eventGeneration == generation else {
+            throw TmuxControlCommandMachineError.unexpectedGeneration(
+                expected: generation,
+                actual: eventGeneration
+            )
+        }
+        let uncertain: TmuxControlUncertainCommand?
+        if case let .pending(pending) = state {
+            uncertain = uncertainCommand(from: pending)
+        } else {
+            uncertain = nil
+        }
+        state = .awaitingReplacement
+        return .recoveryRequired(uncertain)
+    }
+
+    package mutating func installGeneration(
+        _ newGeneration: UInt64
+    ) throws -> TmuxControlCommandMachineAction {
+        guard newGeneration > generation else {
+            throw TmuxControlCommandMachineError.invalidGenerationReplacement
+        }
+        generation = newGeneration
+        nextCommandID = 0
+        state = .awaitingProtocolStart
+        return .generationInstalled(newGeneration)
+    }
+
     private mutating func apply(
         _ event: TmuxProtocolEvent
     ) throws -> TmuxControlCommandMachineAction {
@@ -201,9 +346,9 @@ package struct TmuxControlCommandMachine: Sendable {
 
         case let .notification(notification):
             switch state {
-            case .ready, .pending:
+            case .ready, .pending, .awaitingReconciliation:
                 return .notification(notification)
-            case .awaitingProtocolStart, .ended, .failed:
+            case .awaitingProtocolStart, .awaitingReplacement, .ended, .failed:
                 throw TmuxControlCommandMachineError.invalidProtocolSequence
             }
 
@@ -243,11 +388,17 @@ package struct TmuxControlCommandMachine: Sendable {
             return try complete(actualGuard, status: .rejected)
 
         case .protocolEnded:
-            guard case .ready = state else {
+            switch state {
+            case .ready, .awaitingReconciliation:
+                state = .ended
+                return .protocolEnded
+            case let .pending(pending):
+                let uncertain = uncertainCommand(from: pending)
+                state = .awaitingReplacement
+                return .recoveryRequired(uncertain)
+            case .awaitingProtocolStart, .awaitingReplacement, .ended, .failed:
                 throw TmuxControlCommandMachineError.invalidProtocolSequence
             }
-            state = .ended
-            return .protocolEnded
         }
     }
 
@@ -266,6 +417,13 @@ package struct TmuxControlCommandMachine: Sendable {
                 actual: actualGuard
             )
         }
+        if pending.timedOut {
+            state = .awaitingReconciliation
+            return .lateCommandTerminated(
+                commandID: pending.submission.id,
+                status: status
+            )
+        }
         let result = TmuxControlCommandResult(
             commandID: pending.submission.id,
             generation: generation,
@@ -275,5 +433,14 @@ package struct TmuxControlCommandMachine: Sendable {
         )
         state = .ready
         return .commandCompleted(result)
+    }
+
+    private func uncertainCommand(from pending: PendingCommand) -> TmuxControlUncertainCommand {
+        TmuxControlUncertainCommand(
+            commandID: pending.submission.id,
+            generation: pending.submission.generation,
+            semantics: pending.submission.semantics,
+            output: pending.output
+        )
     }
 }
