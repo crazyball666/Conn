@@ -33,15 +33,15 @@
 - Create: `Packages/ConnPackages/Sources/ConnMultiplexer/TmuxOperationImpact.swift`
 - Create: `Packages/ConnPackages/Tests/ConnMultiplexerTests/TmuxOperationImpactTests.swift`
 
-- [ ] **Step 1: Write failing target tests** for missing Session/Window/Pane/client, ambiguous client target names, and Window/Pane targets not reachable from the selected client Session.
-- [ ] **Step 2: Write failing shared-state tests** for grouped `createWindow`, linked Window rename/split/zoom/select, client-local Pane focus when active-pane isolation is enabled, and conservative shared focus otherwise.
-- [ ] **Step 3: Write failing destructive tests** proving Kill Session only destroys orphaned Windows/Panes, Kill Window destroys the Window across every link and any now-windowless Session, and closing a final Pane cascades through Window/Session destruction.
-- [ ] **Step 4: Write failing client-risk tests** proving the initiating attachment and Conn Control Clients are excluded, unknown/third-party Control Mode clients remain affected, and interactive risk is a strict projection of affected clients.
-- [ ] **Step 5: Run RED:** `swift test --package-path Packages/ConnPackages --filter TmuxOperationImpactTests` must fail because the analyzer does not exist.
-- [ ] **Step 6: Implement** `TmuxOperationImpactAnalyzer` and immutable impact values containing target presentation, created kinds, affected/destroyed IDs, removed links, other affected/interactive client IDs, and shared-state effects.
-- [ ] **Step 7: Keep analysis pure and deterministic:** never consult UI, SSH, names as command targets, or renderer strings; sort public projections by typed identity.
-- [ ] **Step 8: Run GREEN** and all `ConnMultiplexerTests`.
-- [ ] **Step 9: Commit:** `feat: analyze tmux operation impact`.
+- [x] **Step 1: Write failing target tests** for missing Session/Window/Pane/client, ambiguous client target names, and Window/Pane targets not reachable from the selected client Session.
+- [x] **Step 2: Write failing shared-state tests** for grouped `createWindow`, linked Window rename/split/zoom/select, client-local Pane focus when active-pane isolation is enabled, and conservative shared focus otherwise.
+- [x] **Step 3: Write failing destructive tests** proving Kill Session only destroys orphaned Windows/Panes, Kill Window destroys the Window across every link and any now-windowless Session, and closing a final Pane cascades through Window/Session destruction.
+- [x] **Step 4: Write failing client-risk tests** proving the initiating attachment and Conn Control Clients are excluded, unknown/third-party Control Mode clients remain affected, and interactive risk is a strict projection of affected clients.
+- [x] **Step 5: Run RED:** `swift test --package-path Packages/ConnPackages --filter TmuxOperationImpactTests` must fail because the analyzer does not exist.
+- [x] **Step 6: Implement** `TmuxOperationImpactAnalyzer` and immutable impact values containing target presentation, created kinds, affected/destroyed IDs, removed links, other affected/interactive client IDs, and shared-state effects.
+- [x] **Step 7: Keep analysis pure and deterministic:** never consult UI, SSH, names as command targets, or renderer strings; sort public projections by typed identity.
+- [x] **Step 8: Run GREEN** and all `ConnMultiplexerTests`.
+- [x] **Step 9: Commit:** `feat: analyze tmux operation impact`.
 
 ### Task 3: Prepare and revalidate destructive confirmation claims
 
