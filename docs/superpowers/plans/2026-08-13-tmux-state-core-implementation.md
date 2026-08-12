@@ -78,13 +78,13 @@
 
 ## Completion gate
 
-- [ ] Every production behavior has a focused RED before implementation.
-- [ ] `swift test --package-path Packages/ConnPackages --filter ConnMultiplexerTests` passes.
-- [ ] `swift test --package-path Packages/ConnPackages` passes from current artifacts.
-- [ ] `git diff --check` passes.
-- [ ] Quoted snapshot decoding matches tmux `q:` byte escaping and never uses naïve tab/pipe splitting.
-- [ ] Legacy decoding never combines multiple untrusted fields in one delimiter-based record.
-- [ ] Snapshot graph has one Window entity even when linked into multiple Sessions.
-- [ ] Unknown client kind/size is counted conservatively; Conn Control Clients are not user-risk or size participants.
-- [ ] Old generations and changed server tokens cannot mutate current state.
-- [ ] Incomplete topology events request reconciliation instead of speculative mutation.
+- [x] Every production behavior has a focused RED before implementation.
+- [x] `swift test --package-path Packages/ConnPackages --filter ConnMultiplexerTests` passes.
+- [x] `swift test --package-path Packages/ConnPackages` passes from current artifacts.
+- [x] `git diff --check` passes.
+- [x] Quoted snapshot decoding matches tmux `q:` byte escaping and never uses naïve tab/pipe splitting.
+- [x] Legacy decoding never combines multiple untrusted fields in one delimiter-based record.
+- [x] Snapshot graph has one Window entity even when linked into multiple Sessions.
+- [x] Unknown client kind/size is counted conservatively; Conn Control Clients are not user-risk or size participants.
+- [x] Old generations and changed server tokens cannot mutate current state.
+- [x] Incomplete topology events request reconciliation instead of speculative mutation.
