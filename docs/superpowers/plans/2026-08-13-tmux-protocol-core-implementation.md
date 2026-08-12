@@ -67,7 +67,7 @@
 
 - [x] Focused RED is observed before every production type/behavior.
 - [x] `swift test --package-path Packages/ConnPackages --filter ConnMultiplexerTests` passes.
-- [ ] `swift test --package-path Packages/ConnPackages` passes from coherent build artifacts.
+- [x] `swift test --package-path Packages/ConnPackages` passes from coherent build artifacts.
 - [x] `git diff --check` passes.
 - [x] `ConnMultiplexer` contains no Citadel, NIOSSH, UIKit, SwiftUI, or SwiftTerm imports.
 - [x] Control and Shell renderers share typed operations but no final command string or quoting implementation.
