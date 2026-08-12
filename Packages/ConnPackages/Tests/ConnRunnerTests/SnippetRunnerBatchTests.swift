@@ -19,6 +19,7 @@ struct SnippetRunnerBatchTests {
         let history = MemoryRunHistoryRepository()
         let runner = makeRunner(transport: transport, history: history)
         let plan = makePlan(
+            for: host,
             auditScript: auditScript,
             preparedCommand: preparedCommand,
             interpreter: .zsh
@@ -54,11 +55,13 @@ struct SnippetRunnerBatchTests {
         let runner = makeRunner(transport: transport)
         let plans = [
             first.id: makePlan(
+                for: first,
                 auditScript: "audit first",
                 preparedCommand: "prepared first",
                 interpreter: .bash
             ),
             second.id: makePlan(
+                for: second,
                 auditScript: "audit second",
                 preparedCommand: "prepared second",
                 interpreter: .zsh
@@ -87,6 +90,7 @@ struct SnippetRunnerBatchTests {
         let results = await runner.runBatchSilently(
             plansByHostID: [
                 ready.id: makePlan(
+                    for: ready,
                     auditScript: "audit ready",
                     preparedCommand: "prepared ready"
                 ),
@@ -116,7 +120,7 @@ struct SnippetRunnerBatchTests {
 
         await #expect(throws: SnippetRunnerError.auditUnavailable) {
             try await runner.runSilently(
-                plan: makePlan(auditScript: "audit", preparedCommand: "prepared"),
+                plan: makePlan(for: host, auditScript: "audit", preparedCommand: "prepared"),
                 on: host
             )
         }
@@ -138,6 +142,7 @@ struct SnippetRunnerBatchTests {
         await #expect(throws: SnippetRunnerError.auditUpdateFailed) {
             try await runner.runSilently(
                 plan: makePlan(
+                    for: host,
                     auditScript: "audit only",
                     preparedCommand: "prepared",
                     interpreter: .bash
@@ -164,8 +169,16 @@ struct SnippetRunnerBatchTests {
             history: history
         )
         let plans = [
-            failing.id: makePlan(auditScript: "audit failure", preparedCommand: "must not execute"),
-            succeeding.id: makePlan(auditScript: "audit success", preparedCommand: "prepared success"),
+            failing.id: makePlan(
+                for: failing,
+                auditScript: "audit failure",
+                preparedCommand: "must not execute"
+            ),
+            succeeding.id: makePlan(
+                for: succeeding,
+                auditScript: "audit success",
+                preparedCommand: "prepared success"
+            ),
         ]
 
         let results = await runner.runBatchSilently(plansByHostID: plans, on: [succeeding, failing])
@@ -175,6 +188,44 @@ struct SnippetRunnerBatchTests {
         #expect(results[0].errorMessage == SnippetRunnerError.auditUnavailable.localizedDescription)
         #expect(results[1].outcome?.stdout == "ok")
         #expect(results[1].errorMessage == nil)
+    }
+
+    @Test("prepared plan rejects a different SSH connection identity before audit or execution")
+    func planCannotExecuteOnDifferentConnectionIdentity() async {
+        let preparedHost = Host(
+            id: "same-id",
+            name: "Prepared",
+            address: "10.0.0.20",
+            username: "ops"
+        )
+        let changedHost = Host(
+            id: preparedHost.id,
+            name: "Changed",
+            address: "10.0.0.21",
+            username: "ops"
+        )
+        let commands = CommandRecorder()
+        let history = MemoryRunHistoryRepository()
+        let runner = makeRunner(
+            transport: MockSSHTransport(behavior: .init(dynamicResponder: { command, endpoint in
+                commands.append(command: command, host: endpoint.host)
+                return .init(stdout: "must not execute")
+            })),
+            history: history
+        )
+        let plan = makePlan(
+            for: preparedHost,
+            auditScript: "audit",
+            preparedCommand: "prepared"
+        )
+
+        await #expect(throws: SnippetRunnerError.executionTargetMismatch) {
+            try await runner.runSilently(plan: plan, on: changedHost)
+        }
+
+        #expect(commands.commands.isEmpty)
+        #expect(history.recordedEntries.isEmpty)
+        #expect(history.updateAttempts.isEmpty)
     }
 
     private func makeRunner(
@@ -188,11 +239,13 @@ struct SnippetRunnerBatchTests {
     }
 
     private func makePlan(
+        for host: ConnKit.Host,
         auditScript: String,
         preparedCommand: String,
         interpreter: ShellInterpreter = .sh
     ) -> SnippetExecutionPlan {
         SnippetExecutionPlan(
+            connectionIdentity: SSHConnectionIdentity(host: host),
             auditScript: auditScript,
             preparedCommand: preparedCommand,
             interpreter: interpreter,

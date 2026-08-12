@@ -6,6 +6,7 @@ public enum SnippetRunnerError: LocalizedError, Equatable {
     case auditUnavailable
     case auditUpdateFailed
     case missingExecutionPlan
+    case executionTargetMismatch
 
     public var errorDescription: String? {
         switch self {
@@ -15,6 +16,8 @@ public enum SnippetRunnerError: LocalizedError, Equatable {
             L("脚本已执行，但执行记录保存失败")
         case .missingExecutionPlan:
             L("执行失败")
+        case .executionTargetMismatch:
+            L("主机连接配置已变化，请重新检查后执行")
         }
     }
 }
@@ -71,6 +74,9 @@ public struct SnippetRunner {
         plan: SnippetExecutionPlan,
         on host: ConnKit.Host
     ) async throws -> RunOutcome {
+        guard plan.connectionIdentity == SSHConnectionIdentity(host: host) else {
+            throw SnippetRunnerError.executionTargetMismatch
+        }
         let pending = RunHistoryEntry(
             hostUUID: host.id,
             script: plan.auditScript,

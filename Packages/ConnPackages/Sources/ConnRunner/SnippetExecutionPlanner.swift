@@ -65,6 +65,7 @@ public struct SnippetRequirementAdapterRegistry: Sendable {
 /// It intentionally retains only stable values and the selected stateless execution
 /// provider. SSH sessions and feature-specific runtime types remain outside this value.
 public struct SnippetHostPreparation: Sendable {
+    public let connectionIdentity: SSHConnectionIdentity
     public let platformProfile: RemotePlatformProfile
     public let capabilityReport: RemoteCapabilityReport
     public let scriptPreludes: [String]
@@ -72,12 +73,14 @@ public struct SnippetHostPreparation: Sendable {
     public let executionProvider: any RemoteScriptExecutionProvider
 
     init(
+        connectionIdentity: SSHConnectionIdentity,
         platformProfile: RemotePlatformProfile,
         capabilityReport: RemoteCapabilityReport,
         scriptPreludes: [String],
         interpreter: ShellInterpreter,
         executionProvider: any RemoteScriptExecutionProvider
     ) {
+        self.connectionIdentity = connectionIdentity
         self.platformProfile = platformProfile
         self.capabilityReport = capabilityReport
         self.scriptPreludes = scriptPreludes
@@ -88,17 +91,20 @@ public struct SnippetHostPreparation: Sendable {
 
 /// A pure execution artifact that separates audit text from the remote command.
 public struct SnippetExecutionPlan: Sendable, Equatable {
+    public let connectionIdentity: SSHConnectionIdentity
     public let auditScript: String
     public let preparedCommand: String
     public let interpreter: ShellInterpreter
     public let capabilityReport: RemoteCapabilityReport
 
     init(
+        connectionIdentity: SSHConnectionIdentity,
         auditScript: String,
         preparedCommand: String,
         interpreter: ShellInterpreter,
         capabilityReport: RemoteCapabilityReport
     ) {
+        self.connectionIdentity = connectionIdentity
         self.auditScript = auditScript
         self.preparedCommand = preparedCommand
         self.interpreter = interpreter
@@ -198,6 +204,7 @@ public struct SnippetExecutionPlanner: Sendable {
         let report = RemoteCapabilityReport(states: states)
         guard !hasBlocker else { return .blocked(report) }
         return .ready(SnippetHostPreparation(
+            connectionIdentity: SSHConnectionIdentity(host: host),
             platformProfile: profile,
             capabilityReport: report,
             scriptPreludes: scriptPreludes,
@@ -220,6 +227,7 @@ public struct SnippetExecutionPlanner: Sendable {
             interpreter: preparation.interpreter
         )
         return SnippetExecutionPlan(
+            connectionIdentity: preparation.connectionIdentity,
             auditScript: renderedScript,
             preparedCommand: preparedCommand,
             interpreter: preparation.interpreter,

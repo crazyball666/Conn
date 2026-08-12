@@ -8,6 +8,32 @@ import Foundation
 public typealias AuthResolver = @Sendable (ConnKit.Host) async throws -> SSHAuth
 public typealias JumpChainResolver = @Sendable (ConnKit.Host) async throws -> [SSHJumpHop]
 
+/// 决定一条 SSH 连接能否安全复用的非秘密身份。
+///
+/// 字段与连接池 key 完全一致；主机显示名、标签等展示信息不影响连接身份，端点、登录名、
+/// 认证引用或跳板链任一变化都会得到不同身份。执行计划用它防止准备结果跨连接复用。
+public struct SSHConnectionIdentity: Sendable, Equatable, Hashable {
+    public let hostID: String
+    public let address: String
+    public let port: Int
+    public let username: String
+    public let authKind: String
+    public let credentialRef: String?
+    public let keyUUID: String?
+    public let jumpChain: [String]
+
+    public init(host: ConnKit.Host) {
+        hostID = host.id
+        address = host.address
+        port = host.port
+        username = host.username
+        authKind = host.authKind.rawValue
+        credentialRef = host.credentialRef
+        keyUUID = host.keyUUID
+        jumpChain = host.jumpChain
+    }
+}
+
 /// 同一次连接池校验得到的 SSH 会话与平台画像。
 ///
 /// 两个字段始终属于同一条、返回时仍被连接池认领的会话；之后若会话失效，
@@ -42,24 +68,10 @@ public actor ConnectionManager {
     /// `address:port` 只能标识网络端点，不能标识登录身份。若两个 Host 共享端点
     /// 但用户名、密钥或跳板链不同，复用同一 SSH 会话会把错误的认证上下文交给调用方。
     private struct PoolKey: Hashable {
-        let id: String
-        let address: String
-        let port: Int
-        let username: String
-        let authKind: String
-        let credentialRef: String?
-        let keyUUID: String?
-        let jumpChain: [String]
+        let connectionIdentity: SSHConnectionIdentity
 
         init(host: ConnKit.Host) {
-            id = host.id
-            address = host.address
-            port = host.port
-            username = host.username
-            authKind = host.authKind.rawValue
-            credentialRef = host.credentialRef
-            keyUUID = host.keyUUID
-            jumpChain = host.jumpChain
+            connectionIdentity = SSHConnectionIdentity(host: host)
         }
     }
 

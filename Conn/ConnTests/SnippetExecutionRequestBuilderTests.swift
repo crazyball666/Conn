@@ -62,6 +62,29 @@ struct SnippetExecutionRequestBuilderTests {
         #expect(request == nil)
     }
 
+    @Test("preparation cannot be reused after SSH connection settings change")
+    func preparationRejectsChangedConnectionIdentity() async throws {
+        let original = host("same-id")
+        let changed = Host(
+            id: original.id,
+            name: original.name,
+            address: "changed.example.test",
+            username: original.username
+        )
+        let planner = makePlanner(provider: FixtureExecutionProvider())
+        let originalPreparation = try await preparation(for: original, using: planner)
+
+        #expect(throws: SnippetExecutionPlanningError.self) {
+            try SnippetExecutionRequestBuilder.build(
+                mode: .silent,
+                hosts: [changed],
+                preparationByHostID: [changed.id: originalPreparation],
+                renderedScript: "echo blocked",
+                planner: planner
+            )
+        }
+    }
+
     @Test("silent plan and terminal route share the exact prepared command")
     func silentAndTerminalPreparedCommandsMatchWithoutRewrap() async throws {
         let host = host("host")

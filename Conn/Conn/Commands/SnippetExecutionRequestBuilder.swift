@@ -1,5 +1,6 @@
 import ConnKit
 import ConnRunner
+import ConnSSH
 import Foundation
 
 enum SnippetExecutionMode: Equatable {
@@ -35,11 +36,14 @@ struct SnippetExecutionRequest {
 
 enum SnippetExecutionPlanningError: LocalizedError {
     case missingPreparation(hostName: String)
+    case preparationTargetMismatch(hostName: String)
 
     var errorDescription: String? {
         switch self {
         case let .missingPreparation(hostName):
             "\(hostName)：\(L("执行失败"))"
+        case let .preparationTargetMismatch(hostName):
+            "\(hostName)：\(L("主机连接配置已变化，请重新检查后执行"))"
         }
     }
 }
@@ -56,6 +60,11 @@ enum SnippetExecutionRequestBuilder {
         for host in hosts {
             guard let preparation = preparationByHostID[host.id] else {
                 throw SnippetExecutionPlanningError.missingPreparation(
+                    hostName: host.name
+                )
+            }
+            guard preparation.connectionIdentity == SSHConnectionIdentity(host: host) else {
+                throw SnippetExecutionPlanningError.preparationTargetMismatch(
                     hostName: host.name
                 )
             }
