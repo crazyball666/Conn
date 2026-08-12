@@ -20,12 +20,12 @@
 - Create: `Packages/ConnPackages/Tests/ConnMultiplexerTests/TmuxProtocolDialectTests.swift`
 - Modify: `Packages/ConnPackages/Tests/ConnMultiplexerTests/TmuxProtocolParserTests.swift`
 
-- [ ] **Step 1: Write failing tests** proving snapshot codec kind is an explicit dialect field, while supported client flags and actually enabled flags/subscriptions are distinct values.
-- [ ] **Step 2: Run RED:** `swift test --package-path Packages/ConnPackages --filter TmuxProtocolDialectTests` must fail because the new types do not exist.
-- [ ] **Step 3: Implement** `TmuxSnapshotCodecKind`, `TmuxClientFlag`, `TmuxNegotiatedCapabilities`, and `TmuxControlClientConfiguration`; extend `TmuxProtocolDialect` with required `snapshotCodec`.
-- [ ] **Step 4: Update parser fixtures** to choose a codec explicitly; parser behavior must remain independent of that choice.
-- [ ] **Step 5: Run GREEN:** dialect and parser suites pass.
-- [ ] **Step 6: Commit:** `feat: model tmux protocol negotiation`.
+- [x] **Step 1: Write failing tests** proving snapshot codec kind is an explicit dialect field, while supported client flags and actually enabled flags/subscriptions are distinct values.
+- [x] **Step 2: Run RED:** `swift test --package-path Packages/ConnPackages --filter TmuxProtocolDialectTests` must fail because the new types do not exist.
+- [x] **Step 3: Implement** `TmuxSnapshotCodecKind`, `TmuxClientFlag`, `TmuxNegotiatedCapabilities`, and `TmuxControlClientConfiguration`; extend `TmuxProtocolDialect` with required `snapshotCodec`.
+- [x] **Step 4: Update parser fixtures** to choose a codec explicitly; parser behavior must remain independent of that choice.
+- [x] **Step 5: Run GREEN:** dialect and parser suites pass.
+- [x] **Step 6: Commit:** `feat: model tmux protocol negotiation`.
 
 ### Task 2: Decode bounded quoted and legacy snapshot output
 

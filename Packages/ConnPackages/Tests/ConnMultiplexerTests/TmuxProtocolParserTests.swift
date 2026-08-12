@@ -6,7 +6,7 @@ import Testing
 struct TmuxProtocolParserTests {
     @Test("三字段 dialect 解析 marker、command block、通知、pane bytes 与退出")
     func parsesCompleteThreeFieldProtocol() throws {
-        var parser = TmuxProtocolParser(dialect: .init(commandGuardShape: .threeFields))
+        var parser = makeParser()
         let protocolLines = "%begin 10 22 1\r\n"
             + "first line\n"
             + "%end 10 22 1\n"
@@ -41,7 +41,7 @@ struct TmuxProtocolParserTests {
 
     @Test("两字段 tmux 2.6 guard 支持空输出与 error block")
     func parsesTwoFieldErrorBlock() throws {
-        var parser = TmuxProtocolParser(dialect: .init(commandGuardShape: .twoFields))
+        var parser = makeParser(commandGuardShape: .twoFields)
         let input = TmuxProtocolMarker.start
             + Data("%begin 11 23\n%error 11 23\n%exit\n".utf8)
             + TmuxProtocolMarker.end
@@ -115,13 +115,13 @@ struct TmuxProtocolParserTests {
 
     @Test("dialect 严格区分两字段与三字段 guard")
     func rejectsWrongGuardShape() throws {
-        var two = TmuxProtocolParser(dialect: .init(commandGuardShape: .twoFields))
+        var two = makeParser(commandGuardShape: .twoFields)
         _ = try two.feed(TmuxProtocolMarker.start)
         #expect(throws: TmuxProtocolParserError.invalidCommandGuard) {
             try two.feed(Data("%begin 1 2 0\n".utf8))
         }
 
-        var three = TmuxProtocolParser(dialect: .init(commandGuardShape: .threeFields))
+        var three = makeParser()
         _ = try three.feed(TmuxProtocolMarker.start)
         #expect(throws: TmuxProtocolParserError.invalidCommandGuard) {
             try three.feed(Data("%begin 1 2\n".utf8))
@@ -158,7 +158,7 @@ struct TmuxProtocolParserTests {
         var rawControl = TmuxProtocolMarker.start + Data("%output %1 a".utf8)
         rawControl.append(0x01)
         rawControl += Data("b\n".utf8)
-        var parser = TmuxProtocolParser(dialect: .init(commandGuardShape: .threeFields))
+        var parser = makeParser()
         #expect(throws: TmuxProtocolParserError.invalidPaneOutput) {
             try parser.feed(rawControl)
         }
@@ -170,7 +170,7 @@ struct TmuxProtocolParserTests {
         let input = TmuxProtocolMarker.start
             + Data("%output %1 \n%exit\n".utf8)
             + TmuxProtocolMarker.end
-        var parser = TmuxProtocolParser(dialect: .init(commandGuardShape: .threeFields))
+        var parser = makeParser()
 
         #expect(try parser.feed(input).contains(.notification(.paneOutput(paneID, Data()))))
         #expect(throws: TmuxProtocolParserError.unexpectedDataAfterEnd) {
@@ -183,7 +183,7 @@ struct TmuxProtocolParserTests {
 
     @Test("command block 外的普通文本不是合法 Control Mode 记录")
     func rejectsPlainTextOutsideCommandBlock() throws {
-        var parser = TmuxProtocolParser(dialect: .init(commandGuardShape: .threeFields))
+        var parser = makeParser()
         _ = try parser.feed(TmuxProtocolMarker.start)
 
         #expect(throws: TmuxProtocolParserError.unexpectedProtocolData) {
@@ -194,7 +194,7 @@ struct TmuxProtocolParserTests {
     @Test("preamble 与 pending line 都有硬上限")
     func enforcesPreambleAndLineLimits() throws {
         var preamble = TmuxProtocolParser(
-            dialect: .init(commandGuardShape: .threeFields),
+            dialect: .init(commandGuardShape: .threeFields, snapshotCodec: .quoted),
             limits: .init(maxPreambleBytes: 4, maxLineBytes: 8)
         )
         #expect(throws: TmuxProtocolParserError.preambleTooLong(limit: 4)) {
@@ -202,7 +202,7 @@ struct TmuxProtocolParserTests {
         }
 
         var line = TmuxProtocolParser(
-            dialect: .init(commandGuardShape: .threeFields),
+            dialect: .init(commandGuardShape: .threeFields, snapshotCodec: .quoted),
             limits: .init(maxPreambleBytes: 4, maxLineBytes: 8)
         )
         _ = try line.feed(TmuxProtocolMarker.start)
@@ -211,7 +211,7 @@ struct TmuxProtocolParserTests {
         }
 
         var exactPreamble = TmuxProtocolParser(
-            dialect: .init(commandGuardShape: .threeFields),
+            dialect: .init(commandGuardShape: .threeFields, snapshotCodec: .quoted),
             limits: .init(maxPreambleBytes: 4, maxLineBytes: 8)
         )
         #expect(try exactPreamble.feed(
@@ -221,24 +221,24 @@ struct TmuxProtocolParserTests {
 
     @Test("EOF 会区分缺 marker、半行、未闭合 block 与缺 ST")
     func finishRejectsIncompleteStates() throws {
-        var missingStart = TmuxProtocolParser(dialect: .init(commandGuardShape: .threeFields))
+        var missingStart = makeParser()
         #expect(throws: TmuxProtocolParserError.missingProtocolStart) {
             try missingStart.finish()
         }
 
-        var partialLine = TmuxProtocolParser(dialect: .init(commandGuardShape: .threeFields))
+        var partialLine = makeParser()
         _ = try partialLine.feed(TmuxProtocolMarker.start + Data("partial".utf8))
         #expect(throws: TmuxProtocolParserError.incompleteLine) {
             try partialLine.finish()
         }
 
-        var openBlock = TmuxProtocolParser(dialect: .init(commandGuardShape: .threeFields))
+        var openBlock = makeParser()
         _ = try openBlock.feed(TmuxProtocolMarker.start + Data("%begin 1 2 0\n".utf8))
         #expect(throws: TmuxProtocolParserError.incompleteCommandBlock) {
             try openBlock.finish()
         }
 
-        var missingST = TmuxProtocolParser(dialect: .init(commandGuardShape: .threeFields))
+        var missingST = makeParser()
         _ = try missingST.feed(TmuxProtocolMarker.start + Data("%exit\n".utf8))
         #expect(throws: TmuxProtocolParserError.missingProtocolEnd) {
             try missingST.finish()
@@ -247,7 +247,7 @@ struct TmuxProtocolParserTests {
 
     @Test("首次协议错误后 parser 进入 failed，禁止继续消费不可信流")
     func failureIsTerminal() throws {
-        var parser = TmuxProtocolParser(dialect: .init(commandGuardShape: .threeFields))
+        var parser = makeParser()
         _ = try parser.feed(TmuxProtocolMarker.start)
         #expect(throws: TmuxProtocolParserError.unmatchedCommandTerminator) {
             try parser.feed(Data("%end 1 2 0\n".utf8))
@@ -258,7 +258,7 @@ struct TmuxProtocolParserTests {
     }
 
     private func parse(_ chunks: [Data]) throws -> [TmuxProtocolEvent] {
-        var parser = TmuxProtocolParser(dialect: .init(commandGuardShape: .threeFields))
+        var parser = makeParser()
         var events: [TmuxProtocolEvent] = []
         for chunk in chunks {
             events += try parser.feed(chunk)
@@ -271,10 +271,19 @@ struct TmuxProtocolParserTests {
         _ protocolLines: String,
         _ expected: TmuxProtocolParserError
     ) throws {
-        var parser = TmuxProtocolParser(dialect: .init(commandGuardShape: .threeFields))
+        var parser = makeParser()
         _ = try parser.feed(TmuxProtocolMarker.start)
         #expect(throws: expected) {
             try parser.feed(Data(protocolLines.utf8))
         }
+    }
+
+    private func makeParser(
+        commandGuardShape: TmuxCommandGuardShape = .threeFields
+    ) -> TmuxProtocolParser {
+        TmuxProtocolParser(dialect: .init(
+            commandGuardShape: commandGuardShape,
+            snapshotCodec: .quoted
+        ))
     }
 }

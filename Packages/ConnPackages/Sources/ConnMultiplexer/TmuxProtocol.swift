@@ -13,11 +13,55 @@ package enum TmuxCommandGuardShape: Sendable, Equatable {
     case threeFields
 }
 
+package enum TmuxSnapshotCodecKind: Sendable, Equatable {
+    case legacyPerField
+    case quoted
+}
+
 package struct TmuxProtocolDialect: Sendable, Equatable {
     package let commandGuardShape: TmuxCommandGuardShape
+    package let snapshotCodec: TmuxSnapshotCodecKind
 
-    package init(commandGuardShape: TmuxCommandGuardShape) {
+    package init(
+        commandGuardShape: TmuxCommandGuardShape,
+        snapshotCodec: TmuxSnapshotCodecKind
+    ) {
         self.commandGuardShape = commandGuardShape
+        self.snapshotCodec = snapshotCodec
+    }
+}
+
+package enum TmuxClientFlag: String, Sendable, Hashable, CaseIterable {
+    case noOutput = "no-output"
+    case waitExit = "wait-exit"
+    case ignoreSize = "ignore-size"
+    case activePane = "active-pane"
+    case pauseAfter = "pause-after"
+}
+
+package struct TmuxNegotiatedCapabilities: Sendable, Equatable {
+    package let supportedClientFlags: Set<TmuxClientFlag>
+    package let supportsFormatSubscriptions: Bool
+
+    package init(
+        supportedClientFlags: Set<TmuxClientFlag>,
+        supportsFormatSubscriptions: Bool
+    ) {
+        self.supportedClientFlags = supportedClientFlags
+        self.supportsFormatSubscriptions = supportsFormatSubscriptions
+    }
+}
+
+package struct TmuxControlClientConfiguration: Sendable, Equatable {
+    package let enabledClientFlags: Set<TmuxClientFlag>
+    package let activeSubscriptionNames: Set<String>
+
+    package init(
+        enabledClientFlags: Set<TmuxClientFlag>,
+        activeSubscriptionNames: Set<String>
+    ) {
+        self.enabledClientFlags = enabledClientFlags
+        self.activeSubscriptionNames = activeSubscriptionNames
     }
 }
 
