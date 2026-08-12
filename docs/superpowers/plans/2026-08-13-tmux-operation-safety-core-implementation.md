@@ -50,14 +50,14 @@
 - Create: `Packages/ConnPackages/Sources/ConnMultiplexer/TmuxDestructiveConfirmation.swift`
 - Create: `Packages/ConnPackages/Tests/ConnMultiplexerTests/TmuxDestructiveConfirmationTests.swift`
 
-- [ ] **Step 1: Write failing preparation tests** requiring destructive semantics, a scope token matching the snapshot, fresh snapshot/client observations, and positive bounded policy durations.
-- [ ] **Step 2: Write failing validation tests** for expiration, changed connection/profile/token/generation, changed `impactRevision`, changed operation/target/context, and same-count-but-different-client topology.
-- [ ] **Step 3: Write stability tests** proving ordinary Pane title/path/command observation updates and snapshot `revision/observedAt` refreshes do not invalidate an otherwise current claim.
-- [ ] **Step 4: Run RED:** `swift test --package-path Packages/ConnPackages --filter TmuxDestructiveConfirmationTests` must fail because the confirmation guard does not exist.
-- [ ] **Step 5: Implement** a short-lived `TmuxDestructiveConfirmationClaim` with an opaque structural impact digest and nonce, plus `TmuxDestructiveConfirmationGuard.prepare/validate`.
-- [ ] **Step 6: Make expiry bounded** by both policy lifetime and the remaining snapshot/client freshness window; future Hub code must consume each nonce at most once when queueing.
-- [ ] **Step 7: Run GREEN**, all `ConnMultiplexerTests`, and `git diff --check`.
-- [ ] **Step 8: Commit:** `feat: guard destructive tmux operations`.
+- [x] **Step 1: Write failing preparation tests** requiring destructive semantics, a scope token matching the snapshot, fresh snapshot/client observations, and positive bounded policy durations.
+- [x] **Step 2: Write failing validation tests** for expiration, changed connection/profile/token/generation, changed `impactRevision`, changed operation/target/context, and same-count-but-different-client topology.
+- [x] **Step 3: Write stability tests** proving ordinary Pane title/path/command observation updates and snapshot `revision/observedAt` refreshes do not invalidate an otherwise current claim.
+- [x] **Step 4: Run RED:** `swift test --package-path Packages/ConnPackages --filter TmuxDestructiveConfirmationTests` must fail because the confirmation guard does not exist.
+- [x] **Step 5: Implement** a short-lived `TmuxDestructiveConfirmationClaim` with an opaque structural impact digest and nonce, plus `TmuxDestructiveConfirmationGuard.prepare/validate`.
+- [x] **Step 6: Make expiry bounded** by both policy lifetime and the remaining snapshot/client freshness window; future Hub code must consume each nonce at most once when queueing.
+- [x] **Step 7: Run GREEN**, all `ConnMultiplexerTests`, and `git diff --check`.
+- [x] **Step 8: Commit:** `feat: guard destructive tmux operations`.
 
 ## Completion gate
 
