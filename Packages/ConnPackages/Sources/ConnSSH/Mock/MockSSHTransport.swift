@@ -48,6 +48,33 @@ public final class MockSSHTransport: SSHTransport {
         }
     }
 
+    /// Script for one bidirectional process opened by the Mock transport.
+    public struct ProcessResponse: Sendable {
+        public var outputs: [RemoteProcessOutput]
+        public var exit: RemoteProcessExit
+        public var outputChunkDelay: Duration
+        public var keepsOpen: Bool
+        public var maxBufferedChunks: Int
+
+        public init(
+            outputs: [RemoteProcessOutput] = [],
+            exit: RemoteProcessExit = .init(exitCode: 0, signal: nil),
+            outputChunkDelay: Duration = .zero,
+            keepsOpen: Bool = false,
+            maxBufferedChunks: Int = 64
+        ) {
+            self.outputs = outputs
+            self.exit = exit
+            self.outputChunkDelay = outputChunkDelay
+            self.keepsOpen = keepsOpen
+            self.maxBufferedChunks = maxBufferedChunks
+        }
+    }
+
+    public typealias ProcessFactory = @Sendable (
+        RemoteProcessRequest
+    ) async throws -> any RemoteProcessChannel
+
     /// 行为配置：失败注入 + 命令响应覆盖。
     public struct Behavior: Sendable {
         /// 非 nil 则 `connect` 抛此错误（测试诊断树用）。
@@ -59,6 +86,10 @@ public final class MockSSHTransport: SSHTransport {
         /// 放在 App/Feature 层（可 import ConnMonitor/ConnOps），此处只留一个闭包插槽，
         /// 保持 ConnSSH 与上层解耦。
         public var dynamicResponder: (@Sendable (String, SSHEndpoint) -> CommandResponse?)?
+        /// Exact command → scripted bidirectional process response.
+        public var processResponses: [String: ProcessResponse]
+        /// Optional full process factory for stateful protocol/provider tests.
+        public var processFactory: ProcessFactory?
         /// 每块流式输出之间的延迟（execStream 用；测试通常设 0）。
         public var streamChunkDelay: Duration
 
@@ -71,6 +102,24 @@ public final class MockSSHTransport: SSHTransport {
             self.failConnect = failConnect
             self.commandResponses = commandResponses
             self.dynamicResponder = dynamicResponder
+            processResponses = [:]
+            processFactory = nil
+            self.streamChunkDelay = streamChunkDelay
+        }
+
+        public init(
+            processResponses: [String: ProcessResponse],
+            processFactory: ProcessFactory? = nil,
+            failConnect: SSHError? = nil,
+            commandResponses: [String: CommandResponse] = [:],
+            dynamicResponder: (@Sendable (String, SSHEndpoint) -> CommandResponse?)? = nil,
+            streamChunkDelay: Duration = .zero
+        ) {
+            self.failConnect = failConnect
+            self.commandResponses = commandResponses
+            self.dynamicResponder = dynamicResponder
+            self.processResponses = processResponses
+            self.processFactory = processFactory
             self.streamChunkDelay = streamChunkDelay
         }
     }
@@ -227,6 +276,30 @@ final class MockSSHSession: SSHSession, @unchecked Sendable {
         return MockShellChannel()
     }
 
+    func openProcess(_ request: RemoteProcessRequest) async throws -> any RemoteProcessChannel {
+        if let factory = behavior.processFactory {
+            return try await factory(request)
+        }
+        let response: MockSSHTransport.ProcessResponse
+        if let scripted = behavior.processResponses[request.command] {
+            response = scripted
+        } else {
+            let command = resolve(request.command)
+            var outputs: [RemoteProcessOutput] = []
+            if !command.stdout.isEmpty {
+                outputs.append(.stdout(Data(command.stdout.utf8)))
+            }
+            if !command.stderr.isEmpty {
+                outputs.append(.stderr(Data(command.stderr.utf8)))
+            }
+            response = .init(
+                outputs: outputs,
+                exit: .init(exitCode: command.exitCode, signal: nil)
+            )
+        }
+        return MockRemoteProcessChannel(request: request, response: response)
+    }
+
     /// 每会话一颗内存文件树，编辑/新建在会话内留存。
     private let fileSystem = MockRemoteFileSystem()
 
@@ -292,6 +365,158 @@ final class MockSSHSession: SSHSession, @unchecked Sendable {
         let components = duration.components
         let seconds = Int(components.seconds)
         return components.attoseconds > 0 ? max(1, seconds + 1) : max(1, seconds)
+    }
+}
+
+final class MockRemoteProcessChannel: RemoteProcessChannel, @unchecked Sendable {
+    let request: RemoteProcessRequest
+    let output: AsyncThrowingStream<RemoteProcessOutput, Error>
+
+    private let state: MockRemoteProcessState
+    private let bridge: RemoteProcessOutputBridge
+    private let producerTask: Task<Void, Never>
+
+    init(
+        request: RemoteProcessRequest,
+        response: MockSSHTransport.ProcessResponse
+    ) {
+        self.request = request
+        let state = MockRemoteProcessState(hasTerminal: request.terminal != nil)
+        self.state = state
+        let bridge = RemoteProcessOutputBridge(
+            maxBufferedChunks: response.maxBufferedChunks
+        ) {
+            Task { await state.terminateFromOutput() }
+        }
+        self.bridge = bridge
+        output = bridge.stream
+        producerTask = Task { [bridge, response, state] in
+            for (index, event) in response.outputs.enumerated() {
+                if index > 0, response.outputChunkDelay > .zero {
+                    do {
+                        try await Task.sleep(for: response.outputChunkDelay)
+                    } catch {
+                        return
+                    }
+                }
+                guard bridge.yield(event) else { return }
+            }
+            guard !response.keepsOpen else { return }
+            await state.complete(response.exit)
+            bridge.finish()
+        }
+    }
+
+    func write(_ data: Data) async throws {
+        try await state.write(data)
+    }
+
+    func resize(_ size: TermSize) async throws {
+        try await state.resize(size)
+    }
+
+    func result() async throws -> RemoteProcessExit {
+        try await state.result()
+    }
+
+    func close() async {
+        guard await state.close() else { return }
+        producerTask.cancel()
+        bridge.finish()
+    }
+
+    func complete(_ exit: RemoteProcessExit) async {
+        guard await state.complete(exit) else { return }
+        producerTask.cancel()
+        bridge.finish()
+    }
+
+    func recordedWrites() async -> [Data] {
+        await state.recordedWrites
+    }
+
+    func recordedSizes() async -> [TermSize] {
+        await state.recordedSizes
+    }
+
+    func closeCount() async -> Int {
+        await state.closeCount
+    }
+}
+
+private actor MockRemoteProcessState {
+    private enum Completion {
+        case success(RemoteProcessExit)
+        case failure(SSHError)
+    }
+
+    private let hasTerminal: Bool
+    private var completion: Completion?
+    private var resultWaiters: [CheckedContinuation<RemoteProcessExit, Error>] = []
+    private(set) var recordedWrites: [Data] = []
+    private(set) var recordedSizes: [TermSize] = []
+    private(set) var closeCount = 0
+
+    init(hasTerminal: Bool) {
+        self.hasTerminal = hasTerminal
+    }
+
+    func write(_ data: Data) throws {
+        guard completion == nil else { throw SSHError.channelClosed }
+        recordedWrites.append(data)
+    }
+
+    func resize(_ size: TermSize) throws {
+        guard hasTerminal else { throw RemoteProcessError.terminalNotAllocated }
+        guard completion == nil else { throw SSHError.channelClosed }
+        recordedSizes.append(size)
+    }
+
+    func result() async throws -> RemoteProcessExit {
+        if let completion {
+            return try Self.resolve(completion)
+        }
+        return try await withCheckedThrowingContinuation { continuation in
+            resultWaiters.append(continuation)
+        }
+    }
+
+    @discardableResult
+    func complete(_ exit: RemoteProcessExit) -> Bool {
+        guard completion == nil else { return false }
+        completion = .success(exit)
+        let waiters = resultWaiters
+        resultWaiters.removeAll()
+        for waiter in waiters {
+            waiter.resume(returning: exit)
+        }
+        return true
+    }
+
+    @discardableResult
+    func close() -> Bool {
+        guard completion == nil else { return false }
+        closeCount += 1
+        completion = .failure(.channelClosed)
+        let waiters = resultWaiters
+        resultWaiters.removeAll()
+        for waiter in waiters {
+            waiter.resume(throwing: SSHError.channelClosed)
+        }
+        return true
+    }
+
+    func terminateFromOutput() {
+        _ = close()
+    }
+
+    private static func resolve(_ completion: Completion) throws -> RemoteProcessExit {
+        switch completion {
+        case let .success(exit):
+            return exit
+        case let .failure(error):
+            throw error
+        }
     }
 }
 

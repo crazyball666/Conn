@@ -101,4 +101,86 @@ struct MockSSHTransportTests {
         let cleared = try #require(await output.next())
         #expect(String(decoding: cleared, as: UTF8.self) == "\r\u{1B}[2Kdemo-host:~$ ")
     }
+
+    @Test("Mock process 精确记录 request 并保序输出 stdout/stderr 与 result")
+    func processCapturesRequestOutputAndResult() async throws {
+        let expectedOutput: [RemoteProcessOutput] = [
+            .stdout(Data("one".utf8)),
+            .stderr(Data("two".utf8)),
+            .stdout(Data("three".utf8)),
+        ]
+        let expectedExit = RemoteProcessExit(exitCode: 7, signal: nil)
+        var behavior = MockSSHTransport.Behavior()
+        behavior.processResponses["tmux -CC"] = .init(
+            outputs: expectedOutput,
+            exit: expectedExit
+        )
+        let session = try await connect(MockSSHTransport(behavior: behavior))
+        let request = RemoteProcessRequest(
+            command: "tmux -CC",
+            terminal: .init(type: "xterm-256color", size: .init(cols: 80, rows: 24))
+        )
+
+        let channel = try await session.openProcess(request)
+        var received: [RemoteProcessOutput] = []
+        for try await output in channel.output {
+            received.append(output)
+        }
+
+        #expect(received == expectedOutput)
+        #expect(try await channel.result() == expectedExit)
+        let mock = try #require(channel as? MockRemoteProcessChannel)
+        #expect(mock.request == request)
+    }
+
+    @Test("长驻 Mock process 可写 stdin、调整 PTY 并显式完成")
+    func processSupportsWriteResizeAndCompletion() async throws {
+        var behavior = MockSSHTransport.Behavior()
+        behavior.processResponses["persistent"] = .init(keepsOpen: true)
+        let session = try await connect(MockSSHTransport(behavior: behavior))
+        let channel = try await session.openProcess(.init(
+            command: "persistent",
+            terminal: .init(type: "xterm", size: .init(cols: 80, rows: 24))
+        ))
+        let mock = try #require(channel as? MockRemoteProcessChannel)
+
+        try await channel.write(Data("command\n".utf8))
+        try await channel.resize(.init(cols: 120, rows: 40))
+        await mock.complete(.init(exitCode: 0, signal: nil))
+
+        #expect(await mock.recordedWrites() == [Data("command\n".utf8)])
+        #expect(await mock.recordedSizes() == [.init(cols: 120, rows: 40)])
+        #expect(try await channel.result() == .init(exitCode: 0, signal: nil))
+    }
+
+    @Test("无 PTY 的 process 明确拒绝 resize")
+    func processRejectsResizeWithoutTerminal() async throws {
+        var behavior = MockSSHTransport.Behavior()
+        behavior.processResponses["no-pty"] = .init(keepsOpen: true)
+        let session = try await connect(MockSSHTransport(behavior: behavior))
+        let channel = try await session.openProcess(.init(command: "no-pty"))
+
+        await #expect(throws: RemoteProcessError.terminalNotAllocated) {
+            try await channel.resize(.init(cols: 120, rows: 40))
+        }
+        await channel.close()
+    }
+
+    @Test("process close 幂等且不关闭共享 SSH session")
+    func processCloseIsIdempotentAndSessionSurvives() async throws {
+        var behavior = MockSSHTransport.Behavior()
+        behavior.processResponses["persistent"] = .init(keepsOpen: true)
+        let session = try await connect(MockSSHTransport(behavior: behavior))
+        let channel = try await session.openProcess(.init(command: "persistent"))
+        let mock = try #require(channel as? MockRemoteProcessChannel)
+
+        await channel.close()
+        await channel.close()
+
+        #expect(await mock.closeCount() == 1)
+        await #expect(throws: SSHError.channelClosed) {
+            try await channel.result()
+        }
+        #expect(try await session.exec("uname -s").stdoutText == "Linux")
+    }
 }
