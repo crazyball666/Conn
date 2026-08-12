@@ -12,6 +12,7 @@ let package = Package(
         .library(name: "ConnKit", targets: ["ConnKit"]),
         .library(name: "ConnStore", targets: ["ConnStore"]),
         .library(name: "ConnSSH", targets: ["ConnSSH"]),
+        .library(name: "ConnMultiplexer", targets: ["ConnMultiplexer"]),
         .library(name: "ConnSSHCitadel", targets: ["ConnSSHCitadel"]),
         .library(name: "ConnCrypto", targets: ["ConnCrypto"]),
         .library(name: "ConnMonitor", targets: ["ConnMonitor"]),
@@ -57,6 +58,13 @@ let package = Package(
             name: "ConnSSH",
             dependencies: ["ConnKit"],
             resources: [.process("Resources")]
+        ),
+
+        // 持久终端领域：provider-neutral 生命周期、descriptor 与 registry。
+        // 只依赖领域和 SSH 协议层，不依赖具体 tmux/Zellij/Windows 实现或 UI。
+        .target(
+            name: "ConnMultiplexer",
+            dependencies: ["ConnKit", "ConnSSH"]
         ),
 
         // Citadel 引擎实现，隔离在独立 target——只有它依赖 Citadel。
@@ -141,6 +149,10 @@ let package = Package(
         .testTarget(name: "ConnKitTests", dependencies: ["ConnKit"]),
         .testTarget(name: "ConnStoreTests", dependencies: ["ConnStore"]),
         .testTarget(name: "ConnSSHTests", dependencies: ["ConnSSH"]),
+        .testTarget(
+            name: "ConnMultiplexerTests",
+            dependencies: ["ConnMultiplexer", "ConnKit", "ConnSSH"]
+        ),
         .testTarget(
             name: "ConnSSHCitadelTests",
             dependencies: ["ConnSSHCitadel", "ConnCrypto", "ConnMonitor", "ConnOps"]
