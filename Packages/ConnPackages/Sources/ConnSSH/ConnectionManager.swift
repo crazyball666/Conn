@@ -167,10 +167,25 @@ public actor ConnectionManager {
             }
         }
 
+        let task = connectionTask(for: host)
+        entries[key] = .connecting(task)
+        return try await claim(task, key: key)
+    }
+
+    /// 建立一条不进入连接池、由调用者独占并负责关闭的会话。
+    ///
+    /// 长时间运行且必须能通过关闭连接终止的命令（例如 `tail -F`、`journalctl -f`）
+    /// 不能骑在共享池化会话上；否则为了停止一个日志流关闭连接时，会同时掐断指标、
+    /// 文件和终端。认证、跳板链和主机指纹策略与池化连接完全相同。
+    public func dedicatedSession(for host: ConnKit.Host) async throws -> any SSHSession {
+        try await connectionTask(for: host).value
+    }
+
+    private func connectionTask(for host: ConnKit.Host) -> Task<any SSHSession, Error> {
         let resolve = resolveAuth
         let resolveJumps = resolveJumpChain
         let engine = transport
-        let task = Task<any SSHSession, Error> {
+        return Task<any SSHSession, Error> {
             let auth = try await resolve(host)
             let target = SSHJumpHop(
                 endpoint: SSHEndpoint(host: host.address, port: host.port),
@@ -180,8 +195,6 @@ public actor ConnectionManager {
             let hops = try await resolveJumps(host)
             return try await engine.connect(via: hops, to: target, hostKeyPolicy: .tofu)
         }
-        entries[key] = .connecting(task)
-        return try await claim(task, key: key)
     }
 
     /// 等一条正在进行的握手，并在成功后**确认它仍被池认领**再回插。

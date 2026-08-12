@@ -24,13 +24,29 @@ final class LogStreamViewModel {
     private let sudo: Bool
     private let cap = 5000
     private var task: Task<Void, Never>?
+    /// 日志跟随使用独占会话；关闭它才能确定性地关闭 SSH channel 与远端 `-f` 进程。
+    private var streamSession: (any SSHSession)?
     private var nextID = 0
     /// 未成行的**字节**（不是字符串）——见 appendChunk 的多字节修复。
     private var partialBytes = Data()
 
-    init(host: Host, dependencies: AppDependencies, source: LogSource, sudo: Bool = false) {
+    convenience init(host: Host, dependencies: AppDependencies, source: LogSource, sudo: Bool = false) {
+        self.init(
+            host: host,
+            connectionManager: dependencies.connectionManager,
+            source: source,
+            sudo: sudo
+        )
+    }
+
+    init(
+        host: Host,
+        connectionManager: ConnectionManager,
+        source: LogSource,
+        sudo: Bool = false
+    ) {
         self.host = host
-        connectionManager = dependencies.connectionManager
+        self.connectionManager = connectionManager
         self.source = source
         self.sudo = sudo
     }
@@ -49,6 +65,7 @@ final class LogStreamViewModel {
     func stop() {
         task?.cancel()
         task = nil
+        closeCurrentSession()
     }
 
     func retry() {
@@ -63,8 +80,15 @@ final class LogStreamViewModel {
     private func stream() async {
         isConnecting = true
         errorText = nil
+        var ownedSession: (any SSHSession)?
         do {
-            let session = try await connectionManager.session(for: host)
+            let session = try await connectionManager.dedicatedSession(for: host)
+            ownedSession = session
+            guard !Task.isCancelled else {
+                await session.close()
+                return
+            }
+            streamSession = session
             let output = try await session.execStream(source.followCommand(sudo: sudo))
             isConnecting = false
             for try await chunk in output {
@@ -73,9 +97,24 @@ final class LogStreamViewModel {
         } catch is CancellationError {
             // 正常停止
         } catch {
-            isConnecting = false
-            errorText = error.friendlyDiagnosis
+            if !Task.isCancelled {
+                isConnecting = false
+                errorText = error.friendlyDiagnosis
+            }
         }
+
+        if let ownedSession {
+            if streamSession === ownedSession {
+                streamSession = nil
+            }
+            await ownedSession.close()
+        }
+    }
+
+    private func closeCurrentSession() {
+        guard let session = streamSession else { return }
+        streamSession = nil
+        Task { await session.close() }
     }
 
     /// 把 Data 块按**字节**累积，只在换行(0x0A)处切出**完整行**再解码。

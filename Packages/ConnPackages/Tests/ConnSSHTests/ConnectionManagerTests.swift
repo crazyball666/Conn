@@ -20,6 +20,22 @@ struct ConnectionManagerTests {
         #expect(first === second)
     }
 
+    @Test("调用者拥有的独立会话不进入连接池")
+    func dedicatedSessionIsNotPooled() async throws {
+        let counter = ConnectCounter()
+        let manager = ConnectionManager(transport: CountingTransport(counter: counter))
+        let target = host()
+
+        let dedicated = try await manager.dedicatedSession(for: target)
+
+        #expect(await manager.activeCount == 0)
+        #expect(await !manager.hasPooledSession(for: target))
+
+        let pooled = try await manager.session(for: target)
+        #expect(dedicated !== pooled)
+        #expect(await counter.count == 2)
+    }
+
     @Test("不同主机返回不同实例")
     func differentHostsDifferentSessions() async throws {
         let manager = ConnectionManager(transport: MockSSHTransport())
