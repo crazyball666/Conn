@@ -233,6 +233,36 @@ struct ConnectionManagerTests {
         #expect(await detector.count == 1)
     }
 
+    @Test("平台上下文原子携带连接池使用的连接身份")
+    func platformContextCarriesClaimedConnectionIdentity() async throws {
+        let manager = ConnectionManager(
+            transport: MockSSHTransport(),
+            platformDetector: CountingPlatformDetector(profile: .init(kind: .macOS))
+        )
+        let original = DomainHost(
+            id: "same-host",
+            name: "Original",
+            address: "10.0.0.1",
+            username: "root",
+            credentialRef: "credential-root"
+        )
+        let edited = DomainHost(
+            id: original.id,
+            name: "Edited",
+            address: original.address,
+            username: "deploy",
+            credentialRef: "credential-deploy"
+        )
+
+        let originalContext = try await manager.platformContext(for: original)
+        let editedContext = try await manager.platformContext(for: edited)
+
+        #expect(originalContext.connectionIdentity == SSHConnectionIdentity(host: original))
+        #expect(editedContext.connectionIdentity == SSHConnectionIdentity(host: edited))
+        #expect(originalContext.connectionIdentity != editedContext.connectionIdentity)
+        #expect(originalContext.session !== editedContext.session)
+    }
+
     @Test("驱逐连接会同步清除平台画像缓存")
     func invalidationClearsPlatformProfile() async throws {
         let detector = CountingPlatformDetector(profile: .init(kind: .linux))

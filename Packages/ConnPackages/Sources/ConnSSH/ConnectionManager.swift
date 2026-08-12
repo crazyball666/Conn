@@ -39,13 +39,16 @@ public struct SSHConnectionIdentity: Sendable, Equatable, Hashable {
 /// 两个字段始终属于同一条、返回时仍被连接池认领的会话；之后若会话失效，
 /// 具体操作继续显式传播传输错误，不在此值上做隐式回退。
 public struct RemotePlatformContext: Sendable {
+    public let connectionIdentity: SSHConnectionIdentity
     public let session: any SSHSession
     public let profile: RemotePlatformProfile
 
     init(
+        connectionIdentity: SSHConnectionIdentity,
         session: any SSHSession,
         profile: RemotePlatformProfile
     ) {
+        self.connectionIdentity = connectionIdentity
         self.session = session
         self.profile = profile
     }
@@ -344,7 +347,11 @@ public actor ConnectionManager {
             guard case let .connected(pooled)? = entries[key], pooled === session else {
                 throw SSHError.channelClosed
             }
-            return RemotePlatformContext(session: session, profile: cached)
+            return RemotePlatformContext(
+                connectionIdentity: key.connectionIdentity,
+                session: session,
+                profile: cached
+            )
         }
         let profile = try await platformDetector.detect(on: session)
 
@@ -353,7 +360,11 @@ public actor ConnectionManager {
             throw SSHError.channelClosed
         }
         platformProfiles[key] = profile
-        return RemotePlatformContext(session: session, profile: profile)
+        return RemotePlatformContext(
+            connectionIdentity: key.connectionIdentity,
+            session: session,
+            profile: profile
+        )
     }
 
     private func poolKey(for host: ConnKit.Host) -> PoolKey {
