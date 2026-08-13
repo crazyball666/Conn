@@ -131,11 +131,22 @@ package actor TmuxControlClient {
         _ operation: TmuxOperation,
         timeout: Duration
     ) async throws -> TmuxControlCommandResult {
+        let request = try TmuxControlRequest(
+            renderedCommand: TmuxControlCommandRenderer().render(operation),
+            semantics: operation.semantics
+        )
+        return try await execute(request, timeout: timeout)
+    }
+
+    package func execute(
+        _ request: TmuxControlRequest,
+        timeout: Duration
+    ) async throws -> TmuxControlCommandResult {
         guard started else { throw TmuxControlClientError.notStarted }
         guard !terminalized else { throw TmuxControlClientError.closed }
         guard timeout > .zero else { throw TmuxControlClientError.invalidTimeout }
 
-        let submission = try machine.submit(operation)
+        let submission = try machine.submit(request)
         return try await withCheckedThrowingContinuation { continuation in
             var execution = PendingExecution(
                 submission: submission,

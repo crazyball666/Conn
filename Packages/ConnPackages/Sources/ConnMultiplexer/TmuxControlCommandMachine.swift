@@ -187,6 +187,15 @@ package struct TmuxControlCommandMachine: Sendable {
     package mutating func submit(
         _ operation: TmuxOperation
     ) throws -> TmuxControlCommandSubmission {
+        try submit(TmuxControlRequest(
+            renderedCommand: renderer.render(operation),
+            semantics: operation.semantics
+        ))
+    }
+
+    package mutating func submit(
+        _ request: TmuxControlRequest
+    ) throws -> TmuxControlCommandSubmission {
         switch state {
         case .awaitingProtocolStart:
             throw TmuxControlCommandMachineError.protocolNotReady
@@ -206,12 +215,11 @@ package struct TmuxControlCommandMachine: Sendable {
             state = .failed
             throw TmuxControlCommandMachineError.commandIdentifierExhausted
         }
-        let rendered = renderer.render(operation)
         let submission = TmuxControlCommandSubmission(
             id: .init(rawValue: nextCommandID),
             generation: generation,
-            wireData: rendered.wireData,
-            semantics: operation.semantics
+            wireData: request.wireData,
+            semantics: request.semantics
         )
         nextCommandID += 1
         state = .pending(PendingCommand(

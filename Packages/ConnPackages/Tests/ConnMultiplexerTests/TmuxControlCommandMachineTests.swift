@@ -1,9 +1,49 @@
-import ConnMultiplexer
+@testable import ConnMultiplexer
 import Foundation
 import Testing
 
 @Suite("tmux control command machine")
 struct TmuxControlCommandMachineTests {
+    @Test("typed read-only requests own bounded single-line wire data and explicit semantics")
+    func submitsTypedReadOnlyRequest() throws {
+        let command = "display-message -p '#{server_pid}'"
+        let request = try TmuxControlRequest(
+            renderedCommand: .init(value: command),
+            semantics: .readOnly
+        )
+        var machine = try CommandMachineFixture().readyMachine()
+
+        #expect(request.wireData == Data((command + "\n").utf8))
+        #expect(request.semantics == .readOnly)
+
+        let submission = try machine.submit(request)
+        #expect(submission.wireData == request.wireData)
+        #expect(submission.semantics == .readOnly)
+
+        #expect(throws: TmuxControlRequestError.invalidCommand) {
+            try TmuxControlRequest(
+                renderedCommand: .init(value: "list-sessions\nkill-server"),
+                semantics: .readOnly
+            )
+        }
+        #expect(throws: TmuxControlRequestError.invalidCommand) {
+            try TmuxControlRequest(
+                renderedCommand: .init(value: "list-sessions\u{85}kill-server"),
+                semantics: .readOnly
+            )
+        }
+        #expect(throws: TmuxControlRequestError.commandTooLong(
+            maximumBytes: TmuxControlRequest.maximumCommandBytes
+        )) {
+            try TmuxControlRequest(
+                renderedCommand: .init(
+                    value: String(repeating: "x", count: TmuxControlRequest.maximumCommandBytes + 1)
+                ),
+                semantics: .readOnly
+            )
+        }
+    }
+
     @Test("protocol readiness gates one command and correlates a successful response")
     func correlatesSuccessfulCommand() throws {
         let fixture = try CommandMachineFixture()

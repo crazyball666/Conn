@@ -1,10 +1,35 @@
-import ConnMultiplexer
+@testable import ConnMultiplexer
 import ConnSSH
 import Foundation
 import Testing
 
 @Suite("tmux control client")
 struct TmuxControlClientTests {
+    @Test("typed read-only request shares serial correlation and bounded response collection")
+    func executesTypedReadOnlyRequest() async throws {
+        let fixture = try ControlClientFixture()
+        let channel = ScriptedControlProcessChannel()
+        let client = try fixture.startedClient(channel: channel)
+        channel.yield(.stdout(fixture.startMarker))
+        #expect(await waitUntil { await client.isReady })
+
+        let request = try fixture.readOnlyRequest()
+        let query = Task {
+            try await client.execute(request, timeout: .seconds(1))
+        }
+        #expect(await waitUntil { await channel.recordedWrites().count == 1 })
+        await #expect(throws: TmuxControlCommandMachineError.commandAlreadyInFlight) {
+            try await client.execute(fixture.renameSession, timeout: .seconds(1))
+        }
+
+        channel.yield(.stdout(Data("%begin 9 1 0\n$1\n@2\n%end 9 1 0\n".utf8)))
+        let result = try await query.value
+        #expect(result.output == [Data("$1".utf8), Data("@2".utf8)])
+        #expect(result.status == .succeeded)
+        #expect(await channel.recordedWrites() == [request.wireData])
+        await client.close()
+    }
+
     @Test("arbitrary stdout chunks drive protocol while stderr stays bounded diagnostics")
     func parsesOnlyStdoutAndForwardsWireOrder() async throws {
         let fixture = try ControlClientFixture()
@@ -206,6 +231,13 @@ private struct ControlClientFixture {
         pane = try #require(TmuxPaneID(rawValue: "%1"))
         renameSession = .renameSession(session, to: try TmuxName("renamed"))
         killPane = .killPane(pane)
+    }
+
+    func readOnlyRequest() throws -> TmuxControlRequest {
+        try TmuxControlRequest(
+            renderedCommand: .init(value: "list-sessions -F '#{session_id}'"),
+            semantics: .readOnly
+        )
     }
 
     func startedClient(
