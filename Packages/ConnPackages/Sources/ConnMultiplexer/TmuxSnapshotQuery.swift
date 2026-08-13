@@ -55,7 +55,7 @@ package struct TmuxSnapshotQueryLimits: Sendable, Equatable {
     }
 }
 
-package enum TmuxSnapshotSection: String, Sendable, Equatable, CaseIterable {
+package enum TmuxSnapshotSection: String, Sendable, Equatable, Hashable, CaseIterable {
     case serverIdentityBefore = "server-identity-before"
     case sessions
     case windowLinks = "window-links"
@@ -79,7 +79,7 @@ package enum TmuxSnapshotIdentityBoundary: Sendable, Equatable {
 
 /// Closed set of legacy text reads. Associated IDs are validated domain types, and clients
 /// are addressed through numeric format filters, so no remote string becomes command syntax.
-package enum TmuxLegacySnapshotField: Sendable, Equatable {
+package enum TmuxLegacySnapshotField: Sendable, Equatable, Hashable {
     case serverSocketPath(TmuxSnapshotIdentityBoundary)
     case serverVersion
     case sessionName(TmuxSessionID)
