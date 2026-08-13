@@ -56,19 +56,19 @@
 - Create: `Packages/ConnPackages/Sources/ConnMultiplexer/TmuxControlHub.swift`
 - Create: `Packages/ConnPackages/Tests/ConnMultiplexerTests/TmuxControlHubTests.swift`
 
-- [ ] Write tests for observation/identity lease lifetimes, old-generation discard, snapshot stream ordering, operation serialization, and profile/connection invalidation.
-- [ ] Write destructive tests proving validation and nonce consumption are atomic and duplicate submissions cannot queue twice.
-- [ ] Implement the Hub without opening SSH itself; inject channel/snapshot factories at the adapter seam.
-- [ ] Run module/full-package regression and commit: `feat: coordinate tmux control hub`.
+- [x] Write tests for observation/identity lease lifetimes, old-generation discard, snapshot stream ordering, operation serialization, and profile/connection invalidation.
+- [x] Write destructive tests proving validation and nonce consumption are atomic and duplicate submissions cannot queue twice.
+- [x] Implement the Hub without opening SSH itself; inject channel/snapshot factories at the adapter seam.
+- [x] Run module/full-package regression and commit: `feat: coordinate tmux control hub`.
 
 ## Completion gate
 
-- [ ] No more than one response-bearing command is in flight per Control Client.
-- [ ] Output is bounded independently of parser line bounds.
-- [ ] Timed-out/transport-lost mutations are never auto-replayed or later reported as success.
-- [ ] Dirty generations reject new mutations until reconciliation or replacement.
-- [ ] Old-generation events/results cannot mutate current state.
-- [ ] Notification order matches wire order.
-- [ ] Destructive nonce is consumed at most once atomically with queueing.
-- [ ] Control orchestration depends only on ConnSSH abstractions, never Citadel/UI.
-- [ ] Full package tests and `git diff --check` pass.
+- [x] No more than one response-bearing command is in flight per Control Client.
+- [x] Output is bounded independently of parser line bounds.
+- [x] Timed-out/transport-lost mutations are never auto-replayed or later reported as success.
+- [x] Dirty generations reject new mutations until reconciliation or replacement.
+- [x] Old-generation events/results cannot mutate current state.
+- [x] Notification order matches wire order.
+- [x] Destructive nonce is consumed at most once atomically with queueing.
+- [x] Control orchestration depends only on ConnSSH abstractions, never Citadel/UI.
+- [x] Full package tests and `git diff --check` pass.
