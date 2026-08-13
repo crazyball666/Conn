@@ -40,12 +40,12 @@
 - Modify: `Packages/ConnPackages/Tests/ConnMultiplexerTests/TmuxControlCommandMachineTests.swift`
 - Modify: `Packages/ConnPackages/Tests/ConnMultiplexerTests/TmuxControlClientTests.swift`
 
-- [ ] Write failing `@testable` tests proving the package-visible envelope carries pre-rendered bounded wire data and `.readOnly` semantics. Keep its production initializer module-internal so package sibling targets and UI code cannot construct an arbitrary tmux command.
-- [ ] Write a failing Client test proving a read-only request uses the same one-in-flight correlation and bounded output as a mutation.
-- [ ] Introduce `TmuxControlRequest` with a module-internal initializer available to trusted ConnMultiplexer renderers but not to package sibling targets such as ConnTerminal; expose only read access to `wireData` and explicit `TmuxOperationSemantics`.
-- [ ] Change `TmuxControlCommandMachine.submit` to consume `TmuxControlRequest`; keep `submit(_ operation:)` and `TmuxControlClient.execute(_ operation:)` as convenience adapters through `TmuxControlCommandRenderer`.
-- [ ] Run `TmuxControlCommandMachineTests`, `TmuxControlClientTests`, and all `ConnMultiplexerTests`.
-- [ ] Commit: `feat: generalize tmux control requests`.
+- [x] Write failing `@testable` tests proving the package-visible envelope carries pre-rendered bounded wire data and `.readOnly` semantics. Keep its production initializer module-internal so package sibling targets and UI code cannot construct an arbitrary tmux command.
+- [x] Write a failing Client test proving a read-only request uses the same one-in-flight correlation and bounded output as a mutation.
+- [x] Introduce `TmuxControlRequest` with a module-internal initializer available to trusted ConnMultiplexer renderers but not to package sibling targets such as ConnTerminal; expose only read access to `wireData` and explicit `TmuxOperationSemantics`.
+- [x] Change `TmuxControlCommandMachine.submit` to consume `TmuxControlRequest`; keep `submit(_ operation:)` and `TmuxControlClient.execute(_ operation:)` as convenience adapters through `TmuxControlCommandRenderer`.
+- [x] Run `TmuxControlCommandMachineTests`, `TmuxControlClientTests`, and all `ConnMultiplexerTests`.
+- [x] Commit: `feat: generalize tmux control requests`.
 
 ### Task 2: Render bounded framed snapshot query plans
 
@@ -54,14 +54,14 @@
 - Create: `Packages/ConnPackages/Sources/ConnMultiplexer/TmuxSnapshotQuery.swift`
 - Create: `Packages/ConnPackages/Tests/ConnMultiplexerTests/TmuxSnapshotQueryTests.swift`
 
-- [ ] Write failing quoted-plan tests for server identity, Sessions, all Session→Window links, unique Windows, Panes, and Clients using official `display-message`/`list-* -F` commands.
-- [ ] Prove every section is bracketed by a validated invocation nonce plus a fixed section enum, so remote names can never be mistaken for section boundaries.
-- [ ] Prove the quoted plan uses `#{q:...}` for every untrusted text field and only typed IDs/numbers are parsed without quoting.
-- [ ] Write legacy-plan tests proving bulk queries contain only IDs/numbers and every untrusted name/path/title/command is requested as an independent field; require server identity at both plan boundaries.
-- [ ] Implement immutable `TmuxSnapshotQueryPlan`, `TmuxSnapshotQueryStep`, `TmuxSnapshotSection`, and `TmuxSnapshotQueryRenderer`. All generated Control requests are `.readOnly`; no request contains executable/locator/POSIX quoting.
-- [ ] Bound section count, step count, expected fields, and marker length at construction.
-- [ ] Run focused tests and `git diff --check`.
-- [ ] Commit: `feat: render tmux snapshot queries`.
+- [x] Write failing quoted-plan tests for server identity, Sessions, all Session→Window links, unique Windows, Panes, and Clients using official `display-message`/`list-* -F` commands.
+- [x] Prove every section is bracketed by a validated invocation nonce plus a fixed section enum, so remote names can never be mistaken for section boundaries.
+- [x] Prove the quoted plan uses `#{q:...}` for every untrusted text field and only typed IDs/numbers are parsed without quoting.
+- [x] Write legacy-plan tests proving bulk queries contain only IDs/numbers and every untrusted name/path/title/command is requested as an independent field; require server identity at both plan boundaries.
+- [x] Implement immutable `TmuxSnapshotQueryPlan`, `TmuxSnapshotQueryStep`, `TmuxSnapshotSection`, and `TmuxSnapshotQueryRenderer`. All generated Control requests are `.readOnly`; no request contains executable/locator/POSIX quoting.
+- [x] Bound section count, step count, expected fields, and marker length at construction.
+- [x] Run focused tests and `git diff --check`.
+- [x] Commit: `feat: render tmux snapshot queries`.
 
 ### Task 3: Assemble a validated normalized snapshot
 
@@ -70,14 +70,14 @@
 - Create: `Packages/ConnPackages/Sources/ConnMultiplexer/TmuxSnapshotAssembler.swift`
 - Create: `Packages/ConnPackages/Tests/ConnMultiplexerTests/TmuxSnapshotAssemblerTests.swift`
 
-- [ ] Write failing full-graph fixtures covering grouped Sessions, a Window linked into multiple Sessions, Pane metadata/freshness, current Window/active Pane, external clients, one verified Conn interactive client, and one Conn Control Client.
-- [ ] Write failing rejection tests for duplicate/conflicting entities, invalid `$`/`@`/`%` IDs, negative/overflow numeric fields, invalid booleans, missing links, mismatched active Pane ownership, malformed client flags, and a server token that does not match the requested scope.
-- [ ] Define typed decoded records per section rather than passing `[[String]]` through the runtime.
-- [ ] Implement `TmuxSnapshotAssembler` that accepts decoded section records plus `Set<TmuxControlInteractiveIdentity>` and an optional verified Control Client ID, classifies all unclaimed clients as external, and constructs `TmuxServerSnapshot` only after complete validation.
-- [ ] Deduplicate shared Window rows only when all Window fields match; preserve every distinct `TmuxWindowLink`.
-- [ ] Mark quoted snapshot metadata as `.snapshot(observedAt:)`; legacy unavailable fields remain `.unavailable` rather than guessed.
-- [ ] Run focused tests and all snapshot/reducer tests.
-- [ ] Commit: `feat: assemble tmux runtime snapshots`.
+- [x] Write failing full-graph fixtures covering grouped Sessions, a Window linked into multiple Sessions, Pane metadata/freshness, current Window/active Pane, external clients, one verified Conn interactive client, and one Conn Control Client.
+- [x] Write failing rejection tests for duplicate/conflicting entities, invalid `$`/`@`/`%` IDs, negative/overflow numeric fields, invalid booleans, missing links, mismatched active Pane ownership, malformed client flags, and a server token that does not match the requested scope.
+- [x] Define typed decoded records per section rather than passing `[[String]]` through the runtime.
+- [x] Implement `TmuxSnapshotAssembler` that accepts decoded section records plus `Set<TmuxControlInteractiveIdentity>` and an optional verified Control Client ID, classifies all unclaimed clients as external, and constructs `TmuxServerSnapshot` only after complete validation.
+- [x] Deduplicate shared Window rows only when all Window fields match; preserve every distinct `TmuxWindowLink`.
+- [x] Mark quoted snapshot metadata as `.snapshot(observedAt:)`; legacy unavailable fields remain `.unavailable` rather than guessed.
+- [x] Run focused tests and all snapshot/reducer tests.
+- [x] Commit: `feat: assemble tmux runtime snapshots`.
 
 ### Task 4: Execute coherent snapshot plans behind a read-only seam
 
@@ -86,13 +86,13 @@
 - Create: `Packages/ConnPackages/Sources/ConnMultiplexer/TmuxSnapshotLoader.swift`
 - Create: `Packages/ConnPackages/Tests/ConnMultiplexerTests/TmuxSnapshotLoaderTests.swift`
 
-- [ ] Define `TmuxReadOnlyCommandExecuting` with exact scope/generation and bounded `[Data]` output; adapters for a ready `TmuxControlClient` and later one-shot transport live outside the loader.
-- [ ] Write failing tests for quoted single-generation loading, legacy multi-step loading, arbitrary command-output line boundaries, and identity ownership passed to the assembler.
-- [ ] Write race tests proving old-generation results are discarded, quoted identity mismatch fails the whole load, and legacy initial/final token mismatch discards every intermediate record.
-- [ ] Implement `TmuxSnapshotLoader` as an actor so only one plan runs per scope/generation. It must never retry a failed step automatically and must not publish partial snapshots.
-- [ ] Decode each section with the existing quoted/legacy codecs, then invoke `TmuxSnapshotAssembler` once.
-- [ ] Run focused tests and all `ConnMultiplexerTests`.
-- [ ] Commit: `feat: load coherent tmux snapshots`.
+- [x] Define `TmuxReadOnlyCommandExecuting` with exact scope/generation and bounded `[Data]` output; adapters for a ready `TmuxControlClient` and later one-shot transport live outside the loader.
+- [x] Write failing tests for quoted single-generation loading, legacy multi-step loading, arbitrary command-output line boundaries, and identity ownership passed to the assembler.
+- [x] Write race tests proving old-generation results are discarded, quoted identity mismatch fails the whole load, and legacy initial/final token mismatch discards every intermediate record.
+- [x] Implement `TmuxSnapshotLoader` as an actor so only one plan runs per scope/generation. It must never retry a failed step automatically and must not publish partial snapshots.
+- [x] Decode each section with the existing quoted/legacy codecs, then invoke `TmuxSnapshotAssembler` once.
+- [x] Run focused tests and all `ConnMultiplexerTests`.
+- [x] Commit: `feat: load coherent tmux snapshots`.
 
 ### Task 5: Run token-guarded one-shot operations without replay
 
@@ -101,14 +101,14 @@
 - Create: `Packages/ConnPackages/Sources/ConnMultiplexer/TmuxOneShotOperationExecutor.swift`
 - Create: `Packages/ConnPackages/Tests/ConnMultiplexerTests/TmuxOneShotOperationExecutorTests.swift`
 
-- [ ] Inject `SSHSession`, `PreparedRemoteScriptRuntime`, `TmuxExecutablePath`, and `TmuxServerLocator`; assert their connection/profile/token scope is exact before rendering.
-- [ ] Write failing success/rejection tests around `TmuxShellInvocationRenderer` guard-accepted and instance-changed markers, including ordinary command output and nonzero exits.
-- [ ] Write timeout/transport tests proving once `SSHSession.exec` is entered every mutation failure is reported as outcome unknown and is never retried.
-- [ ] Prove an instance-changed marker returns a structured stale-instance error and never reports command success.
-- [ ] Implement a bounded marker/result parser that redacts the nonce and does not expose arbitrary stderr as a Swift type name.
-- [ ] Return a transport-level `TmuxOneShotOperationResult` only after exact request/scope validation. The executor must not depend on `TmuxControlHubOperationReceipt`; post-operation snapshot loading and Hub receipt construction remain the runtime adapter's responsibility.
-- [ ] Run focused tests and `ConnSSH` mock contract tests.
-- [ ] Commit: `feat: execute guarded tmux one-shot operations`.
+- [x] Inject `SSHSession`, `PreparedRemoteScriptRuntime`, `TmuxExecutablePath`, and `TmuxServerLocator`; assert their connection/profile/token scope is exact before rendering.
+- [x] Write failing success/rejection tests around `TmuxShellInvocationRenderer` guard-accepted and instance-changed markers, including ordinary command output and nonzero exits.
+- [x] Write timeout/transport tests proving once `SSHSession.exec` is entered every mutation failure is reported as outcome unknown and is never retried.
+- [x] Prove an instance-changed marker returns a structured stale-instance error and never reports command success.
+- [x] Implement a bounded marker/result parser that redacts the nonce and does not expose arbitrary stderr as a Swift type name.
+- [x] Return a transport-level `TmuxOneShotOperationResult` only after exact request/scope validation. The executor must not depend on `TmuxControlHubOperationReceipt`; post-operation snapshot loading and Hub receipt construction remain the runtime adapter's responsibility.
+- [x] Run focused tests and `ConnSSH` mock contract tests.
+- [x] Commit: `feat: execute guarded tmux one-shot operations`.
 
 ### Task 6: Route Hub runtime work through injected lifecycle seams
 
@@ -119,22 +119,22 @@
 - Modify: `Packages/ConnPackages/Sources/ConnMultiplexer/TmuxControlHub.swift`
 - Modify: `Packages/ConnPackages/Tests/ConnMultiplexerTests/TmuxControlHubTests.swift`
 
-- [ ] Define small protocols for exact-generation ready Control Client lookup, one-shot execution, snapshot loading, and observation-demand lifecycle. Do not inject `SSHSession` directly into the Hub.
-- [ ] Write routing tests: ready exact-generation Control Client wins; absent/not-ready client uses one-shot; catalog-only work uses snapshot loader; stale generation never routes.
-- [ ] Write safety tests proving any Control execution error after submission—including timeout, channel loss, protocol failure, or rejected command—never falls through to one-shot replay.
-- [ ] Extend `TmuxControlHubOperationReceipt` with an optional exact-generation reconciliation snapshot. Require one-shot success to load that coherent post-operation snapshot; the Hub validates and installs it before reporting the operation complete. Do not create an adapter→Hub callback or ownership cycle.
-- [ ] Forward `TmuxControlHubDemand` in sequence to the lifecycle driver; identity-only demand must not open Control Mode, while observation/pending-operation demand may.
-- [ ] Implement `TmuxControlHubRuntimeAdapter: TmuxControlHubAdapter` with no Citadel/UI imports and no platform switch.
-- [ ] Run focused tests, all `ConnMultiplexerTests`, and `git diff --check`.
-- [ ] Commit: `feat: route tmux hub runtime operations`.
+- [x] Define small protocols for exact-generation ready Control Client lookup, one-shot execution, snapshot loading, and observation-demand lifecycle. Do not inject `SSHSession` directly into the Hub.
+- [x] Write routing tests: ready exact-generation Control Client wins; absent/not-ready client uses one-shot; catalog-only work uses snapshot loader; stale generation never routes.
+- [x] Write safety tests proving any Control execution error after submission—including timeout, channel loss, protocol failure, or rejected command—never falls through to one-shot replay.
+- [x] Extend `TmuxControlHubOperationReceipt` with an optional exact-generation reconciliation snapshot. Require one-shot success to load that coherent post-operation snapshot; the Hub validates and installs it before reporting the operation complete. Do not create an adapter→Hub callback or ownership cycle.
+- [x] Forward `TmuxControlHubDemand` in sequence to the lifecycle driver; identity-only demand must not open Control Mode, while observation/pending-operation demand may.
+- [x] Implement `TmuxControlHubRuntimeAdapter: TmuxControlHubAdapter` with no Citadel/UI imports and no platform switch.
+- [x] Run focused tests, all `ConnMultiplexerTests`, and `git diff --check`.
+- [x] Commit: `feat: route tmux hub runtime operations`.
 
 ## Completion gate
 
-- [ ] Snapshot text fields are decoded only through quoted or independent legacy field codecs.
-- [ ] Quoted snapshots are one coherent plan; legacy plans verify the same server token before and after all steps.
-- [ ] Snapshot assembly never publishes a partial or structurally invalid graph.
-- [ ] Every runtime request remains bound to connection identity, profile ID, instance token, and generation.
-- [ ] No mutation can fall back or retry after Control/one-shot dispatch may have occurred.
-- [ ] One-shot operations use one tmux invocation for token guard plus mutation.
-- [ ] Hub and runtime adapter remain independent of Citadel, SwiftUI, UIKit, SwiftTerm, and platform-specific process APIs.
-- [ ] Full package tests and `git diff --check` pass.
+- [x] Snapshot text fields are decoded only through quoted or independent legacy field codecs.
+- [x] Quoted snapshots are one coherent plan; legacy plans verify the same server token before and after all steps.
+- [x] Snapshot assembly never publishes a partial or structurally invalid graph.
+- [x] Every runtime request remains bound to connection identity, profile ID, instance token, and generation.
+- [x] No mutation can fall back or retry after Control/one-shot dispatch may have occurred.
+- [x] One-shot operations use one tmux invocation for token guard plus mutation.
+- [x] Hub and runtime adapter remain independent of Citadel, SwiftUI, UIKit, SwiftTerm, and platform-specific process APIs.
+- [x] Full package tests and `git diff --check` pass.

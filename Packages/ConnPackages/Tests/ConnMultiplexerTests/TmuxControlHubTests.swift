@@ -414,7 +414,8 @@ private actor ScriptedControlHubAdapter: TmuxControlHubAdapter {
 
     func execute(
         _ request: TmuxOperationRequest,
-        timeout: Duration
+        timeout: Duration,
+        identities: Set<TmuxControlInteractiveIdentity>
     ) async throws -> TmuxControlHubOperationReceipt {
         executions.append(request)
         if blockOperations {
@@ -465,7 +466,8 @@ private actor OutOfOrderSnapshotAdapter: TmuxControlHubAdapter {
 
     func execute(
         _ request: TmuxOperationRequest,
-        timeout: Duration
+        timeout: Duration,
+        identities: Set<TmuxControlInteractiveIdentity>
     ) async throws -> TmuxControlHubOperationReceipt {
         TmuxControlHubOperationReceipt(request: request, output: [])
     }

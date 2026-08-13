@@ -89,10 +89,16 @@ package struct TmuxControlHubDemand: Sendable, Equatable {
 package struct TmuxControlHubOperationReceipt: Sendable, Equatable {
     package let request: TmuxOperationRequest
     package let output: [Data]
+    package let reconciliationSnapshot: TmuxServerSnapshot?
 
-    package init(request: TmuxOperationRequest, output: [Data]) {
+    package init(
+        request: TmuxOperationRequest,
+        output: [Data],
+        reconciliationSnapshot: TmuxServerSnapshot? = nil
+    ) {
         self.request = request
         self.output = output
+        self.reconciliationSnapshot = reconciliationSnapshot
     }
 }
 
@@ -108,7 +114,8 @@ package enum TmuxControlHubSnapshotReason: Sendable, Equatable {
 package protocol TmuxControlHubAdapter: Sendable {
     func execute(
         _ request: TmuxOperationRequest,
-        timeout: Duration
+        timeout: Duration,
+        identities: Set<TmuxControlInteractiveIdentity>
     ) async throws -> TmuxControlHubOperationReceipt
 
     func loadSnapshot(
@@ -372,7 +379,11 @@ package actor TmuxControlHub {
         defer { releaseOperationSlot() }
         try Task.checkCancellation()
         try requireRequestScope(request)
-        return try await dispatch(request, timeout: timeout)
+        return try await dispatch(
+            request,
+            timeout: timeout,
+            identities: Set(identityLeases.values)
+        )
     }
 
     package func executeDestructive(
@@ -415,17 +426,26 @@ package actor TmuxControlHub {
             context: context,
             now: clock()
         )
-        return try await dispatch(request, timeout: timeout)
+        return try await dispatch(
+            request,
+            timeout: timeout,
+            identities: Set(identityLeases.values)
+        )
     }
 
     private func dispatch(
         _ request: TmuxOperationRequest,
-        timeout: Duration
+        timeout: Duration,
+        identities: Set<TmuxControlInteractiveIdentity>
     ) async throws -> TmuxControlHubOperationReceipt {
         let dispatchEpoch = epoch
         let receipt: TmuxControlHubOperationReceipt
         do {
-            receipt = try await adapter.execute(request, timeout: timeout)
+            receipt = try await adapter.execute(
+                request,
+                timeout: timeout,
+                identities: identities
+            )
         } catch {
             guard invalidationReason == nil,
                   epoch == dispatchEpoch,
@@ -442,6 +462,22 @@ package actor TmuxControlHub {
               receipt.request == request
         else {
             throw TmuxControlHubError.operationOutcomeUnknown(request)
+        }
+
+        if let reconciliationSnapshot = receipt.reconciliationSnapshot {
+            let reduction = try reconcile(
+                with: reconciliationSnapshot,
+                generation: request.scope.generation
+            )
+            guard reduction == .applied || reduction == .unchanged else {
+                throw TmuxControlHubError.operationOutcomeUnknown(request)
+            }
+            guard invalidationReason == nil,
+                  epoch == dispatchEpoch,
+                  scope == request.scope
+            else {
+                throw TmuxControlHubError.operationOutcomeUnknown(request)
+            }
         }
         return receipt
     }
