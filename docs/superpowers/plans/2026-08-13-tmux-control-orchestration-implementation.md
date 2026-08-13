@@ -44,10 +44,10 @@
 - Create: `Packages/ConnPackages/Sources/ConnMultiplexer/TmuxControlClient.swift`
 - Create: `Packages/ConnPackages/Tests/ConnMultiplexerTests/TmuxControlClientTests.swift`
 
-- [ ] Write scripted-channel tests for arbitrary chunks, stdout-only protocol input, stderr diagnostics, serialized writes, deadline behavior, close/result races, and exactly-once completion.
-- [ ] Implement an actor that owns parser/channel/read loop and forwards notifications in wire order.
-- [ ] Never retry or switch channel after a command may have been written; mark outcome unknown and request reconciliation.
-- [ ] Run focused/module tests and commit: `feat: run tmux control client`.
+- [x] Write scripted-channel tests for arbitrary chunks, stdout-only protocol input, stderr diagnostics, serialized writes, deadline behavior, close/result races, and exactly-once completion.
+- [x] Implement an actor that owns parser/channel/read loop and forwards notifications in wire order.
+- [x] Never retry or switch channel after a command may have been written; mark outcome unknown and request reconciliation.
+- [x] Run focused/module tests and commit: `feat: run tmux control client`.
 
 ### Task 4: Coordinate generation, reducer, leases, and nonce consumption
 
