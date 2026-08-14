@@ -114,6 +114,83 @@ struct AppWideUIConsistencyTests {
         #expect(source.contains("Text(sessionSubtitle)"))
     }
 
+    @Test("终端会话中心包含没有本地 Tab 的已配置主机")
+    func terminalSessionCenterIncludesHostsWithoutLocalTabs() throws {
+        let source = try appSource("Terminal/TerminalSessionCenterView.swift")
+        #expect(source.contains("@State private var hosts: [Host] = []"))
+        #expect(source.contains("displayedHostGroups"))
+    }
+
+    @Test("tmux 启动流程允许选择已有 Session 或新建 Session")
+    func tmuxLaunchPickerSupportsWorkspaceChoice() throws {
+        let source = try appSource("Terminal/TerminalScreen.swift")
+        #expect(source.contains("PersistentWorkspacePicker"))
+        #expect(source.contains("persistentWorkspaceOptions"))
+        #expect(source.contains("PersistentWorkspaceCreateSelection"))
+    }
+
+    @Test("新增普通终端复用与首次启动相同的 PTY/tmux 选择流程")
+    func additionalShellSessionReusesBackendChoiceFlow() throws {
+        let source = try appSource("Terminal/TerminalScreen.swift")
+
+        #expect(source.contains("await beginLaunchChoice(for: .additional)"))
+        #expect(source.contains("pendingLaunchContext = context.replacingPolicy(with: .createNew)"))
+        #expect(!source.contains("private func createAdditionalSession()"))
+    }
+
+    @Test("会话中心新建终端先进入 TerminalScreen 再选择 PTY/tmux")
+    func sessionCenterNewTerminalUsesTerminalScreenChoiceFlow() throws {
+        let source = try appSource("Terminal/TerminalSessionCenterView.swift")
+
+        #expect(source.contains("let tabID: String?"))
+        #expect(source.contains("var launchPolicy: TerminalLaunchPolicy"))
+        #expect(!source.contains("TerminalLaunchRequest(host: host, policy: .createNew, source: .shell)"))
+    }
+
+    @Test("远端 Catalog 按 host/provider/profile 隔离并在收起后释放")
+    func sessionCenterCatalogsAreProfileScopedAndLifecycleBound() throws {
+        let source = try appSource("Terminal/TerminalSessionCenterView.swift")
+
+        #expect(source.contains("private struct CatalogKey: Hashable"))
+        #expect(source.contains("@State private var remoteCatalogs: [CatalogKey:"))
+        #expect(source.contains("await closeCatalogs(for: group.hostID)"))
+        #expect(source.contains("markCatalogStale"))
+        #expect(source.contains("retryCatalog"))
+    }
+
+    @Test("新保存的主机立即幂等创建默认 tmux profile")
+    func savedHostsProvisionDefaultTmuxProfileImmediately() throws {
+        let source = try appSource("ConnApp.swift")
+
+        #expect(source.contains("profileProvisioner:"))
+        #expect(source.contains("ensureDefaultTerminalProfile(for: host"))
+        #expect(source.contains("hostID: host.id"))
+        #expect(source.contains("providerID: TmuxProvider.providerID"))
+        #expect(source.contains(").isEmpty else"))
+    }
+
+    @Test("tmux 管理页只提交 typed operation 并使用破坏性确认")
+    func tmuxManagementViewUsesTypedOperations() throws {
+        let source = try appSource("Terminal/TmuxWorkspaceManagementView.swift")
+        #expect(source.contains("TmuxWorkspaceCatalogManaging"))
+        #expect(source.contains("TmuxOperation"))
+        #expect(source.contains("prepareDestructive"))
+        #expect(source.contains("executeDestructive"))
+    }
+
+    @Test("tmux 管理页展示协商降级并提示共享的非破坏性影响")
+    func tmuxManagementShowsDegradationAndSharedImpact() throws {
+        let source = try appSource("Terminal/TmuxWorkspaceManagementView.swift")
+
+        #expect(source.contains("catalog.controlCapabilities"))
+        #expect(source.contains("catalog.controlConfiguration"))
+        #expect(source.contains("metadataFreshnessWarning"))
+        #expect(source.contains("previewImpact"))
+        #expect(source.contains("pendingSharedOperation"))
+        #expect(source.contains("pendingClientSelection"))
+        #expect(!source.contains("snapshot.clients.values.first(where:"))
+    }
+
     @Test("创建 Docker 命令保存成功后锁定按钮并防止重复保存")
     func dockerCommandSaveLocksAfterSuccess() throws {
         let runForm = try appSource("Hosts/DockerRunFormView.swift")

@@ -118,6 +118,7 @@ struct TerminalSessionListSheet: View {
         case .shell: "terminal"
         case .docker: "shippingbox"
         case .script: "command"
+        case .persistent: "rectangle.connected.to.line.below"
         }
     }
 
@@ -126,6 +127,7 @@ struct TerminalSessionListSheet: View {
         case .shell: L("普通终端")
         case let .docker(containerName): String(format: L("容器：%@"), containerName)
         case let .script(title): String(format: L("脚本：%@"), title)
+        case let .persistent(providerID): String(format: L("持久终端：%@"), providerID)
         }
     }
 

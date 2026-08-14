@@ -1,6 +1,7 @@
 import ConnCrypto
 import ConnKit
 import ConnMonitor
+import ConnMultiplexer
 import ConnOps
 import ConnRunner
 import ConnSSH
@@ -298,6 +299,11 @@ struct AppDependencies {
             let hostStore = HostStore(database: database)
             let groupStore = HostGroupStore(database: database)
             let keyStore = SSHKeyStore(database: database)
+            let terminalBackendProfiles = TerminalBackendProfileStore(database: database)
+            try ensureDefaultTerminalProfiles(
+                for: hostStore.allHosts(),
+                in: terminalBackendProfiles
+            )
 
             // SSH 栈：Citadel 引擎 + GRDB 指纹库（TOFU 跨重启留存）。
             let hostKeyStore = GRDBHostKeyStore(database: database)
@@ -360,7 +366,18 @@ struct AppDependencies {
             )
             let terminalSessions = TerminalSessionCoordinator(
                 hostRepository: hostStore,
-                connectionManager: connectionManager
+                connectionManager: connectionManager,
+                profileRepository: terminalBackendProfiles,
+                profileProvisioner: { host in
+                    do {
+                        try ensureDefaultTerminalProfile(
+                            for: host,
+                            in: terminalBackendProfiles
+                        )
+                    } catch {
+                        assertionFailure("Failed to provision terminal profile: \(error)")
+                    }
+                }
             )
             let snippetExecutionPlanner = makeSnippetExecutionPlanner(
                 connectionManager: connectionManager
@@ -410,13 +427,29 @@ struct AppDependencies {
             let groupStore = HostGroupStore(database: database)
             let keyStore = SSHKeyStore(database: database)
             try DemoData.seedHosts(into: hostStore, groups: groupStore)
+            let terminalBackendProfiles = TerminalBackendProfileStore(database: database)
+            try ensureDefaultTerminalProfiles(
+                for: hostStore.allHosts(),
+                in: terminalBackendProfiles
+            )
 
             let transport = MockSSHTransport(behavior: DemoData.behavior())
             let credentialStore = InMemoryCredentialStore()
             let connectionManager = ConnectionManager(transport: transport) { _ in .password("demo") }
             let terminalSessions = TerminalSessionCoordinator(
                 hostRepository: hostStore,
-                connectionManager: connectionManager
+                connectionManager: connectionManager,
+                profileRepository: terminalBackendProfiles,
+                profileProvisioner: { host in
+                    do {
+                        try ensureDefaultTerminalProfile(
+                            for: host,
+                            in: terminalBackendProfiles
+                        )
+                    } catch {
+                        assertionFailure("Failed to provision terminal profile: \(error)")
+                    }
+                }
             )
             let snippetExecutionPlanner = makeSnippetExecutionPlanner(
                 connectionManager: connectionManager
@@ -453,6 +486,41 @@ struct AppDependencies {
     private static func databaseURL() -> URL {
         let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
         return base.appendingPathComponent("Conn/conn.sqlite")
+    }
+
+    /// Materialize the built-in tmux profile once per host. This is configuration
+    /// only—not remote runtime state—and gives the startup selector a durable,
+    /// provider-neutral profile to probe. If tmux is absent, the selector simply
+    /// offers plain PTY and no remote command is attempted here.
+    private static func ensureDefaultTerminalProfiles(
+        for hosts: [ConnKit.Host],
+        in repository: any TerminalBackendProfileRepository
+    ) throws {
+        for host in hosts {
+            try ensureDefaultTerminalProfile(for: host, in: repository)
+        }
+    }
+
+    private static func ensureDefaultTerminalProfile(
+        for host: ConnKit.Host,
+        in repository: any TerminalBackendProfileRepository
+    ) throws {
+        let configuration = TmuxProviderConfiguration()
+        let data = try JSONEncoder().encode(configuration)
+        guard try repository.profiles(
+            hostID: host.id,
+            providerID: TmuxProvider.providerID
+        ).isEmpty else {
+            return
+        }
+        try repository.save(TerminalBackendProfile(
+            hostID: host.id,
+            providerID: TmuxProvider.providerID,
+            providerConfigurationKey: configuration.locator.configurationKey,
+            displayName: "tmux",
+            isPrimary: true,
+            configurationJSON: String(decoding: data, as: UTF8.self)
+        ))
     }
 
     /// 按数据库中的目录版本和稳定 key 导入内置命令。旧 UserDefaults 标记只作为

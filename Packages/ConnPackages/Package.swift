@@ -24,10 +24,10 @@ let package = Package(
     ],
     dependencies: [
         .package(url: "https://github.com/groue/GRDB.swift.git", from: "7.11.1"),
-        // SSH 引擎（S1 选型）。注意：0.12 把平台下限锁死 iOS 17.0（风险 R4），
-        // 且传递依赖个人 fork Wellz26/swift-nio-ssh（风险 R1）。仅 ConnSSHCitadel
-        // target 引入，协议层 ConnSSH 不碰它。
-        .package(url: "https://github.com/orlandos-nl/Citadel.git", from: "0.12.1"),
+        // SSH 引擎（S1 选型）。我们保留一份最小、可审计的 source fork：ConnSSH
+        // 需要 Citadel 暴露“PTY + exec”而不是“PTY + login shell”，用于 tmux -CC
+        // 和普通 attach 的长驻进程通道。协议层 ConnSSH 仍不依赖 Citadel。
+        .package(path: "../Vendor/Citadel"),
         // 终端模拟（S2）。必须 ≥1.8.0：iOS 中文输入由 PR #409 修复，更早版本
         // iOS 上无法输入中文。自写 UIViewRepresentable（库内 wrapper 是 DEBUG-only）。
         .package(url: "https://github.com/migueldeicaza/SwiftTerm.git", from: "1.15.0"),
@@ -118,6 +118,8 @@ let package = Package(
             name: "ConnTerminal",
             dependencies: [
                 "ConnSSH",
+                "ConnKit",
+                "ConnMultiplexer",
                 "ConnUI",
                 .product(name: "SwiftTerm", package: "SwiftTerm"),
             ]
@@ -155,7 +157,14 @@ let package = Package(
         ),
         .testTarget(
             name: "ConnSSHCitadelTests",
-            dependencies: ["ConnSSHCitadel", "ConnCrypto", "ConnMonitor", "ConnOps"]
+            dependencies: [
+                "ConnSSHCitadel",
+                "ConnCrypto",
+                "ConnMonitor",
+                "ConnOps",
+                "ConnMultiplexer",
+                "ConnSSH",
+            ]
         ),
         .testTarget(name: "ConnMonitorTests", dependencies: ["ConnMonitor"]),
         .testTarget(name: "ConnOpsTests", dependencies: ["ConnOps"]),

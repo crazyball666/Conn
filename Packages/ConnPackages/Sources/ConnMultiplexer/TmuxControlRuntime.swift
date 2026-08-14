@@ -1,0 +1,392 @@
+import ConnSSH
+import Foundation
+
+package struct TmuxControlProcessIdentity: Sendable, Equatable {
+    package let tty: String
+    package let processID: Int32
+
+    package init(tty: String, processID: Int32) {
+        self.tty = tty
+        self.processID = processID
+    }
+}
+
+package enum TmuxDataClientSizePolicyDecision: Sendable, Equatable {
+    case enableIgnoreSize
+    case disableIgnoreSize
+    case unchanged
+}
+
+/// tmux lets every participating client influence window size. Conn starts conservatively
+/// isolated, then participates only when its verified data client is the sole size voter.
+package enum TmuxDataClientSizePolicy {
+    package static func decision(
+        for identity: TmuxControlInteractiveIdentity,
+        clients: [TmuxClientID: TmuxClientSnapshot],
+        supportsIgnoreSize: Bool
+    ) -> TmuxDataClientSizePolicyDecision {
+        guard supportsIgnoreSize,
+              let dataClient = clients[identity.clientID],
+              case let .connInteractive(attachmentID) = dataClient.role,
+              attachmentID == identity.attachmentID,
+              dataClient.kind == .interactiveTerminal
+        else { return .unchanged }
+
+        let connDataClients: [(attachmentID: String, client: TmuxClientSnapshot)] = clients.values
+            .compactMap { candidate in
+                guard case let .connInteractive(candidateAttachmentID) = candidate.role,
+                      candidate.kind == .interactiveTerminal
+                else { return nil }
+                return (candidateAttachmentID, candidate)
+            }
+        let hasExternalSizeVoter = clients.values.contains { candidate in
+            switch candidate.role {
+            case .connControl, .connInteractive:
+                return false
+            case .external:
+                return candidate.sizeParticipation == .participating
+                    || candidate.sizeParticipation == .unknown
+            }
+        }
+        let participatingConnClients = connDataClients.filter {
+            $0.client.sizeParticipation == .participating
+        }
+        let participant = (participatingConnClients.isEmpty
+            ? connDataClients
+            : participatingConnClients
+        ).min { lhs, rhs in
+            lhs.attachmentID == rhs.attachmentID
+                ? lhs.client.id.targetName < rhs.client.id.targetName
+                : lhs.attachmentID < rhs.attachmentID
+        }
+        let shouldIgnoreSize = hasExternalSizeVoter
+            || participant?.attachmentID != attachmentID
+        let isIgnoringSize = dataClient.flags?.contains(.ignoreSize)
+        if shouldIgnoreSize {
+            return isIgnoringSize == true ? .unchanged : .enableIgnoreSize
+        }
+        return isIgnoringSize == true ? .disableIgnoreSize : .unchanged
+    }
+}
+
+package enum TmuxDataClientFocusPolicy {
+    package static func shouldEnableActivePane(
+        for identity: TmuxControlInteractiveIdentity,
+        clients: [TmuxClientID: TmuxClientSnapshot],
+        supportsActivePane: Bool
+    ) -> Bool {
+        guard supportsActivePane,
+              let dataClient = clients[identity.clientID],
+              case let .connInteractive(attachmentID) = dataClient.role,
+              attachmentID == identity.attachmentID,
+              dataClient.kind == .interactiveTerminal
+        else { return false }
+        return dataClient.flags?.contains(.activePane) != true
+    }
+}
+
+/// Runtime owner for one direct `tmux -CC` process generation.
+///
+/// The process channel is supplied by the provider so this type stays independent
+/// of Citadel, MockSSH and future SSH engines. It owns only Control Mode lifecycle;
+/// the data attachment and shared SSH session remain separate resources.
+package actor TmuxControlRuntime {
+    private let client: TmuxControlClient
+    private let eventContinuation: AsyncStream<TmuxControlClientEvent>.Continuation
+
+    package let scope: TmuxOperationScope
+    package let dialect: TmuxProtocolDialect
+    package let processIdentity: TmuxControlProcessIdentity
+    package let events: AsyncStream<TmuxControlClientEvent>
+
+    private let snapshotLoader: TmuxSnapshotLoader
+    private var controlClientID: TmuxClientID?
+    private var negotiatedCapabilities = TmuxNegotiatedCapabilities(
+        supportedClientFlags: [],
+        supportsFormatSubscriptions: false
+    )
+    private var clientConfiguration = TmuxControlClientConfiguration(
+        enabledClientFlags: [],
+        activeSubscriptionNames: []
+    )
+
+    package init(
+        channel: any RemoteProcessChannel,
+        scope: TmuxOperationScope,
+        dialect: TmuxProtocolDialect,
+        processIdentity: TmuxControlProcessIdentity,
+        limits: TmuxControlClientLimits = .default,
+        eventHandler: @escaping TmuxControlClient.EventHandler = { _ in }
+    ) throws {
+        self.scope = scope
+        self.dialect = dialect
+        self.processIdentity = processIdentity
+        let (events, eventContinuation) = AsyncStream<TmuxControlClientEvent>.makeStream(
+            bufferingPolicy: .bufferingNewest(256)
+        )
+        self.events = events
+        self.eventContinuation = eventContinuation
+        let client = try TmuxControlClient(
+            channel: channel,
+            generation: scope.generation,
+            dialect: dialect,
+            limits: limits,
+            eventHandler: { event in
+                eventContinuation.yield(event)
+                await eventHandler(event)
+                if case .closed = event {
+                    eventContinuation.finish()
+                }
+            }
+        )
+        self.client = client
+        controlClientID = nil
+        snapshotLoader = TmuxSnapshotLoader(
+            executor: TmuxControlClientReadOnlyExecutor(client: client, scope: scope),
+            nonceFactory: {
+                try TmuxInvocationNonce(
+                    UUID().uuidString.replacingOccurrences(of: "-", with: "")
+                )
+            }
+        )
+    }
+
+    package var isReady: Bool {
+        get async { await client.isReady }
+    }
+
+    package var capabilities: TmuxNegotiatedCapabilities {
+        negotiatedCapabilities
+    }
+
+    package var configuration: TmuxControlClientConfiguration {
+        clientConfiguration
+    }
+
+    package func start(timeout: Duration = .seconds(5)) async throws {
+        await client.start()
+        try await client.waitUntilReady(timeout: timeout)
+        await negotiateCapabilities()
+    }
+
+    package func execute(
+        _ operation: TmuxOperation,
+        timeout: Duration
+    ) async throws -> TmuxControlCommandResult {
+        try await client.execute(operation, timeout: timeout)
+    }
+
+    package func readyExecutor(
+        for request: TmuxOperationRequest
+    ) async throws -> (any TmuxControlOperationExecuting)? {
+        guard request.scope == scope, await client.isReady else { return nil }
+        return TmuxControlClientOperationExecutor(client: client, scope: scope)
+    }
+
+    package func loadSnapshot(
+        reason: TmuxControlHubSnapshotReason,
+        identities: Set<TmuxControlInteractiveIdentity>,
+        controlClientID: TmuxClientID?,
+        timeout: Duration
+    ) async throws -> TmuxServerSnapshot {
+        _ = reason
+        var snapshot = try await snapshotLoader.load(
+            scope: scope,
+            dialect: dialect,
+            identities: identities,
+            controlClientID: controlClientID,
+            timeout: timeout
+        )
+        let changed = await reconcileDataClientPolicies(
+            identities: identities,
+            snapshot: snapshot
+        )
+        if changed {
+            snapshot = try await snapshotLoader.load(
+                scope: scope,
+                dialect: dialect,
+                identities: identities,
+                controlClientID: controlClientID,
+                timeout: timeout
+            )
+        }
+        return snapshot
+    }
+
+    package func setControlClientID(_ clientID: TmuxClientID) {
+        controlClientID = clientID
+    }
+
+    package func demandChanged(_ demand: TmuxControlHubDemand) async {
+        // The attachment owns this runtime for the duration of the data channel. A
+        // later provider runtime registry can use demand to evict the shared control
+        // client; keeping this method a no-op here preserves the independent data-plane
+        // lifetime and avoids closing Control Mode while a caller is reconciling state.
+        _ = demand
+    }
+
+    package func close() async {
+        await client.close()
+        eventContinuation.finish()
+    }
+
+    /// Control Mode has no portable version-to-feature table. Probe each optional client
+    /// flag against the ready client, then separately record only the safe configuration
+    /// that this exact client enabled successfully.
+    private func negotiateCapabilities() async {
+        var supportedFlags = Set<TmuxClientFlag>()
+        for flag in TmuxClientFlag.allCases {
+            let command = "refresh-client -f !\(flag.rawValue)"
+            if await executeNegotiationProbe(command) {
+                supportedFlags.insert(flag)
+            }
+        }
+
+        let subscriptionName = "__conn_capability_probe__"
+        let subscriptionCommand = "refresh-client -B \(subscriptionName)::#{client_id}"
+        let subscriptionAdded = await executeNegotiationProbe(subscriptionCommand)
+        let subscriptionRemoved = subscriptionAdded
+            ? await executeNegotiationProbe("refresh-client -B \(subscriptionName)")
+            : false
+
+        var enabledFlags = Set<TmuxClientFlag>()
+        for flag in [TmuxClientFlag.noOutput, .waitExit, .ignoreSize]
+            where supportedFlags.contains(flag)
+        {
+            if await executeNegotiationProbe("refresh-client -f \(flag.rawValue)") {
+                enabledFlags.insert(flag)
+                if flag == .waitExit {
+                    await client.enableWaitExitHandshake(timeout: .seconds(1))
+                }
+            }
+        }
+
+        var activeSubscriptions = Set<String>()
+        if subscriptionAdded && !subscriptionRemoved {
+            activeSubscriptions.insert(subscriptionName)
+        }
+        if subscriptionAdded {
+            let subscriptions = [
+                ("__conn_session_attached__", "", "#{session_attached}"),
+                ("__conn_pane_title__", "%*", "#{pane_title}"),
+                ("__conn_pane_current_command__", "%*", "#{pane_current_command}"),
+                ("__conn_pane_current_path__", "%*", "#{pane_current_path}"),
+            ]
+            for (name, target, format) in subscriptions {
+                if await executeNegotiationProbe(
+                    "refresh-client -B \(name):\(target):\(format)"
+                ) {
+                    activeSubscriptions.insert(name)
+                }
+            }
+        }
+
+        negotiatedCapabilities = TmuxNegotiatedCapabilities(
+            supportedClientFlags: supportedFlags,
+            supportsFormatSubscriptions: subscriptionAdded
+        )
+        clientConfiguration = TmuxControlClientConfiguration(
+            enabledClientFlags: enabledFlags,
+            activeSubscriptionNames: activeSubscriptions
+        )
+    }
+
+    private func executeNegotiationProbe(_ command: String) async -> Bool {
+        do {
+            let request = try TmuxControlRequest(
+                renderedCommand: TmuxRenderedControlCommand(value: command),
+                semantics: .idempotentMutation
+            )
+            let result = try await client.execute(request, timeout: .seconds(1))
+            return result.status == .succeeded
+        } catch {
+            return false
+        }
+    }
+
+    private func reconcileDataClientPolicies(
+        identities: Set<TmuxControlInteractiveIdentity>,
+        snapshot: TmuxServerSnapshot
+    ) async -> Bool {
+        let supportsIgnoreSize = negotiatedCapabilities.supportedClientFlags.contains(.ignoreSize)
+        let supportsActivePane = negotiatedCapabilities.supportedClientFlags.contains(.activePane)
+        var changed = false
+        for identity in identities.sorted(by: { $0.attachmentID < $1.attachmentID }) {
+            if TmuxDataClientFocusPolicy.shouldEnableActivePane(
+                for: identity,
+                clients: snapshot.clients,
+                supportsActivePane: supportsActivePane
+            ) {
+                changed = await applyDataClientFlag(
+                    .activePane,
+                    enabled: true,
+                    to: identity
+                ) || changed
+            }
+            let decision = TmuxDataClientSizePolicy.decision(
+                for: identity,
+                clients: snapshot.clients,
+                supportsIgnoreSize: supportsIgnoreSize
+            )
+            let enabled: Bool
+            switch decision {
+            case .enableIgnoreSize: enabled = true
+            case .disableIgnoreSize: enabled = false
+            case .unchanged: continue
+            }
+            changed = await applyDataClientFlag(
+                .ignoreSize,
+                enabled: enabled,
+                to: identity
+            ) || changed
+        }
+        return changed
+    }
+
+    private func applyDataClientFlag(
+        _ flag: TmuxClientFlag,
+        enabled: Bool,
+        to identity: TmuxControlInteractiveIdentity
+    ) async -> Bool {
+        do {
+            let update = TmuxClientFlagUpdate(
+                client: try TmuxClientTarget(identity.clientID.targetName),
+                flag: flag,
+                enabled: enabled
+            )
+            let request = try TmuxControlRequest(
+                renderedCommand: TmuxControlCommandRenderer().render(update),
+                semantics: .idempotentMutation
+            )
+            let result = try await client.execute(request, timeout: .seconds(2))
+            return result.status == .succeeded
+        } catch {
+            // Keep the last verified topology and retry on the next reconciliation.
+            // Failure must never make Conn assume that isolation was applied.
+            return false
+        }
+    }
+}
+
+extension TmuxControlRuntime: TmuxReadyControlClientLocating {}
+extension TmuxControlRuntime: TmuxControlHubSnapshotLoading {
+    package func loadSnapshot(
+        scope requestedScope: TmuxOperationScope,
+        reason: TmuxControlHubSnapshotReason,
+        identities: Set<TmuxControlInteractiveIdentity>
+    ) async throws -> TmuxServerSnapshot {
+        guard requestedScope == scope else {
+            throw TmuxControlHubRuntimeAdapterError.scopeMismatch(
+                expected: scope,
+                actual: requestedScope
+            )
+        }
+        return try await loadSnapshot(
+            reason: reason,
+            identities: identities,
+            controlClientID: controlClientID,
+            timeout: .seconds(15)
+        )
+    }
+}
+extension TmuxControlRuntime: TmuxControlRuntimeLifecycleDriving {}

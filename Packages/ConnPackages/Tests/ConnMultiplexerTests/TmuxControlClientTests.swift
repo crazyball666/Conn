@@ -204,6 +204,28 @@ struct TmuxControlClientTests {
             try await client.execute(fixture.renameSession, timeout: .seconds(1))
         }
     }
+
+    @Test("wait-exit 配置在收到 exit 后发送空行完成有界关闭握手")
+    func acknowledgesWaitExitAfterExitNotification() async throws {
+        let fixture = try ControlClientFixture()
+        let channel = ScriptedControlProcessChannel()
+        let events = ControlClientEventRecorder()
+        let client = try fixture.startedClient(channel: channel) {
+            await events.append($0)
+        }
+        channel.yield(.stdout(fixture.startMarker))
+        #expect(await waitUntil { await client.isReady })
+        await client.enableWaitExitHandshake(timeout: .seconds(1))
+
+        channel.yield(.stdout(Data("%exit normal\n".utf8)))
+        #expect(await waitUntil { await channel.recordedWrites() == [Data("\n".utf8)] })
+        channel.yield(.stdout(TmuxProtocolMarker.end))
+        channel.finishOutput()
+        channel.complete(.init(exitCode: 0, signal: nil))
+
+        #expect(await waitUntil { await events.closedCount == 1 })
+        #expect(await channel.closeCount() == 0)
+    }
 }
 
 private struct ControlClientFixture {

@@ -1,7 +1,8 @@
 import ConnKit
+import ConnMultiplexer
 import ConnMonitor
 import ConnOps
-import ConnSSH
+@testable import ConnSSH
 import Foundation
 import Testing
 @testable import ConnSSHCitadel
@@ -695,6 +696,186 @@ struct MacHostIntegrationTests {
             #expect(result.runtime == nil)
         }
     }
+}
+
+/// 真实 macOS 主机上的 tmux provider 端到端验收。
+///
+/// 该套件默认跳过。除了 SSH 配置外，还要求显式设置
+/// `CONN_MAC_TMUX_ACCEPTANCE=1` 和 `CONN_MAC_TMUX_ALLOW_MUTATION=1`，因为它会在远端
+/// 创建、重命名并销毁一个带随机名的 Session。它验证的是产品真实路径：provider probe →
+/// workspace lifecycle → descriptor → PTY attach → Control Mode catalog → cleanup。
+@Suite(.enabled(
+    if: macHostConfiguration != nil
+        && ProcessInfo.processInfo.environment.boolValue(for: "CONN_MAC_TMUX_ACCEPTANCE")
+        && ProcessInfo.processInfo.environment.boolValue(for: "CONN_MAC_TMUX_ALLOW_MUTATION"),
+    "Set macOS SSH credentials, CONN_MAC_TMUX_ACCEPTANCE=1 and CONN_MAC_TMUX_ALLOW_MUTATION=1 to run"
+))
+struct MacHostTmuxIntegrationTests {
+    private var configuration: MacHostConfiguration { macHostConfiguration! }
+
+    @Test("macOS tmux provider 完成 probe、生命周期与 PTY Attach")
+    func providerLifecycleAndAttachment() async throws {
+        try await withPersistentContext { context in
+            let provider = TmuxProvider()
+            let availability = try await provider.probe(in: context)
+            #expect(availability.state == .available || availability.state == .degraded)
+
+            let name = "conn-accept-\(UUID().uuidString.replacingOccurrences(of: "-", with: "").prefix(12))"
+            var workspace: RemoteWorkspaceRef?
+            var attachment: (any PersistentTerminalAttachment)?
+            var catalog: (any PersistentTerminalCatalogAttachment)?
+            do {
+                let created = try await provider.createWorkspace(
+                    CreateWorkspaceRequest(name: name),
+                    in: context
+                )
+                workspace = created
+
+                let listed = try await provider.listWorkspaces(in: context)
+                #expect(listed.contains { $0.workspace.workspaceID == created.workspaceID })
+
+                let renamedName = "\(name)-renamed"
+                try await provider.renameWorkspace(created, to: renamedName, in: context)
+                let renamed = try await provider.listWorkspaces(in: context)
+                #expect(renamed.contains {
+                    $0.workspace.workspaceID == created.workspaceID && $0.name == renamedName
+                })
+
+                let descriptor = try provider.makeAttachmentDescriptor(to: created, in: context)
+                let openedAttachment = try await provider.openAttachment(
+                    descriptor,
+                    reason: .initial,
+                    terminalSize: .init(cols: 80, rows: 24),
+                    in: context
+                )
+                attachment = openedAttachment
+                guard case let .byteTerminal(channel) = openedAttachment.presentation else {
+                    Issue.record("tmux acceptance attachment did not expose a byte terminal")
+                    await openedAttachment.close()
+                    attachment = nil
+                    throw TmuxAcceptanceError.invalidAttachment
+                }
+                let sentinel = "__CONN_TMUX_E2E_ACCEPTED__"
+                try await channel.write(Data("printf '\\n\(sentinel)\\n'\n".utf8))
+                let output = try await withTmuxTimeout(.seconds(20)) {
+                    try await readTmuxUntil(channel: channel, sentinel: sentinel)
+                }
+                #expect(output.contains(sentinel))
+                await openedAttachment.close()
+                attachment = nil
+
+                let openedCatalog = try await provider.openCatalog(in: context)
+                catalog = openedCatalog
+                var iterator = openedCatalog.snapshots.makeAsyncIterator()
+                let snapshot = try #require(await iterator.next())
+                #expect(snapshot.freshness == .liveSubscription(observedAt: snapshot.observedAt))
+                if let tmuxCatalog = openedCatalog as? any TmuxWorkspaceCatalogManaging {
+                    // Optional flags vary by tmux release. The acceptance only requires that
+                    // the facet exposes the negotiated result instead of assuming a version.
+                    _ = tmuxCatalog.controlCapabilities
+                    _ = tmuxCatalog.controlConfiguration
+                } else {
+                    Issue.record("tmux provider did not expose its management facet")
+                }
+                await openedCatalog.close()
+                catalog = nil
+
+                try await provider.destroyWorkspace(created, in: context)
+                workspace = nil
+            } catch {
+                await catalog?.close()
+                await attachment?.close()
+                if let workspace {
+                    try? await provider.destroyWorkspace(workspace, in: context)
+                }
+                throw error
+            }
+        }
+    }
+
+    private func withPersistentContext<Value: Sendable>(
+        _ body: (PersistentTerminalContext) async throws -> Value
+    ) async throws -> Value {
+        let configuration = self.configuration
+        let session = try await CitadelTransport(hostKeyStore: InMemoryHostKeyStore()).connect(
+            SSHEndpoint(host: configuration.host, port: configuration.port),
+            username: configuration.username,
+            auth: try configuration.auth(),
+            hostKeyPolicy: configuration.hostKeyPolicy
+        )
+        let sessionClose = AcceptanceSessionCloseOwner { await session.close() }
+        let host = ConnKit.Host(
+            id: "tmux-mac-acceptance",
+            name: "tmux macOS acceptance",
+            address: configuration.host,
+            username: configuration.username,
+            port: configuration.port,
+            authKind: configuration.authKind
+        )
+        let platform = try await RemotePlatformDetector().detect(on: session)
+        let platformContext = RemotePlatformContext(
+            connectionIdentity: SSHConnectionIdentity(host: host),
+            session: session,
+            profile: platform
+        )
+        let providerConfiguration = try JSONEncoder().encode(TmuxProviderConfiguration())
+        let profile = TerminalBackendProfile(
+            id: "tmux-mac-acceptance-profile",
+            hostID: host.id,
+            providerID: TmuxProvider.providerID,
+            providerConfigurationKey: "default",
+            displayName: "tmux acceptance",
+            configurationJSON: String(decoding: providerConfiguration, as: UTF8.self)
+        )
+        let context = try PersistentTerminalContext(
+            platformContext: platformContext,
+            backendProfile: profile
+        )
+        let result: Result<Value, any Error>
+        do {
+            result = .success(try await body(context))
+        } catch {
+            result = .failure(error)
+        }
+        guard await sessionClose.close(timeout: .seconds(5)) else {
+            throw BoundedAcceptanceOperationError.cleanupTimedOut
+        }
+        return try result.get()
+    }
+}
+
+private enum TmuxAcceptanceError: Error {
+    case timeout
+    case invalidAttachment
+}
+
+private func withTmuxTimeout<Value: Sendable>(
+    _ timeout: Duration,
+    operation: @escaping @Sendable () async throws -> Value
+) async throws -> Value {
+    try await withThrowingTaskGroup(of: Value.self) { group in
+        group.addTask { try await operation() }
+        group.addTask {
+            try await Task.sleep(for: timeout)
+            throw TmuxAcceptanceError.timeout
+        }
+        defer { group.cancelAll() }
+        return try await group.next()!
+    }
+}
+
+private func readTmuxUntil(
+    channel: any ShellChannel,
+    sentinel: String
+) async throws -> String {
+    var output = Data()
+    var iterator = channel.output.makeAsyncIterator()
+    while let chunk = try await iterator.next() {
+        output.append(chunk)
+        let text = String(decoding: output, as: UTF8.self)
+        if text.contains(sentinel) { return text }
+    }
+    return String(decoding: output, as: UTF8.self)
 }
 
 private struct MacHostConfiguration: Sendable {

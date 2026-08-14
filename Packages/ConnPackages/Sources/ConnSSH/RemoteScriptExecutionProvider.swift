@@ -101,12 +101,14 @@ public struct POSIXScriptExecutionProvider: RemoteScriptExecutionProvider {
     }
 }
 
-private enum POSIXShellArgument {
+/// Shared package-level POSIX argv quoting for providers that build a complete
+/// machine-protocol script after resolving all executable paths.
+package enum POSIXShellArgument {
     private static let safeScalars = CharacterSet(
         charactersIn: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_@%+=:,./-"
     )
 
-    static func encode(_ value: String) -> String {
+    package static func encode(_ value: String) -> String {
         guard !value.isEmpty,
               value.unicodeScalars.allSatisfy({ safeScalars.contains($0) })
         else {

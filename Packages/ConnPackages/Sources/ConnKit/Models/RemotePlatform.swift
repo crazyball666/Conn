@@ -18,6 +18,8 @@ public enum RemoteCapability: String, Codable, Sendable, Hashable {
     case docker
     case sftp
     case terminal
+    /// Persistent-terminal provider infrastructure (tmux, future Zellij/Windows backends).
+    case persistentTerminal
 }
 
 /// 稳定、可测试的能力降级原因；面向用户的文案由 App 层本地化。

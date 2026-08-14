@@ -118,6 +118,42 @@ providing the path also implies that Docker is required. The checks execute
 read-only remote commands and do not start, stop, or otherwise mutate Docker
 resources.
 
+### tmux provider acceptance (macOS / Linux)
+
+The tmux suites are opt-in because they create one uniquely named test Session. They
+always destroy only the Session they created; pre-existing Sessions are not selected or
+killed. The SSH fingerprint is required so the test does not weaken host-key verification.
+The target must have `tmux` installed and Remote Login/sshd enabled.
+
+macOS:
+
+```bash
+CONN_MAC_SSH_HOST=192.0.2.10 \
+CONN_MAC_SSH_USER=conn-test \
+CONN_MAC_SSH_PASSWORD='replace-me' \
+CONN_MAC_SSH_FINGERPRINT='SHA256:replace-me' \
+CONN_MAC_TMUX_ACCEPTANCE=1 \
+CONN_MAC_TMUX_ALLOW_MUTATION=1 \
+swift test --package-path Packages/ConnPackages --filter MacHostTmuxIntegrationTests
+```
+
+Linux uses the same shape with the `CONN_LINUX_SSH_*` prefix:
+
+```bash
+CONN_LINUX_SSH_HOST=192.0.2.20 \
+CONN_LINUX_SSH_USER=conn-test \
+CONN_LINUX_SSH_KEY_PATH=/absolute/path/to/id_ed25519 \
+CONN_LINUX_SSH_FINGERPRINT='SHA256:replace-me' \
+CONN_LINUX_TMUX_ACCEPTANCE=1 \
+CONN_LINUX_TMUX_ALLOW_MUTATION=1 \
+swift test --package-path Packages/ConnPackages --filter TmuxLinuxHostIntegrationTests
+```
+
+Both suites cover provider probe, Session create/list/rename/destroy, descriptor Attach,
+PTY I/O, Control Mode catalog freshness and capability exposure. Missing-tmux, server-absent
+and Control Mode fallback paths remain deterministic unit tests and run in the normal package
+test suite without remote credentials.
+
 ### Jump chain (host → bastion → internal)
 
 `conn-internal` has **no published port**; reach it only through the bastion.

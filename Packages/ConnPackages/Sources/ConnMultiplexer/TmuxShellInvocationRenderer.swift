@@ -1,3 +1,4 @@
+import ConnSSH
 import Foundation
 
 package enum TmuxShellInvocationError: Error, Sendable, Equatable {
@@ -198,14 +199,6 @@ package struct TmuxShellInvocationRenderer: Sendable {
     }
 
     private func encodePOSIX(_ argument: String) -> String {
-        let safeScalars = CharacterSet(
-            charactersIn: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_@%+=:,./-"
-        )
-        guard !argument.isEmpty,
-              argument.unicodeScalars.allSatisfy({ safeScalars.contains($0) })
-        else {
-            return "'" + argument.replacingOccurrences(of: "'", with: "'\\''") + "'"
-        }
-        return argument
+        POSIXShellArgument.encode(argument)
     }
 }

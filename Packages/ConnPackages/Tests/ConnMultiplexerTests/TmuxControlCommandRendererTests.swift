@@ -104,6 +104,23 @@ struct TmuxControlCommandRendererTests {
         #expect(!command.contains("sh -c"))
     }
 
+    @Test("data client size participation uses a typed targeted flag mutation")
+    func rendersTargetedClientFlagMutation() throws {
+        let target = try TmuxClientTarget("/dev/pts/9")
+        let renderer = TmuxControlCommandRenderer()
+
+        #expect(renderer.render(TmuxClientFlagUpdate(
+            client: target,
+            flag: .ignoreSize,
+            enabled: true
+        )).value == "refresh-client -t '/dev/pts/9' -f 'ignore-size'")
+        #expect(renderer.render(TmuxClientFlagUpdate(
+            client: target,
+            flag: .ignoreSize,
+            enabled: false
+        )).value == "refresh-client -t '/dev/pts/9' -f '!ignore-size'")
+    }
+
     @Test("Conn 主动创建的名称按 UTF-8 字节限制并拒绝空白及控制字符")
     func validatesManagedNames() throws {
         #expect(try TmuxName("Unicode 名称").value == "Unicode 名称")

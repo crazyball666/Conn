@@ -14,6 +14,21 @@ package struct TmuxRenderedControlCommand: Sendable, Equatable {
     }
 }
 
+/// A targeted data-client configuration change. This stays separate from user-visible
+/// workspace operations: it is runtime policy, but still goes through typed rendering and
+/// the correlated Control Mode command pipeline.
+package struct TmuxClientFlagUpdate: Sendable, Equatable {
+    package let client: TmuxClientTarget
+    package let flag: TmuxClientFlag
+    package let enabled: Bool
+
+    package init(client: TmuxClientTarget, flag: TmuxClientFlag, enabled: Bool) {
+        self.client = client
+        self.flag = flag
+        self.enabled = enabled
+    }
+}
+
 /// Renders only tmux command language for an existing Control Mode client.
 /// It never includes a tmux executable, server locator, or POSIX shell wrapper.
 package struct TmuxControlCommandRenderer: Sendable {
@@ -89,6 +104,15 @@ package struct TmuxControlCommandRenderer: Sendable {
             command = join("kill-pane", "-t", encode(paneID.rawValue))
         }
         return TmuxRenderedControlCommand(value: command)
+    }
+
+    package func render(_ update: TmuxClientFlagUpdate) -> TmuxRenderedControlCommand {
+        let flag = update.enabled ? update.flag.rawValue : "!\(update.flag.rawValue)"
+        return TmuxRenderedControlCommand(value: join(
+            "refresh-client",
+            "-t", encode(update.client.value),
+            "-f", encode(flag)
+        ))
     }
 
     private func join(_ arguments: String...) -> String {

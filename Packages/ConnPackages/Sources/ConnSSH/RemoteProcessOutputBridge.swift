@@ -6,8 +6,12 @@ import Foundation
 /// behind beyond `maxBufferedChunks`, the first dropped chunk terminates the stream with a
 /// structured error and invokes `onTermination`; transports use that callback to close the
 /// affected child channel and stop reading.
-package final class RemoteProcessOutputBridge: @unchecked Sendable {
-    package let stream: AsyncThrowingStream<RemoteProcessOutput, Error>
+///
+/// Engine adapters use this shared bridge so every transport has the same
+/// back-pressure and cancellation semantics. A slow consumer cannot silently
+/// grow an unbounded buffer or leave a remote child channel running forever.
+public final class RemoteProcessOutputBridge: @unchecked Sendable {
+    public let stream: AsyncThrowingStream<RemoteProcessOutput, Error>
 
     private let continuation: AsyncThrowingStream<RemoteProcessOutput, Error>.Continuation
     private let maxBufferedChunks: Int
@@ -15,7 +19,7 @@ package final class RemoteProcessOutputBridge: @unchecked Sendable {
     private let lock = NSRecursiveLock()
     private var isTerminated = false
 
-    package init(
+    public init(
         maxBufferedChunks: Int,
         onTermination: @escaping @Sendable () -> Void = {}
     ) {
@@ -32,7 +36,7 @@ package final class RemoteProcessOutputBridge: @unchecked Sendable {
 
     /// Returns false once this chunk could not be delivered or the stream had terminated.
     @discardableResult
-    package func yield(_ output: RemoteProcessOutput) -> Bool {
+    public func yield(_ output: RemoteProcessOutput) -> Bool {
         lock.lock()
         guard !isTerminated else {
             lock.unlock()
@@ -74,13 +78,13 @@ package final class RemoteProcessOutputBridge: @unchecked Sendable {
         return !shouldNotifyTermination
     }
 
-    package func finish() {
+    public func finish() {
         guard claimTermination() else { return }
         continuation.finish()
         onTermination()
     }
 
-    package func finish(throwing error: any Error) {
+    public func finish(throwing error: any Error) {
         guard claimTermination() else { return }
         continuation.finish(throwing: error)
         onTermination()

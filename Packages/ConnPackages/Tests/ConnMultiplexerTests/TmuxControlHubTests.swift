@@ -135,6 +135,79 @@ struct TmuxControlHubTests {
         #expect(await adapter.snapshotRequestCount == 1)
     }
 
+    @Test("Control Mode notification drives Hub reconciliation and observer snapshots")
+    func controlNotificationReconcilesObservers() async throws {
+        let fixture = try ControlHubFixture()
+        let adapter = ScriptedControlHubAdapter()
+        await adapter.enqueueSnapshot(
+            try fixture.snapshot(name: "renamed", observedAt: fixture.later)
+        )
+        let (events, continuation) = AsyncStream<TmuxControlClientEvent>.makeStream()
+        let hub = try TmuxControlHub(
+            scope: try fixture.scope(),
+            initialSnapshot: try fixture.snapshot(),
+            adapter: adapter,
+            clock: { fixture.now }
+        )
+        await hub.startEventStream(events)
+        let observation = try await hub.acquireObservationLease(.catalog)
+        var iterator = observation.snapshots.makeAsyncIterator()
+        _ = try #require(await iterator.next())
+
+        continuation.yield(.notification(
+            generation: 7,
+            .known(.sessionsChanged, payload: Data())
+        ))
+
+        #expect(await waitUntil { await adapter.snapshotRequestCount == 1 })
+        let updated = try #require(await iterator.next())
+        #expect(updated.sessions[fixture.session]?.name == "renamed")
+
+        continuation.finish()
+        await hub.releaseLease(observation.lease)
+        await hub.close()
+    }
+
+    @Test("format subscription updates pane metadata live without a snapshot reload")
+    func formatSubscriptionUpdatesPaneMetadata() async throws {
+        let fixture = try ControlHubFixture()
+        let adapter = ScriptedControlHubAdapter()
+        await adapter.enqueueSnapshot(try fixture.snapshot(observedAt: fixture.later))
+        let (events, continuation) = AsyncStream<TmuxControlClientEvent>.makeStream()
+        let hub = try TmuxControlHub(
+            scope: try fixture.scope(),
+            initialSnapshot: try fixture.snapshot(),
+            adapter: adapter,
+            clock: { fixture.later }
+        )
+        await hub.startEventStream(events)
+        let observation = try await hub.acquireObservationLease(.catalog)
+        var iterator = observation.snapshots.makeAsyncIterator()
+        _ = try #require(await iterator.next())
+
+        continuation.yield(.notification(
+            generation: 7,
+            .known(
+                .subscriptionChanged,
+                payload: Data("__conn_pane_title__ $1 @1 0 %1 : live\\040title".utf8)
+            )
+        ))
+
+        #expect(await waitUntil {
+            await hub.currentSnapshot?.panes[fixture.pane]?.title.value == "live title"
+        })
+        let updated = try #require(await hub.currentSnapshot)
+        #expect(updated.panes[fixture.pane]?.title == TmuxObservedValue(
+            value: "live title",
+            freshness: .liveSubscription(observedAt: fixture.later)
+        ))
+        #expect(await adapter.snapshotRequestCount == 0)
+
+        continuation.finish()
+        await hub.releaseLease(observation.lease)
+        await hub.close()
+    }
+
     @Test("an older concurrent refresh cannot overwrite a newer completed snapshot")
     func discardsOutOfOrderRefreshResults() async throws {
         let fixture = try ControlHubFixture()
@@ -359,6 +432,9 @@ struct TmuxControlHubTests {
     func consumesDestructiveNonceOnce() async throws {
         let fixture = try ControlHubFixture()
         let adapter = ScriptedControlHubAdapter(blockOperations: true)
+        for _ in 0 ..< 3 {
+            await adapter.enqueueSnapshot(try fixture.snapshot(observedAt: fixture.now))
+        }
         let hub = try TmuxControlHub(
             scope: try fixture.scope(),
             initialSnapshot: try fixture.snapshot(observedAt: fixture.now),
@@ -393,6 +469,46 @@ struct TmuxControlHubTests {
         await adapter.releaseNextOperation()
         #expect(try await first.value.request == request)
         #expect(await adapter.executedRequests == [request])
+    }
+
+    @Test("non-destructive operations can preview shared impact without execution")
+    func previewsSharedImpactWithoutExecution() async throws {
+        let fixture = try ControlHubFixture()
+        let adapter = ScriptedControlHubAdapter()
+        let otherClientID = TmuxClientID(
+            targetName: "/dev/pts/22",
+            processID: 222,
+            createdAt: 2_000
+        )
+        let freshSnapshot = try fixture.snapshot(clients: [
+            otherClientID: TmuxClientSnapshot(
+                id: otherClientID,
+                sessionID: fixture.session,
+                currentWindowID: fixture.window,
+                activePaneID: fixture.pane,
+                flags: [],
+                role: .external,
+                kind: .interactiveTerminal,
+                sizeParticipation: .participating,
+                observedAt: fixture.now
+            ),
+        ])
+        await adapter.enqueueSnapshot(freshSnapshot)
+        let hub = try TmuxControlHub(
+            scope: try fixture.scope(),
+            initialSnapshot: try fixture.snapshot(),
+            adapter: adapter,
+            clock: { fixture.now }
+        )
+        let request = try fixture.renameRequest("shared")
+
+        let impact = try await hub.previewImpact(request)
+
+        #expect(impact.affectedSessionIDs == [fixture.session])
+        #expect(impact.otherAffectedClientIDs == [otherClientID])
+        #expect(impact.sharedStateEffects == [.sessionIdentity])
+        #expect(await adapter.executionCount == 0)
+        #expect(await adapter.snapshotRequestCount == 1)
     }
 }
 
@@ -550,7 +666,8 @@ private struct ControlHubFixture: Sendable {
     func snapshot(
         token: TmuxServerInstanceToken? = nil,
         name: String = "one",
-        observedAt: Date = Date(timeIntervalSince1970: 100)
+        observedAt: Date = Date(timeIntervalSince1970: 100),
+        clients: [TmuxClientID: TmuxClientSnapshot] = [:]
     ) throws -> TmuxServerSnapshot {
         try TmuxServerSnapshot(
             instance: .init(token: token ?? self.token, version: "tmux 3.5a"),
@@ -579,7 +696,7 @@ private struct ControlHubFixture: Sendable {
                 isDead: false
             )],
             windowLinks: [.init(sessionID: session, windowID: window, index: 0)],
-            clients: [:],
+            clients: clients,
             observedAt: observedAt,
             revision: 0,
             impactRevision: 0

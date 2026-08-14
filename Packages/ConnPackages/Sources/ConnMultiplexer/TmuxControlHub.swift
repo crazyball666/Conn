@@ -140,6 +140,7 @@ package actor TmuxControlHub {
     private let adapter: any TmuxControlHubAdapter
     private let confirmationGuard: TmuxDestructiveConfirmationGuard
     private let clock: Clock
+    private let operationImpactContext: TmuxOperationImpactContext
     private var scope: TmuxOperationScope
     private var reducer: TmuxStateReducer
     private var epoch = UUID()
@@ -158,12 +159,14 @@ package actor TmuxControlHub {
     private var consumedConfirmationNonces: [UUID: Date] = [:]
     private var demandSequence: UInt64 = 0
     private var demandNotificationTask: Task<Void, Never>?
+    private var eventTask: Task<Void, Never>?
 
     package init(
         scope: TmuxOperationScope,
         initialSnapshot: TmuxServerSnapshot,
         adapter: any TmuxControlHubAdapter,
         confirmationGuard: TmuxDestructiveConfirmationGuard = .init(),
+        operationImpactContext: TmuxOperationImpactContext = .init(),
         clock: @escaping Clock = { Date() }
     ) throws {
         guard initialSnapshot.instance.token == scope.instanceToken else {
@@ -173,7 +176,9 @@ package actor TmuxControlHub {
         reducer = TmuxStateReducer(snapshot: initialSnapshot, generation: scope.generation)
         self.adapter = adapter
         self.confirmationGuard = confirmationGuard
+        self.operationImpactContext = operationImpactContext
         self.clock = clock
+        eventTask = nil
     }
 
     package var currentScope: TmuxOperationScope {
@@ -260,6 +265,150 @@ package actor TmuxControlHub {
 
     package func close() {
         invalidate(.closed)
+    }
+
+    package func startEventStream(
+        _ eventStream: AsyncStream<TmuxControlClientEvent>
+    ) {
+        eventTask?.cancel()
+        eventTask = Task { [weak self] in
+            for await event in eventStream {
+                guard let self else { return }
+                await self.consume(event)
+            }
+        }
+    }
+
+    private func consume(_ event: TmuxControlClientEvent) async {
+        switch event {
+        case let .notification(generation, notification):
+            let observedAt = clock()
+            guard generation == scope.generation,
+                  let stateEvent = Self.stateEvent(
+                      for: notification,
+                      observedAt: observedAt
+                  )
+            else { return }
+            let envelope = TmuxStateEventEnvelope(
+                generation: generation,
+                serverToken: scope.instanceToken,
+                observedAt: observedAt,
+                event: stateEvent
+            )
+            _ = try? await apply(envelope)
+
+        case let .reconciliationRequired(generation, _):
+            guard generation == scope.generation else { return }
+            _ = try? await refresh(reason: .clientRecovery)
+
+        case .closed:
+            invalidate(.closed)
+
+        case .protocolReady, .stderrDiagnostic, .diagnosticsTruncated,
+             .lateCommandTerminated:
+            break
+        }
+    }
+
+    private static func stateEvent(
+        for notification: TmuxNotification,
+        observedAt: Date
+    ) -> TmuxStateEvent? {
+        switch notification {
+        case let .known(notification, payload):
+            switch notification {
+            case .pause, .continue:
+                return nil
+            case .subscriptionChanged:
+                return subscriptionStateEvent(payload: payload, observedAt: observedAt)
+            default:
+                // Most Control Mode topology notifications do not carry enough data to
+                // safely mutate the normalized graph. Reconcile the server snapshot instead
+                // of guessing IDs or names from an undocumented payload shape.
+                return .sessionsChanged
+            }
+        case let .unknown(name, _):
+            return .unknownNotification(name: name)
+        case let .paneOutput(paneID, data), let .extendedPaneOutput(paneID, _, data):
+            return .paneOutput(paneID, data)
+        case .exit:
+            return nil
+        }
+    }
+
+    /// `%subscription-changed name session window index pane ... : value` is the one
+    /// notification whose payload is self-contained enough to update pane metadata without
+    /// a snapshot reload. Fields after pane and before `:` are reserved by tmux and ignored.
+    private static func subscriptionStateEvent(
+        payload: Data,
+        observedAt: Date
+    ) -> TmuxStateEvent {
+        let delimiter = Data(" : ".utf8)
+        guard let delimiterRange = payload.range(of: delimiter),
+              let header = String(
+                  data: Data(payload[..<delimiterRange.lowerBound]),
+                  encoding: .utf8
+              )
+        else { return .protocolViolation }
+
+        let fields = header.split(separator: " ", omittingEmptySubsequences: true)
+        guard fields.count >= 5 else { return .protocolViolation }
+        let name = String(fields[0])
+        if name == "__conn_session_attached__" {
+            return .sessionsChanged
+        }
+        guard let paneID = TmuxPaneID(rawValue: String(fields[4])),
+              let value = decodeEscapedSubscriptionValue(
+                  Data(payload[delimiterRange.upperBound...])
+              )
+        else { return .protocolViolation }
+
+        let field: TmuxPaneMetadataField
+        switch name {
+        case "__conn_pane_title__": field = .title
+        case "__conn_pane_current_command__": field = .currentCommand
+        case "__conn_pane_current_path__": field = .currentPath
+        default:
+            return .unknownNotification(name: "subscription-changed:\(name)")
+        }
+        return .paneMetadataChanged(
+            paneID,
+            field: field,
+            value: TmuxObservedValue(
+                value: value,
+                freshness: .liveSubscription(observedAt: observedAt)
+            )
+        )
+    }
+
+    /// Control Mode escapes non-printable bytes and backslashes as `\\ooo`. Decode only
+    /// that documented wire form and require valid UTF-8 before exposing text to the UI.
+    private static func decodeEscapedSubscriptionValue(_ encoded: Data) -> String? {
+        let bytes = Array(encoded)
+        var decoded = Data()
+        decoded.reserveCapacity(bytes.count)
+        var index = 0
+        while index < bytes.count {
+            let byte = bytes[index]
+            if byte == UInt8(ascii: "\\") {
+                guard index + 3 < bytes.count else { return nil }
+                let digits = bytes[(index + 1) ... (index + 3)]
+                guard digits.allSatisfy({
+                    (UInt8(ascii: "0") ... UInt8(ascii: "7")).contains($0)
+                }) else { return nil }
+                let value = Int(digits[digits.startIndex] - UInt8(ascii: "0")) * 64
+                    + Int(digits[digits.index(after: digits.startIndex)] - UInt8(ascii: "0")) * 8
+                    + Int(digits[digits.index(digits.startIndex, offsetBy: 2)] - UInt8(ascii: "0"))
+                guard value <= UInt8.max else { return nil }
+                decoded.append(UInt8(value))
+                index += 4
+            } else {
+                guard byte >= UInt8(ascii: " ") else { return nil }
+                decoded.append(byte)
+                index += 1
+            }
+        }
+        return String(data: decoded, encoding: .utf8)
     }
 
     /// Applies a typed event in generation order. Incomplete topology events are reconciled
@@ -351,8 +500,10 @@ package actor TmuxControlHub {
 
     package func prepareDestructive(
         _ request: TmuxOperationRequest,
-        context: TmuxOperationImpactContext = .init()
-    ) throws -> TmuxPreparedDestructiveOperation {
+        context: TmuxOperationImpactContext? = nil
+    ) async throws -> TmuxPreparedDestructiveOperation {
+        try requireRequestScope(request)
+        _ = try await refresh(reason: .userRequested)
         try requireRequestScope(request)
         guard let snapshot = reducer.snapshot else {
             throw TmuxControlHubError.snapshotUnavailable
@@ -360,8 +511,33 @@ package actor TmuxControlHub {
         return try confirmationGuard.prepare(
             request,
             snapshot: snapshot,
-            context: context,
+            context: effectiveImpactContext(
+                for: request.operation,
+                snapshot: snapshot,
+                explicit: context
+            ),
             now: clock()
+        )
+    }
+
+    package func previewImpact(
+        _ request: TmuxOperationRequest,
+        context: TmuxOperationImpactContext? = nil
+    ) async throws -> TmuxOperationImpact {
+        try requireRequestScope(request)
+        _ = try await refresh(reason: .userRequested)
+        try requireRequestScope(request)
+        guard let snapshot = reducer.snapshot else {
+            throw TmuxControlHubError.snapshotUnavailable
+        }
+        return try TmuxOperationImpactAnalyzer().analyze(
+            request.operation,
+            in: snapshot,
+            context: effectiveImpactContext(
+                for: request.operation,
+                snapshot: snapshot,
+                explicit: context
+            )
         )
     }
 
@@ -389,10 +565,12 @@ package actor TmuxControlHub {
     package func executeDestructive(
         _ claim: TmuxDestructiveConfirmationClaim,
         for request: TmuxOperationRequest,
-        context: TmuxOperationImpactContext = .init(),
+        context: TmuxOperationImpactContext? = nil,
         timeout: Duration
     ) async throws -> TmuxControlHubOperationReceipt {
         try validateTimeout(timeout)
+        try requireRequestScope(request)
+        _ = try await refresh(reason: .userRequested)
         try requireRequestScope(request)
         guard let snapshot = reducer.snapshot else {
             throw TmuxControlHubError.snapshotUnavailable
@@ -400,11 +578,16 @@ package actor TmuxControlHub {
 
         let now = clock()
         consumedConfirmationNonces = consumedConfirmationNonces.filter { $0.value > now }
+        let effectiveContext = effectiveImpactContext(
+            for: request.operation,
+            snapshot: snapshot,
+            explicit: context
+        )
         _ = try confirmationGuard.validate(
             claim,
             for: request,
             snapshot: snapshot,
-            context: context,
+            context: effectiveContext,
             now: now
         )
         guard consumedConfirmationNonces[claim.nonce] == nil else {
@@ -423,13 +606,51 @@ package actor TmuxControlHub {
             claim,
             for: request,
             snapshot: currentSnapshot,
-            context: context,
+            context: effectiveContext,
             now: clock()
         )
         return try await dispatch(
             request,
             timeout: timeout,
             identities: Set(identityLeases.values)
+        )
+    }
+
+    /// Catalog operations do not have one permanent initiating tab: the same Hub may be
+    /// created by a catalog or by any of several attachments. Resolve client-local context
+    /// from the operation's verified target in the current snapshot instead of retaining
+    /// whichever attachment happened to create the shared Hub first.
+    private func effectiveImpactContext(
+        for operation: TmuxOperation,
+        snapshot: TmuxServerSnapshot,
+        explicit: TmuxOperationImpactContext?
+    ) -> TmuxOperationImpactContext {
+        if let explicit { return explicit }
+
+        let target: TmuxClientTarget?
+        switch operation {
+        case let .detachClient(client),
+             let .selectWindow(_, client),
+             let .selectPane(_, client):
+            target = client
+        default:
+            target = nil
+        }
+        guard let target,
+              let client = snapshot.clients.values.first(where: {
+                  $0.id.targetName == target.value
+              }),
+              case let .connInteractive(attachmentID) = client.role
+        else {
+            return TmuxOperationImpactContext(
+                paneFocusIsolation: operationImpactContext.paneFocusIsolation
+            )
+        }
+        return TmuxOperationImpactContext(
+            initiatingAttachmentID: attachmentID,
+            paneFocusIsolation: client.flags?.contains(.activePane) == true
+                ? .clientLocal
+                : .sharedWindow
         )
     }
 
@@ -543,6 +764,8 @@ package actor TmuxControlHub {
     private func invalidate(_ reason: TmuxControlHubInvalidationReason) {
         guard invalidationReason == nil else { return }
         invalidationReason = reason
+        eventTask?.cancel()
+        eventTask = nil
         epoch = UUID()
         latestRefreshID = nil
         identityLeases.removeAll()

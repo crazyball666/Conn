@@ -1,5 +1,6 @@
 import ConnKit
 import ConnSSH
+import Foundation
 
 public enum PersistentAttachmentPresentation: Sendable {
     case byteTerminal(any ShellChannel)
@@ -15,6 +16,74 @@ public protocol PersistentTerminalAttachment: AnyObject, Sendable {
     var descriptor: PersistentAttachmentDescriptor { get }
     var presentation: PersistentAttachmentPresentation { get }
     func close() async
+}
+
+/// Provider-neutral projection of a remote workspace catalog. The provider owns the
+/// subscription and its transport; the UI only receives bounded top-level summaries.
+public enum PersistentWorkspaceCatalogFreshness: Sendable, Equatable {
+    case liveSubscription(observedAt: Date)
+    case snapshot(observedAt: Date)
+    case stale(lastObservedAt: Date?)
+    case unavailable
+}
+
+public struct PersistentWorkspaceCatalogSnapshot: Sendable, Equatable {
+    public let providerID: String
+    public let profileID: String
+    public let instance: PersistentTerminalProviderInstance?
+    public let workspaces: [RemoteWorkspaceSummary]
+    public let freshness: PersistentWorkspaceCatalogFreshness
+    public let observedAt: Date
+
+    public init(
+        providerID: String,
+        profileID: String,
+        instance: PersistentTerminalProviderInstance?,
+        workspaces: [RemoteWorkspaceSummary],
+        freshness: PersistentWorkspaceCatalogFreshness,
+        observedAt: Date
+    ) {
+        self.providerID = providerID
+        self.profileID = profileID
+        self.instance = instance
+        self.workspaces = workspaces
+        self.freshness = freshness
+        self.observedAt = observedAt
+    }
+}
+
+public protocol PersistentTerminalCatalogAttachment: AnyObject, Sendable {
+    var snapshots: AsyncStream<PersistentWorkspaceCatalogSnapshot> { get }
+    func close() async
+}
+
+/// tmux's richer Session → Window → Pane graph remains a provider facet. Consumers that
+/// need native management can opt into this protocol without making the generic terminal
+/// coordinator understand tmux objects or commands.
+public protocol TmuxWorkspaceCatalogManaging: PersistentTerminalCatalogAttachment {
+    var topology: AsyncStream<TmuxServerSnapshot> { get }
+    /// Capabilities are observed from this ready Control Mode client, not inferred from the
+    /// tmux version string. Consumers can keep advanced UI/actions disabled when absent.
+    var controlCapabilities: TmuxNegotiatedCapabilities { get }
+    var controlConfiguration: TmuxControlClientConfiguration { get }
+    /// Computes the validated shared-state impact against the latest topology without
+    /// submitting a command. Management UI uses this before every mutation.
+    func previewImpact(_ operation: TmuxOperation) async throws -> TmuxOperationImpact
+    func execute(_ operation: TmuxOperation) async throws
+    func prepareDestructive(
+        _ operation: TmuxOperation
+    ) async throws -> TmuxPreparedDestructiveOperation
+    func executeDestructive(
+        _ prepared: TmuxPreparedDestructiveOperation
+    ) async throws
+}
+
+/// Optional facet for providers that can keep a live remote workspace catalog. Providers
+/// without this facet still participate in the base attachment lifecycle unchanged.
+public protocol PersistentTerminalCatalogProvider: PersistentTerminalProvider {
+    func openCatalog(
+        in context: PersistentTerminalContext
+    ) async throws -> any PersistentTerminalCatalogAttachment
 }
 
 /// One atomically claimed SSH connection/platform context plus its durable backend profile.

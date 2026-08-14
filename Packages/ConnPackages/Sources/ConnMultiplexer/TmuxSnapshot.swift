@@ -152,6 +152,9 @@ public struct TmuxClientID: Sendable, Equatable, Hashable {
 
 public struct TmuxClientSnapshot: Sendable, Equatable, Identifiable {
     public let id: TmuxClientID
+    /// The tty is the transport-level half of Conn's ownership proof. It is optional
+    /// because older tmux versions may not expose a stable client tty field.
+    public let tty: String?
     public let sessionID: TmuxSessionID
     public let currentWindowID: TmuxWindowID?
     public let activePaneID: TmuxPaneID?
@@ -170,9 +173,11 @@ public struct TmuxClientSnapshot: Sendable, Equatable, Identifiable {
         role: TmuxClientRole,
         kind: TmuxClientKind,
         sizeParticipation: TmuxClientSizeParticipation,
-        observedAt: Date
+        observedAt: Date,
+        tty: String? = nil
     ) {
         self.id = id
+        self.tty = tty
         self.sessionID = sessionID
         self.currentWindowID = currentWindowID
         self.activePaneID = activePaneID

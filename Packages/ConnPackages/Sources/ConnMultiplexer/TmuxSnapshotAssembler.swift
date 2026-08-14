@@ -534,7 +534,8 @@ package struct TmuxSnapshotAssembler: Sendable {
                 role: role,
                 kind: kind,
                 sizeParticipation: sizeParticipation,
-                observedAt: observedAt
+                observedAt: observedAt,
+                tty: optionalText(record.tty)
             )
         }
 

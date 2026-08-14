@@ -1,3 +1,4 @@
+import ConnMultiplexer
 import ConnUI
 import Foundation
 import Observation
@@ -7,6 +8,7 @@ public enum TerminalSessionSource: Sendable, Equatable {
     case shell
     case docker(containerName: String)
     case script(title: String)
+    case persistent(providerID: String)
 }
 
 public enum TerminalTabStatus: Sendable, Equatable {
@@ -15,12 +17,24 @@ public enum TerminalTabStatus: Sendable, Equatable {
     case reconnecting
 }
 
-/// 只有 Docker console 保留无副作用歧义的精确重放命令。
-public struct TerminalReconnectDescriptor: Sendable, Equatable {
-    public let commandToReplay: String?
+/// 重连信息与展示来源分离：持久化 backend 必须消费原始 descriptor，不能从
+/// source、别名或初始命令反推远端对象。
+public enum TerminalReconnectDescriptor: Sendable, Equatable {
+    case shell
+    case replayCommand(String)
+    case persistent(PersistentAttachmentDescriptor)
 
     public init(commandToReplay: String? = nil) {
-        self.commandToReplay = commandToReplay
+        if let commandToReplay {
+            self = .replayCommand(commandToReplay)
+        } else {
+            self = .shell
+        }
+    }
+
+    public var commandToReplay: String? {
+        if case let .replayCommand(command) = self { return command }
+        return nil
     }
 }
 
@@ -41,6 +55,9 @@ public struct TerminalTab: Identifiable, Sendable {
     public var hostName: String
     public var hostAddress: String
     public var session: TerminalSession
+    /// Kept alongside the byte channel so provider-owned leases are released after
+    /// the local TerminalSession stops. Never extract only `presentation` and drop it.
+    public var persistentAttachment: (any PersistentTerminalAttachment)?
     public let transcript: TerminalTranscript
     public let source: TerminalSessionSource
     public let reconnectDescriptor: TerminalReconnectDescriptor
@@ -57,6 +74,7 @@ public struct TerminalTab: Identifiable, Sendable {
         hostName: String,
         hostAddress: String = "",
         session: TerminalSession,
+        persistentAttachment: (any PersistentTerminalAttachment)? = nil,
         transcript: TerminalTranscript = TerminalTranscript(),
         source: TerminalSessionSource = .shell,
         reconnectDescriptor: TerminalReconnectDescriptor = .init(),
@@ -72,6 +90,7 @@ public struct TerminalTab: Identifiable, Sendable {
         self.hostName = hostName
         self.hostAddress = hostAddress
         self.session = session
+        self.persistentAttachment = persistentAttachment
         self.transcript = transcript
         self.source = source
         self.reconnectDescriptor = reconnectDescriptor
@@ -172,12 +191,14 @@ public final class TerminalSessionStore {
         _ tabID: String,
         session: TerminalSession,
         generation: UInt64,
-        status: TerminalTabStatus = .connected
+        status: TerminalTabStatus = .connected,
+        persistentAttachment: (any PersistentTerminalAttachment)? = nil
     ) {
         guard let index = tabs.firstIndex(where: { $0.id == tabID }) else { return }
         tabs[index].session = session
         tabs[index].generation = generation
         tabs[index].status = status
+        tabs[index].persistentAttachment = persistentAttachment
         tabs[index].lastUsedAt = .now
     }
 
@@ -199,6 +220,7 @@ public final class TerminalSessionStore {
             currentTabID = tabs.last(where: { $0.hostID == tab.hostID })?.id ?? tabs.last?.id
         }
         await tab.session.close()
+        await tab.persistentAttachment?.close()
     }
 
     public func closeAll(forHost hostID: String) async {
@@ -209,6 +231,7 @@ public final class TerminalSessionStore {
         }
         for tab in closing {
             await tab.session.close()
+            await tab.persistentAttachment?.close()
         }
     }
 
@@ -218,6 +241,7 @@ public final class TerminalSessionStore {
         currentTabID = nil
         for tab in closing {
             await tab.session.close()
+            await tab.persistentAttachment?.close()
         }
     }
 }

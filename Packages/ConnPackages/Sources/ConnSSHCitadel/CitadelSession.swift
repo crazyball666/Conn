@@ -156,6 +156,10 @@ final class CitadelSession: SSHSession, @unchecked Sendable {
         try await CitadelShellChannel.open(client: client, term: term)
     }
 
+    func openProcess(_ request: RemoteProcessRequest) async throws -> any RemoteProcessChannel {
+        try await CitadelRemoteProcessChannel.open(client: client, request: request)
+    }
+
     func sftp() async throws -> any RemoteFileSystem {
         let sftpClient = try await client.openSFTP()
         return CitadelFileSystem(client: sftpClient)

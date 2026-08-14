@@ -39,11 +39,11 @@ public enum TmuxClientFlag: String, Codable, Sendable, Hashable, CaseIterable {
     case pauseAfter = "pause-after"
 }
 
-package struct TmuxNegotiatedCapabilities: Sendable, Equatable {
-    package let supportedClientFlags: Set<TmuxClientFlag>
-    package let supportsFormatSubscriptions: Bool
+public struct TmuxNegotiatedCapabilities: Sendable, Equatable {
+    public let supportedClientFlags: Set<TmuxClientFlag>
+    public let supportsFormatSubscriptions: Bool
 
-    package init(
+    public init(
         supportedClientFlags: Set<TmuxClientFlag>,
         supportsFormatSubscriptions: Bool
     ) {
@@ -52,11 +52,11 @@ package struct TmuxNegotiatedCapabilities: Sendable, Equatable {
     }
 }
 
-package struct TmuxControlClientConfiguration: Sendable, Equatable {
-    package let enabledClientFlags: Set<TmuxClientFlag>
-    package let activeSubscriptionNames: Set<String>
+public struct TmuxControlClientConfiguration: Sendable, Equatable {
+    public let enabledClientFlags: Set<TmuxClientFlag>
+    public let activeSubscriptionNames: Set<String>
 
-    package init(
+    public init(
         enabledClientFlags: Set<TmuxClientFlag>,
         activeSubscriptionNames: Set<String>
     ) {

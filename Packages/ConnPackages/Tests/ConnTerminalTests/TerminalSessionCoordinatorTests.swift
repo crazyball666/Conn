@@ -17,6 +17,13 @@ private final class TerminalHostRepository: HostRepository, @unchecked Sendable 
     func delete(id: String) throws { hosts.removeAll { $0.id == id } }
 }
 
+@MainActor
+private final class ProfileProvisionRecorder {
+    private(set) var hostIDs: [String] = []
+
+    func append(_ hostID: String) { hostIDs.append(hostID) }
+}
+
 /// `openShell` 被卡住但不响应 Task cancellation，用来复现真实 Citadel 建立 PTY 时
 /// 用户删除主机的竞态。只有测试显式 `release()` 后才返回通道。
 private actor DelayedShellGate {
@@ -315,5 +322,24 @@ struct TerminalSessionCoordinatorTests {
         #expect(coordinator.store.currentTab?.hostAddress == originalAddress)
         #expect(coordinator.store.tabs.count == 1)
         await coordinator.close(tab.id)
+    }
+
+    @Test("新主机保存后立即执行默认持久终端 profile 配置")
+    func savingNewHostImmediatelyProvisionsPersistentProfiles() async {
+        let host = Host(id: "host-new", name: "new", address: "10.0.0.8", username: "root")
+        let recorder = ProfileProvisionRecorder()
+        let coordinator = TerminalSessionCoordinator(
+            hostRepository: TerminalHostRepository(hosts: [host]),
+            connectionManager: ConnectionManager(transport: MockSSHTransport()),
+            profileProvisioner: { recorder.append($0.id) }
+        )
+
+        await coordinator.hostDidSave(
+            host,
+            replacing: nil,
+            connectionIdentityChanged: false
+        )
+
+        #expect(recorder.hostIDs == [host.id])
     }
 }

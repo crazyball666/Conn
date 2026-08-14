@@ -6,6 +6,21 @@ import Testing
 
 @Suite("Persistent terminal provider registry")
 struct PersistentTerminalProviderRegistryTests {
+    @Test("内置 registry 注册 tmux，但仍按平台精确路由")
+    func builtInRegistryRegistersTmux() throws {
+        let profile = makeProfile(providerID: TmuxProvider.providerID)
+
+        #expect(
+            try PersistentTerminalProviderRegistry.default
+                .provider(for: profile, platform: .macOS)
+                .descriptor.id == TmuxProvider.providerID
+        )
+        #expect(throws: PersistentTerminalError.unsupportedPlatform) {
+            try PersistentTerminalProviderRegistry.default
+                .provider(for: profile, platform: .windows)
+        }
+    }
+
     @Test("provider ID、配置版本和平台必须同时精确匹配且不回退")
     func exactProviderAndPlatformSelection() throws {
         let provider = FakePersistentTerminalProvider(

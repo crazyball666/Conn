@@ -10,6 +10,17 @@ public enum PersistentTerminalProviderRegistryError: Error, Sendable, Equatable 
 public struct PersistentTerminalProviderRegistry: Sendable {
     private let providersByID: [String: any PersistentTerminalProvider]
 
+    /// The product's current built-in provider set. Callers that need plugins or a
+    /// platform-specific provider should still construct an explicit registry; this
+    /// property is only the composition-root default and does not add fallback routing.
+    public static let `default`: Self = {
+        do {
+            return try Self(providers: [TmuxProvider()])
+        } catch {
+            preconditionFailure("built-in persistent-terminal providers must have unique IDs")
+        }
+    }()
+
     public init(providers: [any PersistentTerminalProvider]) throws {
         if providers.contains(where: { $0.descriptor.id.isEmpty }) {
             throw PersistentTerminalProviderRegistryError.emptyProviderID
@@ -84,6 +95,22 @@ public struct PersistentTerminalProviderRegistry: Sendable {
             terminalSize: terminalSize,
             in: context
         )
+    }
+
+    public func openCatalog(
+        in context: PersistentTerminalContext
+    ) async throws -> any PersistentTerminalCatalogAttachment {
+        let provider = try provider(
+            for: context.backendProfile,
+            platform: context.platformProfile.kind
+        )
+        guard let catalogProvider = provider as? any PersistentTerminalCatalogProvider else {
+            throw PersistentTerminalError.unsupportedFeature(
+                providerID: provider.descriptor.id,
+                feature: "workspaceCatalog"
+            )
+        }
+        return try await catalogProvider.openCatalog(in: context)
     }
 
     private func validatePlatform(
