@@ -39,7 +39,7 @@
 - `.connected`、`.reconnecting` 和 `.disconnected` 状态均保留显示；
 - 断线 Tab 可进入终端页并按原 reconnect descriptor 重连。
 
-主页不得展示 `RemoteWorkspaceSummary`，不得把远端 Session 数量计入本地会话数量。
+主页不得展示 `RemoteWorkspaceSummary`，不得把远端 Session 数量计入本地会话数量。没有任何本地 Tab 的 Host 不出现在终端主页；用户通过“新建终端”选择该 Host。
 
 ### 4.2 网络副作用
 
@@ -85,7 +85,7 @@ Docker 和脚本入口继续按显式 request 创建，成功后进入终端，�
 - 关闭后取消当前探测、刷新或创建任务；
 - 关闭后不创建 Tab、不改变当前 Tab、不打开 `TerminalScreen`；
 - 子阶段提供返回按钮，但返回不能替代关闭按钮；
-- 创建过程中关闭后，即使底层不可取消操作迟到成功，也必须通过 generation 校验关闭临时 attachment，禁止写入 Store 或触发导航。
+- 创建过程中关闭后，即使底层不可取消操作迟到成功，也必须由协调器级可取消 launch transaction 关闭临时 session/attachment，禁止写入 Store 或触发导航。仅在 Sheet 模型里取消 `Task` 或检查 generation 不足以满足该保证。
 
 弹窗只通过一个成功结果回调返回 `(host, tabID)`。源页面收到成功结果后先关闭弹窗，再导航到 `TerminalScreen` 的 `.existing(tabID:)`；不得让 `TerminalScreen` 再执行 backend 选择或创建。
 
@@ -123,10 +123,11 @@ hostSelection（仅未固定 Host 的入口）
 只有用户明确选择 tmux 后才开始远端工作：
 
 1. 调用 `persistentBackendCandidates(for:)` 探测已配置、启用的 provider；
-2. 过滤 `.available` 和 `.degraded` 候选；
-3. 当前只有一个候选时，直接调用 `persistentWorkspaceOptions` 获取一次 Workspace 快照；
-4. 未来多个 provider/profile 候选时，先让用户选择候选，再查询所选候选；
-5. 不调用 `openPersistentCatalog`，不订阅 `snapshots`。
+2. 保留全部候选及其 `issue`，另行派生 `.available` / `.degraded` 的可用集合；
+3. 没有可用候选时，从完整候选集合展示 tmux 未安装、平台不支持或 profile 不可用的诊断，不能因过滤候选而丢失原因；
+4. 当前只有一个可用候选时，直接调用 `persistentWorkspaceOptions` 获取一次 Workspace 快照；
+5. 多个可用 provider/profile 候选时，先让用户选择候选，再查询所选候选；
+6. 不调用 `openPersistentCatalog`，不订阅 `snapshots`。
 
 Workspace 页面支持：
 
@@ -162,7 +163,7 @@ Workspace 页面支持：
 - 状态：当前 Host、阶段、候选、所选候选、Workspace、加载/刷新/创建状态、错误；
 - 操作：选择 Host、选择普通 PTY、选择 persistent 类型、选择候选、刷新、进入 Workspace、新建 Workspace、返回、关闭；
 - 输出：唯一一次 `completed(host, tabID)`；
-- 用 generation/token 隔离迟到任务；关闭或切换 Host/provider 后旧结果不能覆盖新状态。
+- 用 UI generation 隔离迟到的 probe/list 结果；创建 Tab 使用协调器级 launch transaction，关闭或切换 Host/provider 后旧结果不能覆盖状态或写入 Store。
 
 模型只依赖 provider-neutral 类型，不持有 `PersistentTerminalCatalogAttachment`，不接触 tmux 命令或专有 payload。
 
@@ -181,13 +182,29 @@ Workspace 页面支持：
 
 ### 7.3 `TerminalScreen`
 
-普通交互入口传入 `.existing(tabID:)`，页面只呈现已经存在的 Tab。移除由空页面触发的普通 PTY/tmux backend picker、Workspace picker和新建状态机。
+所有生产入口都向 `TerminalScreen` 传入 `.existing(tabID:)`，页面只呈现已经存在的 Tab。彻底移除由空页面触发的普通 PTY/tmux backend picker、Workspace picker和新建状态机，不保留生产调用的迁移后门。
 
-为了兼容 Docker、脚本等显式创建入口，创建逻辑应由入口在呈现 `TerminalScreen` 前完成；迁移期间若必须保留内部显式 request 支持，也不得用于普通 shell 入口，且不能再次展示 backend 选择器。
+Docker、脚本等显式入口也必须在各自当前页面通过协调器创建成功，再呈现 `.existing(tabID:)`。它们不展示普通 PTY/tmux 选择弹窗，但在创建完成前显示当前页面的进度；页面消失时取消对应 launch transaction。任何生产调用点都不得以“进入 `TerminalScreen` 后再创建”实现兼容。
 
 终端页内“新建会话”调用同一个 `NewTerminalSheet`，成功后切换 `tabID`，无需重建外层终端页面。
 
-### 7.4 Provider 与协调器
+### 7.4 可取消 launch transaction
+
+`TerminalSessionCoordinator` 新增两阶段、按 attempt ID 管理的创建边界，解决底层 SSH/PTY 打开可能不响应 Swift Task cancellation 的问题：
+
+1. 源页面创建唯一 `TerminalLaunchAttemptID`；
+2. `prepareLaunch(request, attemptID:)` 打开 backend、构造临时 session/attachment 和 Tab 元数据，但不调用 `store.add`，不启动 Store 所属生命周期观察；
+3. Sheet 或显式入口确认当前 UI generation 仍有效后，在 MainActor 上调用 `commitLaunch(attemptID:)`；
+4. `commitLaunch` 与 `cancelLaunch` 对同一 attempt 原子竞争，只有 active/prepared attempt 可以提交；提交才把 Tab 加入 Store、启动 session/lifecycle，并返回 `tabID`；
+5. `cancelLaunch(attemptID:)` 立即把 pending/prepared attempt 标为取消；已准备资源立即关闭，仍在不可取消 open 中的任务返回后只关闭临时资源，绝不写入 Store；
+6. commit 成功后 attempt 转为 consumed，Sheet 的成功 dismiss 不再取消已归属 Store 的 Tab；
+7. 任一失败路径清理 attempt 和临时资源，失败 Tab 不进入 Store。
+
+`launch(_:)` 可保留为内部便利入口并以 prepare + commit 实现，但所有会受页面取消影响的生产入口必须显式持有 attempt ID。关闭 Sheet、切换 Host/provider、源页面消失和 Host identity 失效都调用 `cancelLaunch`。
+
+该事务边界保证“关闭弹窗后无 Tab”由会话协调器负责，而不是依赖 UI Task cancellation 的时序。
+
+### 7.5 Provider 与协调器
 
 继续复用：
 
@@ -222,8 +239,9 @@ Workspace 页面支持：
        -> open TerminalScreen(existing tab)
 
 关闭弹窗
-  -> cancel / invalidate generation
-  -> close any late temporary attachment
+  -> cancel probe/list + invalidate UI generation
+  -> cancelLaunch(attemptID)
+  -> coordinator closes any late temporary session/attachment
   -> no Tab / no navigation
 ```
 
@@ -234,14 +252,14 @@ Workspace 页面支持：
 - Workspace 查询失败：显示错误；手动刷新失败时保留上一份成功快照。
 - descriptor、attachment 或普通 PTY 创建失败：不导航、不生成失败 Tab。
 - Host 在流程中被删除或连接身份改变：当前 generation 失效，关闭临时资源并显示错误。
-- 关闭弹窗或切换 Host/provider：取消任务并丢弃迟到结果。
+- 关闭弹窗或切换 Host/provider：取消 probe/list Task，并调用 `cancelLaunch(attemptID:)`；协调器负责关闭迟到的临时 session/attachment，Store 不得出现 Tab。
 - 断线本地 Tab：主页继续显示；进入后使用现有 reconnect descriptor 重连。
 
 ## 10. 扩展性
 
 - 新建弹窗只认识 `PersistentBackendCandidate`、`RemoteWorkspaceSummary` 和通用 descriptor，不通过 `providerID == "tmux"` 分支执行协议逻辑。
-- “tmux”是当前产品类型文案；多个 provider 出现时可将类型阶段扩展为 provider 列表，不改变主页或终端页。
-- Zellij 等 provider 只需实现现有 registry/profile/workspace/descriptor 能力即可进入同一流程。
+- “tmux”是当前产品类型文案；provider 扩展只承诺现有通用候选、Workspace、descriptor 和 attachment API 边界，本轮不设计 Zellij 专有 UI。
+- Zellij 等 provider 后续可通过现有 registry/profile/workspace/descriptor 能力接入，不要求修改主页或终端页的数据边界。
 - 实时 Catalog 和 Window / Pane 管理仍是可选的高级能力，与轻量新建流程解耦。
 
 ## 11. 测试和验收
@@ -249,19 +267,19 @@ Workspace 页面支持：
 ### 11.1 自动化测试
 
 - 打开、展开和折叠终端主页不会调用 provider probe、Workspace 查询或 `openPersistentCatalog`；
-- 主页只渲染本地 Store 中普通、persistent 和断线 Tab；
+- 主页只渲染本地 Store 中普通、persistent 和断线 Tab，零本地 Tab 的 Host 不显示；
 - 新建弹窗所有阶段都有关闭操作；
-- 关闭会取消任务，迟到结果不能创建 Tab 或导航；
+- 关闭会取消 probe/list 和 launch transaction；不可取消 open 的迟到结果只能被关闭，不能创建 Tab 或导航；
 - 普通 PTY 分支不会 probe persistent provider；
 - 只有选择 tmux 后才 probe 和执行一次 Workspace 查询；
-- 单候选直接显示 Workspace，多候选可切换；
+- 单可用候选直接显示 Workspace，多可用候选可切换；零可用候选仍保留完整诊断；
 - 手动刷新重新探测并原子替换列表，失败保留旧列表；
 - unavailable、empty、failed 状态正确；
 - 选择已有 Workspace 使用精确 descriptor 创建 persistent Tab；
 - 新建 Workspace 使用显式 create 路由；
 - 成功前不出现 `TerminalScreen`，成功后只打开 `.existing(tabID:)`；
 - 主机详情、服务器快捷入口、终端主页和终端内新建复用同一流程；
-- Docker 和脚本显式入口无回归。
+- Docker 和脚本显式入口在源页面创建成功后才打开 `.existing(tabID:)`，不再由 `TerminalScreen` 创建。
 
 ### 11.2 UI 验收
 
