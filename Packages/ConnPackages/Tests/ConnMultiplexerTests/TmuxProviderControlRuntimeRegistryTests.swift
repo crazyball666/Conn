@@ -6,8 +6,8 @@ import Testing
 
 @Suite("tmux provider control runtime registry")
 struct TmuxProviderControlRuntimeRegistryTests {
-    @Test("identity survives control eviction and is restored for the next observation")
-    func evictsControlRuntimeWithoutLosingAttachmentIdentity() async throws {
+    @Test("interactive attachment keeps control alive and dispatches only against its verified pane")
+    func interactiveAttachmentOwnsObservationAndModeScroll() async throws {
         let fixture = try RegistryFixture()
         let registry = TmuxProviderControlRuntimeRegistry()
         let firstChannel = RegistryTrackingProcessChannel()
@@ -19,6 +19,7 @@ struct TmuxProviderControlRuntimeRegistryTests {
         let attachmentLease = try #require(await registry.acquireAttachment(
             firstPreflight,
             attachmentID: fixture.attachmentID,
+            attachmentGeneration: 3,
             requestedSessionID: fixture.session,
             makeHub: { _ in
                 let hub = try? TmuxControlHub(
@@ -31,33 +32,63 @@ struct TmuxProviderControlRuntimeRegistryTests {
             resolveIdentity: { _ in fixture.identity }
         ))
 
-        #expect(firstChannel.closeCount == 1)
+        #expect(firstChannel.closeCount == 0)
 
-        let secondChannel = RegistryTrackingProcessChannel()
-        let secondRuntime = try fixture.runtime(channel: secondChannel)
-        let secondPreflight = try #require(await registry.acquireRuntime(for: fixture.scope) {
-            secondRuntime
-        })
-        let secondAdapter = RegistryHubAdapter(fixture: fixture)
-        let catalogLease = try #require(await registry.acquireCatalog(secondPreflight) { _ in
-            try? TmuxControlHub(
-                scope: fixture.scope,
-                initialSnapshot: fixture.externalSnapshot,
-                adapter: secondAdapter
-            )
-        })
-        var iterator = catalogLease.observation.snapshots.makeAsyncIterator()
-        let restored = try #require(await iterator.next())
-        guard case let .connInteractive(attachmentID) = restored.clients[fixture.dataClient]?.role
-        else {
-            Issue.record("reopened observation did not restore the data attachment identity")
-            return
+        var snapshots = attachmentLease.snapshots.makeAsyncIterator()
+        let firstSnapshot = try #require(await snapshots.next())
+        #expect(firstSnapshot.clients[fixture.dataClient]?.role == .connInteractive(
+            attachmentID: fixture.attachmentID
+        ))
+
+        let state = try await registry.resolveInteraction(attachmentLease)
+        let target = state.target
+        #expect(state.modeCapability == .scrollable)
+        #expect(state.revision > fixture.externalSnapshot.revision)
+
+        let request = try PersistentTerminalModeScrollRequest(
+            target: target,
+            attachmentGeneration: 3,
+            expectedStateRevision: state.revision,
+            direction: .up,
+            rows: 7
+        )
+        try await registry.scrollInteraction(attachmentLease, request: request)
+        #expect(await firstAdapter.operations == [
+            .scrollPaneMode(
+                fixture.pane,
+                direction: .up,
+                rows: try TmuxScrollRowCount(7)
+            ),
+        ])
+
+        let staleGeneration = try PersistentTerminalModeScrollRequest(
+            target: target,
+            attachmentGeneration: 2,
+            expectedStateRevision: state.revision,
+            direction: .up,
+            rows: 1
+        )
+        await #expect(throws: PersistentTerminalInteractionError.staleAttachmentGeneration) {
+            try await registry.scrollInteraction(attachmentLease, request: staleGeneration)
         }
-        #expect(attachmentID == fixture.attachmentID)
+        let wrongPane = try PersistentTerminalModeScrollRequest(
+            target: .init(
+                providerID: TmuxProvider.providerID,
+                workspaceID: fixture.session.rawValue,
+                targetID: "%999"
+            ),
+            attachmentGeneration: 3,
+            expectedStateRevision: state.revision,
+            direction: .up,
+            rows: 1
+        )
+        await #expect(throws: TmuxInteractionError.targetMismatch) {
+            try await registry.scrollInteraction(attachmentLease, request: wrongPane)
+        }
+        #expect(await firstAdapter.operations.count == 1)
 
-        await registry.releaseCatalog(catalogLease)
-        #expect(secondChannel.closeCount == 1)
         await registry.release(attachmentLease)
+        #expect(firstChannel.closeCount == 1)
     }
 }
 
@@ -168,6 +199,32 @@ private struct RegistryFixture: Sendable {
                 title: .unavailable,
                 currentCommand: .unavailable,
                 currentPath: .unavailable,
+                interaction: .init(
+                    alternateOn: .init(
+                        value: false,
+                        freshness: .snapshot(observedAt: observedAt)
+                    ),
+                    paneInMode: .init(
+                        value: true,
+                        freshness: .snapshot(observedAt: observedAt)
+                    ),
+                    mode: .init(
+                        value: "copy-mode",
+                        freshness: .snapshot(observedAt: observedAt)
+                    ),
+                    mouseAnyFlag: .init(
+                        value: false,
+                        freshness: .snapshot(observedAt: observedAt)
+                    ),
+                    historySize: .init(
+                        value: 100,
+                        freshness: .snapshot(observedAt: observedAt)
+                    ),
+                    historyLimit: .init(
+                        value: 2_000,
+                        freshness: .snapshot(observedAt: observedAt)
+                    )
+                ),
                 size: .init(cols: 80, rows: 24),
                 isDead: false
             )],
@@ -192,6 +249,7 @@ private struct RegistryFixture: Sendable {
 
 private actor RegistryHubAdapter: TmuxControlHubAdapter {
     let fixture: RegistryFixture
+    private(set) var operations: [TmuxOperation] = []
 
     init(fixture: RegistryFixture) {
         self.fixture = fixture
@@ -202,7 +260,8 @@ private actor RegistryHubAdapter: TmuxControlHubAdapter {
         timeout: Duration,
         identities: Set<TmuxControlInteractiveIdentity>
     ) async throws -> TmuxControlHubOperationReceipt {
-        TmuxControlHubOperationReceipt(request: request, output: [])
+        operations.append(request.operation)
+        return TmuxControlHubOperationReceipt(request: request, output: [])
     }
 
     func loadSnapshot(

@@ -5,6 +5,7 @@ public enum TmuxOperationError: Error, Sendable, Equatable {
     case invalidName
     case invalidClientTarget
     case invalidProfileID
+    case invalidScrollRows(Int)
 }
 
 /// A name Conn is allowed to create or rename. Existing remote names are decoded separately
@@ -67,6 +68,23 @@ public enum TmuxSplitOrientation: String, Sendable, Codable, Equatable {
     case vertical
 }
 
+public enum TmuxScrollDirection: Sendable, Equatable {
+    case up
+    case down
+}
+
+public struct TmuxScrollRowCount: Sendable, Equatable, Hashable {
+    public static let maximum = 64
+    public let value: Int
+
+    public init(_ value: Int) throws {
+        guard (1 ... Self.maximum).contains(value) else {
+            throw TmuxOperationError.invalidScrollRows(value)
+        }
+        self.value = value
+    }
+}
+
 /// Closed AST for operations against an already identified tmux server instance.
 ///
 /// Executors must wrap these in a request carrying the expected server token and control
@@ -86,6 +104,7 @@ public enum TmuxOperation: Sendable, Equatable {
     case splitPane(TmuxPaneID, orientation: TmuxSplitOrientation)
     case setPaneZoom(TmuxPaneID, zoomed: Bool)
     case killPane(TmuxPaneID)
+    case scrollPaneMode(TmuxPaneID, direction: TmuxScrollDirection, rows: TmuxScrollRowCount)
 }
 
 /// The only operation allowed to create a workspace without an existing instance token.
@@ -110,7 +129,7 @@ public extension TmuxOperation {
         case .renameSession, .detachClient, .selectWindow, .renameWindow, .selectPane,
              .setPaneZoom:
             .idempotentMutation
-        case .createSession, .createWindow, .splitPane:
+        case .createSession, .createWindow, .splitPane, .scrollPaneMode:
             .nonIdempotentMutation
         case .killSession, .killWindow, .killPane:
             .destructive

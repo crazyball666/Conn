@@ -102,6 +102,13 @@ package struct TmuxControlCommandRenderer: Sendable {
 
         case let .killPane(paneID):
             command = join("kill-pane", "-t", encode(paneID.rawValue))
+
+        case let .scrollPaneMode(paneID, direction, rows):
+            command = join(
+                "send-keys", "-t", encode(paneID.rawValue),
+                "-X", "-N", encode(String(rows.value)),
+                encode(direction == .up ? "scroll-up" : "scroll-down")
+            )
         }
         return TmuxRenderedControlCommand(value: command)
     }

@@ -43,6 +43,7 @@ public struct PersistentTerminalInteractionState: Sendable, Equatable {
     public let freshness: PersistentTerminalInteractionFreshness
     public let isAlternateBuffer: Bool?
     public let modeCapability: PersistentTerminalModeCapability
+    public let providerModeID: String?
     public let historyAvailable: Bool
     public let observedAt: Date
 
@@ -53,6 +54,7 @@ public struct PersistentTerminalInteractionState: Sendable, Equatable {
         freshness: PersistentTerminalInteractionFreshness,
         isAlternateBuffer: Bool?,
         modeCapability: PersistentTerminalModeCapability,
+        providerModeID: String? = nil,
         historyAvailable: Bool,
         observedAt: Date
     ) {
@@ -62,6 +64,7 @@ public struct PersistentTerminalInteractionState: Sendable, Equatable {
         self.freshness = freshness
         self.isAlternateBuffer = isAlternateBuffer
         self.modeCapability = modeCapability
+        self.providerModeID = providerModeID
         self.historyAvailable = historyAvailable
         self.observedAt = observedAt
     }

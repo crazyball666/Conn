@@ -160,6 +160,7 @@ struct TmuxProviderTests {
             Issue.record("tmux 首期 attachment 必须提供 byte terminal")
             return
         }
+        #expect(attachment is any PersistentTerminalInteractiveAttachment)
         try await channel.write(Data("echo ok\n".utf8))
         try await channel.resize(.init(cols: 120, rows: 40))
         await attachment.close()

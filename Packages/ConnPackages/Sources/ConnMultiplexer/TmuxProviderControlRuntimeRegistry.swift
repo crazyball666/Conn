@@ -19,7 +19,12 @@ actor TmuxProviderControlRuntimeRegistry {
 
     private struct AttachmentRegistration {
         let identity: TmuxControlInteractiveIdentity
+        let attachmentGeneration: UInt64
+        let snapshots: AsyncStream<TmuxServerSnapshot>
+        let continuation: AsyncStream<TmuxServerSnapshot>.Continuation
+        var bindingID: UUID?
         var hubLease: TmuxControlHubLease?
+        var observationTask: Task<Void, Never>?
     }
 
     private var entries: [TmuxOperationScope: Entry] = [:]
@@ -100,10 +105,11 @@ actor TmuxProviderControlRuntimeRegistry {
     func acquireAttachment(
         _ preflight: TmuxProviderControlRuntimeLease,
         attachmentID: String,
+        attachmentGeneration: UInt64,
         requestedSessionID: TmuxSessionID,
         makeHub: @Sendable @escaping (TmuxControlRuntime) async -> TmuxProviderControlSetup?,
         resolveIdentity: @Sendable @escaping (TmuxControlRuntime) async -> TmuxControlInteractiveIdentity?
-    ) async -> TmuxProviderControlAttachmentLease? {
+    ) async -> TmuxProviderControlInteractionLease? {
         while true {
             guard let entry = entries[preflight.scope], entry.runtime === preflight.runtime else {
                 return nil
@@ -118,14 +124,15 @@ actor TmuxProviderControlRuntimeRegistry {
                     return nil
                 }
                 do {
-                    let registrationID = try await registerAttachment(
+                    let registration = try await registerAttachment(
                         identity,
+                        attachmentGeneration: attachmentGeneration,
                         on: hub,
                         scope: preflight.scope
                     )
                     guard var current = entries[preflight.scope], current.runtime === preflight.runtime else {
                         await removeAttachmentRegistration(
-                            registrationID,
+                            registration.id,
                             scope: preflight.scope
                         )
                         await releasePreflight(preflight)
@@ -133,10 +140,13 @@ actor TmuxProviderControlRuntimeRegistry {
                     }
                     current.pendingCount = max(0, current.pendingCount - 1)
                     entries[preflight.scope] = current
-                    let lease = TmuxProviderControlAttachmentLease(
+                    let lease = TmuxProviderControlInteractionLease(
                         registry: self,
                         scope: preflight.scope,
-                        registrationID: registrationID
+                        registrationID: registration.id,
+                        snapshots: registration.snapshots,
+                        identity: identity,
+                        attachmentGeneration: attachmentGeneration
                     )
                     await evictIfUnused(
                         scope: preflight.scope,
@@ -176,14 +186,15 @@ actor TmuxProviderControlRuntimeRegistry {
                     on: setup.hub,
                     scope: preflight.scope
                 )
-                let registrationID = try await registerAttachment(
+                let registration = try await registerAttachment(
                     setup.identity,
+                    attachmentGeneration: attachmentGeneration,
                     on: setup.hub,
                     scope: preflight.scope
                 )
                 guard var current = entries[preflight.scope], current.runtime === preflight.runtime else {
                     await removeAttachmentRegistration(
-                        registrationID,
+                        registration.id,
                         scope: preflight.scope
                     )
                     await releaseHubLeases(from: setup.hub, scope: preflight.scope)
@@ -194,10 +205,13 @@ actor TmuxProviderControlRuntimeRegistry {
                 current.pendingCount = max(0, current.pendingCount - 1)
                 entries[preflight.scope] = current
                 signalChange()
-                let lease = TmuxProviderControlAttachmentLease(
+                let lease = TmuxProviderControlInteractionLease(
                     registry: self,
                     scope: preflight.scope,
-                    registrationID: registrationID
+                    registrationID: registration.id,
+                    snapshots: registration.snapshots,
+                    identity: setup.identity,
+                    attachmentGeneration: attachmentGeneration
                 )
                 await evictIfUnused(
                     scope: preflight.scope,
@@ -310,11 +324,72 @@ actor TmuxProviderControlRuntimeRegistry {
         }
     }
 
-    func release(_ lease: TmuxProviderControlAttachmentLease) async {
+    func release(_ lease: TmuxProviderControlInteractionLease) async {
         await removeAttachmentRegistration(lease.registrationID, scope: lease.scope)
         if let runtime = entries[lease.scope]?.runtime {
             await evictIfUnused(scope: lease.scope, runtime: runtime)
         }
+    }
+
+    func resolveInteraction(
+        _ lease: TmuxProviderControlInteractionLease
+    ) async throws -> PersistentTerminalInteractionState {
+        try await resolveInteractionContext(lease).state
+    }
+
+    func resolveInteractionContext(
+        _ lease: TmuxProviderControlInteractionLease,
+        refreshIfNeeded: Bool = true
+    ) async throws -> TmuxResolvedInteractionState {
+        guard let registration = attachmentRegistrations[lease.scope]?[lease.registrationID],
+              let entry = entries[lease.scope],
+              let hub = entry.hub,
+              entry.runtime != nil,
+              let hubLease = registration.hubLease,
+              registration.bindingID != nil
+        else {
+            throw TmuxInteractionError.closed
+        }
+        let resolved = try await hub.resolveInteraction(
+            lease: hubLease,
+            attachmentGeneration: registration.attachmentGeneration,
+            refreshIfNeeded: refreshIfNeeded
+        )
+        guard let current = attachmentRegistrations[lease.scope]?[lease.registrationID],
+              current.hubLease == hubLease,
+              entries[lease.scope]?.hub === hub
+        else {
+            throw TmuxInteractionError.closed
+        }
+        return resolved
+    }
+
+    func scrollInteraction(
+        _ lease: TmuxProviderControlInteractionLease,
+        request: PersistentTerminalModeScrollRequest
+    ) async throws {
+        guard let registration = attachmentRegistrations[lease.scope]?[lease.registrationID]
+        else {
+            throw TmuxInteractionError.closed
+        }
+        guard request.attachmentGeneration == registration.attachmentGeneration else {
+            throw PersistentTerminalInteractionError.staleAttachmentGeneration
+        }
+        guard
+              let hub = entries[lease.scope]?.hub,
+              let hubLease = registration.hubLease
+        else {
+            throw TmuxInteractionError.closed
+        }
+        _ = try await hub.executeModeScroll(
+            lease: hubLease,
+            target: request.target,
+            attachmentGeneration: registration.attachmentGeneration,
+            expectedRevision: request.expectedStateRevision,
+            direction: request.direction,
+            rows: request.rows,
+            timeout: .seconds(5)
+        )
     }
 
     func releaseCatalog(_ lease: TmuxProviderControlCatalogLease) async {
@@ -365,21 +440,54 @@ actor TmuxProviderControlRuntimeRegistry {
 
     private func registerAttachment(
         _ identity: TmuxControlInteractiveIdentity,
+        attachmentGeneration: UInt64,
         on hub: TmuxControlHub,
         scope: TmuxOperationScope
-    ) async throws -> UUID {
+    ) async throws -> (id: UUID, snapshots: AsyncStream<TmuxServerSnapshot>) {
         let registrationID = UUID()
-        let hubLease = try await hub.acquireIdentityLease(identity)
+        let bindingID = UUID()
+        let (stream, continuation) = AsyncStream.makeStream(
+            of: TmuxServerSnapshot.self,
+            bufferingPolicy: .bufferingNewest(2)
+        )
+        let observation = try await hub.acquireInteractionLease(
+            identity: identity,
+            target: .session(identity.requestedSessionID)
+        )
         attachmentRegistrations[scope, default: [:]][registrationID] = AttachmentRegistration(
             identity: identity,
-            hubLease: hubLease
+            attachmentGeneration: attachmentGeneration,
+            snapshots: stream,
+            continuation: continuation,
+            bindingID: bindingID,
+            hubLease: observation.lease,
+            observationTask: nil
         )
         do {
             _ = try await hub.refresh(reason: .userRequested)
-            return registrationID
+            guard var registration = attachmentRegistrations[scope]?[registrationID],
+                  registration.bindingID == bindingID,
+                  let currentEntry = entries[scope],
+                  currentEntry.hub == nil || currentEntry.hub === hub
+            else {
+                await hub.releaseLease(observation.lease)
+                throw TmuxInteractionError.closed
+            }
+            registration.observationTask = forward(
+                observation.snapshots,
+                registrationID: registrationID,
+                scope: scope,
+                bindingID: bindingID
+            )
+            attachmentRegistrations[scope]?[registrationID] = registration
+            return (registrationID, stream)
         } catch {
-            await hub.releaseLease(hubLease)
-            attachmentRegistrations[scope]?[registrationID] = nil
+            await hub.releaseLease(observation.lease)
+            if attachmentRegistrations[scope]?[registrationID]?.bindingID == bindingID {
+                attachmentRegistrations[scope]?[registrationID]?.observationTask?.cancel()
+                attachmentRegistrations[scope]?[registrationID]?.continuation.finish()
+                attachmentRegistrations[scope]?[registrationID] = nil
+            }
             if attachmentRegistrations[scope]?.isEmpty == true {
                 attachmentRegistrations[scope] = nil
             }
@@ -391,28 +499,62 @@ actor TmuxProviderControlRuntimeRegistry {
         on hub: TmuxControlHub,
         scope: TmuxOperationScope
     ) async throws {
-        guard var registrations = attachmentRegistrations[scope], !registrations.isEmpty else {
-            return
-        }
-        var acquired: [(UUID, TmuxControlHubLease)] = []
+        let registrationIDs = attachmentRegistrations[scope]?.keys.sorted {
+            $0.uuidString < $1.uuidString
+        } ?? []
+        var acquired: [(registrationID: UUID, bindingID: UUID, observation: TmuxControlHubObservation)] = []
         do {
-            for registrationID in registrations.keys.sorted(by: { $0.uuidString < $1.uuidString }) {
-                guard var registration = registrations[registrationID] else { continue }
-                let lease = try await hub.acquireIdentityLease(registration.identity)
-                registration.hubLease = lease
-                registrations[registrationID] = registration
-                acquired.append((registrationID, lease))
+            for registrationID in registrationIDs {
+                guard let registration = attachmentRegistrations[scope]?[registrationID],
+                      registration.hubLease == nil
+                else { continue }
+                let bindingID = UUID()
+                let observation = try await hub.acquireInteractionLease(
+                    identity: registration.identity,
+                    target: .session(registration.identity.requestedSessionID)
+                )
+                guard var current = attachmentRegistrations[scope]?[registrationID],
+                      current.hubLease == nil
+                else {
+                    await hub.releaseLease(observation.lease)
+                    continue
+                }
+                current.bindingID = bindingID
+                current.hubLease = observation.lease
+                attachmentRegistrations[scope]?[registrationID] = current
+                acquired.append((registrationID, bindingID, observation))
             }
-            attachmentRegistrations[scope] = registrations
             _ = try await hub.refresh(reason: .userRequested)
+            for acquiredBinding in acquired {
+                guard var current = attachmentRegistrations[scope]?[acquiredBinding.registrationID],
+                      current.bindingID == acquiredBinding.bindingID,
+                      current.hubLease == acquiredBinding.observation.lease
+                else {
+                    await hub.releaseLease(acquiredBinding.observation.lease)
+                    continue
+                }
+                current.observationTask = forward(
+                    acquiredBinding.observation.snapshots,
+                    registrationID: acquiredBinding.registrationID,
+                    scope: scope,
+                    bindingID: acquiredBinding.bindingID
+                )
+                attachmentRegistrations[scope]?[acquiredBinding.registrationID] = current
+            }
         } catch {
-            for (_, lease) in acquired {
-                await hub.releaseLease(lease)
+            for acquiredBinding in acquired {
+                if attachmentRegistrations[scope]?[acquiredBinding.registrationID]?.bindingID
+                    == acquiredBinding.bindingID
+                {
+                    attachmentRegistrations[scope]?[acquiredBinding.registrationID]?
+                        .observationTask?.cancel()
+                    attachmentRegistrations[scope]?[acquiredBinding.registrationID]?
+                        .observationTask = nil
+                    attachmentRegistrations[scope]?[acquiredBinding.registrationID]?.bindingID = nil
+                    attachmentRegistrations[scope]?[acquiredBinding.registrationID]?.hubLease = nil
+                }
+                await hub.releaseLease(acquiredBinding.observation.lease)
             }
-            for (registrationID, _) in acquired {
-                registrations[registrationID]?.hubLease = nil
-            }
-            attachmentRegistrations[scope] = registrations
             throw error
         }
     }
@@ -429,10 +571,12 @@ actor TmuxProviderControlRuntimeRegistry {
         } else {
             attachmentRegistrations[scope] = registrations
         }
-        if let hubLease = registration.hubLease,
+        registration.observationTask?.cancel()
+        registration.continuation.finish()
+        if let lease = registration.hubLease,
            let hub = entries[scope]?.hub
         {
-            await hub.releaseLease(hubLease)
+            await hub.releaseLease(lease)
         }
     }
 
@@ -440,6 +584,9 @@ actor TmuxProviderControlRuntimeRegistry {
         guard var registrations = attachmentRegistrations[scope] else { return }
         for registrationID in registrations.keys {
             registrations[registrationID]?.hubLease = nil
+            registrations[registrationID]?.bindingID = nil
+            registrations[registrationID]?.observationTask?.cancel()
+            registrations[registrationID]?.observationTask = nil
         }
         attachmentRegistrations[scope] = registrations
     }
@@ -450,11 +597,47 @@ actor TmuxProviderControlRuntimeRegistry {
     ) async {
         guard var registrations = attachmentRegistrations[scope] else { return }
         for registrationID in registrations.keys {
-            guard let lease = registrations[registrationID]?.hubLease else { continue }
-            await hub.releaseLease(lease)
-            registrations[registrationID]?.hubLease = nil
+            registrations[registrationID]?.observationTask?.cancel()
+            registrations[registrationID]?.observationTask = nil
+            registrations[registrationID]?.bindingID = nil
+            if let lease = registrations[registrationID]?.hubLease {
+                registrations[registrationID]?.hubLease = nil
+                attachmentRegistrations[scope] = registrations
+                await hub.releaseLease(lease)
+            }
         }
         attachmentRegistrations[scope] = registrations
+    }
+
+    private func forward(
+        _ source: AsyncStream<TmuxServerSnapshot>,
+        registrationID: UUID,
+        scope: TmuxOperationScope,
+        bindingID: UUID
+    ) -> Task<Void, Never> {
+        Task { [weak self] in
+            for await snapshot in source {
+                guard !Task.isCancelled else { return }
+                await self?.forward(
+                    snapshot,
+                    registrationID: registrationID,
+                    scope: scope,
+                    bindingID: bindingID
+                )
+            }
+        }
+    }
+
+    private func forward(
+        _ snapshot: TmuxServerSnapshot,
+        registrationID: UUID,
+        scope: TmuxOperationScope,
+        bindingID: UUID
+    ) {
+        guard let registration = attachmentRegistrations[scope]?[registrationID],
+              registration.bindingID == bindingID
+        else { return }
+        registration.continuation.yield(snapshot)
     }
 
     private func waitForChange() async {
@@ -483,10 +666,13 @@ struct TmuxProviderControlSetup: Sendable {
     let identity: TmuxControlInteractiveIdentity
 }
 
-struct TmuxProviderControlAttachmentLease: Sendable {
+package struct TmuxProviderControlInteractionLease: Sendable {
     let registry: TmuxProviderControlRuntimeRegistry
     let scope: TmuxOperationScope
     let registrationID: UUID
+    let snapshots: AsyncStream<TmuxServerSnapshot>
+    let identity: TmuxControlInteractiveIdentity
+    let attachmentGeneration: UInt64
 }
 
 struct TmuxProviderControlCatalogLease: Sendable {

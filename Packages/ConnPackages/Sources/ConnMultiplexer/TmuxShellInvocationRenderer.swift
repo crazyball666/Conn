@@ -187,6 +187,13 @@ package struct TmuxShellInvocationRenderer: Sendable {
 
         case let .killPane(paneID):
             return join("kill-pane", "-t", encodeTmux(paneID.rawValue))
+
+        case let .scrollPaneMode(paneID, direction, rows):
+            return join(
+                "send-keys", "-t", encodeTmux(paneID.rawValue),
+                "-X", "-N", encodeTmux(String(rows.value)),
+                encodeTmux(direction == .up ? "scroll-up" : "scroll-down")
+            )
         }
     }
 

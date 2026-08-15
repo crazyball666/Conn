@@ -67,6 +67,14 @@ struct TmuxControlCommandRendererTests {
                     + "'resize-pane -Z -t %3' ''"
             ),
             (.killPane(pane), "kill-pane -t '%3'"),
+            (
+                .scrollPaneMode(pane, direction: .up, rows: try TmuxScrollRowCount(12)),
+                "send-keys -t '%3' -X -N '12' 'scroll-up'"
+            ),
+            (
+                .scrollPaneMode(pane, direction: .down, rows: try TmuxScrollRowCount(1)),
+                "send-keys -t '%3' -X -N '1' 'scroll-down'"
+            ),
         ]
 
         for (operation, expected) in fixtures {
@@ -140,6 +148,17 @@ struct TmuxControlCommandRendererTests {
         for invalid in ["", "tty\nnext", String(repeating: "x", count: 1025)] {
             #expect(throws: TmuxOperationError.self) {
                 try TmuxClientTarget(invalid)
+            }
+        }
+    }
+
+    @Test("mode scroll row count is validated before rendering")
+    func validatesModeScrollRows() throws {
+        #expect(try TmuxScrollRowCount(1).value == 1)
+        #expect(try TmuxScrollRowCount(64).value == 64)
+        for value in [Int.min, -1, 0, 65, Int.max] {
+            #expect(throws: TmuxOperationError.invalidScrollRows(value)) {
+                try TmuxScrollRowCount(value)
             }
         }
     }

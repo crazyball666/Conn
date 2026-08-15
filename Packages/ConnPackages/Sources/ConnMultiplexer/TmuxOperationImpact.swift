@@ -300,6 +300,13 @@ public struct TmuxOperationImpactAnalyzer: Sendable {
                     analysis.sharedStateEffects.formUnion([.clientAttachment, .sessionIdentity])
                 }
             }
+
+        case let .scrollPaneMode(paneID, _, _):
+            let pane = try requirePane(paneID, in: snapshot)
+            let window = try requireWindow(pane.windowID, in: snapshot)
+            analysis.target = paneTarget(pane, window: window)
+            analysis.affectedWindowIDs = [window.id]
+            analysis.affectedPaneIDs = [pane.id]
         }
 
         let clientImpact = projectClientImpact(

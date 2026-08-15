@@ -26,9 +26,13 @@ struct TmuxOperationSemanticsTests {
             (.splitPane(pane, orientation: .horizontal), .nonIdempotentMutation),
             (.setPaneZoom(pane, zoomed: true), .idempotentMutation),
             (.killPane(pane), .destructive),
+            (
+                .scrollPaneMode(pane, direction: .up, rows: try TmuxScrollRowCount(12)),
+                .nonIdempotentMutation
+            ),
         ]
 
-        #expect(fixtures.count == 12)
+        #expect(fixtures.count == 13)
         for (operation, expected) in fixtures {
             #expect(operation.semantics == expected)
             #expect(operation.isDestructive == (expected == .destructive))

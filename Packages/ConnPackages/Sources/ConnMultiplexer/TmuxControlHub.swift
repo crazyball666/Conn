@@ -137,6 +137,12 @@ package actor TmuxControlHub {
         let continuation: AsyncStream<TmuxServerSnapshot>.Continuation
     }
 
+    private struct InteractionLeaseRecord {
+        let identity: TmuxControlInteractiveIdentity
+        let target: TmuxControlObservationTarget
+        let continuation: AsyncStream<TmuxServerSnapshot>.Continuation
+    }
+
     private let adapter: any TmuxControlHubAdapter
     private let confirmationGuard: TmuxDestructiveConfirmationGuard
     private let clock: Clock
@@ -150,6 +156,7 @@ package actor TmuxControlHub {
 
     private var identityLeases: [TmuxControlHubLease: TmuxControlInteractiveIdentity] = [:]
     private var observationLeases: [TmuxControlHubLease: ObservationLeaseRecord] = [:]
+    private var interactionLeases: [TmuxControlHubLease: InteractionLeaseRecord] = [:]
 
     private var pendingOperationCount = 0
     private var operationInFlight = false
@@ -191,8 +198,8 @@ package actor TmuxControlHub {
 
     package var status: TmuxControlHubStatus {
         TmuxControlHubStatus(
-            identityLeaseCount: identityLeases.count,
-            observationLeaseCount: observationLeases.count,
+            identityLeaseCount: identityLeases.count + interactionLeases.count,
+            observationLeaseCount: observationLeases.count + interactionLeases.count,
             pendingOperationCount: pendingOperationCount,
             operationInFlight: operationInFlight,
             invalidationReason: invalidationReason
@@ -232,7 +239,34 @@ package actor TmuxControlHub {
         return TmuxControlHubObservation(lease: lease, snapshots: stream)
     }
 
+    package func acquireInteractionLease(
+        identity: TmuxControlInteractiveIdentity,
+        target: TmuxControlObservationTarget
+    ) throws -> TmuxControlHubObservation {
+        try requireActive()
+        let lease = TmuxControlHubLease(id: UUID())
+        let (stream, continuation) = AsyncStream.makeStream(
+            of: TmuxServerSnapshot.self,
+            bufferingPolicy: .bufferingNewest(16)
+        )
+        interactionLeases[lease] = InteractionLeaseRecord(
+            identity: identity,
+            target: target,
+            continuation: continuation
+        )
+        continuation.onTermination = { [weak self] _ in
+            Task { await self?.releaseLease(lease) }
+        }
+        publishDemand()
+        return TmuxControlHubObservation(lease: lease, snapshots: stream)
+    }
+
     package func releaseLease(_ lease: TmuxControlHubLease) {
+        if let interaction = interactionLeases.removeValue(forKey: lease) {
+            interaction.continuation.finish()
+            publishDemand()
+            return
+        }
         if identityLeases.removeValue(forKey: lease) != nil {
             publishDemand()
             return
@@ -460,6 +494,7 @@ package actor TmuxControlHub {
                 )
                 epoch = UUID()
                 identityLeases.removeAll()
+                finishInteractionLeases()
                 consumedConfirmationNonces.removeAll()
                 publishDemand()
             }
@@ -481,7 +516,7 @@ package actor TmuxControlHub {
         let requestedScope = scope
         let requestedEpoch = epoch
         let requestedStateRevision = stateRevision
-        let identities = Set(identityLeases.values)
+        let identities = activeIdentities
         let snapshot = try await adapter.loadSnapshot(
             scope: requestedScope,
             reason: reason,
@@ -558,7 +593,80 @@ package actor TmuxControlHub {
         return try await dispatch(
             request,
             timeout: timeout,
-            identities: Set(identityLeases.values)
+            identities: activeIdentities
+        )
+    }
+
+    package func executeModeScroll(
+        lease: TmuxControlHubLease,
+        target: PersistentTerminalInteractionTarget,
+        attachmentGeneration: UInt64,
+        expectedRevision: UInt64,
+        direction: PersistentTerminalScrollDirection,
+        rows: Int,
+        timeout: Duration
+    ) async throws -> TmuxControlHubOperationReceipt {
+        try validateTimeout(timeout)
+        guard (1 ... PersistentTerminalModeScrollRequest.maximumRows).contains(rows) else {
+            throw PersistentTerminalInteractionError.invalidScrollRows(rows)
+        }
+
+        _ = try await acquireOperationSlot()
+        defer { releaseOperationSlot() }
+        try Task.checkCancellation()
+        try requireActive()
+        guard let interactionLease = interactionLeases[lease],
+              let snapshot = reducer.snapshot
+        else {
+            throw TmuxInteractionError.clientUnavailable
+        }
+        guard snapshot.revision == expectedRevision else {
+            throw TmuxInteractionError.staleState(
+                expectedRevision: expectedRevision,
+                actualRevision: snapshot.revision
+            )
+        }
+        let resolved = try TmuxInteractionStateProjector().resolve(
+            snapshot: snapshot,
+            identity: interactionLease.identity,
+            expectedTarget: target,
+            attachmentGeneration: attachmentGeneration
+        )
+        guard resolved.state.modeCapability == .scrollable else {
+            throw TmuxInteractionError.unsupportedMode
+        }
+        let operation = TmuxOperation.scrollPaneMode(
+            resolved.paneID,
+            direction: direction == .up ? .up : .down,
+            rows: try TmuxScrollRowCount(rows)
+        )
+        return try await dispatch(
+            .init(scope: scope, operation: operation),
+            timeout: timeout,
+            identities: activeIdentities
+        )
+    }
+
+    package func resolveInteraction(
+        lease: TmuxControlHubLease,
+        attachmentGeneration: UInt64,
+        expectedTarget: PersistentTerminalInteractionTarget? = nil,
+        refreshIfNeeded: Bool
+    ) async throws -> TmuxResolvedInteractionState {
+        if refreshIfNeeded {
+            _ = try await refresh(reason: .userRequested)
+        }
+        try requireActive()
+        guard let interactionLease = interactionLeases[lease],
+              let snapshot = reducer.snapshot
+        else {
+            throw TmuxInteractionError.closed
+        }
+        return try TmuxInteractionStateProjector().resolve(
+            snapshot: snapshot,
+            identity: interactionLease.identity,
+            expectedTarget: expectedTarget,
+            attachmentGeneration: attachmentGeneration
         )
     }
 
@@ -612,7 +720,7 @@ package actor TmuxControlHub {
         return try await dispatch(
             request,
             timeout: timeout,
-            identities: Set(identityLeases.values)
+            identities: activeIdentities
         )
     }
 
@@ -769,6 +877,7 @@ package actor TmuxControlHub {
         epoch = UUID()
         latestRefreshID = nil
         identityLeases.removeAll()
+        finishInteractionLeases()
 
         let observations = Array(observationLeases.values)
         observationLeases.removeAll()
@@ -812,6 +921,21 @@ package actor TmuxControlHub {
         for observation in observationLeases.values {
             observation.continuation.yield(snapshot)
         }
+        for interaction in interactionLeases.values {
+            interaction.continuation.yield(snapshot)
+        }
+    }
+
+    private var activeIdentities: Set<TmuxControlInteractiveIdentity> {
+        Set(identityLeases.values).union(interactionLeases.values.map(\.identity))
+    }
+
+    private func finishInteractionLeases() {
+        let interactions = Array(interactionLeases.values)
+        interactionLeases.removeAll()
+        for interaction in interactions {
+            interaction.continuation.finish()
+        }
     }
 
     private func publishDemand() {
@@ -819,8 +943,9 @@ package actor TmuxControlHub {
         let demand = TmuxControlHubDemand(
             sequence: demandSequence,
             scope: scope,
-            observationTargets: Set(observationLeases.values.map(\.target)),
-            identities: Set(identityLeases.values),
+            observationTargets: Set(observationLeases.values.map(\.target))
+                .union(interactionLeases.values.map(\.target)),
+            identities: activeIdentities,
             hasPendingOperations: pendingOperationCount > 0,
             isInvalidated: invalidationReason != nil
         )

@@ -76,6 +76,7 @@ public struct TmuxProvider: PersistentTerminalCatalogProvider {
     public static let workspaceInstancePayloadVersion = 1
     public static let attachmentPayloadVersion = 1
     private static let controlRuntimeRegistry = TmuxProviderControlRuntimeRegistry()
+    private static let attachmentGenerations = TmuxAttachmentGenerationSource()
 
     public let descriptor: PersistentTerminalProviderDescriptor
 
@@ -349,6 +350,7 @@ public struct TmuxProvider: PersistentTerminalCatalogProvider {
             throw TmuxProviderError.unsupportedAttachmentMode(payload.renderMode)
         }
         let runtimeAttachmentID = UUID().uuidString
+        let attachmentGeneration = await Self.attachmentGenerations.next()
 
         let configuration = try decodeConfiguration(from: context.backendProfile)
         let runtime = try await resolveRuntime(configuration: configuration, in: context)
@@ -419,11 +421,47 @@ public struct TmuxProvider: PersistentTerminalCatalogProvider {
         }
         let attachment: TmuxPassthroughAttachment
         do {
+            let oneShotExecutor = TmuxOneShotReadOnlyCommandExecutor(
+                session: context.session,
+                runtime: runtime.runtime,
+                executable: runtime.executable,
+                locator: configuration.locator,
+                scope: controlScope,
+                nonceFactory: { try Self.makeNonce() }
+            )
+            let captureExecutor = TmuxStreamingPaneHistoryCaptureExecutor(
+                session: context.session,
+                runtime: runtime.runtime,
+                executable: runtime.executable,
+                locator: configuration.locator,
+                scope: controlScope,
+                nonceFactory: { try Self.makeNonce() }
+            )
+            let dialect = dialectCandidate(for: runtime.version)
             attachment = try await TmuxPassthroughAttachment.open(
                 descriptor: descriptor,
                 process: process,
                 nonce: nonce,
-                runtimeAttachmentID: runtimeAttachmentID
+                runtimeAttachmentID: runtimeAttachmentID,
+                attachmentGeneration: attachmentGeneration,
+                interactionFactory: { tty, processID in
+                    let fallback = TmuxOneShotInteractionBackend(
+                        executor: oneShotExecutor,
+                        captureExecutor: captureExecutor,
+                        scope: controlScope,
+                        dialect: dialect,
+                        attachmentID: runtimeAttachmentID,
+                        attachmentGeneration: attachmentGeneration,
+                        requestedSessionID: sessionID,
+                        tty: tty,
+                        processID: processID,
+                        nonceFactory: { try Self.makeNonce() }
+                    )
+                    return TmuxInteractionFacet(
+                        attachmentGeneration: attachmentGeneration,
+                        fallback: fallback
+                    )
+                }
             )
         } catch {
             if let controlLease {
@@ -446,6 +484,7 @@ public struct TmuxProvider: PersistentTerminalCatalogProvider {
             let controlAttachmentLease = await Self.controlRuntimeRegistry.acquireAttachment(
                 controlLease,
                 attachmentID: runtimeAttachmentID,
+                attachmentGeneration: attachmentGeneration,
                 requestedSessionID: sessionID,
                 makeHub: { [self] controlRuntime in
                     await makeControlHub(
@@ -1197,23 +1236,42 @@ package protocol TmuxRuntimeAttachmentIdentifying: PersistentTerminalAttachment 
     var runtimeAttachmentID: String { get }
 }
 
-package final class TmuxPassthroughAttachment: TmuxRuntimeAttachmentIdentifying, @unchecked Sendable {
+private actor TmuxAttachmentGenerationSource {
+    private var generation: UInt64 = 0
+
+    func next() -> UInt64 {
+        generation &+= 1
+        return generation
+    }
+}
+
+package final class TmuxPassthroughAttachment:
+    TmuxRuntimeAttachmentIdentifying,
+    PersistentTerminalInteractiveAttachment,
+    @unchecked Sendable
+{
     package let descriptor: PersistentAttachmentDescriptor
     package let presentation: PersistentAttachmentPresentation
     package let runtimeAttachmentID: String
+    package let attachmentGeneration: UInt64
+    package var interaction: any PersistentTerminalInteractionFacet { interactionFacet }
     private let channel: TmuxProcessShellChannel
+    private let interactionFacet: TmuxInteractionFacet
     private let lifecycleLock = NSLock()
     private var didClose = false
-    private var controlLease: TmuxProviderControlAttachmentLease?
 
     private init(
         descriptor: PersistentAttachmentDescriptor,
         channel: TmuxProcessShellChannel,
-        runtimeAttachmentID: String
+        runtimeAttachmentID: String,
+        attachmentGeneration: UInt64,
+        interactionFacet: TmuxInteractionFacet
     ) {
         self.descriptor = descriptor
         self.channel = channel
         self.runtimeAttachmentID = runtimeAttachmentID
+        self.attachmentGeneration = attachmentGeneration
+        self.interactionFacet = interactionFacet
         presentation = .byteTerminal(channel)
     }
 
@@ -1221,15 +1279,23 @@ package final class TmuxPassthroughAttachment: TmuxRuntimeAttachmentIdentifying,
         descriptor: PersistentAttachmentDescriptor,
         process: any RemoteProcessChannel,
         nonce: TmuxInvocationNonce,
-        runtimeAttachmentID: String
+        runtimeAttachmentID: String,
+        attachmentGeneration: UInt64,
+        interactionFactory: @Sendable (String, Int32) -> TmuxInteractionFacet
     ) async throws -> TmuxPassthroughAttachment {
         let channel = TmuxProcessShellChannel(process: process, nonce: nonce)
         do {
             try await channel.waitForReadiness()
+            let identity = channel.processIdentity
             return TmuxPassthroughAttachment(
                 descriptor: descriptor,
                 channel: channel,
-                runtimeAttachmentID: runtimeAttachmentID
+                runtimeAttachmentID: runtimeAttachmentID,
+                attachmentGeneration: attachmentGeneration,
+                interactionFacet: interactionFactory(
+                    identity?.tty ?? "",
+                    identity?.pid ?? -1
+                )
             )
         } catch {
             await channel.close()
@@ -1241,28 +1307,23 @@ package final class TmuxPassthroughAttachment: TmuxRuntimeAttachmentIdentifying,
         channel.processIdentity
     }
 
-    func installControlLease(_ controlLease: TmuxProviderControlAttachmentLease) async {
-        let shouldInstall = lifecycleLock.withLock {
-            guard !didClose else { return false }
-            self.controlLease = controlLease
-            return true
+    func installControlLease(_ controlLease: TmuxProviderControlInteractionLease) async {
+        guard lifecycleLock.withLock({ !didClose }) else {
+            await controlLease.registry.release(controlLease)
+            return
         }
-        guard !shouldInstall else { return }
-        await controlLease.registry.release(controlLease)
+        await interactionFacet.install(controlLease)
     }
 
     package func close() async {
-        let controlLease: TmuxProviderControlAttachmentLease? = lifecycleLock.withLock {
-            guard !didClose else { return nil }
+        let shouldClose = lifecycleLock.withLock {
+            guard !didClose else { return false }
             didClose = true
-            let lease = self.controlLease
-            self.controlLease = nil
-            return lease
+            return true
         }
+        guard shouldClose else { return }
+        await interactionFacet.close()
         await channel.close()
-        if let controlLease {
-            await controlLease.registry.release(controlLease)
-        }
     }
 }
 
