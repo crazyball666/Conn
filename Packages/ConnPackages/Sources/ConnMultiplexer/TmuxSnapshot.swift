@@ -81,6 +81,42 @@ public struct TmuxWindowSnapshot: Sendable, Equatable, Identifiable {
     }
 }
 
+public struct TmuxPaneInteractionSnapshot: Sendable, Equatable {
+    public let alternateOn: TmuxObservedValue<Bool>
+    public let paneInMode: TmuxObservedValue<Bool>
+    public let mode: TmuxObservedValue<String>
+    public let mouseAnyFlag: TmuxObservedValue<Bool>
+    public let historySize: TmuxObservedValue<Int>
+    public let historyLimit: TmuxObservedValue<Int>
+
+    public init(
+        alternateOn: TmuxObservedValue<Bool>,
+        paneInMode: TmuxObservedValue<Bool>,
+        mode: TmuxObservedValue<String>,
+        mouseAnyFlag: TmuxObservedValue<Bool>,
+        historySize: TmuxObservedValue<Int>,
+        historyLimit: TmuxObservedValue<Int>
+    ) {
+        self.alternateOn = alternateOn
+        self.paneInMode = paneInMode
+        self.mode = mode
+        self.mouseAnyFlag = mouseAnyFlag
+        self.historySize = historySize
+        self.historyLimit = historyLimit
+    }
+
+    public static var unavailable: Self {
+        Self(
+            alternateOn: .unavailable,
+            paneInMode: .unavailable,
+            mode: .unavailable,
+            mouseAnyFlag: .unavailable,
+            historySize: .unavailable,
+            historyLimit: .unavailable
+        )
+    }
+}
+
 public struct TmuxPaneSnapshot: Sendable, Equatable, Identifiable {
     public let id: TmuxPaneID
     public let windowID: TmuxWindowID
@@ -88,6 +124,7 @@ public struct TmuxPaneSnapshot: Sendable, Equatable, Identifiable {
     public let title: TmuxObservedValue<String>
     public let currentCommand: TmuxObservedValue<String>
     public let currentPath: TmuxObservedValue<String>
+    public let interaction: TmuxPaneInteractionSnapshot
     public let size: TermSize
     public let isDead: Bool
 
@@ -98,6 +135,7 @@ public struct TmuxPaneSnapshot: Sendable, Equatable, Identifiable {
         title: TmuxObservedValue<String>,
         currentCommand: TmuxObservedValue<String>,
         currentPath: TmuxObservedValue<String>,
+        interaction: TmuxPaneInteractionSnapshot = .unavailable,
         size: TermSize,
         isDead: Bool
     ) {
@@ -107,6 +145,7 @@ public struct TmuxPaneSnapshot: Sendable, Equatable, Identifiable {
         self.title = title
         self.currentCommand = currentCommand
         self.currentPath = currentPath
+        self.interaction = interaction
         self.size = size
         self.isDead = isDead
     }

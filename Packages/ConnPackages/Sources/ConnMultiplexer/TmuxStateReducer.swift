@@ -231,6 +231,7 @@ package struct TmuxStateReducer: Sendable {
                 title: field == .title ? value : pane.title,
                 currentCommand: field == .currentCommand ? value : pane.currentCommand,
                 currentPath: field == .currentPath ? value : pane.currentPath,
+                interaction: pane.interaction,
                 size: pane.size,
                 isDead: pane.isDead
             )

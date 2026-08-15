@@ -14,6 +14,8 @@ package enum TmuxSnapshotNumberField: Sendable, Equatable {
     case paneIndex
     case paneWidth
     case paneHeight
+    case paneHistorySize
+    case paneHistoryLimit
     case clientProcessID
     case clientCreationTime
 }
@@ -23,6 +25,9 @@ package enum TmuxSnapshotBooleanField: Sendable, Equatable {
     case windowZoomed
     case paneDead
     case paneActive
+    case paneAlternateOn
+    case paneInMode
+    case paneMouseAnyFlag
     case clientControlMode
 }
 
@@ -128,6 +133,12 @@ package struct TmuxDecodedPaneRecord: Sendable, Equatable {
     package let title: TmuxDecodedSnapshotText
     package let currentCommand: TmuxDecodedSnapshotText
     package let currentPath: TmuxDecodedSnapshotText
+    package let alternateOn: TmuxDecodedSnapshotText
+    package let paneInMode: TmuxDecodedSnapshotText
+    package let paneMode: TmuxDecodedSnapshotText
+    package let mouseAnyFlag: TmuxDecodedSnapshotText
+    package let historySize: TmuxDecodedSnapshotText
+    package let historyLimit: TmuxDecodedSnapshotText
     package let width: String
     package let height: String
     package let isDead: String
@@ -140,6 +151,12 @@ package struct TmuxDecodedPaneRecord: Sendable, Equatable {
         title: TmuxDecodedSnapshotText,
         currentCommand: TmuxDecodedSnapshotText,
         currentPath: TmuxDecodedSnapshotText,
+        alternateOn: TmuxDecodedSnapshotText = .unavailable,
+        paneInMode: TmuxDecodedSnapshotText = .unavailable,
+        paneMode: TmuxDecodedSnapshotText = .unavailable,
+        mouseAnyFlag: TmuxDecodedSnapshotText = .unavailable,
+        historySize: TmuxDecodedSnapshotText = .unavailable,
+        historyLimit: TmuxDecodedSnapshotText = .unavailable,
         width: String,
         height: String,
         isDead: String,
@@ -151,6 +168,12 @@ package struct TmuxDecodedPaneRecord: Sendable, Equatable {
         self.title = title
         self.currentCommand = currentCommand
         self.currentPath = currentPath
+        self.alternateOn = alternateOn
+        self.paneInMode = paneInMode
+        self.paneMode = paneMode
+        self.mouseAnyFlag = mouseAnyFlag
+        self.historySize = historySize
+        self.historyLimit = historyLimit
         self.width = width
         self.height = height
         self.isDead = isDead
@@ -440,6 +463,34 @@ package struct TmuxSnapshotAssembler: Sendable {
                 title: observedValue(record.title, observedAt: observedAt),
                 currentCommand: observedValue(record.currentCommand, observedAt: observedAt),
                 currentPath: observedValue(record.currentPath, observedAt: observedAt),
+                interaction: .init(
+                    alternateOn: try observedBoolean(
+                        record.alternateOn,
+                        field: .paneAlternateOn,
+                        observedAt: observedAt
+                    ),
+                    paneInMode: try observedBoolean(
+                        record.paneInMode,
+                        field: .paneInMode,
+                        observedAt: observedAt
+                    ),
+                    mode: observedOptionalText(record.paneMode, observedAt: observedAt),
+                    mouseAnyFlag: try observedBoolean(
+                        record.mouseAnyFlag,
+                        field: .paneMouseAnyFlag,
+                        observedAt: observedAt
+                    ),
+                    historySize: try observedNonnegativeInteger(
+                        record.historySize,
+                        field: .paneHistorySize,
+                        observedAt: observedAt
+                    ),
+                    historyLimit: try observedNonnegativeInteger(
+                        record.historyLimit,
+                        field: .paneHistoryLimit,
+                        observedAt: observedAt
+                    )
+                ),
                 size: .init(
                     cols: try positiveInteger(record.width, field: .paneWidth),
                     rows: try positiveInteger(record.height, field: .paneHeight)
@@ -728,6 +779,38 @@ package struct TmuxSnapshotAssembler: Sendable {
         case .unavailable:
             .unavailable
         }
+    }
+
+    private func observedOptionalText(
+        _ text: TmuxDecodedSnapshotText,
+        observedAt: Date
+    ) -> TmuxObservedValue<String> {
+        guard case let .value(value) = text, !value.isEmpty else { return .unavailable }
+        return .init(value: value, freshness: .snapshot(observedAt: observedAt))
+    }
+
+    private func observedBoolean(
+        _ text: TmuxDecodedSnapshotText,
+        field: TmuxSnapshotBooleanField,
+        observedAt: Date
+    ) throws -> TmuxObservedValue<Bool> {
+        guard case let .value(value) = text, !value.isEmpty else { return .unavailable }
+        return .init(
+            value: try boolean(value, field: field),
+            freshness: .snapshot(observedAt: observedAt)
+        )
+    }
+
+    private func observedNonnegativeInteger(
+        _ text: TmuxDecodedSnapshotText,
+        field: TmuxSnapshotNumberField,
+        observedAt: Date
+    ) throws -> TmuxObservedValue<Int> {
+        guard case let .value(value) = text, !value.isEmpty else { return .unavailable }
+        return .init(
+            value: try nonnegativeInteger(value, field: field),
+            freshness: .snapshot(observedAt: observedAt)
+        )
     }
 
     private func containsControlCharacter(_ value: String) -> Bool {

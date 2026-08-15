@@ -89,6 +89,12 @@ package enum TmuxLegacySnapshotField: Sendable, Equatable, Hashable {
     case paneTitle(TmuxPaneID)
     case paneCurrentCommand(TmuxPaneID)
     case paneCurrentPath(TmuxPaneID)
+    case paneAlternateOn(TmuxPaneID)
+    case paneInMode(TmuxPaneID)
+    case paneMode(TmuxPaneID)
+    case paneMouseAnyFlag(TmuxPaneID)
+    case paneHistorySize(TmuxPaneID)
+    case paneHistoryLimit(TmuxPaneID)
     case clientName(processID: Int32, createdAt: Int64?)
     case clientTTY(processID: Int32, createdAt: Int64?)
     case clientFlags(processID: Int32, createdAt: Int64?)
@@ -211,6 +217,54 @@ package struct TmuxSnapshotQueryRenderer: Sendable {
                 format: "#{pane_current_path}"
             )
 
+        case let .paneAlternateOn(paneID):
+            section = .panes
+            query = listOne(
+                command: "list-panes -a",
+                filter: equality("pane_id", paneID.rawValue),
+                format: "#{alternate_on}"
+            )
+
+        case let .paneInMode(paneID):
+            section = .panes
+            query = listOne(
+                command: "list-panes -a",
+                filter: equality("pane_id", paneID.rawValue),
+                format: "#{pane_in_mode}"
+            )
+
+        case let .paneMode(paneID):
+            section = .panes
+            query = listOne(
+                command: "list-panes -a",
+                filter: equality("pane_id", paneID.rawValue),
+                format: "#{pane_mode}"
+            )
+
+        case let .paneMouseAnyFlag(paneID):
+            section = .panes
+            query = listOne(
+                command: "list-panes -a",
+                filter: equality("pane_id", paneID.rawValue),
+                format: "#{mouse_any_flag}"
+            )
+
+        case let .paneHistorySize(paneID):
+            section = .panes
+            query = listOne(
+                command: "list-panes -a",
+                filter: equality("pane_id", paneID.rawValue),
+                format: "#{history_size}"
+            )
+
+        case let .paneHistoryLimit(paneID):
+            section = .panes
+            query = listOne(
+                command: "list-panes -a",
+                filter: equality("pane_id", paneID.rawValue),
+                format: "#{history_limit}"
+            )
+
         case let .clientName(processID, createdAt):
             section = .clients
             query = try listClientField(
@@ -290,7 +344,7 @@ package struct TmuxSnapshotQueryRenderer: Sendable {
             ),
             .init(
                 section: .panes,
-                expectedFieldCount: 10,
+                expectedFieldCount: 16,
                 command: list(
                     command: "list-panes -a",
                     format: quotedFormat([
@@ -299,6 +353,9 @@ package struct TmuxSnapshotQueryRenderer: Sendable {
                         ("pane_current_command", true), ("pane_current_path", true),
                         ("pane_width", false), ("pane_height", false),
                         ("pane_dead", false), ("pane_active", false),
+                        ("alternate_on", false), ("pane_in_mode", false),
+                        ("pane_mode", true), ("mouse_any_flag", false),
+                        ("history_size", false), ("history_limit", false),
                     ])
                 )
             ),

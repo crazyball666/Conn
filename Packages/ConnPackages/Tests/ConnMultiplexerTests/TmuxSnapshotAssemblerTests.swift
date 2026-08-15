@@ -35,6 +35,12 @@ struct TmuxSnapshotAssemblerTests {
             value: "nvim",
             freshness: .snapshot(observedAt: observedAt)
         ))
+        #expect(snapshot.panes[fixture.pane]?.interaction.alternateOn.value == true)
+        #expect(snapshot.panes[fixture.pane]?.interaction.paneInMode.value == true)
+        #expect(snapshot.panes[fixture.pane]?.interaction.mode.value == "copy-mode")
+        #expect(snapshot.panes[fixture.pane]?.interaction.mouseAnyFlag.value == false)
+        #expect(snapshot.panes[fixture.pane]?.interaction.historySize.value == 120)
+        #expect(snapshot.panes[fixture.pane]?.interaction.historyLimit.value == 2_000)
 
         let interactive = try #require(snapshot.clients[fixture.interactiveClientID])
         #expect(interactive.role == .connInteractive(attachmentID: "attachment-1"))
@@ -62,7 +68,13 @@ struct TmuxSnapshotAssemblerTests {
         let pane = fixture.paneRecord(
             title: .unavailable,
             currentCommand: .unavailable,
-            currentPath: .unavailable
+            currentPath: .unavailable,
+            alternateOn: .unavailable,
+            paneInMode: .unavailable,
+            paneMode: .unavailable,
+            mouseAnyFlag: .unavailable,
+            historySize: .unavailable,
+            historyLimit: .unavailable
         )
         let external = fixture.externalClientRecord(flags: .unavailable, controlMode: "")
         let snapshot = try TmuxSnapshotAssembler().assemble(
@@ -83,6 +95,7 @@ struct TmuxSnapshotAssemblerTests {
         #expect(snapshot.panes[fixture.pane]?.title == .unavailable)
         #expect(snapshot.panes[fixture.pane]?.currentCommand == .unavailable)
         #expect(snapshot.panes[fixture.pane]?.currentPath == .unavailable)
+        #expect(snapshot.panes[fixture.pane]?.interaction == .unavailable)
         #expect(snapshot.clients[fixture.externalClientID]?.flags == nil)
         #expect(snapshot.clients[fixture.externalClientID]?.kind == .unknown)
         #expect(snapshot.clients[fixture.externalClientID]?.sizeParticipation == .unknown)
@@ -184,6 +197,11 @@ struct TmuxSnapshotAssemblerTests {
             try fixture.assemble(fixture.records(windowLinks: [
                 .init(sessionID: "$1", windowID: "@1", index: "0", isCurrent: "true")
             ]))
+        }
+        #expect(throws: TmuxSnapshotAssemblerError.invalidNumber(.paneHistorySize)) {
+            try fixture.assemble(fixture.records(panes: [fixture.paneRecord(
+                historySize: .value("-1")
+            )]))
         }
     }
 
@@ -423,6 +441,12 @@ private struct SnapshotAssemblerFixture {
         title: TmuxDecodedSnapshotText = .value("editor\nprimary"),
         currentCommand: TmuxDecodedSnapshotText = .value("nvim"),
         currentPath: TmuxDecodedSnapshotText = .value("/repo"),
+        alternateOn: TmuxDecodedSnapshotText = .value("1"),
+        paneInMode: TmuxDecodedSnapshotText = .value("1"),
+        paneMode: TmuxDecodedSnapshotText = .value("copy-mode"),
+        mouseAnyFlag: TmuxDecodedSnapshotText = .value("0"),
+        historySize: TmuxDecodedSnapshotText = .value("120"),
+        historyLimit: TmuxDecodedSnapshotText = .value("2000"),
         isActive: String = "1"
     ) -> TmuxDecodedPaneRecord {
         .init(
@@ -432,6 +456,12 @@ private struct SnapshotAssemblerFixture {
             title: title,
             currentCommand: currentCommand,
             currentPath: currentPath,
+            alternateOn: alternateOn,
+            paneInMode: paneInMode,
+            paneMode: paneMode,
+            mouseAnyFlag: mouseAnyFlag,
+            historySize: historySize,
+            historyLimit: historyLimit,
             width: "120",
             height: "40",
             isDead: "0",

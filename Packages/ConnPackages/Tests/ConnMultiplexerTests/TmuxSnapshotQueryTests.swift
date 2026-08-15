@@ -19,7 +19,7 @@ struct TmuxSnapshotQueryTests {
         #expect(step.request.semantics == .readOnly)
         #expect(step.decoding == .quotedSections)
         #expect(step.frames.map(\.section) == TmuxSnapshotSection.allCases)
-        #expect(step.frames.map(\.expectedFieldCount) == [4, 3, 4, 4, 10, 9, 4])
+        #expect(step.frames.map(\.expectedFieldCount) == [4, 3, 4, 4, 16, 9, 4])
 
         let command = try commandString(step.request)
         #expect(!command.contains("\n"))
@@ -27,13 +27,14 @@ struct TmuxSnapshotQueryTests {
         #expect(command.contains("list-sessions -F '\"#{session_id}\" \"#{q:session_name}\" \"#{q:session_group}\"'"))
         #expect(command.contains("list-windows -a -F '\"#{session_id}\" \"#{window_id}\" \"#{window_index}\" \"#{window_active}\"'"))
         #expect(command.contains("list-windows -a -F '\"#{window_id}\" \"#{q:window_name}\" \"#{q:window_layout}\" \"#{window_zoomed_flag}\"'"))
-        #expect(command.contains("list-panes -a -F '\"#{window_id}\" \"#{pane_id}\" \"#{pane_index}\" \"#{q:pane_title}\" \"#{q:pane_current_command}\" \"#{q:pane_current_path}\" \"#{pane_width}\" \"#{pane_height}\" \"#{pane_dead}\" \"#{pane_active}\"'"))
+        #expect(command.contains("list-panes -a -F '\"#{window_id}\" \"#{pane_id}\" \"#{pane_index}\" \"#{q:pane_title}\" \"#{q:pane_current_command}\" \"#{q:pane_current_path}\" \"#{pane_width}\" \"#{pane_height}\" \"#{pane_dead}\" \"#{pane_active}\" \"#{alternate_on}\" \"#{pane_in_mode}\" \"#{q:pane_mode}\" \"#{mouse_any_flag}\" \"#{history_size}\" \"#{history_limit}\"'"))
         #expect(command.contains("list-clients -F '\"#{q:client_name}\" \"#{q:client_tty}\" \"#{client_pid}\" \"#{client_created}\" \"#{session_id}\" \"#{window_id}\" \"#{pane_id}\" \"#{q:client_flags}\" \"#{client_control_mode}\"'"))
 
         let typedFields = [
             "session_id", "window_id", "window_index", "window_active",
             "window_zoomed_flag", "pane_id", "pane_index", "pane_width",
-            "pane_height", "pane_dead", "pane_active", "client_pid",
+            "pane_height", "pane_dead", "pane_active", "alternate_on",
+            "pane_in_mode", "mouse_any_flag", "history_size", "history_limit", "client_pid",
             "client_created", "client_control_mode", "pid", "start_time",
         ]
         for field in typedFields {
@@ -67,6 +68,7 @@ struct TmuxSnapshotQueryTests {
         for untrustedField in [
             "session_name", "session_group", "window_name", "window_layout",
             "pane_title", "pane_current_command", "pane_current_path",
+            "pane_mode",
             "client_name", "client_tty", "client_flags", "socket_path", "version",
         ] {
             #expect(!combinedRecords.contains("#{\(untrustedField)}"))
@@ -85,6 +87,12 @@ struct TmuxSnapshotQueryTests {
             (.paneTitle(pane), "-F '#{pane_title}'"),
             (.paneCurrentCommand(pane), "-F '#{pane_current_command}'"),
             (.paneCurrentPath(pane), "-F '#{pane_current_path}'"),
+            (.paneAlternateOn(pane), "-F '#{alternate_on}'"),
+            (.paneInMode(pane), "-F '#{pane_in_mode}'"),
+            (.paneMode(pane), "-F '#{pane_mode}'"),
+            (.paneMouseAnyFlag(pane), "-F '#{mouse_any_flag}'"),
+            (.paneHistorySize(pane), "-F '#{history_size}'"),
+            (.paneHistoryLimit(pane), "-F '#{history_limit}'"),
             (.clientName(processID: 321, createdAt: 654), "-F '#{client_name}'"),
             (.clientTTY(processID: 321, createdAt: 654), "-F '#{client_tty}'"),
             (.clientFlags(processID: 321, createdAt: 654), "-F '#{client_flags}'"),

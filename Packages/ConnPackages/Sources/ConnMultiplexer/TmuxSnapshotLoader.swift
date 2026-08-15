@@ -194,6 +194,12 @@ package actor TmuxSnapshotLoader {
         var paneTitles: [TmuxPaneID: String] = [:]
         var paneCommands: [TmuxPaneID: String] = [:]
         var panePaths: [TmuxPaneID: String] = [:]
+        var paneAlternateOn: [TmuxPaneID: String] = [:]
+        var paneInMode: [TmuxPaneID: String] = [:]
+        var paneModes: [TmuxPaneID: String] = [:]
+        var paneMouseAnyFlag: [TmuxPaneID: String] = [:]
+        var paneHistorySize: [TmuxPaneID: String] = [:]
+        var paneHistoryLimit: [TmuxPaneID: String] = [:]
         var clientNames: [LegacyClientKey: String] = [:]
         var clientTTYs: [LegacyClientKey: String] = [:]
         var clientFlags: [LegacyClientKey: String] = [:]
@@ -360,6 +366,12 @@ package actor TmuxSnapshotLoader {
                 TmuxDecodedPaneRecord(
                     id: $0[1], windowID: $0[0], index: $0[2], title: .value($0[3]),
                     currentCommand: .value($0[4]), currentPath: .value($0[5]),
+                    alternateOn: decodedOptional($0[10]),
+                    paneInMode: decodedOptional($0[11]),
+                    paneMode: decodedOptional($0[12]),
+                    mouseAnyFlag: decodedOptional($0[13]),
+                    historySize: decodedOptional($0[14]),
+                    historyLimit: decodedOptional($0[15]),
                     width: $0[6], height: $0[7], isDead: $0[8], isActive: $0[9]
                 )
             },
@@ -709,7 +721,17 @@ package actor TmuxSnapshotLoader {
             fields += [.windowName(window.id), .windowLayout(window.id)]
         }
         for pane in base.panes.sorted(by: { $0.id.rawValue < $1.id.rawValue }) {
-            fields += [.paneTitle(pane.id), .paneCurrentCommand(pane.id), .paneCurrentPath(pane.id)]
+            fields += [
+                .paneTitle(pane.id),
+                .paneCurrentCommand(pane.id),
+                .paneCurrentPath(pane.id),
+                .paneAlternateOn(pane.id),
+                .paneInMode(pane.id),
+                .paneMode(pane.id),
+                .paneMouseAnyFlag(pane.id),
+                .paneHistorySize(pane.id),
+                .paneHistoryLimit(pane.id),
+            ]
         }
         for client in base.clients.sorted(by: clientOrder) {
             fields += [
@@ -741,6 +763,12 @@ package actor TmuxSnapshotLoader {
         case let .paneTitle(id): text.paneTitles[id] = value
         case let .paneCurrentCommand(id): text.paneCommands[id] = value
         case let .paneCurrentPath(id): text.panePaths[id] = value
+        case let .paneAlternateOn(id): text.paneAlternateOn[id] = value
+        case let .paneInMode(id): text.paneInMode[id] = value
+        case let .paneMode(id): text.paneModes[id] = value
+        case let .paneMouseAnyFlag(id): text.paneMouseAnyFlag[id] = value
+        case let .paneHistorySize(id): text.paneHistorySize[id] = value
+        case let .paneHistoryLimit(id): text.paneHistoryLimit[id] = value
         case let .clientName(processID, createdAt):
             text.clientNames[.init(processID: processID, createdAt: createdAt)] = value
         case let .clientTTY(processID, createdAt):
@@ -793,6 +821,24 @@ package actor TmuxSnapshotLoader {
                     currentPath: .value(try required(
                         text.panePaths[pane.id], field: .paneCurrentPath(pane.id)
                     )),
+                    alternateOn: decodedOptional(try required(
+                        text.paneAlternateOn[pane.id], field: .paneAlternateOn(pane.id)
+                    )),
+                    paneInMode: decodedOptional(try required(
+                        text.paneInMode[pane.id], field: .paneInMode(pane.id)
+                    )),
+                    paneMode: decodedOptional(try required(
+                        text.paneModes[pane.id], field: .paneMode(pane.id)
+                    )),
+                    mouseAnyFlag: decodedOptional(try required(
+                        text.paneMouseAnyFlag[pane.id], field: .paneMouseAnyFlag(pane.id)
+                    )),
+                    historySize: decodedOptional(try required(
+                        text.paneHistorySize[pane.id], field: .paneHistorySize(pane.id)
+                    )),
+                    historyLimit: decodedOptional(try required(
+                        text.paneHistoryLimit[pane.id], field: .paneHistoryLimit(pane.id)
+                    )),
                     width: pane.width,
                     height: pane.height,
                     isDead: pane.isDead,
@@ -841,5 +887,9 @@ package actor TmuxSnapshotLoader {
             throw TmuxSnapshotLoaderError.missingLegacyField(field)
         }
         return value
+    }
+
+    private func decodedOptional(_ value: String) -> TmuxDecodedSnapshotText {
+        value.isEmpty ? .unavailable : .value(value)
     }
 }

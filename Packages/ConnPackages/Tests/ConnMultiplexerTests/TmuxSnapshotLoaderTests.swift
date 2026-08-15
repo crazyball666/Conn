@@ -29,6 +29,9 @@ struct TmuxSnapshotLoaderTests {
         #expect(snapshot.panes[fixture.pane]?.title.freshness == .snapshot(
             observedAt: fixture.observedAt
         ))
+        #expect(snapshot.panes[fixture.pane]?.interaction.alternateOn.value == true)
+        #expect(snapshot.panes[fixture.pane]?.interaction.paneInMode.value == true)
+        #expect(snapshot.panes[fixture.pane]?.interaction.mode.value == "copy-mode")
         #expect(snapshot.clients[fixture.interactiveClientID]?.role == .connInteractive(
             attachmentID: "attachment-1"
         ))
@@ -59,7 +62,8 @@ struct TmuxSnapshotLoaderTests {
         #expect(snapshot.panes[fixture.pane]?.title.freshness == .snapshot(
             observedAt: fixture.observedAt
         ))
-        #expect(await executor.requestCount == 17)
+        #expect(snapshot.panes[fixture.pane]?.interaction.historySize.value == 120)
+        #expect(await executor.requestCount == 23)
 
         let requests = await executor.requests
         let finalIdentityIndex = try #require(requests.lastIndex {
@@ -264,7 +268,7 @@ private struct SnapshotLoaderFixture: Sendable {
             .windows: [line(#""@1" "editor" "layout" "0""#)],
             .panes: [
                 line(#""@1" "%1" "0" "editor\"#),
-                line(#"primary" "nvim" "/repo" "80" "24" "0" "1""#),
+                line(#"primary" "nvim" "/repo" "80" "24" "0" "1" "1" "1" "copy-mode" "0" "120" "2000""#),
             ],
             .clients: [],
             .serverIdentityAfter: [line(
@@ -313,6 +317,12 @@ private struct SnapshotLoaderFixture: Sendable {
             (.paneTitle(pane), [line("legacy"), line("line")]),
             (.paneCurrentCommand(pane), [line("sh")]),
             (.paneCurrentPath(pane), [line("/repo")]),
+            (.paneAlternateOn(pane), [line("0")]),
+            (.paneInMode(pane), [line("0")]),
+            (.paneMode(pane), [line("")]),
+            (.paneMouseAnyFlag(pane), [line("0")]),
+            (.paneHistorySize(pane), [line("120")]),
+            (.paneHistoryLimit(pane), [line("2000")]),
         ]
         for (field, lines) in fields {
             let step = try renderer.renderLegacyField(field, nonce: nonce)
