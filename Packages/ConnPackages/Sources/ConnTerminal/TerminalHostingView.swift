@@ -337,22 +337,19 @@
             configureViewportInsets()
         }
 
-        /// SwiftTerm 在文字选择和远端鼠标模式下会动态添加额外的 pan。
-        /// 使用 UIView 原生的 begin 钩子做方向仲裁，不替换任何手势的 delegate。
+        /// SwiftTerm 会为文字选择和远端鼠标拖动动态添加额外的 pan；它们会与
+        /// UIScrollView 的原生 pan 竞争。移动端优先保证单指滚动，因此只允许
+        /// 原生滚动 pan 开始，其他终端 pan 一律禁用且不替换任何手势代理。
         override public func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
-            guard let pan = gestureRecognizer as? UIPanGestureRecognizer,
-                  pan !== panGestureRecognizer else {
+            guard let pan = gestureRecognizer as? UIPanGestureRecognizer else {
                 return super.gestureRecognizerShouldBegin(gestureRecognizer)
             }
-            return shouldBeginAuxiliaryPan(initialVelocity: pan.velocity(in: self))
-                && super.gestureRecognizerShouldBegin(gestureRecognizer)
-        }
-
-        func shouldBeginAuxiliaryPan(initialVelocity: CGPoint) -> Bool {
-            TerminalPanGesturePolicy.shouldBeginAuxiliaryPan(
-                initialVelocity: initialVelocity,
-                remoteMouseReportingEnabled: getTerminal().mouseMode != .off
-            )
+            guard TerminalPanGesturePolicy.shouldBeginPan(
+                isNativeScrollPan: pan === panGestureRecognizer
+            ) else {
+                return false
+            }
+            return super.gestureRecognizerShouldBegin(gestureRecognizer)
         }
 
         /// SwiftUI 通过键盘安全区直接改变终端的真实高度，SwiftTerm 再据此重算行数。

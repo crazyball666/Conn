@@ -93,8 +93,8 @@ struct TerminalLayoutTests {
         #expect(view.scrollPosition < 1)
     }
 
-    @Test("文字选择拖动接入 Conn 仲裁且不替换任何手势代理")
-    func selectionPanUsesConnArbiterWithoutChangingGestureDelegates() {
+    @Test("文字选择拖动被禁用且不替换任何手势代理")
+    func selectionPanIsDisabledWithoutChangingGestureDelegates() {
         let view = KeybarTerminalView(frame: CGRect(x: 0, y: 0, width: 320, height: 480))
         let nativePanDelegate = view.panGestureRecognizer.delegate
 
@@ -106,11 +106,7 @@ struct TerminalLayoutTests {
         #expect(auxiliaryPans.count == 1)
         #expect(auxiliaryPans.first?.delegate == nil)
         #expect(view.panGestureRecognizer.delegate === nativePanDelegate)
-        #expect(
-            !view.shouldBeginAuxiliaryPan(
-                initialVelocity: CGPoint(x: 0, y: -40)
-            )
-        )
+        #expect(auxiliaryPans.allSatisfy { !view.gestureRecognizerShouldBegin($0) })
     }
 
     @Test("已有代理的额外手势不被 Conn 覆盖")
@@ -125,17 +121,16 @@ struct TerminalLayoutTests {
         #expect(pan.delegate === existingDelegate)
     }
 
-    @Test("远端鼠标模式在选区激活时仍接管纵向拖动")
-    func remoteMouseModeBypassesLocalPanDirectionPolicy() {
+    @Test("远端鼠标模式也不能抢占原生滚动")
+    func remoteMouseModeDoesNotTakeOverNativeScrolling() {
         let view = KeybarTerminalView(frame: CGRect(x: 0, y: 0, width: 320, height: 480))
-        view.selectAll(nil)
         view.feed(byteArray: ArraySlice("\u{1B}[?1000h".utf8))
 
-        let shouldBegin = view.shouldBeginAuxiliaryPan(
-            initialVelocity: CGPoint(x: 0, y: -40)
-        )
+        let auxiliaryPans = (view.gestureRecognizers ?? [])
+            .compactMap { $0 as? UIPanGestureRecognizer }
+            .filter { $0 !== view.panGestureRecognizer }
 
-        #expect(view.hasActiveSelection)
-        #expect(shouldBegin)
+        #expect(!auxiliaryPans.isEmpty)
+        #expect(auxiliaryPans.allSatisfy { !view.gestureRecognizerShouldBegin($0) })
     }
 }
