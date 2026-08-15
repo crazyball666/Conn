@@ -192,13 +192,14 @@ Docker、脚本等显式入口也必须在各自当前页面通过协调器创�
 
 `TerminalSessionCoordinator` 新增两阶段、按 attempt ID 管理的创建边界，解决底层 SSH/PTY 打开可能不响应 Swift Task cancellation 的问题：
 
-1. 源页面创建唯一 `TerminalLaunchAttemptID`；
-2. `prepareLaunch(request, attemptID:)` 打开 backend、构造临时 session/attachment 和 Tab 元数据，但不调用 `store.add`，不启动 Store 所属生命周期观察；
+1. 源页面先在 MainActor **同步**调用 `beginLaunchAttempt()`；协调器立即登记 `.pending` 状态并返回唯一 `TerminalLaunchAttemptID`，完成登记前不得启动异步 Task；
+2. 源页面随后启动 `prepareLaunch(request, attemptID:)`；该方法只接受已登记的 pending attempt，打开 backend、构造临时 session/attachment 和 Tab 元数据，但不调用 `store.add`，不启动 Store 所属生命周期观察；
 3. Sheet 或显式入口确认当前 UI generation 仍有效后，在 MainActor 上调用 `commitLaunch(attemptID:)`；
 4. `commitLaunch` 与 `cancelLaunch` 对同一 attempt 原子竞争，只有 active/prepared attempt 可以提交；提交才把 Tab 加入 Store、启动 session/lifecycle，并返回 `tabID`；
-5. `cancelLaunch(attemptID:)` 立即把 pending/prepared attempt 标为取消；已准备资源立即关闭，仍在不可取消 open 中的任务返回后只关闭临时资源，绝不写入 Store；
-6. commit 成功后 attempt 转为 consumed，Sheet 的成功 dismiss 不再取消已归属 Store 的 Tab；
-7. 任一失败路径清理 attempt 和临时资源，失败 Tab 不进入 Store。
+5. `cancelLaunch(attemptID:)` 立即把 pending/prepared attempt 标为 `.cancelled`；已准备资源立即关闭；仍在不可取消 open 中的任务返回后只关闭临时资源，绝不写入 Store；
+6. `.cancelled` tombstone 必须保留到对应 prepare worker 明确观察取消并完成资源清理，避免“先 cancel、后 prepare 注册/返回”的丢失取消竞态；worker 确认退出后才删除 tombstone；
+7. commit 成功后 attempt 转为 consumed，Sheet 的成功 dismiss 不再取消已归属 Store 的 Tab；
+8. 任一失败路径清理 attempt 和临时资源，失败 Tab 不进入 Store。
 
 `launch(_:)` 可保留为内部便利入口并以 prepare + commit 实现，但所有会受页面取消影响的生产入口必须显式持有 attempt ID。关闭 Sheet、切换 Host/provider、源页面消失和 Host identity 失效都调用 `cancelLaunch`。
 
@@ -269,7 +270,8 @@ Docker、脚本等显式入口也必须在各自当前页面通过协调器创�
 - 打开、展开和折叠终端主页不会调用 provider probe、Workspace 查询或 `openPersistentCatalog`；
 - 主页只渲染本地 Store 中普通、persistent 和断线 Tab，零本地 Tab 的 Host 不显示；
 - 新建弹窗所有阶段都有关闭操作；
-- 关闭会取消 probe/list 和 launch transaction；不可取消 open 的迟到结果只能被关闭，不能创建 Tab 或导航；
+- 关闭会取消 probe/list 和 launch transaction；同步登记后立即关闭、prepare 开始前关闭以及不可取消 open 中关闭都只能清理 attempt，不能创建 Tab 或导航；
+- cancel-before-prepare-registration 不可表示：`beginLaunchAttempt()` 必须同步完成登记；cancel-before-prepare-start 会留下 tombstone，并由 prepare worker 确认清理；
 - 普通 PTY 分支不会 probe persistent provider；
 - 只有选择 tmux 后才 probe 和执行一次 Workspace 查询；
 - 单可用候选直接显示 Workspace，多可用候选可切换；零可用候选仍保留完整诊断；
