@@ -93,20 +93,20 @@ struct TerminalLayoutTests {
         #expect(view.scrollPosition < 1)
     }
 
-    @Test("文字选择拖动被禁用且不替换任何手势代理")
-    func selectionPanIsDisabledWithoutChangingGestureDelegates() {
+    @Test("宿主手势安装一次并保留 UIScrollView 原生滚动手势")
+    func hostGesturesInstallOnceWithoutReplacingNativePan() throws {
         let view = KeybarTerminalView(frame: CGRect(x: 0, y: 0, width: 320, height: 480))
         let nativePanDelegate = view.panGestureRecognizer.delegate
+        installInteractionHost(on: view)
+        let remote = try #require(view.installedRemoteScrollGesture)
+        let selection = try #require(view.installedSelectionGesture)
 
-        view.selectAll(nil)
+        installInteractionHost(on: view)
 
-        let auxiliaryPans = (view.gestureRecognizers ?? [])
-            .compactMap { $0 as? UIPanGestureRecognizer }
-            .filter { $0 !== view.panGestureRecognizer }
-        #expect(auxiliaryPans.count == 1)
-        #expect(auxiliaryPans.first?.delegate == nil)
+        #expect(view.installedRemoteScrollGesture === remote)
+        #expect(view.installedSelectionGesture === selection)
         #expect(view.panGestureRecognizer.delegate === nativePanDelegate)
-        #expect(auxiliaryPans.allSatisfy { !view.gestureRecognizerShouldBegin($0) })
+        #expect(view.hostManagesTouchGestures)
     }
 
     @Test("已有代理的额外手势不被 Conn 覆盖")
@@ -121,16 +121,62 @@ struct TerminalLayoutTests {
         #expect(pan.delegate === existingDelegate)
     }
 
-    @Test("远端鼠标模式也不能抢占原生滚动")
-    func remoteMouseModeDoesNotTakeOverNativeScrolling() {
+    @Test("远端路由有首次选择权，普通历史让原生滚动继续")
+    func remoteRouteGetsFirstRefusal() throws {
         let view = KeybarTerminalView(frame: CGRect(x: 0, y: 0, width: 320, height: 480))
-        view.feed(byteArray: ArraySlice("\u{1B}[?1000h".utf8))
+        var routesRemotely = false
+        installInteractionHost(
+            on: view,
+            shouldBeginRemoteScroll: { routesRemotely }
+        )
+        let remote = try #require(view.installedRemoteScrollGesture)
 
-        let auxiliaryPans = (view.gestureRecognizers ?? [])
-            .compactMap { $0 as? UIPanGestureRecognizer }
-            .filter { $0 !== view.panGestureRecognizer }
+        #expect(!view.gestureRecognizerShouldBegin(remote))
+        routesRemotely = true
+        #expect(view.gestureRecognizerShouldBegin(remote))
+    }
 
-        #expect(!auxiliaryPans.isEmpty)
-        #expect(auxiliaryPans.allSatisfy { !view.gestureRecognizerShouldBegin($0) })
+    @Test("触摸指针开关不阻断硬件鼠标事件")
+    func hardwarePointerDoesNotShareTouchPointerGate() throws {
+        let view = KeybarTerminalView(frame: CGRect(x: 0, y: 0, width: 320, height: 480))
+        installInteractionHost(
+            on: view,
+            shouldBeginDirectPointer: { false },
+            shouldBeginIndirectPointer: { true }
+        )
+        let direct = try #require(view.installedDirectPointerGesture)
+        let indirect = try #require(view.installedIndirectPointerGesture)
+
+        #expect(!view.gestureRecognizerShouldBegin(direct))
+        #expect(view.gestureRecognizerShouldBegin(indirect))
+    }
+
+    @Test("review 使用可滚动、只读且可拖动选择的原生文本视图")
+    func reviewSurfaceUsesNativeSelection() {
+        let review = TerminalReviewTextView(frame: CGRect(x: 0, y: 0, width: 320, height: 480))
+
+        #expect(!review.textView.isEditable)
+        #expect(review.textView.isSelectable)
+        #expect(review.textView.alwaysBounceVertical)
+        #expect(review.textView.textContainer.lineFragmentPadding == 0)
+        #expect(review.closeButton.accessibilityIdentifier == "terminal.review.close")
+    }
+
+    private func installInteractionHost(
+        on view: KeybarTerminalView,
+        shouldBeginRemoteScroll: @escaping () -> Bool = { false },
+        shouldBeginDirectPointer: @escaping () -> Bool = { false },
+        shouldBeginIndirectPointer: @escaping () -> Bool = { false }
+    ) {
+        view.installInteractionHost(
+            shouldBeginRemoteScroll: { _ in shouldBeginRemoteScroll() },
+            onRemoteScroll: { _ in },
+            onSelectionLongPress: { _ in },
+            shouldBeginDirectPointer: shouldBeginDirectPointer,
+            shouldBeginIndirectPointer: shouldBeginIndirectPointer,
+            onDirectPointer: { _ in },
+            onDirectTap: { _ in },
+            onIndirectPointer: { _ in }
+        )
     }
 }

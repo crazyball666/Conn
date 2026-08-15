@@ -87,6 +87,26 @@ struct TerminalHostInteractionTests {
         #expect(String(bytes: delegate.sent, encoding: .utf8) == "\u{1b}[<64;10;5M")
     }
 
+    @Test("typed pointer suppresses events unsupported by the active tracking mode")
+    func typedPointerHonorsTrackingMode() {
+        let delegate = Delegate()
+        let terminal = Terminal(delegate: delegate)
+        let hit = TerminalInteractionHit(column: 1, row: 1, pixelX: 1, pixelY: 1)
+
+        terminal.feed(text: "\u{1b}[?9h")
+        terminal.sendHostPointer(.press(button: 0), at: hit, modifiers: [])
+        #expect(!delegate.sent.isEmpty)
+
+        delegate.sent.removeAll()
+        terminal.sendHostPointer(.release(button: 0), at: hit, modifiers: [])
+        terminal.sendHostPointer(.motion(button: 0), at: hit, modifiers: [])
+        #expect(delegate.sent.isEmpty)
+
+        terminal.feed(text: "\u{1b}[?9l\u{1b}[?1002h")
+        terminal.sendHostPointer(.motion(button: 0), at: hit, modifiers: [])
+        #expect(!delegate.sent.isEmpty)
+    }
+
     @Test("snapshots are immutable and retain cell-to-text mappings")
     func immutableSnapshot() {
         let delegate = Delegate()

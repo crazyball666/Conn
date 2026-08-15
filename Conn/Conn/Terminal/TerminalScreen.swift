@@ -1,4 +1,5 @@
 import ConnKit
+import ConnMultiplexer
 import ConnSSH
 import ConnTerminal
 import ConnUI
@@ -150,6 +151,10 @@ struct TerminalScreen: View {
                 TerminalHostingView(
                     session: tab.session,
                     transcript: tab.transcript,
+                    persistentInteraction: (
+                        tab.persistentAttachment as? any PersistentTerminalInteractiveAttachment
+                    )?.interaction,
+                    terminalGeneration: tab.generation,
                     configuration: configuration,
                     onChooseCommand: showCommandPicker,
                     onReconnect: { Task { await reconnect(tab.id) } }

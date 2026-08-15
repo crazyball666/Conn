@@ -123,6 +123,20 @@ struct AppWideUIConsistencyTests {
         #expect(source.contains("Text(sessionSubtitle)"))
     }
 
+    @Test("终端页只传 provider-neutral 交互 facet，不感知 tmux")
+    func terminalScreenUsesOptionalInteractionFacet() throws {
+        let screen = try appSource("Terminal/TerminalScreen.swift")
+        let host = try packageSource("Sources/ConnTerminal/TerminalHostingView.swift")
+
+        #expect(screen.contains("as? any PersistentTerminalInteractiveAttachment"))
+        #expect(screen.contains(")?.interaction"))
+        #expect(screen.contains("terminalGeneration: tab.generation"))
+        #expect(!screen.contains("TmuxProvider"))
+        #expect(!host.contains("TmuxProvider"))
+        #expect(host.contains("TerminalReviewTextView"))
+        #expect(host.contains("hostManagesTouchGestures = true"))
+    }
+
     @Test("终端会话中心只显示本地 Store 中有 Tab 的主机")
     func terminalSessionCenterOmitsHostsWithoutLocalTabs() throws {
         let source = try appSource("Terminal/TerminalSessionCenterView.swift")

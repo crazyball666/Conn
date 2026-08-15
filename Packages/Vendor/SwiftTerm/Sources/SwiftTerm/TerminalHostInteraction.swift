@@ -109,6 +109,18 @@ public struct TerminalBufferSnapshotLine: Sendable, Equatable {
     public let cellColumnToUTF16Offset: [Int]
     public let styles: [TerminalSnapshotStyleRun]
     public let isWrapped: Bool
+
+    public init(
+        text: String,
+        cellColumnToUTF16Offset: [Int],
+        styles: [TerminalSnapshotStyleRun],
+        isWrapped: Bool
+    ) {
+        self.text = text
+        self.cellColumnToUTF16Offset = cellColumnToUTF16Offset
+        self.styles = styles
+        self.isWrapped = isWrapped
+    }
 }
 
 public struct TerminalBufferSnapshot: Sendable, Equatable {
@@ -119,6 +131,24 @@ public struct TerminalBufferSnapshot: Sendable, Equatable {
     public let sourceStartLine: Int
     public let visibleLineRange: Range<Int>
     public let lines: [TerminalBufferSnapshotLine]
+
+    public init(
+        scope: TerminalSnapshotScope,
+        protocolRevision: UInt64,
+        columns: Int,
+        rows: Int,
+        sourceStartLine: Int,
+        visibleLineRange: Range<Int>,
+        lines: [TerminalBufferSnapshotLine]
+    ) {
+        self.scope = scope
+        self.protocolRevision = protocolRevision
+        self.columns = columns
+        self.rows = rows
+        self.sourceStartLine = sourceStartLine
+        self.visibleLineRange = visibleLineRange
+        self.lines = lines
+    }
 }
 
 extension Terminal {
@@ -262,8 +292,10 @@ extension Terminal {
         case let .press(value):
             button = value; release = false; motion = false
         case let .release(value):
+            guard mouseMode != .x10 else { return }
             button = value; release = true; motion = false
         case let .motion(value):
+            guard mouseMode == .buttonEventTracking || mouseMode == .anyEvent else { return }
             button = value; release = false; motion = true
         }
         let flags = encodeButton(

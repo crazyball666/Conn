@@ -67,19 +67,22 @@ public struct TerminalPersistentRouteState: Sendable, Equatable {
     public let isAlternateBuffer: Bool
     public let modeCapability: TerminalPersistentModeCapability
     public let historyAvailable: Bool
+    public let targetID: String?
 
     public init(
         revision: UInt64,
         freshness: TerminalPersistentStateFreshness,
         isAlternateBuffer: Bool,
         modeCapability: TerminalPersistentModeCapability,
-        historyAvailable: Bool
+        historyAvailable: Bool,
+        targetID: String? = nil
     ) {
         self.revision = revision
         self.freshness = freshness
         self.isAlternateBuffer = isAlternateBuffer
         self.modeCapability = modeCapability
         self.historyAvailable = historyAvailable
+        self.targetID = targetID
     }
 }
 
@@ -190,6 +193,18 @@ public enum TerminalScrollAction: Sendable, Equatable {
              let .resolvePersistentState(token),
              let .boundary(token):
             token
+        }
+    }
+
+    public var isRemoteScroll: Bool {
+        switch self {
+        case .remoteMouse, .providerScrollableMode, .providerKeyDrivenMode,
+             .providerAlternateKeys, .providerHistory, .plainAlternateKeys,
+             .resolvePersistentState:
+            true
+        case .selection, .pointer, .providerUnsupportedBoundary,
+             .localNormalBuffer, .boundary:
+            false
         }
     }
 }

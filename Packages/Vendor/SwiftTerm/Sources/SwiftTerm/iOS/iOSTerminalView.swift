@@ -1476,7 +1476,7 @@ open class TerminalView: UIScrollView, UITextInputTraits, UIKeyInput, UIScrollVi
         case .word:
             selection.selectWordOrExpression(at: position, in: terminal.displayBuffer)
         case .row:
-            selection.select(row: position)
+            selection.select(row: position.row)
         }
         selection.pivot = selection.start
         requestDisplay()
