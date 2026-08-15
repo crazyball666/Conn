@@ -43,6 +43,48 @@ struct PersistentProviderBackendTests {
         await opened.attachment.close()
     }
 
+    @Test("协调器 prepare 将 persistent attachment 错误转换为产品诊断")
+    @MainActor
+    func coordinatorPrepareUsesPersistentRuntimeDiagnosis() async throws {
+        let host = Host(id: "host-1", name: "Linux", address: "linux.local", username: "tester")
+        let profile = TerminalBackendProfile(
+            id: "profile-1",
+            hostID: host.id,
+            providerID: "fake",
+            providerConfigurationKey: "default",
+            displayName: "Fake",
+            configurationJSON: "{}"
+        )
+        let provider = FakePersistentProvider(openError: .transportClosed)
+        let coordinator = TerminalSessionCoordinator(
+            hostRepository: PersistentTestHostRepository(host: host),
+            connectionManager: ConnectionManager(
+                transport: MockSSHTransport(),
+                platformDetector: FixedPlatformDetector()
+            ),
+            providerRegistry: try PersistentTerminalProviderRegistry(providers: [provider]),
+            profileRepository: InMemoryTerminalBackendProfiles(profiles: [profile])
+        )
+        let attemptID = coordinator.beginLaunchAttempt()
+
+        let result = await coordinator.prepareLaunch(
+            TerminalLaunchRequest(
+                host: host,
+                policy: .createNew,
+                source: .persistent(providerID: "fake"),
+                backend: .persistent(provider.descriptorForTest)
+            ),
+            attemptID: attemptID
+        )
+
+        guard case let .failure(failure) = result else {
+            Issue.record("attachment open 应失败")
+            return
+        }
+        #expect(failure.message == PersistentTerminalError.transportClosed.userFacingDiagnosis)
+        #expect(coordinator.store.tabs.isEmpty)
+    }
+
     @Test("启动选择指定远端 workspace 时不自动改用第一个")
     func selectedWorkspaceIsUsedForAttachmentDescriptor() async throws {
         let host = Host(id: "host-1", name: "Linux", address: "linux.local", username: "tester")
@@ -191,6 +233,16 @@ private final class InMemoryTerminalBackendProfiles: TerminalBackendProfileRepos
     func setPrimary(id: String?, hostID: String, providerID: String) throws {}
 }
 
+private final class PersistentTestHostRepository: HostRepository, @unchecked Sendable {
+    private let value: ConnKit.Host
+
+    init(host: ConnKit.Host) { value = host }
+    func allHosts() throws -> [ConnKit.Host] { [value] }
+    func host(id: String) throws -> ConnKit.Host? { id == value.id ? value : nil }
+    func save(_ host: ConnKit.Host) throws {}
+    func delete(id: String) throws {}
+}
+
 private struct FixedPlatformDetector: RemotePlatformDetecting {
     func detect(on session: any SSHSession) async throws -> RemotePlatformProfile {
         RemotePlatformProfile(kind: .linux, shell: .sh)
@@ -224,8 +276,12 @@ private struct FakePersistentProvider: PersistentTerminalCatalogProvider, Sendab
     let workspaces: [RemoteWorkspaceSummary]
     let createdCount: WorkspaceCreateRecorder
     let catalogProfiles: CatalogProfileRecorder
+    let openError: PersistentTerminalError?
 
-    init(workspaceIDs: [String] = []) {
+    init(
+        workspaceIDs: [String] = [],
+        openError: PersistentTerminalError? = nil
+    ) {
         descriptor = PersistentTerminalProviderDescriptor(
             id: "fake",
             displayName: "Fake",
@@ -264,6 +320,7 @@ private struct FakePersistentProvider: PersistentTerminalCatalogProvider, Sendab
             providerPayload: Data()
         )
         recorder = ReasonRecorder()
+        self.openError = openError
     }
 
     var lastReason: PersistentAttachmentOpenReason? {
@@ -328,6 +385,7 @@ private struct FakePersistentProvider: PersistentTerminalCatalogProvider, Sendab
         terminalSize: TermSize,
         in context: PersistentTerminalContext
     ) async throws -> any PersistentTerminalAttachment {
+        if let openError { throw openError }
         await recorderSet(reason)
         return FakePersistentAttachment(descriptor: descriptor)
     }

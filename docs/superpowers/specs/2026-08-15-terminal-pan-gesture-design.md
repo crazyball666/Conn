@@ -8,7 +8,7 @@ The fix must preserve terminal text selection while restoring one-finger vertica
 
 ## Considered approaches
 
-1. **Arbitrate SwiftTerm auxiliary pans in `KeybarTerminalView` (recommended).** Intercept every non-native pan recognizer SwiftTerm installs, without guessing whether it is currently a selection or mouse recognizer. When remote mouse reporting is off, vertical-dominant drags fail the auxiliary recognizer and fall through to the native `UIScrollView` pan; horizontal-dominant drags continue to extend the selection. When remote mouse reporting is on, Conn does not alter SwiftTerm's begin decision. Once a selection drag begins horizontally it may continue in any direction, preserving multi-line selection. This is a small, backend-independent compatibility layer and does not modify ephemeral SPM checkout files.
+1. **Arbitrate SwiftTerm auxiliary pans in `KeybarTerminalView` (recommended).** Use UIView's `gestureRecognizerShouldBegin` hook for every non-native pan recognizer SwiftTerm installs, without guessing whether it is currently a selection or mouse recognizer and without replacing any recognizer delegate. When remote mouse reporting is off, vertical-dominant drags fail the auxiliary recognizer and fall through to the native `UIScrollView` pan; horizontal-dominant drags continue to extend the selection. When remote mouse reporting is on, Conn does not alter SwiftTerm's begin decision. Once a selection drag begins horizontally it may continue in any direction, preserving multi-line selection. This is a small, backend-independent compatibility layer and does not modify ephemeral SPM checkout files.
 2. **Vendor and patch SwiftTerm.** Patch SwiftTerm's internal selection recognizer to start only near selection endpoints. This can offer finer endpoint semantics but would vendor roughly 1.5 MB of third-party source for one fix and make dependency upgrades more expensive.
 3. **Disable selection dragging.** Native scrolling would work, but users could no longer extend copied text. This is an unacceptable capability regression.
 
@@ -17,7 +17,7 @@ The fix must preserve terminal text selection while restoring one-finger vertica
 `KeybarTerminalView` will own a small auxiliary-pan arbitration policy:
 
 - Its normal `UIScrollView.panGestureRecognizer` is never modified.
-- When SwiftTerm dynamically adds any non-native pan with no existing delegate, Conn assigns its weak gesture delegate. It does not identify recognizers by installation order, selection state, private target/action inspection, or other fragile implementation details.
+- UIView calls the overridden `gestureRecognizerShouldBegin` for recognizers attached to the terminal view. Conn does not assign or replace recognizer delegates and does not identify recognizers by installation order, selection state, private target/action inspection, or other fragile implementation details.
 - If `terminal.mouseMode != .off`, Conn accepts the auxiliary recognizer unchanged so vim, htop, tmux mouse mode, and other TUI mouse input remain owned by SwiftTerm/the remote application.
 - If remote mouse reporting is off, a vertical-dominant velocity rejects the auxiliary recognizer. UIKit can then recognize the native scroll pan.
 - If remote mouse reporting is off, a horizontal-dominant or exactly balanced velocity accepts the auxiliary recognizer. Direction is evaluated only at gesture start, so an accepted selection drag may subsequently move vertically to select multiple lines.

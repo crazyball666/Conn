@@ -1,5 +1,6 @@
 import ConnKit
 import ConnMonitor
+import ConnTerminal
 import ConnUI
 import SwiftUI
 
@@ -17,8 +18,9 @@ struct HostDetailView: View {
     @State private var fileVM: FileBrowserViewModel
     @State private var dockerVM: DockerViewModel
     @State private var logVM: LogCenterViewModel
-    /// 导航栏终端入口的呈现态——终端走 `.fullScreenCover`，不再是 push。
-    @State private var showTerminal = false
+    @State private var terminalRoute: ExistingTerminalRoute?
+    @State private var isNewTerminalPresented = false
+    @State private var pendingTerminalCompletion: NewTerminalFlowCompletion?
 
     init(host: Host, dependencies: AppDependencies, initialSegment: Segment = .overview) {
         self.host = host
@@ -55,8 +57,27 @@ struct HostDetailView: View {
         .navigationDestination(item: $route, destination: destination)
         .onAppear { monitorVM.appear() }
         .onDisappear { monitorVM.disappear() }
-        .fullScreenCover(isPresented: $showTerminal) {
-            TerminalScreen(host: host, dependencies: dependencies)
+        .sheet(
+            isPresented: $isNewTerminalPresented,
+            onDismiss: openPendingTerminal
+        ) {
+            NewTerminalSheet(
+                fixedHost: host,
+                hostRepository: dependencies.hostRepository,
+                terminalSessions: dependencies.terminalSessions,
+                onCompleted: { completion in
+                    pendingTerminalCompletion = completion
+                    isNewTerminalPresented = false
+                }
+            )
+            .presentationDetents([.medium, .large])
+        }
+        .fullScreenCover(item: $terminalRoute) { route in
+            TerminalScreen(
+                host: route.host,
+                tabID: route.tabID,
+                dependencies: dependencies
+            )
         }
     }
 
@@ -65,13 +86,27 @@ struct HostDetailView: View {
     private var terminalToolbarItem: some ToolbarContent {
         ToolbarItem(placement: .topBarTrailing) {
             Button {
-                showTerminal = true
+                openTerminal()
             } label: {
                 Image(systemName: "terminal")
                     .font(.system(size: 17, weight: .semibold))
             }
             .accessibilityLabel(L("打开终端"))
         }
+    }
+
+    private func openTerminal() {
+        if let recent = dependencies.terminalSessions.store.recentTab(forHost: host.id) {
+            terminalRoute = ExistingTerminalRoute(host: host, tabID: recent.id)
+        } else {
+            isNewTerminalPresented = true
+        }
+    }
+
+    private func openPendingTerminal() {
+        guard let completion = pendingTerminalCompletion else { return }
+        pendingTerminalCompletion = nil
+        terminalRoute = ExistingTerminalRoute(host: completion.host, tabID: completion.tabID)
     }
 
     /// 导航栏标题：备注优先，否则主机名。

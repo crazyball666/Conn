@@ -16,6 +16,7 @@ struct DockerView: View {
     /// 控制台单独拆出来走 `.fullScreenCover`——`route` 剩下的几个目的地
     /// （容器/卷/网络/镜像详情）仍是 push，两种呈现方式不能共用同一个 optional。
     @State private var consoleContainer: ContainerInfo?
+    @State private var terminalLauncher: TerminalLaunchPresentation
     /// 每类资源各自保存搜索词；切换资源再返回时恢复原过滤条件。
     @State private var searches: [Tab: String] = [:]
     private let host: Host
@@ -26,6 +27,7 @@ struct DockerView: View {
         self.dependencies = dependencies
         self.viewModel = viewModel
         _tab = State(initialValue: Self.initialTab())
+        _terminalLauncher = State(initialValue: TerminalLaunchPresentation(dependencies: dependencies))
     }
 
     var body: some View {
@@ -42,19 +44,19 @@ struct DockerView: View {
             .fullScreenCover(item: pullPresentationBinding) { _ in
                 DockerPullProgressView(operations: viewModel.operations)
             }
-            .fullScreenCover(item: $consoleContainer) { container in
-                if let command = viewModel.containers.consoleCommand(for: container) {
-                    TerminalScreen(
-                        host: host, dependencies: dependencies,
-                        launchPolicy: .createNew,
-                        source: .docker(containerName: container.name),
-                        initialCommand: command,
-                        replayInitialCommandOnReconnect: true
-                    )
-                } else {
-                    Text(L("Docker 运行环境尚未探测完成"))
-                }
+            .onChange(of: consoleContainer?.id) { _, _ in
+                guard let container = consoleContainer else { return }
+                consoleContainer = nil
+                launchConsole(container)
             }
+            .fullScreenCover(item: $terminalLauncher.route) { route in
+                TerminalScreen(host: route.host, tabID: route.tabID, dependencies: dependencies)
+            }
+            .onChange(of: terminalLauncher.errorMessage) { _, message in
+                if let message { viewModel.actionMessage = message }
+            }
+            .overlay { terminalLaunchProgress }
+            .onDisappear { terminalLauncher.cancel() }
             .navigationBarTitleDisplayMode(.inline)
             .searchable(
                 text: searchBinding,
@@ -62,6 +64,29 @@ struct DockerView: View {
                 prompt: searchPrompt
             )
             .toolbar { resourceNavigationToolbar }
+    }
+
+    @ViewBuilder
+    private var terminalLaunchProgress: some View {
+        if terminalLauncher.isLaunching {
+            ProgressView(L("正在打开控制台…"))
+                .padding(ConnSpacing.md)
+                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: ConnRadius.control))
+        }
+    }
+
+    private func launchConsole(_ container: ContainerInfo) {
+        guard let command = viewModel.containers.consoleCommand(for: container) else {
+            viewModel.actionMessage = L("Docker 运行环境尚未探测完成")
+            return
+        }
+        terminalLauncher.launch(TerminalLaunchRequest(
+            host: host,
+            policy: .createNew,
+            source: .docker(containerName: container.name),
+            initialCommand: command,
+            replayInitialCommandOnReconnect: true
+        ))
     }
 
     // 这一层只管「从 DockerView 直接推一层」——卷/网络/镜像详情页各自往下再推容器详情

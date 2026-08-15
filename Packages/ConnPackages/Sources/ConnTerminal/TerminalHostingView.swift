@@ -187,6 +187,7 @@
     private final class TerminalInputController: NSObject, TerminalViewDelegate, ObservableObject {
         private let session: TerminalSession
         private let transcript: TerminalTranscript
+        private let replayOutboundGate = TerminalReplayOutboundGate()
         private var renderTask: Task<Void, Never>?
         private var attachmentID: UUID?
         weak var terminalView: KeybarTerminalView?
@@ -200,8 +201,9 @@
         }
 
         func attach(_ terminalView: KeybarTerminalView) {
-            self.terminalView = terminalView
             detach()
+            self.terminalView = terminalView
+            replayOutboundGate.beginReplay()
             renderTask = Task { @MainActor [weak self] in
                 await self?.renderTranscript()
             }
@@ -219,6 +221,13 @@
 
         @MainActor
         private func renderTranscript() async {
+            var isReplayGateActive = true
+            defer {
+                if isReplayGateActive {
+                    replayOutboundGate.finishReplay()
+                }
+            }
+
             let attachment = await transcript.attach()
             attachmentID = attachment.id
             // `onDisappear` 可能恰好发生在 await attach 期间；此时 detach 尚拿不到
@@ -239,6 +248,8 @@
                 case let .replayBytes(bytes), let .liveBytes(bytes):
                     terminalView.feedFollowingLiveOutput(byteArray: bytes[...])
                 case let .replayFinished(viewport):
+                    replayOutboundGate.finishReplay()
+                    isReplayGateActive = false
                     if viewport.followsLiveOutput {
                         terminalView.scroll(toPosition: 1)
                     } else {
@@ -261,6 +272,9 @@
 
         /// 用户按键 → 经 Ctrl 粘滞编码 → 会话。
         func send(source: TerminalView, data: ArraySlice<UInt8>) {
+            // SwiftTerm 会通过同一个 delegate 回传用户按键和终端查询响应。
+            // 历史控制序列回放期间只允许渲染，禁止把旧查询的新响应写入当前 PTY。
+            guard replayOutboundGate.allowsTerminalDelegateOutput else { return }
             let (encoded, stillActive) = TerminalKeyEncoder.encode([UInt8](data), ctrlActive: ctrlActive)
             ctrlActive = stillActive
             Task { try? await session.send(encoded) }
@@ -321,6 +335,24 @@
         required init?(coder: NSCoder) {
             super.init(coder: coder)
             configureViewportInsets()
+        }
+
+        /// SwiftTerm 在文字选择和远端鼠标模式下会动态添加额外的 pan。
+        /// 使用 UIView 原生的 begin 钩子做方向仲裁，不替换任何手势的 delegate。
+        override public func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
+            guard let pan = gestureRecognizer as? UIPanGestureRecognizer,
+                  pan !== panGestureRecognizer else {
+                return super.gestureRecognizerShouldBegin(gestureRecognizer)
+            }
+            return shouldBeginAuxiliaryPan(initialVelocity: pan.velocity(in: self))
+                && super.gestureRecognizerShouldBegin(gestureRecognizer)
+        }
+
+        func shouldBeginAuxiliaryPan(initialVelocity: CGPoint) -> Bool {
+            TerminalPanGesturePolicy.shouldBeginAuxiliaryPan(
+                initialVelocity: initialVelocity,
+                remoteMouseReportingEnabled: getTerminal().mouseMode != .off
+            )
         }
 
         /// SwiftUI 通过键盘安全区直接改变终端的真实高度，SwiftTerm 再据此重算行数。

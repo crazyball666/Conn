@@ -169,6 +169,35 @@ struct TmuxProviderTests {
         #expect(request.command.contains("attach-session"))
         #expect(request.command.contains("$1"))
         #expect(request.terminal?.size == .init(cols: 100, rows: 30))
+
+        #expect(
+            request.command.contains(
+                "\"$$\"\nexec /opt/bin/tmux attach-session"
+            )
+        )
+    }
+
+    @Test("tmux 握手帧用真实换行结束 printf 后再执行目标进程")
+    func handshakeWrappersSeparatePrintfFromExec() {
+        let attach = tmuxHandshakeScript(
+            kind: .attachment,
+            nonce: "ATTACH_NONCE",
+            invocation: "exec /opt/bin/tmux attach-session -t '$1'"
+        )
+        let control = tmuxHandshakeScript(
+            kind: .control,
+            nonce: "CONTROL_NONCE",
+            invocation: "exec /opt/bin/tmux -CC attach-session -t '$1'"
+        )
+
+        #expect(
+            attach
+                == "printf '__CONN_TMUX_ATTACH_v1__ nonce=ATTACH_NONCE tty=%s pid=%s\\n' \"$(tty)\" \"$$\"\nexec /opt/bin/tmux attach-session -t '$1'"
+        )
+        #expect(
+            control
+                == "printf '__CONN_TMUX_CONTROL_v1__ nonce=CONTROL_NONCE tty=%s pid=%s\\n' \"$(tty)\" \"$$\"\nexec /opt/bin/tmux -CC attach-session -t '$1'"
+        )
     }
 
     @Test("同一远端 Session 的两个本地 attachment 使用不同的运行时身份")

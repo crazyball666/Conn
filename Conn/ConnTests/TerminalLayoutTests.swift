@@ -4,6 +4,8 @@ import Testing
 import UIKit
 @testable import ConnTerminal
 
+private final class ExistingTerminalGestureDelegate: NSObject, UIGestureRecognizerDelegate {}
+
 @Suite("KeybarTerminalView — 内容边距")
 @MainActor
 struct TerminalLayoutTests {
@@ -89,5 +91,51 @@ struct TerminalLayoutTests {
         view.feedFollowingLiveOutput(byteArray: ArraySlice("9\r\n10\r\n".utf8))
 
         #expect(view.scrollPosition < 1)
+    }
+
+    @Test("文字选择拖动接入 Conn 仲裁且不替换任何手势代理")
+    func selectionPanUsesConnArbiterWithoutChangingGestureDelegates() {
+        let view = KeybarTerminalView(frame: CGRect(x: 0, y: 0, width: 320, height: 480))
+        let nativePanDelegate = view.panGestureRecognizer.delegate
+
+        view.selectAll(nil)
+
+        let auxiliaryPans = (view.gestureRecognizers ?? [])
+            .compactMap { $0 as? UIPanGestureRecognizer }
+            .filter { $0 !== view.panGestureRecognizer }
+        #expect(auxiliaryPans.count == 1)
+        #expect(auxiliaryPans.first?.delegate == nil)
+        #expect(view.panGestureRecognizer.delegate === nativePanDelegate)
+        #expect(
+            !view.shouldBeginAuxiliaryPan(
+                initialVelocity: CGPoint(x: 0, y: -40)
+            )
+        )
+    }
+
+    @Test("已有代理的额外手势不被 Conn 覆盖")
+    func existingAuxiliaryPanDelegateIsPreserved() {
+        let view = KeybarTerminalView(frame: CGRect(x: 0, y: 0, width: 320, height: 480))
+        let existingDelegate = ExistingTerminalGestureDelegate()
+        let pan = UIPanGestureRecognizer()
+        pan.delegate = existingDelegate
+
+        view.addGestureRecognizer(pan)
+
+        #expect(pan.delegate === existingDelegate)
+    }
+
+    @Test("远端鼠标模式在选区激活时仍接管纵向拖动")
+    func remoteMouseModeBypassesLocalPanDirectionPolicy() {
+        let view = KeybarTerminalView(frame: CGRect(x: 0, y: 0, width: 320, height: 480))
+        view.selectAll(nil)
+        view.feed(byteArray: ArraySlice("\u{1B}[?1000h".utf8))
+
+        let shouldBegin = view.shouldBeginAuxiliaryPan(
+            initialVelocity: CGPoint(x: 0, y: -40)
+        )
+
+        #expect(view.hasActiveSelection)
+        #expect(shouldBegin)
     }
 }

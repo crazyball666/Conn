@@ -46,6 +46,25 @@ public enum TmuxProviderError: Error, Sendable, Equatable {
     case attachmentHandshakeFailed
 }
 
+package enum TmuxHandshakeKind: String, Sendable {
+    case attachment = "__CONN_TMUX_ATTACH_v1__"
+    case control = "__CONN_TMUX_CONTROL_v1__"
+}
+
+/// Prints one provider-owned frame, then starts the long-lived tmux process as a
+/// separate shell command. The separator must be a real newline: a literal `\n`
+/// outside the printf format would turn the tmux argv into extra printf operands.
+package func tmuxHandshakeScript(
+    kind: TmuxHandshakeKind,
+    nonce: String,
+    invocation: String
+) -> String {
+    "printf '\(kind.rawValue) nonce="
+        + POSIXShellArgument.encode(nonce)
+        + " tty=%s pid=%s\\n' \"$(tty)\" \"$$\"\n"
+        + invocation
+}
+
 /// Provider entry point for the generic persistent-terminal registry.
 ///
 /// This implementation owns platform routing, safe static probing, workspace identity
@@ -375,10 +394,11 @@ public struct TmuxProvider: PersistentTerminalCatalogProvider {
             locator: configuration.locator,
             arguments: attachArguments
         )
-        let attachScript = "printf '__CONN_TMUX_ATTACH_v1__ nonce="
-            + POSIXShellArgument.encode(nonce.value)
-            + " tty=%s pid=%s\\n' \"$(tty)\" \"$$\"\\n"
-            + attachInvocation
+        let attachScript = tmuxHandshakeScript(
+            kind: .attachment,
+            nonce: nonce.value,
+            invocation: attachInvocation
+        )
         let command = try runtime.runtime.invocation(for: attachScript)
         let process: any RemoteProcessChannel
         do {
@@ -751,10 +771,11 @@ public struct TmuxProvider: PersistentTerminalCatalogProvider {
             arguments: ["-CC", "attach-session", "-t", sessionID.rawValue]
         )
         let controlNonce = (try? Self.makeNonce())?.value ?? UUID().uuidString
-        let controlWrapper = "printf '__CONN_TMUX_CONTROL_v1__ nonce="
-            + controlNonce
-            + " tty=%s pid=%s\\n' \"$(tty)\" \"$$\"\\n"
-            + controlScript
+        let controlWrapper = tmuxHandshakeScript(
+            kind: .control,
+            nonce: controlNonce,
+            invocation: controlScript
+        )
         guard let command = try? runtime.runtime.invocation(for: controlWrapper),
               let channel = try? await context.session.openProcess(
                   RemoteProcessRequest(

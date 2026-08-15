@@ -1,4 +1,5 @@
 import ConnKit
+import ConnMultiplexer
 import ConnSSH
 import Foundation
 import Testing
@@ -29,6 +30,7 @@ private final class ProfileProvisionRecorder {
 private actor DelayedShellGate {
     private var continuation: CheckedContinuation<Void, Never>?
     private var waiting = false
+    private var channelClosed = false
 
     func wait() async {
         waiting = true
@@ -44,6 +46,14 @@ private actor DelayedShellGate {
     func release() {
         continuation?.resume()
         continuation = nil
+    }
+
+    func markChannelClosed() {
+        channelClosed = true
+    }
+
+    func wasChannelClosed() -> Bool {
+        channelClosed
     }
 }
 
@@ -97,7 +107,7 @@ private final class DelayedShellSession: SSHSession, @unchecked Sendable {
     func openShell(term: TermSize) async throws -> any ShellChannel {
         _ = term
         await gate.wait()
-        return DelayedShellChannel()
+        return DelayedShellChannel(gate: gate)
     }
 
     func sftp() async throws -> any RemoteFileSystem { throw SSHError.channelClosed }
@@ -114,21 +124,277 @@ private final class DelayedShellSession: SSHSession, @unchecked Sendable {
 }
 
 private final class DelayedShellChannel: ShellChannel, @unchecked Sendable {
+    private let gate: DelayedShellGate
     let output: AsyncThrowingStream<Data, Error>
     private let continuation: AsyncThrowingStream<Data, Error>.Continuation
 
-    init() {
+    init(gate: DelayedShellGate) {
+        self.gate = gate
         (output, continuation) = AsyncThrowingStream.makeStream()
     }
 
     func write(_ bytes: Data) async throws { _ = bytes }
     func resize(_ size: TermSize) async throws { _ = size }
-    func close() async { continuation.finish() }
+    func close() async {
+        await gate.markChannelClosed()
+        continuation.finish()
+    }
 }
 
 @Suite("TerminalSessionCoordinator — 创建与复用", .serialized)
 @MainActor
 struct TerminalSessionCoordinatorTests {
+    @Test("launch attempt 只有 commit 后才把 Tab 加入 Store")
+    func launchAttemptAddsTabOnlyAfterCommit() async {
+        let host = Host(id: "host-1", name: "web", address: "10.0.0.1", username: "root")
+        let coordinator = TerminalSessionCoordinator(
+            hostRepository: TerminalHostRepository(hosts: [host]),
+            connectionManager: ConnectionManager(transport: MockSSHTransport())
+        )
+        let attemptID = coordinator.beginLaunchAttempt()
+
+        let prepared = await coordinator.prepareLaunch(
+            TerminalLaunchRequest(host: host, policy: .createNew, source: .shell),
+            attemptID: attemptID
+        )
+
+        guard case .success = prepared else {
+            Issue.record("prepare 应成功")
+            return
+        }
+        #expect(coordinator.store.tabs.isEmpty)
+
+        let committed = await coordinator.commitLaunch(attemptID: attemptID)
+
+        guard case let .success(tab) = committed else {
+            Issue.record("commit 应成功")
+            return
+        }
+        #expect(coordinator.store.tabs.map(\.id) == [tab.id])
+        #expect(coordinator.store.currentTabID == tab.id)
+        await coordinator.close(tab.id)
+    }
+
+    @Test("launch attempt 在 prepare 开始前取消后不能创建 Tab")
+    func cancellingLaunchAttemptBeforePreparePreventsTabCreation() async {
+        let host = Host(id: "host-1", name: "web", address: "10.0.0.1", username: "root")
+        let coordinator = TerminalSessionCoordinator(
+            hostRepository: TerminalHostRepository(hosts: [host]),
+            connectionManager: ConnectionManager(transport: MockSSHTransport())
+        )
+        let attemptID = coordinator.beginLaunchAttempt()
+
+        await coordinator.cancelLaunch(attemptID: attemptID)
+        let prepared = await coordinator.prepareLaunch(
+            TerminalLaunchRequest(host: host, policy: .createNew, source: .shell),
+            attemptID: attemptID
+        )
+        let committed = await coordinator.commitLaunch(attemptID: attemptID)
+
+        guard case .failure = prepared, case .failure = committed else {
+            Issue.record("取消的 attempt 不得 prepare 或 commit")
+            return
+        }
+        #expect(coordinator.store.tabs.isEmpty)
+    }
+
+    @Test("launch attempt 在不可取消的 PTY open 中取消会关闭迟到通道")
+    func cancellingLaunchAttemptDuringNonCancellableOpenClosesLateChannel() async {
+        let host = Host(id: "host-1", name: "web", address: "10.0.0.1", username: "root")
+        let gate = DelayedShellGate()
+        let coordinator = TerminalSessionCoordinator(
+            hostRepository: TerminalHostRepository(hosts: [host]),
+            connectionManager: ConnectionManager(transport: DelayedShellTransport(gate: gate))
+        )
+        let attemptID = coordinator.beginLaunchAttempt()
+        let prepare = Task {
+            await coordinator.prepareLaunch(
+                TerminalLaunchRequest(host: host, policy: .createNew, source: .shell),
+                attemptID: attemptID
+            )
+        }
+        await gate.waitUntilBlocked()
+
+        await coordinator.cancelLaunch(attemptID: attemptID)
+        await gate.release()
+
+        guard case .failure = await prepare.value else {
+            Issue.record("迟到的 open 结果必须被取消")
+            return
+        }
+        #expect(coordinator.store.tabs.isEmpty)
+        #expect(await gate.wasChannelClosed())
+    }
+
+    @Test("主机失效会取消已 prepare 但尚未 commit 的 launch attempt")
+    func invalidatingHostCancelsPreparedLaunchAttempt() async {
+        let host = Host(id: "host-1", name: "web", address: "10.0.0.1", username: "root")
+        let coordinator = TerminalSessionCoordinator(
+            hostRepository: TerminalHostRepository(hosts: [host]),
+            connectionManager: ConnectionManager(transport: MockSSHTransport())
+        )
+        let attemptID = coordinator.beginLaunchAttempt()
+        let prepared = await coordinator.prepareLaunch(
+            TerminalLaunchRequest(host: host, policy: .createNew, source: .shell),
+            attemptID: attemptID
+        )
+        guard case .success = prepared else {
+            Issue.record("prepare 应成功")
+            return
+        }
+
+        await coordinator.closeAll(forHost: host.id)
+        let committed = await coordinator.commitLaunch(attemptID: attemptID)
+
+        guard case .failure = committed else {
+            Issue.record("主机失效后的 attempt 不得 commit")
+            return
+        }
+        #expect(coordinator.store.tabs.isEmpty)
+    }
+
+    @Test("取消已 prepare 的 launch attempt 后不能再 commit")
+    func cancellingPreparedLaunchAttemptPreventsCommit() async {
+        let host = Host(id: "host-1", name: "web", address: "10.0.0.1", username: "root")
+        let coordinator = TerminalSessionCoordinator(
+            hostRepository: TerminalHostRepository(hosts: [host]),
+            connectionManager: ConnectionManager(transport: MockSSHTransport())
+        )
+        let attemptID = coordinator.beginLaunchAttempt()
+        guard case .success = await coordinator.prepareLaunch(
+            TerminalLaunchRequest(host: host, policy: .createNew, source: .shell),
+            attemptID: attemptID
+        ) else {
+            Issue.record("prepare 应成功")
+            return
+        }
+
+        await coordinator.cancelLaunch(attemptID: attemptID)
+
+        guard case .failure = await coordinator.commitLaunch(attemptID: attemptID) else {
+            Issue.record("取消后不得 commit")
+            return
+        }
+        #expect(coordinator.store.tabs.isEmpty)
+    }
+
+    @Test("取消已 prepare 的 launch attempt 会关闭临时通道")
+    func cancellingPreparedLaunchAttemptClosesTemporaryChannel() async {
+        let host = Host(id: "host-1", name: "web", address: "10.0.0.1", username: "root")
+        let gate = DelayedShellGate()
+        let coordinator = TerminalSessionCoordinator(
+            hostRepository: TerminalHostRepository(hosts: [host]),
+            connectionManager: ConnectionManager(transport: DelayedShellTransport(gate: gate))
+        )
+        let attemptID = coordinator.beginLaunchAttempt()
+        let preparation = Task {
+            await coordinator.prepareLaunch(
+                TerminalLaunchRequest(host: host, policy: .createNew, source: .shell),
+                attemptID: attemptID
+            )
+        }
+        await gate.waitUntilBlocked()
+        await gate.release()
+        guard case .success = await preparation.value else {
+            Issue.record("prepare 应成功")
+            return
+        }
+
+        await coordinator.cancelLaunch(attemptID: attemptID)
+
+        #expect(coordinator.store.tabs.isEmpty)
+        #expect(await gate.wasChannelClosed())
+    }
+
+    @Test("未知或已消费的 launch attempt 不能重复 prepare/commit")
+    func unknownAndConsumedLaunchAttemptsAreRejected() async {
+        let host = Host(id: "host-1", name: "web", address: "10.0.0.1", username: "root")
+        let coordinator = TerminalSessionCoordinator(
+            hostRepository: TerminalHostRepository(hosts: [host]),
+            connectionManager: ConnectionManager(transport: MockSSHTransport())
+        )
+        let request = TerminalLaunchRequest(host: host, policy: .createNew, source: .shell)
+        let unknown = TerminalLaunchAttemptID(rawValue: UUID())
+        guard case .failure = await coordinator.prepareLaunch(request, attemptID: unknown),
+              case .failure = await coordinator.commitLaunch(attemptID: unknown)
+        else {
+            Issue.record("未知 attempt 必须被拒绝")
+            return
+        }
+
+        let consumed = coordinator.beginLaunchAttempt()
+        guard case .success = await coordinator.prepareLaunch(request, attemptID: consumed),
+              case let .success(tab) = await coordinator.commitLaunch(attemptID: consumed),
+              case .failure = await coordinator.prepareLaunch(request, attemptID: consumed),
+              case .failure = await coordinator.commitLaunch(attemptID: consumed)
+        else {
+            Issue.record("已消费 attempt 不得复用")
+            return
+        }
+        await coordinator.close(tab.id)
+    }
+
+    @Test("commit 成功后取消同一 attempt 不关闭已归属 Store 的 Tab")
+    func cancellingConsumedLaunchAttemptKeepsCommittedTab() async {
+        let host = Host(id: "host-1", name: "web", address: "10.0.0.1", username: "root")
+        let coordinator = TerminalSessionCoordinator(
+            hostRepository: TerminalHostRepository(hosts: [host]),
+            connectionManager: ConnectionManager(transport: MockSSHTransport())
+        )
+        let attemptID = coordinator.beginLaunchAttempt()
+        guard case .success = await coordinator.prepareLaunch(
+            TerminalLaunchRequest(host: host, policy: .createNew, source: .shell),
+            attemptID: attemptID
+        ), case let .success(tab) = await coordinator.commitLaunch(attemptID: attemptID) else {
+            Issue.record("launch transaction 应成功")
+            return
+        }
+
+        await coordinator.cancelLaunch(attemptID: attemptID)
+
+        #expect(coordinator.store.tab(id: tab.id) != nil)
+        await coordinator.close(tab.id)
+    }
+
+    @Test("持久终端来源始终取 descriptor 的真实 provider")
+    func persistentBackendNormalizesDisplayedSource() {
+        let host = Host(id: "host-1", name: "web", address: "10.0.0.1", username: "root")
+        let descriptor = PersistentAttachmentDescriptor(
+            providerID: "tmux",
+            profileID: "profile-1",
+            workspace: RemoteWorkspaceRef(
+                workspaceID: "$1",
+                instancePayloadVersion: 1,
+                providerInstancePayload: Data()
+            ),
+            payloadVersion: 1,
+            providerPayload: Data()
+        )
+
+        let request = TerminalLaunchRequest(
+            host: host,
+            policy: .createNew,
+            source: .shell,
+            backend: .persistent(descriptor)
+        )
+
+        #expect(request.source == .persistent(providerID: "tmux"))
+    }
+
+    @Test("普通 PTY 不能保留持久终端来源")
+    func plainPTYRejectsPersistentDisplayedSource() {
+        let host = Host(id: "host-1", name: "web", address: "10.0.0.1", username: "root")
+
+        let request = TerminalLaunchRequest(
+            host: host,
+            policy: .createNew,
+            source: .persistent(providerID: "tmux"),
+            backend: .plainPTY
+        )
+
+        #expect(request.source == .shell)
+    }
+
     @Test("普通主机入口复用最近会话，显式新建则创建新 PTY")
     func reusesRecentOrCreatesExplicitNewSession() async {
         let host = Host(id: "host-1", name: "web", address: "10.0.0.1", username: "root")

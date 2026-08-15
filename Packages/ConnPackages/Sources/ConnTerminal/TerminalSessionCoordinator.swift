@@ -37,8 +37,18 @@ public struct TerminalLaunchRequest: Sendable {
     ) {
         self.host = host
         self.policy = policy
-        self.source = source
         self.backend = backend
+        self.source = switch backend {
+        case .plainPTY:
+            switch source {
+            case .persistent:
+                .shell
+            default:
+                source
+            }
+        case let .persistent(descriptor):
+            .persistent(providerID: descriptor.providerID)
+        }
         self.initialCommand = initialCommand
         self.replayInitialCommandOnReconnect = replayInitialCommandOnReconnect
     }
@@ -51,6 +61,17 @@ public struct TerminalLaunchFailure: Error, Sendable, Equatable {
     public init(id: UUID = UUID(), message: String) {
         self.id = id
         self.message = message
+    }
+}
+
+/// A coordinator-owned creation transaction. Callers register it synchronously,
+/// prepare temporary resources asynchronously, then explicitly transfer ownership
+/// to the local session store by committing it.
+public struct TerminalLaunchAttemptID: Hashable, Sendable {
+    fileprivate let rawValue: UUID
+
+    init(rawValue: UUID) {
+        self.rawValue = rawValue
     }
 }
 
@@ -74,6 +95,18 @@ public final class TerminalSessionCoordinator {
     private var reconnectTasks: [String: Task<Result<TerminalTab, TerminalLaunchFailure>, Never>] = [:]
     private var lifecycleTasks: [String: Task<Void, Never>] = [:]
     private var consumedFailureIDs: Set<UUID> = []
+    private var launchAttempts: [TerminalLaunchAttemptID: LaunchAttemptState] = [:]
+
+    private struct PreparedLaunch {
+        let tab: TerminalTab
+    }
+
+    private enum LaunchAttemptState {
+        case pending
+        case preparing(hostID: String, hostGeneration: UInt64)
+        case prepared(PreparedLaunch)
+        case cancelled(workerOutstanding: Bool)
+    }
 
     public init(
         hostRepository: any HostRepository,
@@ -114,12 +147,11 @@ public final class TerminalSessionCoordinator {
             if let task = inFlightLaunches[key] {
                 return await task.value
             }
-            let generation = launchGeneration(forHost: key)
             let task: Task<Result<TerminalTab, TerminalLaunchFailure>, Never> = Task { [weak self] in
                 guard let self else {
                     return Result.failure(TerminalLaunchFailure(message: L("终端协调器已释放")))
                 }
-                return await self.createTab(for: request, expectedHostLaunchGeneration: generation)
+                return await self.launchNew(request)
             }
             inFlightLaunches[key] = task
             let result = await task.value
@@ -129,10 +161,88 @@ public final class TerminalSessionCoordinator {
             return result
 
         case .createNew:
-            return await createTab(
-                for: request,
-                expectedHostLaunchGeneration: launchGeneration(forHost: request.host.id)
-            )
+            return await launchNew(request)
+        }
+    }
+
+    /// Registers the cancellation boundary before the caller starts asynchronous work.
+    public func beginLaunchAttempt() -> TerminalLaunchAttemptID {
+        let attemptID = TerminalLaunchAttemptID(rawValue: UUID())
+        launchAttempts[attemptID] = .pending
+        return attemptID
+    }
+
+    /// Opens and configures a temporary terminal without exposing it through the Store.
+    public func prepareLaunch(
+        _ request: TerminalLaunchRequest,
+        attemptID: TerminalLaunchAttemptID
+    ) async -> Result<Void, TerminalLaunchFailure> {
+        switch launchAttempts[attemptID] {
+        case .pending:
+            break
+        case .cancelled:
+            // A caller can close the sheet after synchronously registering the
+            // attempt but before this worker gets its first executor turn.
+            launchAttempts[attemptID] = nil
+            return .failure(TerminalLaunchFailure(message: L("终端会话启动已取消")))
+        case .preparing, .prepared, .none:
+            return .failure(TerminalLaunchFailure(message: L("终端会话启动已取消")))
+        }
+        let hostGeneration = launchGeneration(forHost: request.host.id)
+        launchAttempts[attemptID] = .preparing(
+            hostID: request.host.id,
+            hostGeneration: hostGeneration
+        )
+
+        switch await prepareTab(
+            for: request,
+            expectedHostLaunchGeneration: hostGeneration
+        ) {
+        case let .success(prepared):
+            guard case .preparing? = launchAttempts[attemptID] else {
+                await closePreparedLaunch(prepared)
+                if case .cancelled? = launchAttempts[attemptID] {
+                    launchAttempts[attemptID] = nil
+                }
+                return .failure(TerminalLaunchFailure(message: L("终端会话启动已取消")))
+            }
+            launchAttempts[attemptID] = .prepared(prepared)
+            return .success(())
+        case let .failure(failure):
+            launchAttempts[attemptID] = nil
+            return .failure(failure)
+        }
+    }
+
+    /// Transfers a prepared terminal to the Store. This is the only transaction step
+    /// that makes the tab visible and starts its lifecycle observation.
+    public func commitLaunch(
+        attemptID: TerminalLaunchAttemptID
+    ) async -> Result<TerminalTab, TerminalLaunchFailure> {
+        guard case let .prepared(prepared)? = launchAttempts.removeValue(forKey: attemptID) else {
+            return .failure(TerminalLaunchFailure(message: L("终端会话启动已取消")))
+        }
+        let tab = prepared.tab
+        store.add(tab)
+        await tab.session.start()
+        observeLifecycle(for: tab.id, generation: tab.generation, session: tab.session)
+        return .success(tab)
+    }
+
+    /// Cancels ownership transfer. A preparing attempt keeps a tombstone until its
+    /// worker returns and closes any resources produced by a non-cancellable open.
+    public func cancelLaunch(attemptID: TerminalLaunchAttemptID) async {
+        switch launchAttempts[attemptID] {
+        case .pending, .preparing:
+            launchAttempts[attemptID] = .cancelled(workerOutstanding: true)
+        case let .prepared(prepared):
+            launchAttempts[attemptID] = .cancelled(workerOutstanding: false)
+            await closePreparedLaunch(prepared)
+            if case .cancelled(workerOutstanding: false)? = launchAttempts[attemptID] {
+                launchAttempts[attemptID] = nil
+            }
+        case .cancelled, .none:
+            break
         }
     }
 
@@ -286,7 +396,7 @@ public final class TerminalSessionCoordinator {
     }
 
     public func closeAll(forHost hostID: String) async {
-        invalidatePendingLaunches(forHost: hostID)
+        await invalidatePendingLaunches(forHost: hostID)
         for tab in store.tabs(forHost: hostID) {
             lifecycleTasks.removeValue(forKey: tab.id)?.cancel()
             reconnectTasks.removeValue(forKey: tab.id)?.cancel()
@@ -323,10 +433,22 @@ public final class TerminalSessionCoordinator {
         store.refreshHostName(hostID: host.id, name: host.name)
     }
 
-    private func createTab(
+    private func launchNew(
+        _ request: TerminalLaunchRequest
+    ) async -> Result<TerminalTab, TerminalLaunchFailure> {
+        let attemptID = beginLaunchAttempt()
+        switch await prepareLaunch(request, attemptID: attemptID) {
+        case .success:
+            return await commitLaunch(attemptID: attemptID)
+        case let .failure(failure):
+            return .failure(failure)
+        }
+    }
+
+    private func prepareTab(
         for request: TerminalLaunchRequest,
         expectedHostLaunchGeneration: UInt64
-    ) async -> Result<TerminalTab, TerminalLaunchFailure> {
+    ) async -> Result<PreparedLaunch, TerminalLaunchFailure> {
         var temporarySession: TerminalSession?
         var temporaryAttachment: (any PersistentTerminalAttachment)?
         do {
@@ -379,17 +501,19 @@ public final class TerminalSessionCoordinator {
                 automaticAlias: automaticAlias(for: request.source, hostID: host.id),
                 generation: generation
             )
-            store.add(tab)
-            await session.start()
-            observeLifecycle(for: tab.id, generation: generation, session: session)
-            return .success(tab)
+            return .success(PreparedLaunch(tab: tab))
         } catch {
             if let temporarySession {
                 await temporarySession.close()
             }
             await temporaryAttachment?.close()
-            return .failure(TerminalLaunchFailure(message: error.friendlyDiagnosis))
+            return .failure(TerminalLaunchFailure(message: terminalUserFacingDiagnosis(error)))
         }
+    }
+
+    private func closePreparedLaunch(_ prepared: PreparedLaunch) async {
+        await prepared.tab.session.close()
+        await prepared.tab.persistentAttachment?.close()
     }
 
     private func replaceDisconnectedTab(_ tabID: String) async -> Result<TerminalTab, TerminalLaunchFailure> {
@@ -451,10 +575,11 @@ public final class TerminalSessionCoordinator {
             if let temporarySession {
                 await temporarySession.close()
             }
+            let message = terminalUserFacingDiagnosis(error)
             if store.tab(id: tabID)?.generation == oldTab.generation {
-                store.updateStatus(tabID, to: .disconnected(message: error.friendlyDiagnosis))
+                store.updateStatus(tabID, to: .disconnected(message: message))
             }
-            return .failure(TerminalLaunchFailure(message: error.friendlyDiagnosis))
+            return .failure(TerminalLaunchFailure(message: message))
         }
     }
 
@@ -529,9 +654,22 @@ public final class TerminalSessionCoordinator {
         hostLaunchGenerations[hostID, default: 0]
     }
 
-    private func invalidatePendingLaunches(forHost hostID: String) {
+    private func invalidatePendingLaunches(forHost hostID: String) async {
         hostLaunchGenerations[hostID] = launchGeneration(forHost: hostID) &+ 1
         inFlightLaunches.removeValue(forKey: hostID)?.cancel()
+        let attemptIDs = launchAttempts.compactMap { attemptID, state in
+            switch state {
+            case let .preparing(attemptHostID, _):
+                attemptHostID == hostID ? attemptID : nil
+            case let .prepared(prepared):
+                prepared.tab.hostID == hostID ? attemptID : nil
+            case .pending, .cancelled:
+                nil
+            }
+        }
+        for attemptID in attemptIDs {
+            await cancelLaunch(attemptID: attemptID)
+        }
     }
 
     private func isLaunchCurrent(forHost hostID: String, expectedGeneration: UInt64) -> Bool {

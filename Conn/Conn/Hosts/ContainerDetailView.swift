@@ -16,9 +16,21 @@ struct ContainerDetailView: View {
     @State private var loading = true
     @State private var errorMessage: String?
     @State private var route: Route?
-    /// 控制台单独拆出来走 `.fullScreenCover`——不需要额外数据（host/container 本页
-    /// 自己就有），一个 Bool 比再造一个 Identifiable 包装类型更直接。
-    @State private var showConsole = false
+    @State private var terminalLauncher: TerminalLaunchPresentation
+    @Environment(\.connToastCenter) private var toastCenter
+
+    init(
+        host: Host,
+        dependencies: AppDependencies,
+        container: ContainerInfo,
+        viewModel: DockerViewModel
+    ) {
+        self.host = host
+        self.dependencies = dependencies
+        self.container = container
+        self.viewModel = viewModel
+        _terminalLauncher = State(initialValue: TerminalLaunchPresentation(dependencies: dependencies))
+    }
 
     /// 本页自己的下一跳（日志/挂载卷详情/网络详情）——挂载与网络行的跳转
     /// 落在这里而不是回调给 `DockerView`，理由见文件顶部导航栈说明。
@@ -87,18 +99,13 @@ struct ContainerDetailView: View {
         .task { await viewModel.volumes.loadIfNeeded() }
         .task { await viewModel.networks.loadIfNeeded() }
         .navigationDestination(item: $route, destination: routeDestination)
-        .fullScreenCover(isPresented: $showConsole) {
-            if let command = viewModel.containers.consoleCommand(for: container) {
-                TerminalScreen(
-                    host: host, dependencies: dependencies,
-                    launchPolicy: .createNew,
-                    source: .docker(containerName: container.name),
-                    initialCommand: command,
-                    replayInitialCommandOnReconnect: true
-                )
-            } else {
-                Text(L("Docker 运行环境尚未探测完成"))
-            }
+        .fullScreenCover(item: $terminalLauncher.route) { route in
+            TerminalScreen(host: route.host, tabID: route.tabID, dependencies: dependencies)
+        }
+        .overlay { terminalLaunchProgress }
+        .onDisappear { terminalLauncher.cancel() }
+        .onChange(of: terminalLauncher.errorMessage) { _, message in
+            toastCenter.show(message)
         }
         .alert(L("Docker 操作"), isPresented: messageBinding) {
             Button(L("好"), role: .cancel) { viewModel.actionMessage = nil }
@@ -138,7 +145,7 @@ struct ContainerDetailView: View {
                     DockerDetail.actionButton(
                         L("控制台"),
                         systemImage: "terminal"
-                    ) { showConsole = true }
+                    ) { launchConsole() }
                 }
             } else {
                 DockerDetail.actionButton(
@@ -160,6 +167,29 @@ struct ContainerDetailView: View {
                 viewModel.containers.requestRemoval(container)
             }
         }
+    }
+
+    @ViewBuilder
+    private var terminalLaunchProgress: some View {
+        if terminalLauncher.isLaunching {
+            ProgressView(L("正在打开控制台…"))
+                .padding(ConnSpacing.md)
+                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: ConnRadius.control))
+        }
+    }
+
+    private func launchConsole() {
+        guard let command = viewModel.containers.consoleCommand(for: container) else {
+            toastCenter.show(L("Docker 运行环境尚未探测完成"))
+            return
+        }
+        terminalLauncher.launch(TerminalLaunchRequest(
+            host: host,
+            policy: .createNew,
+            source: .docker(containerName: container.name),
+            initialCommand: command,
+            replayInitialCommandOnReconnect: true
+        ))
     }
 
     // MARK: - 概要

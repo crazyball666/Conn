@@ -98,12 +98,13 @@ struct AppWideUIConsistencyTests {
         }
     }
 
-    @Test("终端选择主机与会话操作列表整行可点击")
+    @Test("新建终端主机列表整行可点击")
     func terminalHostPickerRowsMakeEntireRowInteractive() throws {
-        let source = try appSource("Terminal/TerminalSessionCenterView.swift")
+        let source = try appSource("Terminal/NewTerminalSheet.swift")
         #expect(source.contains(".frame(maxWidth: .infinity, alignment: .leading)"))
         #expect(source.contains(".contentShape(Rectangle())"))
-        #expect(source.contains("Button { onOpen(tab.id) } label:"))
+        #expect(source.contains("model.selectHost(host)"))
+        #expect(source.contains("Button(L(\"重试\")) { model.start() }"))
     }
 
     @Test("终端导航栏主标题显示主机，会话名显示副标题")
@@ -114,48 +115,128 @@ struct AppWideUIConsistencyTests {
         #expect(source.contains("Text(sessionSubtitle)"))
     }
 
-    @Test("终端会话中心包含没有本地 Tab 的已配置主机")
-    func terminalSessionCenterIncludesHostsWithoutLocalTabs() throws {
+    @Test("终端会话中心只显示本地 Store 中有 Tab 的主机")
+    func terminalSessionCenterOmitsHostsWithoutLocalTabs() throws {
         let source = try appSource("Terminal/TerminalSessionCenterView.swift")
-        #expect(source.contains("@State private var hosts: [Host] = []"))
-        #expect(source.contains("displayedHostGroups"))
+        #expect(source.contains("sessions.hostGroups"))
+        #expect(!source.contains("@State private var hosts: [Host]"))
+        #expect(!source.contains("displayedHostGroups"))
     }
 
-    @Test("tmux 启动流程允许选择已有 Session 或新建 Session")
+    @Test("当前页面 tmux 启动流程允许选择已有 Session 或新建 Session")
     func tmuxLaunchPickerSupportsWorkspaceChoice() throws {
-        let source = try appSource("Terminal/TerminalScreen.swift")
-        #expect(source.contains("PersistentWorkspacePicker"))
-        #expect(source.contains("persistentWorkspaceOptions"))
-        #expect(source.contains("PersistentWorkspaceCreateSelection"))
+        let source = try appSource("Terminal/NewTerminalSheet.swift")
+        #expect(source.contains("model.attach(workspace)"))
+        #expect(source.contains("model.createWorkspace"))
+        #expect(source.contains("model.refresh()"))
     }
 
-    @Test("新增普通终端复用与首次启动相同的 PTY/tmux 选择流程")
+    @Test("终端内新增会话复用当前页面 NewTerminalSheet")
     func additionalShellSessionReusesBackendChoiceFlow() throws {
         let source = try appSource("Terminal/TerminalScreen.swift")
 
-        #expect(source.contains("await beginLaunchChoice(for: .additional)"))
-        #expect(source.contains("pendingLaunchContext = context.replacingPolicy(with: .createNew)"))
-        #expect(!source.contains("private func createAdditionalSession()"))
+        #expect(source.contains("NewTerminalSheet("))
+        #expect(!source.contains("beginLaunchChoice"))
+        #expect(!source.contains("PersistentWorkspacePicker"))
     }
 
-    @Test("会话中心新建终端先进入 TerminalScreen 再选择 PTY/tmux")
-    func sessionCenterNewTerminalUsesTerminalScreenChoiceFlow() throws {
+    @Test("会话中心先在当前页面创建 Tab 再进入 existing TerminalScreen")
+    func sessionCenterNewTerminalUsesCurrentPageChoiceFlow() throws {
         let source = try appSource("Terminal/TerminalSessionCenterView.swift")
 
-        #expect(source.contains("let tabID: String?"))
-        #expect(source.contains("var launchPolicy: TerminalLaunchPolicy"))
-        #expect(!source.contains("TerminalLaunchRequest(host: host, policy: .createNew, source: .shell)"))
+        #expect(source.contains("NewTerminalSheet("))
+        #expect(source.contains("tabID: route.tabID"))
+        #expect(!source.contains("launchPolicy:"))
     }
 
-    @Test("远端 Catalog 按 host/provider/profile 隔离并在收起后释放")
-    func sessionCenterCatalogsAreProfileScopedAndLifecycleBound() throws {
+    @Test("主机详情和服务器快捷入口优先打开本地 Tab 否则在当前页新建")
+    func hostEntriesUseRecentTabOrCurrentPageSheet() throws {
+        for path in ["Hosts/HostDetailView.swift", "Servers/ServersView.swift"] {
+            let source = try appSource(path)
+
+            #expect(source.contains("recentTab(forHost:"), "\(path) 没有优先复用本地 Tab")
+            #expect(source.contains("NewTerminalSheet("), "\(path) 没有在源页面呈现新建流程")
+            #expect(source.contains("fixedHost:"), "\(path) 未固定当前主机")
+            #expect(source.contains("tabID: route.tabID"), "\(path) 没有按 existing Tab 打开")
+            #expect(!source.contains("launchPolicy:"), "\(path) 仍让终端页负责创建")
+        }
+    }
+
+    @Test("会话中心展开收起没有远端 Catalog 或管理副作用")
+    func sessionCenterHasNoRemoteCatalogLifecycle() throws {
         let source = try appSource("Terminal/TerminalSessionCenterView.swift")
 
-        #expect(source.contains("private struct CatalogKey: Hashable"))
-        #expect(source.contains("@State private var remoteCatalogs: [CatalogKey:"))
-        #expect(source.contains("await closeCatalogs(for: group.hostID)"))
-        #expect(source.contains("markCatalogStale"))
-        #expect(source.contains("retryCatalog"))
+        #expect(!source.contains("remoteCatalogs"))
+        #expect(!source.contains("openPersistentCatalog"))
+        #expect(!source.contains("RemoteWorkspaceSummary"))
+        #expect(!source.contains("TmuxWorkspaceManagementView"))
+    }
+
+    @Test("新建终端 Sheet 禁止下滑绕过关闭并在消失时兜底取消")
+    func newTerminalSheetHasUnskippableCancellation() throws {
+        let source = try appSource("Terminal/NewTerminalSheet.swift")
+
+        #expect(source.contains(".interactiveDismissDisabled()"))
+        #expect(source.contains(".onDisappear"))
+        #expect(source.contains("model.closeImmediately()"))
+        #expect(!source.contains("Task { await model.close() }"))
+        #expect(source.contains("Button(L(\"关闭\")"))
+    }
+
+    @Test("非固定主机的新建流程可以返回重新选择主机")
+    func newTerminalSheetCanReturnToHostSelection() throws {
+        let source = try appSource("Terminal/NewTerminalSheet.swift")
+
+        #expect(source.contains("case .terminalTypeSelection:\n            !model.hosts.isEmpty"))
+        #expect(source.contains("await model.back()"))
+    }
+
+    @Test("终端中心的打开与关闭是同级操作而不是嵌套按钮")
+    func terminalCenterRowsDoNotNestButtons() throws {
+        let source = try appSource("Terminal/TerminalSessionCenterView.swift")
+
+        #expect(source.contains("Button { open(tab) } label: {\n                terminalRowContent(tab)"))
+        #expect(source.contains("private func terminalRowContent(_ tab: TerminalTab)"))
+    }
+
+    @Test("Docker 与脚本入口先创建本地 Tab 再打开 existing TerminalScreen")
+    func explicitTerminalEntriesUsePreparedLocalTabs() throws {
+        for path in [
+            "Hosts/DockerView.swift",
+            "Hosts/ContainerDetailView.swift",
+            "Commands/SnippetRunView.swift",
+        ] {
+            let source = try appSource(path)
+            #expect(source.contains("TerminalLaunchPresentation"), "\(path) 未复用显式启动协调器")
+            #expect(source.contains("TerminalLaunchRequest("), "\(path) 未保留来源启动请求")
+            #expect(source.contains("$terminalLauncher.route"), "\(path) 没有在提交 Tab 后再打开终端页")
+            #expect(source.contains("tabID: route.tabID"), "\(path) 仍可能让终端页自行创建连接")
+            #expect(!source.contains("launchPolicy:"), "\(path) 仍在终端页内触发创建")
+        }
+
+        let screen = try appSource("Terminal/TerminalScreen.swift")
+        #expect(screen.contains("@State private var tabID: String"))
+        #expect(screen.contains("host: Host,\n        tabID: String,"))
+        #expect(!screen.contains("TerminalLaunchRequest("))
+        #expect(!screen.contains("persistentBackendCandidates"))
+    }
+
+    @Test("Docker 首页控制台启动失败会显示给用户")
+    func dockerConsoleLaunchFailureIsPresented() throws {
+        let source = try appSource("Hosts/DockerView.swift")
+
+        #expect(source.contains(".onChange(of: terminalLauncher.errorMessage)"))
+        #expect(source.contains("viewModel.actionMessage = message"))
+    }
+
+    @Test("显式终端入口同步失效当前 launch 并拒绝迟到完成")
+    func explicitTerminalPresentationGuardsCancellationRace() throws {
+        let source = try appSource("Terminal/TerminalLaunchPresentation.swift")
+
+        #expect(source.contains("activeLaunchToken"))
+        #expect(source.contains("activeLaunchToken == launchToken"))
+        #expect(source.contains("model.closeImmediately()"))
+        #expect(!source.contains("Task { await model.close() }"))
     }
 
     @Test("新保存的主机立即幂等创建默认 tmux profile")

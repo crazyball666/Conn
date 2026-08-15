@@ -40,7 +40,13 @@ struct SnippetRunView: View {
     @State private var pendingExecution: SnippetExecutionRequest?
     @State private var pendingReason: String?
     @State private var batchConfirmationInput = ""
-    @State private var terminalRoute: SnippetTerminalRoute?
+    @State private var terminalLauncher: TerminalLaunchPresentation
+
+    init(snippet: Snippet, dependencies: AppDependencies) {
+        self.snippet = snippet
+        self.dependencies = dependencies
+        _terminalLauncher = State(initialValue: TerminalLaunchPresentation(dependencies: dependencies))
+    }
 
     var body: some View {
         NavigationStack {
@@ -66,15 +72,20 @@ struct SnippetRunView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .topBarTrailing) { Button(L("完成")) { dismiss() } } }
             .task { loadHosts() }
-            .onDisappear { compatibilityTasks.cancelAll() }
-            .fullScreenCover(item: $terminalRoute) { route in
+            .onDisappear {
+                compatibilityTasks.cancelAll()
+                terminalLauncher.cancel()
+            }
+            .fullScreenCover(item: $terminalLauncher.route) { route in
                 TerminalScreen(
                     host: route.host,
-                    dependencies: dependencies,
-                    launchPolicy: .createNew,
-                    source: .script(title: snippet.title),
-                    initialCommand: route.preparedCommand
+                    tabID: route.tabID,
+                    dependencies: dependencies
                 )
+            }
+            .overlay { terminalLaunchProgress }
+            .onChange(of: terminalLauncher.errorMessage) { _, message in
+                if let message { errorText = message }
             }
             .confirmationDialog(
                 pendingReason.map { String(format: L("命中风险：%@。仍要执行？"), $0) } ?? L("确认执行？"),
@@ -578,7 +589,22 @@ struct SnippetRunView: View {
         case .silent:
             Task { await runSilently(request) }
         case .terminal:
-            terminalRoute = request.terminalRoute
+            guard let route = request.terminalRoute else { return }
+            terminalLauncher.launch(TerminalLaunchRequest(
+                host: route.host,
+                policy: .createNew,
+                source: .script(title: snippet.title),
+                initialCommand: route.preparedCommand
+            ))
+        }
+    }
+
+    @ViewBuilder
+    private var terminalLaunchProgress: some View {
+        if terminalLauncher.isLaunching {
+            ProgressView(L("正在打开终端…"))
+                .padding(ConnSpacing.md)
+                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: ConnRadius.control))
         }
     }
 

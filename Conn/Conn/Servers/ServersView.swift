@@ -14,7 +14,8 @@ struct HostFormRequest: Identifiable {
 /// `.fullScreenCover(item:)` 要求 `Identifiable`，直接借 `host.id`。
 private struct TerminalRoute: Hashable, Identifiable {
     let host: Host
-    var id: String { host.id }
+    let tabID: String
+    var id: String { tabID }
 }
 
 /// 「服务器」页：原「仪表盘 S1」+「主机 S2」合并为一屏。
@@ -25,6 +26,8 @@ struct ServersView: View {
     @State private var viewModel: ServersViewModel
     @State private var selectedHost: Host?
     @State private var terminalRoute: TerminalRoute?
+    @State private var newTerminalHost: Host?
+    @State private var pendingTerminalCompletion: NewTerminalFlowCompletion?
     @State private var formRequest: HostFormRequest?
     @State private var pendingDelete: Host?
     @State private var isNewGroupPresented = false
@@ -106,7 +109,23 @@ struct ServersView: View {
             HostDetailView(host: host, dependencies: dependencies)
         }
         .fullScreenCover(item: $terminalRoute) { route in
-            TerminalScreen(host: route.host, dependencies: dependencies)
+            TerminalScreen(
+                host: route.host,
+                tabID: route.tabID,
+                dependencies: dependencies
+            )
+        }
+        .sheet(item: $newTerminalHost, onDismiss: openPendingTerminal) { host in
+            NewTerminalSheet(
+                fixedHost: host,
+                hostRepository: dependencies.hostRepository,
+                terminalSessions: dependencies.terminalSessions,
+                onCompleted: { completion in
+                    pendingTerminalCompletion = completion
+                    newTerminalHost = nil
+                }
+            )
+            .presentationDetents([.medium, .large])
         }
         .groupManagementAlerts(
             isNewGroupPresented: $isNewGroupPresented,
@@ -172,7 +191,7 @@ struct ServersView: View {
                 }
                 .contextMenu {
                     Button {
-                        if let host = viewModel.host(forID: card.id) { terminalRoute = TerminalRoute(host: host) }
+                        if let host = viewModel.host(forID: card.id) { openTerminal(host) }
                     } label: {
                         Label(L("终端"), systemImage: "terminal")
                     }
@@ -195,6 +214,20 @@ struct ServersView: View {
         // 增删主机 / 切换分组筛选导致列表变化时平滑滑动而非瞬跳；新卡片淡入。
         // （健康状态已退出排序，不再有「故障置顶」引发的重排。）
         .animation(.spring(response: 0.5, dampingFraction: 0.86), value: viewModel.cards)
+    }
+
+    private func openTerminal(_ host: Host) {
+        if let recent = dependencies.terminalSessions.store.recentTab(forHost: host.id) {
+            terminalRoute = TerminalRoute(host: host, tabID: recent.id)
+        } else {
+            newTerminalHost = host
+        }
+    }
+
+    private func openPendingTerminal() {
+        guard let completion = pendingTerminalCompletion else { return }
+        pendingTerminalCompletion = nil
+        terminalRoute = TerminalRoute(host: completion.host, tabID: completion.tabID)
     }
 
     private var emptyState: some View {

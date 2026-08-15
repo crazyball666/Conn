@@ -1,82 +1,41 @@
 import ConnKit
-import ConnMultiplexer
 import ConnSSH
 import ConnTerminal
 import ConnUI
 import SwiftUI
 
-/// 一个已存在或即将创建的全局终端会话的全屏呈现。
-///
-/// 返回只关闭这个界面；只有「退出」才会关闭对应 PTY。SSH 连接由全局连接池继续复用。
+/// Presents an already-created local tab. Backend selection and initial launch are
+/// intentionally owned by the source page before this screen is shown.
 struct TerminalScreen: View {
-    private enum LaunchIntent: Equatable {
-        case initial
-        case additional
-    }
-
-    private struct LaunchContext {
-        let policy: TerminalLaunchPolicy
-        let source: TerminalSessionSource
-        let initialCommand: String?
-        let replayInitialCommandOnReconnect: Bool
-        let dismissOnFailure: Bool
-
-        func replacingPolicy(with policy: TerminalLaunchPolicy) -> Self {
-            Self(
-                policy: policy,
-                source: source,
-                initialCommand: initialCommand,
-                replayInitialCommandOnReconnect: replayInitialCommandOnReconnect,
-                dismissOnFailure: dismissOnFailure
-            )
-        }
-    }
-
     let host: Host
+    let dependencies: AppDependencies
     private let terminalSessions: TerminalSessionCoordinator
     private let snippetRepository: (any SnippetRepository)?
     private let snippetGroupRepository: (any SnippetGroupRepository)?
-    private let launchPolicy: TerminalLaunchPolicy
-    private let source: TerminalSessionSource
-    private let requestedBackend: TerminalLaunchBackend?
-    private let initialCommand: String?
-    private let replayInitialCommandOnReconnect: Bool
 
-    @State private var tabID: String?
-    @State private var isLaunching = false
+    @State private var tabID: String
     @State private var isReconnecting = false
     @State private var isCommandPickerPresented = false
     @State private var isSessionListPresented = false
-    @State private var isBackendPickerPresented = false
-    @State private var isWorkspacePickerPresented = false
-    @State private var backendCandidates: [PersistentBackendCandidate] = []
-    @State private var selectedBackendCandidate: PersistentBackendCandidate?
-    @State private var persistentWorkspaces: [RemoteWorkspaceSummary] = []
-    @State private var isLoadingPersistentWorkspaces = false
-    @State private var pendingLaunchContext: LaunchContext?
+    @State private var isNewTerminalPresented = false
+    @State private var createAfterSessionListDismisses = false
+    @State private var pendingCompletion: NewTerminalFlowCompletion?
     @Environment(SettingsStore.self) private var settings
     @Environment(\.connToastCenter) private var toastCenter
     @Environment(\.dismiss) private var dismiss
 
     init(
         host: Host,
+        tabID: String,
         dependencies: AppDependencies,
-        terminalSessions: TerminalSessionCoordinator? = nil,
-        launchPolicy: TerminalLaunchPolicy = .reuseRecentOrCreate,
-        source: TerminalSessionSource = .shell,
-        backend: TerminalLaunchBackend? = nil,
-        initialCommand: String? = nil,
-        replayInitialCommandOnReconnect: Bool = false
+        terminalSessions: TerminalSessionCoordinator? = nil
     ) {
         self.host = host
+        self.dependencies = dependencies
         self.terminalSessions = terminalSessions ?? dependencies.terminalSessions
         snippetRepository = dependencies.snippetRepository
         snippetGroupRepository = dependencies.snippetGroupRepository
-        self.launchPolicy = launchPolicy
-        self.source = source
-        requestedBackend = backend
-        self.initialCommand = initialCommand
-        self.replayInitialCommandOnReconnect = replayInitialCommandOnReconnect
+        _tabID = State(initialValue: tabID)
     }
 
     var body: some View {
@@ -105,7 +64,7 @@ struct TerminalScreen: View {
                 }
         }
         .preferredColorScheme(.dark)
-        .task { await launchIfNeeded() }
+        .onAppear { verifyExistingTab() }
         .sheet(isPresented: $isCommandPickerPresented) {
             if let snippetRepository, let snippetGroupRepository {
                 TerminalCommandPickerView(
@@ -116,7 +75,10 @@ struct TerminalScreen: View {
                 .presentationDragIndicator(.visible)
             }
         }
-        .sheet(isPresented: $isSessionListPresented) {
+        .sheet(
+            isPresented: $isSessionListPresented,
+            onDismiss: presentDeferredNewTerminal
+        ) {
             TerminalSessionListSheet(
                 host: host,
                 store: terminalSessions.store,
@@ -127,8 +89,8 @@ struct TerminalScreen: View {
                     isSessionListPresented = false
                 },
                 onCreate: {
+                    createAfterSessionListDismisses = true
                     isSessionListPresented = false
-                    Task { await beginLaunchChoice(for: .additional) }
                 },
                 onRename: { id, alias in
                     terminalSessions.store.updateAlias(id, to: alias)
@@ -137,8 +99,11 @@ struct TerminalScreen: View {
                     Task {
                         await terminalSessions.close(id)
                         if tabID == id {
-                            tabID = terminalSessions.store.recentTab(forHost: host.id)?.id
-                            if tabID == nil { dismiss() }
+                            if let recent = terminalSessions.store.recentTab(forHost: host.id) {
+                                tabID = recent.id
+                            } else {
+                                dismiss()
+                            }
                         }
                     }
                 }
@@ -146,43 +111,25 @@ struct TerminalScreen: View {
             .presentationDetents([.medium, .large])
             .presentationDragIndicator(.visible)
         }
-        .sheet(isPresented: $isBackendPickerPresented) {
-            TerminalBackendPicker(
-                candidates: backendCandidates,
-                onPlainPTY: { choosePlainPTY() },
-                onPersistent: { candidate in choosePersistent(candidate) }
+        .sheet(
+            isPresented: $isNewTerminalPresented,
+            onDismiss: switchToPendingCompletion
+        ) {
+            NewTerminalSheet(
+                fixedHost: host,
+                hostRepository: dependencies.hostRepository,
+                terminalSessions: terminalSessions,
+                onCompleted: { completion in
+                    pendingCompletion = completion
+                    isNewTerminalPresented = false
+                }
             )
-            .presentationDetents([.medium])
-            .presentationDragIndicator(.visible)
-            .interactiveDismissDisabled()
-        }
-        .sheet(isPresented: $isWorkspacePickerPresented) {
-            if let selectedBackendCandidate {
-                PersistentWorkspacePicker(
-                    candidate: selectedBackendCandidate,
-                    workspaces: persistentWorkspaces,
-                    isLoading: isLoadingPersistentWorkspaces,
-                    onPlainPTY: {
-                        isWorkspacePickerPresented = false
-                        choosePlainPTY()
-                    },
-                    onExisting: { workspace in
-                        attachPersistentWorkspace(workspace, candidate: selectedBackendCandidate)
-                    },
-                    onCreate: { name in
-                        createPersistentWorkspace(name: name, candidate: selectedBackendCandidate)
-                    }
-                )
-                .presentationDetents([.medium, .large])
-                .presentationDragIndicator(.visible)
-                .interactiveDismissDisabled()
-            }
+            .presentationDetents([.medium, .large])
         }
     }
 
     private var activeTab: TerminalTab? {
-        guard let tabID else { return nil }
-        return terminalSessions.store.tab(id: tabID)
+        terminalSessions.store.tab(id: tabID)
     }
 
     private var hostTitle: String {
@@ -219,10 +166,13 @@ struct TerminalScreen: View {
                             .padding(.top, ConnSpacing.xs)
                     }
                 }
-            } else if isLaunching {
-                ProgressView(String(format: L("正在连接 %@…"), host.name))
-                    .tint(.connAccent)
-                    .foregroundStyle(.connMuted)
+            } else {
+                ContentUnavailableView(
+                    L("终端会话不存在"),
+                    systemImage: "terminal",
+                    description: Text(L("该终端可能已经关闭。"))
+                )
+                .foregroundStyle(.connMuted)
             }
         }
     }
@@ -237,9 +187,9 @@ struct TerminalScreen: View {
         }
         ToolbarItemGroup(placement: .topBarTrailing) {
             Button {
-                guard let tabID else { dismiss(); return }
+                let closingID = tabID
                 Task {
-                    await terminalSessions.close(tabID)
+                    await terminalSessions.close(closingID)
                     dismiss()
                 }
             } label: {
@@ -262,7 +212,7 @@ struct TerminalScreen: View {
                 .font(.connFootnote)
                 .lineLimit(2)
             Button(L("重连")) {
-                if let tabID { Task { await reconnect(tabID) } }
+                Task { await reconnect(tabID) }
             }
             .buttonStyle(.bordered)
             .disabled(isReconnecting)
@@ -282,169 +232,35 @@ struct TerminalScreen: View {
         )
     }
 
-    private func launchIfNeeded() async {
-        guard tabID == nil, !isLaunching, pendingLaunchContext == nil else { return }
-        await beginLaunchChoice(for: .initial)
-    }
-
-    private func beginLaunchChoice(for intent: LaunchIntent) async {
-        guard !isLaunching, pendingLaunchContext == nil else { return }
-        let context: LaunchContext = switch intent {
-        case .initial:
-            LaunchContext(
-                policy: launchPolicy,
-                source: source,
-                initialCommand: initialCommand,
-                replayInitialCommandOnReconnect: replayInitialCommandOnReconnect,
-                dismissOnFailure: true
-            )
-        case .additional:
-            LaunchContext(
-                policy: .createNew,
-                source: .shell,
-                initialCommand: nil,
-                replayInitialCommandOnReconnect: false,
-                dismissOnFailure: false
-            )
-        }
-        pendingLaunchContext = context
-
-        let explicitBackend = intent == .initial ? requestedBackend : nil
-        let shouldOfferBackendPicker: Bool = switch context.policy {
-        case .existing:
-            false
-        case .reuseRecentOrCreate, .createNew:
-            true
-        }
-        if explicitBackend == nil,
-           context.source == .shell,
-           shouldOfferBackendPicker {
-            let candidates = await terminalSessions.persistentBackendCandidates(for: host)
-                .filter { $0.availability == .available || $0.availability == .degraded }
-            if !candidates.isEmpty {
-                // Once the user is asked to choose PTY/tmux, that choice is an explicit
-                // request for a new tab. Reusing a recent tab here would silently discard
-                // the selected backend or remote workspace.
-                pendingLaunchContext = context.replacingPolicy(with: .createNew)
-                backendCandidates = candidates
-                isBackendPickerPresented = true
-                return
-            }
-        }
-        await launch(backend: explicitBackend ?? .plainPTY, context: context)
-    }
-
-    private func launch(
-        backend: TerminalLaunchBackend,
-        context: LaunchContext
-    ) async {
-        isLaunching = true
-        defer {
-            isLaunching = false
-            pendingLaunchContext = nil
-        }
-        let request = TerminalLaunchRequest(
-            host: host,
-            policy: context.policy,
-            source: context.source,
-            backend: backend,
-            initialCommand: context.initialCommand,
-            replayInitialCommandOnReconnect: context.replayInitialCommandOnReconnect
-        )
-        switch await terminalSessions.launch(request) {
-        case let .success(tab):
-            tabID = tab.id
-        case let .failure(failure):
-            show(failure)
-            if context.dismissOnFailure { dismiss() }
-        }
-    }
-
-    private func choosePlainPTY() {
-        guard let context = pendingLaunchContext else { return }
-        isBackendPickerPresented = false
-        Task { await launch(backend: .plainPTY, context: context) }
-    }
-
-    private func choosePersistent(_ candidate: PersistentBackendCandidate) {
-        isBackendPickerPresented = false
-        selectedBackendCandidate = candidate
-        persistentWorkspaces = []
-        isLoadingPersistentWorkspaces = true
-        isWorkspacePickerPresented = true
-        Task {
-            do {
-                persistentWorkspaces = try await terminalSessions.persistentWorkspaceOptions(
-                    for: candidate,
-                    host: host
-                )
-            } catch {
-                // A server can disappear between probe and selection. The user chose
-                // tmux explicitly, so report the failure instead of silently changing
-                // the remote lifecycle to a plain shell.
-                isWorkspacePickerPresented = false
-                pendingLaunchContext = nil
-                show(TerminalLaunchFailure(message: error.friendlyDiagnosis))
-            }
-            isLoadingPersistentWorkspaces = false
-        }
-    }
-
-    private func attachPersistentWorkspace(
-        _ workspace: RemoteWorkspaceSummary,
-        candidate: PersistentBackendCandidate
-    ) {
-        guard let context = pendingLaunchContext else { return }
-        isWorkspacePickerPresented = false
-        Task {
-            do {
-                let backend = try await terminalSessions.makePersistentBackend(
-                    from: candidate,
-                    workspace: workspace.workspace,
-                    for: host
-                )
-                await launch(backend: backend, context: context)
-            } catch {
-                pendingLaunchContext = nil
-                show(TerminalLaunchFailure(message: error.friendlyDiagnosis))
-            }
-        }
-    }
-
-    private func createPersistentWorkspace(
-        name: String?,
-        candidate: PersistentBackendCandidate
-    ) {
-        guard let context = pendingLaunchContext else { return }
-        isWorkspacePickerPresented = false
-        Task {
-            do {
-                let backend = try await terminalSessions.makePersistentBackend(
-                    from: candidate,
-                    create: PersistentWorkspaceCreateSelection(name: name),
-                    for: host
-                )
-                await launch(backend: backend, context: context)
-            } catch {
-                pendingLaunchContext = nil
-                show(TerminalLaunchFailure(message: error.friendlyDiagnosis))
-            }
-        }
-    }
-
     private func reconnect(_ id: String) async {
         guard !isReconnecting else { return }
         isReconnecting = true
         defer { isReconnecting = false }
-        if case let .failure(failure) = await terminalSessions.reconnect(id) {
-            show(failure)
+        if case let .failure(failure) = await terminalSessions.reconnect(id),
+           let message = terminalSessions.consumeFailure(failure) {
+            toastCenter.show(message)
         }
     }
 
-    private func show(_ failure: TerminalLaunchFailure) {
-        if let message = terminalSessions.consumeFailure(failure) {
-            toastCenter.show(message)
+    private func verifyExistingTab() {
+        guard terminalSessions.store.tab(id: tabID) == nil else {
+            terminalSessions.store.select(tabID)
+            return
         }
+        toastCenter.show(L("终端会话不存在"))
+    }
+
+    private func presentDeferredNewTerminal() {
+        guard createAfterSessionListDismisses else { return }
+        createAfterSessionListDismisses = false
+        isNewTerminalPresented = true
+    }
+
+    private func switchToPendingCompletion() {
+        guard let completion = pendingCompletion else { return }
+        pendingCompletion = nil
+        terminalSessions.store.select(completion.tabID)
+        tabID = completion.tabID
     }
 
     private func showCommandPicker() {
@@ -452,101 +268,10 @@ struct TerminalScreen: View {
         isCommandPickerPresented = true
     }
 
-    /// 本地脚本只写入当前 PTY，用户仍需在终端里自行确认并执行。
+    /// Inserts text only; the user still decides whether to execute it.
     private func insertCommand(_ command: String) {
         isCommandPickerPresented = false
         guard let tab = activeTab else { return }
         Task { try? await tab.session.send(Array(command.utf8)) }
-    }
-}
-
-private struct TerminalBackendPicker: View {
-    let candidates: [PersistentBackendCandidate]
-    let onPlainPTY: () -> Void
-    let onPersistent: (PersistentBackendCandidate) -> Void
-
-    var body: some View {
-        NavigationStack {
-            List {
-                Section(L("终端类型")) {
-                    Button(action: onPlainPTY) {
-                        Label(L("普通 PTY"), systemImage: "terminal")
-                    }
-                    ForEach(candidates) { candidate in
-                        Button { onPersistent(candidate) } label: {
-                            Label(candidate.displayName, systemImage: "rectangle.connected.to.line.below")
-                        }
-                    }
-                }
-            }
-            .navigationTitle(L("启动终端"))
-        }
-    }
-}
-
-private struct PersistentWorkspacePicker: View {
-    let candidate: PersistentBackendCandidate
-    let workspaces: [RemoteWorkspaceSummary]
-    let isLoading: Bool
-    let onPlainPTY: () -> Void
-    let onExisting: (RemoteWorkspaceSummary) -> Void
-    let onCreate: (String?) -> Void
-
-    @State private var newWorkspaceName = ""
-
-    var body: some View {
-        NavigationStack {
-            List {
-                Section {
-                    Button(action: onPlainPTY) {
-                        Label(L("普通 PTY"), systemImage: "terminal")
-                    }
-                }
-
-                Section(L("Attach 已有 Session")) {
-                    if isLoading {
-                        HStack(spacing: ConnSpacing.sm) {
-                            ProgressView().controlSize(.small)
-                            Text(L("正在读取远端 Session…"))
-                                .foregroundStyle(.connMuted)
-                        }
-                    } else if workspaces.isEmpty {
-                        Text(L("当前没有已存在的 Session"))
-                            .foregroundStyle(.connMuted)
-                    } else {
-                        ForEach(workspaces, id: \.workspace.workspaceID) { workspace in
-                            Button { onExisting(workspace) } label: {
-                                HStack {
-                                    VStack(alignment: .leading, spacing: 2) {
-                                        Text(workspace.name)
-                                            .foregroundStyle(.connInk)
-                                        Text(String(format: L("远端 Session · %@"), workspace.workspace.workspaceID))
-                                            .font(.connData(.caption2))
-                                            .foregroundStyle(.connMuted)
-                                    }
-                                    Spacer()
-                                    Image(systemName: "arrow.up.forward.app")
-                                        .foregroundStyle(.connMuted)
-                                }
-                            }
-                        }
-                    }
-                }
-
-                Section(L("新建 Session")) {
-                    TextField(L("Session 名称（可选）"), text: $newWorkspaceName)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
-                    Button {
-                        let name = newWorkspaceName.trimmingCharacters(in: .whitespacesAndNewlines)
-                        onCreate(name.isEmpty ? nil : name)
-                    } label: {
-                        Label(L("新建并进入"), systemImage: "plus.rectangle")
-                    }
-                    .disabled(isLoading)
-                }
-            }
-            .navigationTitle(candidate.displayName)
-        }
     }
 }
