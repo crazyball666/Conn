@@ -2,6 +2,14 @@ import Foundation
 import Testing
 
 struct AppWideUIConsistencyTests {
+    @Test("终端模拟器依赖固定到仓库内 SwiftTerm vendor")
+    func terminalEmulatorUsesRepositoryOwnedVendor() throws {
+        let package = try packageSource("Package.swift")
+
+        #expect(package.contains(#".package(path: "../Vendor/SwiftTerm")"#))
+        #expect(!package.contains("github.com/migueldeicaza/SwiftTerm"))
+    }
+
     @Test("命令页不再使用命令与分组的嵌套分段")
     func snippetsUsesFocusedListAndGroupDestination() throws {
         let source = try appSource("Commands/SnippetsView.swift")

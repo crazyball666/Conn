@@ -1,0 +1,3 @@
+# Preserve vendored upstream source byte-for-byte; its historical whitespace is
+# not governed by Conn's patch hygiene checks.
+Packages/Vendor/SwiftTerm/** -whitespace
