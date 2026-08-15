@@ -337,26 +337,12 @@
             configureViewportInsets()
         }
 
-        /// SwiftTerm 会为文字选择和远端鼠标拖动动态添加额外的 pan；它们会与
-        /// UIScrollView 的原生 pan 竞争。移动端优先保证单指滚动，因此只允许
-        /// 原生滚动 pan 开始，其他终端 pan 一律禁用且不替换任何手势代理。
-        override public func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
-            guard let pan = gestureRecognizer as? UIPanGestureRecognizer else {
-                return super.gestureRecognizerShouldBegin(gestureRecognizer)
-            }
-            guard TerminalPanGesturePolicy.shouldBeginPan(
-                isNativeScrollPan: pan === panGestureRecognizer
-            ) else {
-                return false
-            }
-            return super.gestureRecognizerShouldBegin(gestureRecognizer)
-        }
-
         /// SwiftUI 通过键盘安全区直接改变终端的真实高度，SwiftTerm 再据此重算行数。
         /// 禁止 `UIScrollView` 同时按安全区自动追加 adjusted inset，否则在
         /// 收起—再次弹出键盘后会对底部高度重复补偿，留下可滚动空白。
         private func configureViewportInsets() {
             contentInsetAdjustmentBehavior = .never
+            hostManagesTouchGestures = true
             // SwiftTerm 默认会创建一排 Esc/Ctrl/方向键等输入附件。Conn 已有与终端
             // 同层的自定义快捷键栏，必须显式关闭默认附件，否则键盘上方会出现重复栏。
             inputAccessoryView = nil
