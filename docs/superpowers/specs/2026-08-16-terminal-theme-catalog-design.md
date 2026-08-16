@@ -2,7 +2,7 @@
 
 **Date:** 2026-08-16  
 **Status:** Confirmed  
-**Scope:** Built-in terminal palettes, theme picker preview, and terminal-screen appearance
+**Scope:** Built-in terminal palettes, theme and cursor previews, and terminal-screen appearance
 
 ## 1. Goal
 
@@ -45,11 +45,19 @@ Make terminal themes visibly distinguishable and add a complete light-theme choi
 - Terminal viewport background, foreground, cursor, and ANSI palette continue to come from the selected `TerminalTheme`.
 - The keybar uses existing dynamic ConnUI color assets and follows the terminal screen color scheme.
 
+### 3.4 Cursor Preview
+
+- Replace the text-only segmented cursor picker with three compact selectable cards.
+- Each card renders a terminal glyph and the actual cursor geometry for block, vertical bar, or underline, plus its localized label.
+- The selected card uses the app accent border/fill and remains a minimum 44-point touch target.
+- Cursor blinking remains an independent toggle; the settings preview is static so comparison does not create distracting animation.
+- The preview uses the currently selected terminal theme foreground, background, and cursor colors so the user sees the real combination before opening a terminal.
+
 ## 4. Architecture
 
 `TerminalTheme` gains a nested, Sendable `Appearance` enum and an `appearance` value. Existing themes explicitly declare `.dark`; new themes declare `.light`. Catalog lookup remains ID-based, so no database or UserDefaults migration is needed.
 
-`TerminalSettingsView` filters the single catalog by appearance and owns only picker presentation. The preview is a private SwiftUI component/function and does not introduce a second palette model.
+`TerminalSettingsView` filters the single catalog by appearance and owns picker presentation. Theme and cursor previews are private SwiftUI components/functions and do not introduce a second palette or cursor model. The cursor cards bind directly to the existing `TerminalCursorShape` setting.
 
 `TerminalScreen` maps the active configured theme appearance to SwiftUI `ColorScheme` and applies it to both `preferredColorScheme` and navigation-bar toolbar color scheme. ConnTerminal remains UI-framework-neutral at the domain boundary.
 
@@ -64,6 +72,7 @@ Automated tests must verify:
 5. unknown persisted IDs still fall back to Conn dark;
 6. the settings picker groups both appearances and renders background, text/cursor, and ANSI preview elements;
 7. `TerminalScreen` derives color scheme from theme appearance and no longer hardcodes dark mode.
+8. cursor settings render three selectable previews, bind to all existing cursor cases, and retain the separate blinking toggle.
 
 Run the complete ConnPackages test suite, compile app tests for a generic iOS destination, and run `git diff --check`. Simulator UI acceptance may use only the simulator already booted by the user; if CoreSimulatorService is unavailable, do not create or switch devices.
 
