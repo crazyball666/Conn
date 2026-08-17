@@ -25,11 +25,12 @@ private enum HostChartPalette {
 }
 
 /// 单机概览：分块（系统 / 负载 / CPU / 内存 / 磁盘 / 网络 / 进程）。
-/// CPU 显示各核折线、内存显示 RAM 堆叠占比与 Swap 用量摘要、磁盘与磁盘 IO 合并一块。
+/// CPU 与内存显示分类真实值面积，磁盘与磁盘 IO 合并一块。
 struct HostOverviewView<Header: View>: View {
     let viewModel: HostOverviewViewModel
     private let header: Header
     @State private var cpuVisibility = CPUChartVisibility()
+    @State private var cpuSelectionHapticCount = 0
 
     init(viewModel: HostOverviewViewModel, @ViewBuilder header: () -> Header) {
         self.viewModel = viewModel
@@ -56,7 +57,7 @@ struct HostOverviewView<Header: View>: View {
         }
         .scrollBounceBehavior(.basedOnSize)
         .scrollIndicators(.hidden)
-        .onChange(of: viewModel.latest) { _, _ in viewModel.record() }
+        .sensoryFeedback(ConnHapticFeedback.highImpact, trigger: cpuSelectionHapticCount)
         // 仅概览页可见时才让脚本带详情段（系统名/CPU 型号/TCP 重传/网卡）——其它页面不采。
         .onAppear { viewModel.setOverviewSegmentActive(true) }
         .onDisappear { viewModel.setOverviewSegmentActive(false) }
@@ -119,7 +120,7 @@ struct HostOverviewView<Header: View>: View {
         }
     }
 
-    // MARK: - 内存（RAM 三段堆叠占比 + Swap 明细）
+    // MARK: - 内存（三项独立实际值面积 + RAM/Swap 明细）
 
     private var memorySection: some View {
         section(L("内存")) {
@@ -127,7 +128,13 @@ struct HostOverviewView<Header: View>: View {
                 latest?.mem,
                 detail: MetricFormat.pair(used: latest?.memUsedBytes, total: latest?.memTotalBytes)
             )
-            trendChart(memSeries, domain: 0 ... 100, yFormat: { "\(Int($0))" }, stacked: true)
+            trendChart(
+                memSeries,
+                domain: 0 ... 100,
+                yFormat: { "\(Int($0))%" },
+                stacked: true,
+                areaStacking: .independent
+            )
             HStack(spacing: 0) {
                 breakdownColumn(L("已用"), MetricFormat.bytes(latest?.memUsedBytes), HostChartPalette.memoryUsed)
                 breakdownColumn(L("缓存"), MetricFormat.bytes(latest?.memBuffersCache), HostChartPalette.memoryCache)
@@ -139,9 +146,9 @@ struct HostOverviewView<Header: View>: View {
 
     private var memSeries: [TrendSeries] {
         [
-            TrendSeries(id: L("已用"), color: HostChartPalette.memoryUsed, values: viewModel.memUsedHistory),
-            TrendSeries(id: L("缓存"), color: HostChartPalette.memoryCache, values: viewModel.memCacheHistory),
-            TrendSeries(id: L("空闲"), color: HostChartPalette.memoryFree, values: viewModel.memFreeHistory)
+            TrendSeries(id: L("已用"), color: HostChartPalette.memoryUsed, samples: viewModel.memUsedHistory),
+            TrendSeries(id: L("缓存"), color: HostChartPalette.memoryCache, samples: viewModel.memCacheHistory),
+            TrendSeries(id: L("空闲"), color: HostChartPalette.memoryFree, samples: viewModel.memFreeHistory)
         ]
     }
 
@@ -194,7 +201,7 @@ struct HostOverviewView<Header: View>: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    // MARK: - 磁盘（占用条 + 磁盘 IO 折线，合并一块）
+    // MARK: - 磁盘（占用条 + 磁盘 IO 堆积面积，合并一块）
 
     private var diskSection: some View {
         section(L("磁盘")) {
@@ -212,11 +219,11 @@ struct HostOverviewView<Header: View>: View {
             trendChart(rateSeries(
                 down: viewModel.ioReadHistory, downColor: HostChartPalette.diskRead,
                 up: viewModel.ioWriteHistory, upColor: HostChartPalette.diskWrite
-            ))
+            ), stacked: true)
         }
     }
 
-    // MARK: - 网络（双向折线 + 右上角累计量）
+    // MARK: - 网络（双向堆积面积 + 右上角累计量）
 
     private var networkSection: some View {
         section(L("网络")) {
@@ -227,7 +234,7 @@ struct HostOverviewView<Header: View>: View {
             trendChart(rateSeries(
                 down: viewModel.netRxHistory, downColor: HostChartPalette.networkDown,
                 up: viewModel.netTxHistory, upColor: HostChartPalette.networkUp
-            ))
+            ), stacked: true)
             if let tcp = latest?.tcp {
                 sectionDivider
                 tcpGrid(tcp)
@@ -243,10 +250,13 @@ struct HostOverviewView<Header: View>: View {
         Rectangle().fill(Color.connLine).frame(height: 0.5).padding(.vertical, 2)
     }
 
-    private func rateSeries(down: [Double], downColor: Color, up: [Double], upColor: Color) -> [TrendSeries] {
+    private func rateSeries(
+        down: [TrendSample], downColor: Color,
+        up: [TrendSample], upColor: Color
+    ) -> [TrendSeries] {
         [
-            TrendSeries(id: "down", color: downColor, values: down),
-            TrendSeries(id: "up", color: upColor, values: up)
+            TrendSeries(id: "down", color: downColor, samples: down),
+            TrendSeries(id: "up", color: upColor, samples: up)
         ]
     }
 
@@ -298,7 +308,8 @@ struct HostOverviewView<Header: View>: View {
         _ series: [TrendSeries],
         domain: ClosedRange<Double>? = nil,
         yFormat: @escaping (Double) -> String = { MetricFormat.compactBytes($0) + "/s" },
-        stacked: Bool = false,
+        stacked: Bool = true,
+        areaStacking: TrendAreaStacking = .cumulative,
         fillsSingleSeries: Bool = true,
         height: CGFloat = 132
     ) -> some View {
@@ -308,13 +319,14 @@ struct HostOverviewView<Header: View>: View {
             yDomain: resolved,
             yFormat: yFormat,
             stacked: stacked,
+            areaStacking: areaStacking,
             fillsSingleSeries: fillsSingleSeries,
             height: height
         )
     }
 
     private func autoDomain(_ series: [TrendSeries]) -> ClosedRange<Double> {
-        let peak = series.flatMap { $0.values }.max() ?? 0
+        let peak = series.flatMap { $0.samples }.map(\.value).max() ?? 0
         return 0 ... max(peak * 1.25, 1024)
     }
 
@@ -344,6 +356,7 @@ private extension HostOverviewView {
                 let visible = cpuVisibility.contains(item.metric)
                 Button {
                     cpuVisibility.toggle(item.metric)
+                    cpuSelectionHapticCount &+= 1
                 } label: {
                     VStack(alignment: .leading, spacing: 1) {
                         HStack(spacing: 3) {
@@ -376,7 +389,6 @@ private extension HostOverviewView {
                 .accessibilityHint(L("双击切换图表折线"))
             }
         }
-        .sensoryFeedback(ConnHapticFeedback.highImpact, trigger: cpuVisibility)
     }
 
     var cpuBreakdownItems: [CPUStatItem] {
@@ -400,7 +412,7 @@ private extension HostOverviewView {
             return TrendSeries(
                 id: item.label,
                 color: item.color,
-                values: viewModel.cpuCategoryHistory[item.metric]
+                samples: viewModel.cpuCategoryHistory.samples(for: item.metric)
             )
         }
         return Group {
@@ -416,6 +428,8 @@ private extension HostOverviewView {
                     series,
                     domain: 0 ... 100,
                     yFormat: { "\(Int($0))%" },
+                    stacked: true,
+                    areaStacking: .independent,
                     fillsSingleSeries: false
                 )
             }

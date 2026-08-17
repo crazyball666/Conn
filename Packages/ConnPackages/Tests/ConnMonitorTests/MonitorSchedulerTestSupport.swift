@@ -18,6 +18,8 @@ actor CallLog {
     /// 只看总数的话「A 没采、B 采了两次」与「A、B 各一次」是同一个数字。
     private var execsByAddress: [String: Int] = [:]
     private var failuresRemaining: Int
+    private var stdout = Data()
+    private var stdoutSamples: [Data] = []
     /// 装上后，「成功」的 exec 调用会在返回前挂起，直到测试放行——
     /// 用来把采集钉在飞行中，好读到 phases 的中间态（.collecting/.reconnecting）。
     private var gate: Gate?
@@ -30,6 +32,17 @@ actor CallLog {
 
     /// 追加 n 次待失败的 exec（测试中途注入死会话）。
     func failNext(_ count: Int) { failuresRemaining += count }
+
+    func setStdout(_ output: String) { stdout = Data(output.utf8) }
+
+    func setStdoutSamples(_ outputs: [String]) {
+        stdoutSamples = outputs.map { Data($0.utf8) }
+    }
+
+    func stdoutData() -> Data {
+        guard !stdoutSamples.isEmpty else { return stdout }
+        return stdoutSamples.removeFirst()
+    }
 
     /// 某台主机（按地址）迄今被 exec 了几次。
     func execs(forAddress address: String) -> Int { execsByAddress[address] ?? 0 }
@@ -126,9 +139,9 @@ final class FlakySession: SSHSession {
         if await log.shouldFailExec(address: address) { throw SSHError.channelClosed }
         // 闸门只挡「成功」路径：失败路径要保持即时、确定，不受闸门影响。
         await log.waitIfGated(address: address)
-        // 空输出即可：MetricParser 解析出全 nil 的 HostMetrics，但字典里是非 nil 值，
-        // 足以让「这台主机已知可用」成立。
-        return ExecResult(exitCode: 0, stdout: Data(), stderr: Data())
+        // 默认空输出保留给只关心连接/调用次数的测试；需要验证完整健康度的测试
+        // 会通过 CallLog.setStdout 注入解析 fixture。
+        return ExecResult(exitCode: 0, stdout: await log.stdoutData(), stderr: Data())
     }
 
     func execStream(_ command: String) async throws -> AsyncThrowingStream<Data, Error> {

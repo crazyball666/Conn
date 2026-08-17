@@ -34,6 +34,12 @@ public final class MonitorScheduler {
     public private(set) var lastScanAt: Date?
     /// 详情轮询是否附带概览详情段（系统名/CPU 型号/TCP 重传/网卡）——仅「概览」段激活时置真。
     public var wantsExtended = false
+    /// 成功发布一份采集快照时同步通知页面模型。
+    ///
+    /// 回调与 `metrics` 写入发生在同一个 MainActor 周期内，详情页可在这里同步追加
+    /// 图表历史，避免先因 `metrics` 重绘一次、再由 SwiftUI `onChange` 追加历史后
+    /// 重绘第二次。回调本身不是可观察状态，也不参与调度器生命周期。
+    @ObservationIgnored public var onMetricsUpdated: (@MainActor (HostMetrics) -> Void)?
 
     private let connectionManager: ConnectionManager
     private let collector: MetricCollector
@@ -104,8 +110,8 @@ public final class MonitorScheduler {
     /// 仪表盘模式：轮询全部主机，每轮并发上限 `concurrency`，轮间隔 `interval`。
     ///
     /// 两处收敛，避免切 Tab / 返回列表时无条件重采：
-    /// - **预热轮**（开头睡 2s 再采一次）只为首采点亮 CPU（使用率需两次采样差分）。
-    ///   已有读数说明基线在，跳过。
+    /// - **预热轮**（开头睡 2s 再采一次）为首采或尚未完成 CPU 基线的主机点亮
+    ///   CPU（使用率需两次采样差分）。完整健康度已经存在时跳过。
     /// - **防抖**：距上次采集不足 5s 视为刚采过，本次连立即那轮也跳过。
     ///   `force` 用于回前台——那是明确要立刻重采的场景。
     public func startDashboard(
@@ -126,9 +132,13 @@ public final class MonitorScheduler {
         // 一模一样。于是只要用户有 1 台长期不可达的主机，`needsWarmUp` 就永久为真，
         // `isFresh` 永久为假，每次切回服务器页都是「立即一轮 + 2s 后预热轮」，两轮都对着
         // 死主机跑满连接超时——防抖整体失效，与本次收敛采集时机的目标正好相反。
-        // 所以再看一眼 `errors`：只有「从没采出过读数、也还没被判定故障」的主机才需要
-        // 预热轮点亮 CPU；已判定故障的主机不该让整页反复重采。
-        let needsWarmUp = hosts.contains { metrics[$0.id] == nil && errors[$0.id] == nil }
+        // 所以再看一眼 `errors`：只有「从没采出过读数、或只有不完整 CPU 基线、且还没
+        // 被判定故障」的主机才需要预热轮；已判定故障的主机不该让整页反复重采。
+        let needsWarmUp = hosts.contains { host in
+            guard errors[host.id] == nil else { return false }
+            guard let metrics = metrics[host.id] else { return true }
+            return metrics.isCPUBaselinePending
+        }
         // 有主机缺基线时不防抖：否则「新增主机后 5s 内切走再切回」会把立即那轮
         // 也跳过，新卡片要挂着骨架一整个 interval。
         let isFresh = !force && !needsWarmUp
@@ -435,12 +445,15 @@ public final class MonitorScheduler {
         _ host: ConnKit.Host, generation scanGeneration: Int,
         includeExtended: Bool
     ) async -> Error? {
-        // 池里没有会话 = 本次要握手。首采（无读数）仍走骨架态，不算重连。
+        // 池里没有会话 = 本次要握手。首采（无读数）以及 Linux 首个只有部分
+        // 指标的基线采样，都仍属于连接/采集态，不算重连；只有已经得到完整健康
+        // 严重度后再丢会话，才向 UI 暴露「重连中」。
         let needsHandshake = await !connectionManager.hasPooledSession(for: host)
         // 越过 await 后代次可能已变（页面切走/回前台重启）。返回 nil 让调用方
         // 当作「无错可报」，它自己的 guard 会立刻收尾，不写任何状态。
         guard isCurrent(scanGeneration) else { return nil }
-        phases[host.id] = (needsHandshake && metrics[host.id] != nil) ? .reconnecting : .collecting
+        let hasEstablishedHealth = metrics[host.id].map { $0.severity != .unknown } == true
+        phases[host.id] = (needsHandshake && hasEstablishedHealth) ? .reconnecting : .collecting
         do {
             let context = try await connectionManager.platformContext(for: host)
             let result = try await collector.collect(
@@ -449,9 +462,11 @@ public final class MonitorScheduler {
             )
             guard isCurrent(scanGeneration) else { return nil }
             // 本轮没采概览详情段时沿用上次值，切回来不闪空。
-            metrics[host.id] = result.carryingOver(
+            let publishedMetrics = result.carryingOver(
                 metrics[host.id], keepExtended: !includeExtended
             )
+            metrics[host.id] = publishedMetrics
+            onMetricsUpdated?(publishedMetrics)
             errors[host.id] = nil
             return nil
         } catch let error as MetricCollectionError {

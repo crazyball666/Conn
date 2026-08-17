@@ -1841,6 +1841,34 @@
         }
       }
     },
+    "连接中…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Connecting…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "接続中…"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "연결 중…"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "連線中…"
+          }
+        }
+      }
+    },
     "选择本地脚本" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -1871,6 +1899,7 @@
       }
     },
     "采集中…" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1894,34 +1923,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "採集中…"
-          }
-        }
-      }
-    },
-    "连接中…" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Connecting…"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "接続中…"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "연결 중…"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "連線中…"
           }
         }
       }

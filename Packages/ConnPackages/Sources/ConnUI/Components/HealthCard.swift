@@ -33,6 +33,7 @@ public struct HealthCard: View {
         public let id: String
         public let name: String
         public let address: String
+        /// 指标健康严重度，仅用于健康统计，不参与右上角 SSH 连接胶囊。
         public let status: ConnHealthStatus
         public let cpu: Double?
         public let memory: Double?
@@ -48,7 +49,9 @@ public struct HealthCard: View {
         public let loadState: LoadState
         /// 用户备注（便于记忆）。有则作为卡片主标题优先显示。
         public let note: String?
-        /// 采集阶段：驱动右上角胶囊的转圈与「重连中」文案。
+        /// SSH 连接阶段：驱动右上角胶囊的连接/重连文案与转圈。
+        public let connectionPhase: ConnConnectionPhase
+        /// 后台指标采集阶段。与 SSH 连接阶段独立，采集不会改变状态文案。
         public let collectPhase: ConnCollectPhase
 
         public init(
@@ -68,6 +71,7 @@ public struct HealthCard: View {
             loadText: String? = nil,
             loadState: LoadState = .loaded,
             note: String? = nil,
+            connectionPhase: ConnConnectionPhase,
             collectPhase: ConnCollectPhase = .idle
         ) {
             self.id = id
@@ -86,6 +90,7 @@ public struct HealthCard: View {
             self.loadText = loadText
             self.loadState = loadState
             self.note = note
+            self.connectionPhase = connectionPhase
             self.collectPhase = collectPhase
         }
 
@@ -142,9 +147,9 @@ public struct HealthCard: View {
             Spacer(minLength: ConnSpacing.xs)
             VStack(alignment: .trailing, spacing: 4) {
                 StatusPill(
-                    displayedPhase.pillText(status: model.status),
-                    semantic: displayedPhase.pillSemantic(status: model.status),
-                    isBusy: displayedPhase.isCollecting
+                    statusPillText,
+                    semantic: statusPillSemantic,
+                    isBusy: isStatusBusy
                 )
                 if model.uptimeText != nil || model.loadText != nil {
                     headerMeta
@@ -334,15 +339,15 @@ public struct HealthCard: View {
 
     private var isLoaded: Bool { model.loadState == .loaded }
     private var isLoading: Bool { model.loadState == .loading }
-    /// 首次采集的极短窗口内，监控阶段可能还没来得及写入 `.collecting`，但卡片
-    /// 已经明确处于 loading。UI 仍应显示「连接中…」，而不是把这段正常启动窗口
-    /// 暴露成「未知」。不会覆盖真正的 `.reconnecting` 或已有读数的常规刷新。
-    private var displayedPhase: ConnCollectPhase {
-        if model.collectPhase == .idle, model.loadState == .loading {
-            return .collecting
-        }
-        return model.collectPhase
+    private var statusPillText: String {
+        model.connectionPhase.pillText
     }
+
+    private var statusPillSemantic: StatusPill.Semantic {
+        model.connectionPhase.pillSemantic
+    }
+
+    private var isStatusBusy: Bool { model.connectionPhase.isBusy }
     private var isFailed: Bool {
         if case .failed = model.loadState { return true }
         return false
@@ -367,45 +372,19 @@ public struct HealthCard: View {
     /// 整体传入而非拆成一堆标量——`Model` 本就是不依赖 SwiftUI 的纯数据结构，
     /// 拆参数只会撞上 `function_parameter_count` 的 lint 上限。
     ///
-    /// `collectPhase` 与 `loadState` 本是两套独立维度，原实现各自
-    /// 判断要不要念一遍「采集中…」。但 `collectPhase == .collecting && loadState == .loading`
-    /// 是每台主机首次采集必经的状态（`MonitorScheduler.attempt` 对无读数的主机
-    /// 恒置 `.collecting`，`.loading` 的条件正是 `metrics == nil`），两个分支
-    /// 会同时命中，念成「采集中…，采集中…」。这里把「是否要念一次采集中」合并
-    /// 成单一判断，下面 `switch` 的 `.loading` 分支不再重复 append。
+    /// `connectionPhase` 与 `collectPhase` 是两套独立维度：前者只播报 SSH
+    /// 连接/重连，后者只表示指标刷新。两者可能同时出现，但不能因此把
+    /// 「CPU 基线尚未完成」播报成「连接中」。采集过程完全后台静默。
     ///
     /// 顺序/措辞：
-    /// - 重连中优先于「采集中…」——「重连中」是更具体的状态（连接层面出了问题
-    ///   在重试），比泛泛的「采集中」更值得优先播报。**在「同一主机同一时刻只有
-    ///   一轮采集」这个前提下**，`.reconnecting` 与 `.loading` 单轮次内不可能同时
-    ///   成立（前者只在已有读数时才置位，后者恰好要求无读数），不会堆叠成
-    ///   「重连中，采集中」。该前提由 `MonitorScheduler` 的代次 + 飞行中集合保证；
-    ///   若并发写回的收敛被破坏，这里的 `else if` 仍会择一播报，只是措辞可能
-    ///   落后半拍——不会出现重复朗读。
-    /// - 已加载且仍在后台刷新（`collectPhase == .collecting`、`loadState == .loaded`，例行轮询
-    ///   而非首采）：先念「采集中…」再念读数——让用户先建立「这批数字可能马上
-    ///   更新」的预期，再听具体数字；与首采时「先概述活动、再给细节」的顺序
-    ///   一致，减少 VoiceOver 用户在不同状态间切换时的心智模型跳变。
+    /// - 重连中优先于健康状态——「重连中」是更具体的连接层状态。
     static func accessibilityDescription(for model: Model) -> String {
-        let isConnecting = {
-            guard model.collectPhase != .reconnecting else { return false }
-            guard case .unknown = model.status else { return false }
-            return model.collectPhase.isCollecting || model.loadState == .loading
-        }()
-        let statusText = isConnecting
-            ? L("连接中…")
-            : model.collectPhase.pillText(status: model.status)
+        let statusText = model.connectionPhase.pillText
         var parts = ["\(model.title)，\(statusText)"]
-
-        if model.collectPhase != .reconnecting,
-           (model.collectPhase.isCollecting || model.loadState == .loading),
-           !isConnecting {
-            parts.append(L("采集中…"))
-        }
 
         switch model.loadState {
         case .loading:
-            break // 已在上面合并处理，避免重复念「采集中…」
+            break
         case .failed(let message):
             parts.append(message)
         case .loaded:
@@ -466,37 +445,41 @@ private extension View {
             id: "1", name: "38.147.173.228", address: "root@38.147.173.228:62256",
             status: .ok, cpu: 8, memory: 38, disk: 68,
             coresText: "2 核", memTotalText: "3.6 G", diskTotalText: "30 G",
-            net: net, io: io, uptimeText: "15 天", loadText: "0.09", note: "hk"
+            net: net, io: io, uptimeText: "15 天", loadText: "0.09", note: "hk",
+            connectionPhase: .connected
         )) {}
         HealthCard(.init(
             id: "2", name: "loading-host", address: "root@10.0.0.9",
-            status: .unknown, loadState: .loading
+            status: .unknown, loadState: .loading, connectionPhase: .connecting
         )) {}
         HealthCard(.init(
             id: "3", name: "db-master", address: "root@10.0.0.2",
-            status: .offline, loadState: .failed("连接超时：22 端口无响应")
+            status: .offline, loadState: .failed("连接超时：22 端口无响应"), connectionPhase: .failed
         )) {}
         HealthCard(.init(
             id: "4", name: "reconnecting-host", address: "root@10.0.0.4",
             status: .ok, cpu: 12, memory: 40, disk: 55,
-            collectPhase: .reconnecting
+            connectionPhase: .reconnecting, collectPhase: .reconnecting
         )) {}
         // 边界样本（负载色标验收面）：nil 只画灰轨道；>92 三环全部封顶红；
         // 正好 100% 会在 12 点方向出现绿红硬相接——AngularGradient 套闭合
         // 形状的固有表现，是预期的，不是要修的 bug，样本目的正是让它可见。
         HealthCard(.init(
             id: "5", name: "no-metrics-host", address: "root@10.0.0.7",
-            status: .ok, coresText: "—", memTotalText: "—", diskTotalText: "—"
+            status: .ok, coresText: "—", memTotalText: "—", diskTotalText: "—",
+            connectionPhase: .connected
         )) {}
         HealthCard(.init(
             id: "6", name: "over-92-host", address: "root@10.0.0.8",
             status: .warn, cpu: 95, memory: 97, disk: 99,
-            coresText: "4 核", memTotalText: "7.6 G", diskTotalText: "39.2 G"
+            coresText: "4 核", memTotalText: "7.6 G", diskTotalText: "39.2 G",
+            connectionPhase: .connected
         )) {}
         HealthCard(.init(
             id: "7", name: "maxed-out-host", address: "root@10.0.0.9",
             status: .crit, cpu: 100, memory: 100, disk: 100,
-            coresText: "4 核", memTotalText: "7.6 G", diskTotalText: "39.2 G"
+            coresText: "4 核", memTotalText: "7.6 G", diskTotalText: "39.2 G",
+            connectionPhase: .connected
         )) {}
     }
     .padding(ConnSpacing.page)

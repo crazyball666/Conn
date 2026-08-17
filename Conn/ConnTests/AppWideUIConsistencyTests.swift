@@ -19,6 +19,16 @@ struct AppWideUIConsistencyTests {
         #expect(sources.allSatisfy { $0.contains("ConnHapticFeedback.highImpact")
             || $0.contains("ConnHapticFeedback.performHighImpact()") })
 
+        let overview = sources[0]
+        #expect(overview.contains("@State private var cpuSelectionHapticCount = 0"))
+        #expect(overview.contains("cpuSelectionHapticCount &+= 1"))
+        #expect(overview.contains(
+            ".sensoryFeedback(ConnHapticFeedback.highImpact, trigger: cpuSelectionHapticCount)"
+        ))
+        #expect(!overview.contains(
+            ".sensoryFeedback(ConnHapticFeedback.highImpact, trigger: cpuVisibility)"
+        ))
+
         let swiftTerm = try vendorSource("SwiftTerm/Sources/SwiftTerm/iOS/iOSTerminalView.swift")
         #expect(swiftTerm.contains("UIImpactFeedbackGenerator(style: .heavy)"))
         #expect(swiftTerm.contains("impactOccurred(intensity: 1.0)"))
@@ -77,6 +87,7 @@ struct AppWideUIConsistencyTests {
 
     @Test("主机详情趋势图在首采前保持图表容器")
     func hostOverviewChartsStayVisibleBeforeFirstSample() throws {
+        let viewModel = try appSource("Hosts/HostOverviewViewModel.swift")
         let view = try appSource("Hosts/HostOverviewView.swift")
         let chart = try appSource("Hosts/MetricTrendChart.swift")
 
@@ -84,9 +95,80 @@ struct AppWideUIConsistencyTests {
         #expect(view.contains("return MetricTrendChart("))
         #expect(!view.contains("chartOrPlaceholder"))
         #expect(!view.contains("Text(L(\"采集中…\"))"))
-        #expect(chart.contains("private var dataValues: [[Double]]"))
-        #expect(chart.contains(".animation(chartAnimation, value: dataValues)"))
-        #expect(chart.contains("reduceMotion ? nil : ConnMotion.chartUpdate"))
+        #expect(chart.contains("struct TrendSample: Identifiable, Equatable"))
+        #expect(chart.contains("let samples: [TrendSample]"))
+        #expect(chart.contains("enum TrendViewport"))
+        #expect(chart.contains("static let retainedSampleCount = visibleSampleCount + 1"))
+        #expect(chart.contains("private var xDomain: ClosedRange<Double>"))
+        #expect(chart.contains("TrendViewport.xDomain(endingAt: viewportEnd ?? Double(latestSequence ?? 0))"))
+        #expect(!chart.contains("let start = max(0, latest - 39)"))
+        #expect(chart.contains(".chartXScale(domain: xDomain, range: .plotDimension"))
+        #expect(chart.contains(".chartPlotStyle"))
+        #expect(!chart.contains(".animation(chartAnimation, value: dataValues)"))
+        #expect(chart.contains(".onChange(of: latestSequence)"))
+        #expect(chart.contains("withAnimation(ConnMotion.chartUpdate)"))
+        #expect(!chart.contains("private var renderedSeries"))
+        #expect(viewModel.contains("private let maxPoints = TrendViewport.retainedSampleCount"))
+        #expect(chart.contains("static func axisValues(in domain: ClosedRange<Double>) -> [Double]"))
+        #expect(chart.contains("Array(0 ... 4)"))
+        #expect(chart.contains("values: yAxisValues"))
+        #expect(!chart.contains(".automatic(desiredCount:"))
+        #expect(!chart.contains("Array(line.values.enumerated())"))
+        #expect(viewModel.contains("monitor.onMetricsUpdated = { [weak self] metrics in"))
+        #expect(viewModel.contains("self.record(metrics)"))
+        #expect(!view.contains(".onChange(of: viewModel.latest)"))
+        #expect(!viewModel.contains("cpuHistory"))
+        #expect(!viewModel.contains("coreHistories"))
+        #expect(viewModel.contains("recordCPUBreakdown(metrics.cpuBreakdown"))
+        #expect(viewModel.contains("guard let value else { return }"))
+    }
+
+    @Test("主机详情图表不伪造零点，内存三项按实际值独立绘制")
+    func hostOverviewChartsUseRealIndependentMemorySeries() throws {
+        let viewModel = try appSource("Hosts/HostOverviewViewModel.swift")
+        let view = try appSource("Hosts/HostOverviewView.swift")
+        let chart = try appSource("Hosts/MetricTrendChart.swift")
+
+        #expect(!viewModel.contains("appendZero("))
+        #expect(!viewModel.contains("append(&netRxHistory, 0"))
+        #expect(!viewModel.contains("append(&ioReadHistory, 0"))
+        #expect(viewModel.contains("memUsedHistory"))
+        #expect(viewModel.contains("memCacheHistory"))
+        #expect(viewModel.contains("memFreeHistory"))
+        #expect(viewModel.contains("MemoryChartValues(metrics: metrics)"))
+        #expect(view.contains("TrendSeries(id: L(\"已用\"), color: HostChartPalette.memoryUsed, samples: viewModel.memUsedHistory)"))
+        #expect(view.contains("TrendSeries(id: L(\"缓存\"), color: HostChartPalette.memoryCache, samples: viewModel.memCacheHistory)"))
+        #expect(view.contains("TrendSeries(id: L(\"空闲\"), color: HostChartPalette.memoryFree, samples: viewModel.memFreeHistory)"))
+        #expect(chart.contains("var stacked: Bool = true"))
+        #expect(chart.contains("mapping: chartStyle(for:)"))
+        #expect(chart.contains("private func chartStyle(for id: String) -> AnyShapeStyle"))
+        #expect(chart.contains(".foregroundStyle(chartStyle(for: line.id))"))
+        #expect(chart.contains("LinearGradient("))
+        #expect(chart.contains("case cumulative"))
+        #expect(chart.contains("case independent"))
+        #expect(chart.contains("case .independent: .unstacked"))
+        #expect(chart.contains("stacking: areaStacking.markMethod"))
+        // CPU/内存和磁盘/网络共用 AreaMark 视觉，不为独立面积额外叠加粗描边。
+        #expect(!chart.contains("private func boundaryLine"))
+        #expect(!chart.contains("lineWidth: 1.6"))
+        // 内存与 CPU 各有一次独立实际值面积；网络/IO 继续使用默认累计模式。
+        #expect(view.components(separatedBy: "areaStacking: .independent").count == 3)
+    }
+
+    @Test("首页 CPU 基线缺失不伪造 SSH 连接态")
+    func firstCPUBaselineDoesNotBecomeConnectionState() throws {
+        let servers = try appSource("Servers/ServersViewModel.swift")
+        let scheduler = try packageSource("Sources/ConnMonitor/MonitorScheduler.swift")
+        let healthCard = try packageSource("Sources/ConnUI/Components/HealthCard.swift")
+
+        #expect(!servers.contains("isInitialHealthWarmup"))
+        #expect(servers.contains("connectionPhase: connectionPhase(metrics: metrics, error: error, phase: phase)"))
+        #expect(servers.contains("collectPhase: collectPhase(phase)"))
+        #expect(scheduler.contains("isCPUBaselinePending"))
+        #expect(scheduler.contains("hasEstablishedHealth"))
+        #expect(scheduler.contains("$0.severity != .unknown"))
+        #expect(healthCard.contains("model.connectionPhase.pillText"))
+        #expect(!healthCard.contains("connectionPhase.pillText(status:"))
     }
 
     @Test("管理分组页自己承载分组弹窗并居中空状态")

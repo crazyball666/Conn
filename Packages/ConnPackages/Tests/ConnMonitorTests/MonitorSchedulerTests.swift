@@ -11,6 +11,20 @@ struct MonitorSchedulerTests {
         makeHost(id, address: address)
     }
 
+    private func completeLinuxMetricsOutput(cpu: String = "cpu  100 10 50 1000 20 0 5 0 0 0") -> String {
+        """
+        __CONN_STAT__
+        \(cpu)
+        __CONN_MEM__
+        MemTotal:        4096000 kB
+        MemAvailable:    2048000 kB
+        __CONN_DISK__
+        Filesystem     1024-blocks     Used Available Capacity Mounted on
+        /dev/vda1         41152000 18000000  21000000      47% /
+        __CONN_END__
+        """
+    }
+
     @Test("首采成功后有读数，阶段回到 idle")
     func firstScanPopulatesMetrics() async {
         let (scheduler, log) = makeScheduler()
@@ -22,6 +36,19 @@ struct MonitorSchedulerTests {
         #expect(scheduler.errors[target.id] == nil)
         #expect(scheduler.phases[target.id] == .idle)
         #expect(await log.execs == 1)
+    }
+
+    @Test("每份成功采集结果只同步发布一次")
+    func successfulScanPublishesOneMetricsUpdate() async {
+        let (scheduler, _) = makeScheduler()
+        let target = host()
+        var updates: [HostMetrics] = []
+        scheduler.onMetricsUpdated = { updates.append($0) }
+
+        await scheduler.scanNow(hosts: [target])
+
+        #expect(updates.count == 1)
+        #expect(updates.first == scheduler.metrics[target.id])
     }
 
     @Test("调度器按连接的平台画像选择采集能力")
@@ -175,10 +202,17 @@ struct MonitorSchedulerTests {
     func retryAfterEvictionIsReconnecting() async {
         let (scheduler, log) = makeScheduler()
         let target = host()
+        await log.setStdoutSamples([
+            completeLinuxMetricsOutput(),
+            completeLinuxMetricsOutput(cpu: "cpu  110 10 60 1010 20 0 5 0 0 0"),
+            completeLinuxMetricsOutput(cpu: "cpu  120 10 70 1020 20 0 5 0 0 0")
+        ])
 
-        // 第一轮正常放行，建立「已知可用」的读数。
+        // Linux 第一轮只建立 CPU jiffies 基线；第二轮才得到完整健康度。
+        await scheduler.scanNow(hosts: [target])
         await scheduler.scanNow(hosts: [target])
         #expect(scheduler.metrics[target.id] != nil)
+        #expect(scheduler.metrics[target.id]?.severity != .unknown)
 
         // 第二轮：首次 exec 抛错触发驱逐（池清空），但读数还在——
         // 重试那次 attempt() 应判成 reconnecting。闸门挡在重试的 exec 上，
@@ -203,7 +237,7 @@ struct MonitorSchedulerTests {
         #expect(scheduler.phases[target.id] == .idle)
         // 首轮握手 1 次 + 驱逐后重连 1 次
         #expect(await log.connects == 2)
-        // 首轮 1 次 + 第二轮（失败 1 次 + 重试 1 次）
-        #expect(await log.execs == 3)
+        // 建立基线 2 次 + 第二轮（失败 1 次 + 重试 1 次）
+        #expect(await log.execs == 4)
     }
 }

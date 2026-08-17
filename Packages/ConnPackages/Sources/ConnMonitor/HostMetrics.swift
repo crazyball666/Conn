@@ -63,6 +63,20 @@ public struct HostMetrics: Sendable, Equatable {
     public let uptimeSeconds: Double?
     public let severity: MetricSeverity
 
+    /// Linux 首次采集已经拿到部分健康指标，但还没有第二个 `/proc/stat`
+    /// 样本计算 CPU 使用率。这个状态属于采集预热，不是未知主机或重连。
+    ///
+    /// 只把「确实有部分有效数据」纳入，避免将测试/异常场景中“结果对象存在但
+    /// 所有健康指标均为空”误判为 CPU 基线等待。macOS 的 CPU 是单次 `top`
+    /// 结果，不走这个两次采样窗口。
+    public var isCPUBaselinePending: Bool {
+        platformProfile.kind == .linux
+            && capabilityState == .supported
+            && cpu == nil
+            && severity == .unknown
+            && (mem != nil || disk != nil)
+    }
+
     public init(
         hostID: String,
         platformProfile: RemotePlatformProfile = RemotePlatformProfile(kind: .linux),

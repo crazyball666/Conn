@@ -32,33 +32,42 @@ struct CPUChartVisibility: Equatable, Sendable {
 
 /// 八类 CPU 指标的滚动历史，避免把低占比但有诊断价值的指标合并丢失。
 struct CPUCategoryHistory: Equatable, Sendable {
-    private var samples: [CPUChartMetric: [Double]] = [:]
+    private var history: [CPUChartMetric: [TrendSample]] = [:]
 
     subscript(metric: CPUChartMetric) -> [Double] {
-        samples[metric] ?? []
+        history[metric, default: []].map(\.value)
     }
 
     mutating func append(_ value: CPUBreakdown, limit: Int) {
-        append(value.user, to: .user, limit: limit)
-        append(value.system, to: .system, limit: limit)
-        append(value.iowait, to: .iowait, limit: limit)
-        append(value.idle, to: .idle, limit: limit)
-        append(value.nice, to: .nice, limit: limit)
-        append(value.irq, to: .irq, limit: limit)
-        append(value.softirq, to: .softirq, limit: limit)
-        append(value.steal, to: .steal, limit: limit)
+        let nextSequence = history.values.flatMap { $0 }.map(\.sequence).max().map { $0 + 1 } ?? 0
+        append(value, sequence: nextSequence, limit: limit)
     }
 
-    private mutating func append(_ value: Double, to metric: CPUChartMetric, limit: Int) {
+    mutating func append(_ value: CPUBreakdown, sequence: Int, limit: Int) {
+        append(value.user, to: .user, sequence: sequence, limit: limit)
+        append(value.system, to: .system, sequence: sequence, limit: limit)
+        append(value.iowait, to: .iowait, sequence: sequence, limit: limit)
+        append(value.idle, to: .idle, sequence: sequence, limit: limit)
+        append(value.nice, to: .nice, sequence: sequence, limit: limit)
+        append(value.irq, to: .irq, sequence: sequence, limit: limit)
+        append(value.softirq, to: .softirq, sequence: sequence, limit: limit)
+        append(value.steal, to: .steal, sequence: sequence, limit: limit)
+    }
+
+    func samples(for metric: CPUChartMetric) -> [TrendSample] {
+        history[metric] ?? []
+    }
+
+    private mutating func append(_ value: Double, to metric: CPUChartMetric, sequence: Int, limit: Int) {
         guard limit > 0 else {
-            samples[metric] = []
+            history[metric] = []
             return
         }
-        var history = samples[metric] ?? []
-        history.append(value)
-        if history.count > limit {
-            history.removeFirst(history.count - limit)
+        var metricHistory = history[metric] ?? []
+        metricHistory.append(TrendSample(sequence: sequence, value: value))
+        if metricHistory.count > limit {
+            metricHistory.removeFirst(metricHistory.count - limit)
         }
-        samples[metric] = history
+        history[metric] = metricHistory
     }
 }

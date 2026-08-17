@@ -181,6 +181,7 @@ final class ServersViewModel {
         let error = monitor.errors[host.id]
         let phase = monitor.phases[host.id] ?? .idle
         let status = presentationStatus(metrics: metrics, hasError: error != nil)
+        let connectionPhase = connectionPhase(metrics: metrics, error: error, phase: phase)
         let loadState: HealthCard.LoadState
         if metrics != nil {
             loadState = .loaded
@@ -208,8 +209,21 @@ final class ServersViewModel {
             loadText: metrics?.load1.map { String(format: "%.2f", $0) },
             loadState: loadState,
             note: host.note,
+            connectionPhase: connectionPhase,
             collectPhase: collectPhase(phase)
         )
+    }
+
+    /// 连接层与指标层严格分离：没有首个读数且没有错误时，是 SSH 首次连接，
+    /// 不是健康状态「未知」；已有读数后，即使 CPU 正在做基线，也保持已连接。
+    private func connectionPhase(
+        metrics: HostMetrics?,
+        error: String?,
+        phase: CollectPhase
+    ) -> ConnConnectionPhase {
+        if phase == .reconnecting { return .reconnecting }
+        if metrics == nil, error != nil { return .failed }
+        return metrics == nil ? .connecting : .connected
     }
 
     /// 领域三态 → 展示层三态。ConnUI 刻意不依赖 ConnMonitor，映射由 Feature 层

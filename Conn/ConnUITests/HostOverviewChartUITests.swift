@@ -17,6 +17,10 @@ final class HostOverviewChartUITests: XCTestCase {
         systemMetric.tap()
 
         XCTAssertEqual(systemMetric.value as? String, "hidden")
+
+        systemMetric.tap()
+
+        XCTAssertEqual(systemMetric.value as? String, "visible")
     }
 
     @MainActor

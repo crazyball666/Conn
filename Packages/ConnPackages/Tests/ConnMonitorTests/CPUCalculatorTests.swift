@@ -1,3 +1,4 @@
+import ConnKit
 import Testing
 @testable import ConnMonitor
 
@@ -23,6 +24,40 @@ struct CPUCalculatorTests {
         let previous = CPUJiffies(total: 1000, idle: 500)
         let current = CPUJiffies(total: 1100, idle: 500)
         #expect(CPUCalculator.usage(previous: previous, current: current) == 100)
+    }
+}
+
+struct HostMetricsWarmupTests {
+    private func metrics(
+        platform: RemotePlatformKind = .linux,
+        cpu: Double? = nil,
+        mem: Double? = 40,
+        disk: Double? = 50
+    ) -> HostMetrics {
+        HostMetrics(
+            hostID: "h1",
+            platformProfile: RemotePlatformProfile(kind: platform),
+            cpu: cpu,
+            mem: mem,
+            disk: disk,
+            load1: nil,
+            netRx: nil,
+            netTx: nil,
+            uptimeSeconds: nil,
+            severity: HealthEvaluator.severity(cpu: cpu, mem: mem, disk: disk)
+        )
+    }
+
+    @Test("Linux 首采仅缺 CPU 且已有其他健康数据时进入 CPU 预热")
+    func linuxPartialHealthNeedsCPUWarmup() {
+        #expect(metrics().isCPUBaselinePending)
+    }
+
+    @Test("完整健康度、空结果和 macOS 不进入 Linux CPU 预热")
+    func warmupRequiresLinuxPartialHealth() {
+        #expect(!metrics(cpu: 20).isCPUBaselinePending)
+        #expect(!metrics(mem: nil, disk: nil).isCPUBaselinePending)
+        #expect(!metrics(platform: .macOS).isCPUBaselinePending)
     }
 }
 

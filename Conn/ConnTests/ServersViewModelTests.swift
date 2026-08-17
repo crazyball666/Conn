@@ -224,6 +224,7 @@ struct ServersViewModelTests {
         )
         viewModel.load()
         #expect(viewModel.cards.first?.collectPhase == .idle)
+        #expect(viewModel.cards.first?.connectionPhase == .connecting)
 
         let scan = Task { await monitor.scanNow(hosts: [target]) }
 
@@ -245,6 +246,10 @@ struct ServersViewModelTests {
         await scan.value
 
         #expect(viewModel.cards.first?.collectPhase == .idle)
+        #expect(viewModel.cards.first?.connectionPhase == .connected)
+        // 空输出会形成“已有 SSH 采集结果但健康字段尚不完整”的真实中间态。
+        // 健康状态可以未知，但连接态必须已经是 connected，胶囊由后者独立渲染。
+        #expect(viewModel.cards.first?.status == .unknown)
     }
 
     /// 正向覆盖「重连态到达 UI」——`card(for:)` 里的 `collectPhase(_:)` 映射
@@ -271,6 +276,7 @@ struct ServersViewModelTests {
         // 第一轮放行，建立「已知可用」的读数。
         await monitor.scanNow(hosts: [target])
         #expect(viewModel.cards.first?.collectPhase == .idle)
+        #expect(viewModel.cards.first?.connectionPhase == .connected)
 
         // 第二轮：首次 exec 抛错触发驱逐（池清空），但读数还在——
         // 重试那次 attempt 应判成 .reconnecting。闸门挡在重试的 exec 上，
@@ -286,12 +292,14 @@ struct ServersViewModelTests {
         // `.reconnecting` 同时蕴含「转圈亮着」（`isCollecting` 为真），
         // 不必再单独断言一次忙碌位——枚举已经把两者绑成一个值。
         #expect(viewModel.cards.first?.collectPhase == .reconnecting)
+        #expect(viewModel.cards.first?.connectionPhase == .reconnecting)
 
         await log.openGate()
         await scan.value
 
         // 重试成功：回到常态，不报错、读数还在。
         #expect(viewModel.cards.first?.collectPhase == .idle)
+        #expect(viewModel.cards.first?.connectionPhase == .connected)
     }
 
     /// 有上限地轮询，直到 `log.execs` 达到 `target` 或耗尽 `maxAttempts`。
