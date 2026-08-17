@@ -182,6 +182,7 @@ struct TerminalScreen: View {
                             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                     } else if case .reconnecting = tab.status {
                         TerminalReconnectingNotice()
+                            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
                     }
                 }
             } else {
@@ -298,34 +299,22 @@ struct TerminalScreen: View {
 }
 
 private struct TerminalReconnectingNotice: View {
-    @State private var isVisible = false
-
     var body: some View {
-        Group {
-            if isVisible {
-                HStack(spacing: ConnSpacing.xs) {
-                    ProgressView()
-                        .tint(.connAccent)
-                    Text(L("正在重新连接…"))
-                        .font(.connFootnote)
-                        .foregroundStyle(.white)
-                }
-                .padding(.horizontal, ConnSpacing.sm)
-                .padding(.vertical, ConnSpacing.xs)
-                .background(
-                    .black.opacity(0.82),
-                    in: RoundedRectangle(cornerRadius: ConnRadius.key, style: .continuous)
-                )
-                .allowsHitTesting(false)
-            }
+        HStack(spacing: ConnSpacing.xs) {
+            ProgressView()
+                .tint(.connAccent)
+            Text(L("正在重新连接…"))
+                .font(.connFootnote)
+                .foregroundStyle(.white)
         }
-        .task {
-            do {
-                try await Task.sleep(for: .milliseconds(350))
-                isVisible = true
-            } catch {
-                // 状态在延迟内结束时 SwiftUI 会取消 task；此时无需闪现提示。
-            }
-        }
+        .padding(.horizontal, ConnSpacing.sm)
+        .padding(.vertical, ConnSpacing.xs)
+        .background(
+            .black.opacity(0.82),
+            in: RoundedRectangle(cornerRadius: ConnRadius.key, style: .continuous)
+        )
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("terminal.reconnecting")
+        .allowsHitTesting(false)
     }
 }

@@ -20,16 +20,24 @@ struct HealthCardPillTests {
         #expect(ConnCollectPhase.idle.pillSemantic(status: .crit) == .crit)
     }
 
-    /// 常规采集只转圈，**不改文案也不改配色**——每 30s 把「正常」换成「刷新中」
-    /// 会让状态区一直跳。
-    @Test("collecting：文字与语义色保持状态原样，只是转圈")
+    /// 已有读数的常规采集只转圈，**不改文案也不改配色**——每 30s 把「正常」换成
+    /// 「连接中」会让状态区一直跳。只有没有任何读数的首次连接才显示连接中，
+    /// 避免把真实的未知状态误当成已连接。
+    @Test("collecting：已知状态保持原样，未知状态显示连接中")
     func collectingKeepsStatus() {
         for status in ConnHealthStatus.allCases {
-            #expect(ConnCollectPhase.collecting.pillText(status: status) == status.label)
-            #expect(ConnCollectPhase.collecting.pillSemantic(status: status) == status.pillSemantic)
+            if case .unknown = status {
+                #expect(ConnCollectPhase.collecting.pillText(status: status) == L("连接中…"))
+                #expect(ConnCollectPhase.collecting.pillSemantic(status: status) == .info)
+            } else {
+                #expect(ConnCollectPhase.collecting.pillText(status: status) == status.label)
+                #expect(ConnCollectPhase.collecting.pillSemantic(status: status) == status.pillSemantic)
+            }
         }
         #expect(ConnCollectPhase.collecting.pillText(status: .warn) == L("警告"))
         #expect(ConnCollectPhase.collecting.pillSemantic(status: .warn) == .warn)
+        #expect(ConnCollectPhase.collecting.pillText(status: .unknown) == L("连接中…"))
+        #expect(ConnCollectPhase.collecting.pillSemantic(status: .unknown) == .info)
     }
 
     /// 只有重连态盖掉文案并转蓝（`.info`）——蓝色区别于「连接失败」的红，

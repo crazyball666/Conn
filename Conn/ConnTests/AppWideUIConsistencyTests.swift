@@ -269,12 +269,15 @@ struct AppWideUIConsistencyTests {
         #expect(!helper.prefix(500).contains("tmux"))
     }
 
-    @Test("终端真实重连提示延迟后居中显示并使用紧凑实色背景")
-    func terminalReconnectNoticeUsesDelayedCenteredPresentation() throws {
+    @Test("终端真实重连提示立即居中显示并使用紧凑实色背景")
+    func terminalReconnectNoticeUsesImmediateCenteredPresentation() throws {
         let source = try appSource("Terminal/TerminalScreen.swift")
 
         #expect(source.contains("TerminalReconnectingNotice()"))
-        #expect(source.contains("Task.sleep(for: .milliseconds(350))"))
+        #expect(source.contains("alignment: .center"))
+        #expect(source.contains("ProgressView()"))
+        #expect(source.contains("terminal.reconnecting"))
+        #expect(!source.contains("Task.sleep(for: .milliseconds(350))"))
         #expect(source.contains("RoundedRectangle(cornerRadius: ConnRadius.key, style: .continuous)"))
         #expect(source.contains(".black.opacity(0.82)"))
         #expect(source.contains("maxHeight: .infinity, alignment: .top"))

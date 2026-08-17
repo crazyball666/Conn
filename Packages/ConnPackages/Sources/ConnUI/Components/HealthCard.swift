@@ -142,9 +142,9 @@ public struct HealthCard: View {
             Spacer(minLength: ConnSpacing.xs)
             VStack(alignment: .trailing, spacing: 4) {
                 StatusPill(
-                    model.collectPhase.pillText(status: model.status),
-                    semantic: model.collectPhase.pillSemantic(status: model.status),
-                    isBusy: model.collectPhase.isCollecting
+                    displayedPhase.pillText(status: model.status),
+                    semantic: displayedPhase.pillSemantic(status: model.status),
+                    isBusy: displayedPhase.isCollecting
                 )
                 if model.uptimeText != nil || model.loadText != nil {
                     headerMeta
@@ -334,6 +334,15 @@ public struct HealthCard: View {
 
     private var isLoaded: Bool { model.loadState == .loaded }
     private var isLoading: Bool { model.loadState == .loading }
+    /// 首次采集的极短窗口内，监控阶段可能还没来得及写入 `.collecting`，但卡片
+    /// 已经明确处于 loading。UI 仍应显示「连接中…」，而不是把这段正常启动窗口
+    /// 暴露成「未知」。不会覆盖真正的 `.reconnecting` 或已有读数的常规刷新。
+    private var displayedPhase: ConnCollectPhase {
+        if model.collectPhase == .idle, model.loadState == .loading {
+            return .collecting
+        }
+        return model.collectPhase
+    }
     private var isFailed: Bool {
         if case .failed = model.loadState { return true }
         return false
@@ -378,11 +387,19 @@ public struct HealthCard: View {
     ///   更新」的预期，再听具体数字；与首采时「先概述活动、再给细节」的顺序
     ///   一致，减少 VoiceOver 用户在不同状态间切换时的心智模型跳变。
     static func accessibilityDescription(for model: Model) -> String {
-        var parts = ["\(model.title)，\(model.status.label)"]
+        let isConnecting = {
+            guard model.collectPhase != .reconnecting else { return false }
+            guard case .unknown = model.status else { return false }
+            return model.collectPhase.isCollecting || model.loadState == .loading
+        }()
+        let statusText = isConnecting
+            ? L("连接中…")
+            : model.collectPhase.pillText(status: model.status)
+        var parts = ["\(model.title)，\(statusText)"]
 
-        if model.collectPhase == .reconnecting {
-            parts.append(L("重连中"))
-        } else if model.collectPhase.isCollecting || model.loadState == .loading {
+        if model.collectPhase != .reconnecting,
+           (model.collectPhase.isCollecting || model.loadState == .loading),
+           !isConnecting {
             parts.append(L("采集中…"))
         }
 

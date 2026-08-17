@@ -53,14 +53,31 @@ public enum ConnCollectPhase: Sendable, CaseIterable {
     /// 胶囊文字。
     ///
     /// 重连中时盖掉状态文案——「重连中」比「正常/故障」更贴近此刻发生的事。
-    /// 常规采集**不改文案**，只转圈：每 30s 把「正常」换成「刷新中」会让状态区
-    /// 一直跳，反而更吵。
+    /// 首次连接没有任何健康读数，底层状态虽然是 `.unknown`，但此时并不是「无法
+    /// 判断」，而是「正在建立连接」，因此显示「连接中…」。已有读数的常规采集
+    /// 不改文案，只转圈，避免每 30s 把「正常」换成「连接中」造成状态跳动。
     func pillText(status: ConnHealthStatus) -> String {
-        self == .reconnecting ? L("重连中") : status.label
+        switch self {
+        case .reconnecting:
+            return L("重连中")
+        case .collecting:
+            if case .unknown = status { return L("连接中…") }
+            return status.label
+        case .idle:
+            return status.label
+        }
     }
 
-    /// 胶囊语义色。重连中转蓝（`.info`），与已认定的「连接失败」（红）区分开。
+    /// 胶囊语义色。连接中/重连中转蓝（`.info`），与已认定的「连接失败」（红）区分开。
     func pillSemantic(status: ConnHealthStatus) -> StatusPill.Semantic {
-        self == .reconnecting ? .info : status.pillSemantic
+        switch self {
+        case .reconnecting:
+            return .info
+        case .collecting:
+            if case .unknown = status { return .info }
+            return status.pillSemantic
+        case .idle:
+            return status.pillSemantic
+        }
     }
 }

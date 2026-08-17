@@ -784,6 +784,11 @@ public final class TerminalSessionCoordinator {
     /// complete attachment generation. Rebuild uses the exact same descriptor and startup
     /// pipeline as initial launch, with a small bounded retry sequence for transient loss.
     private func scheduleAutomaticRecovery(tabID: String, generation: UInt64) {
+        // Mark the tab as rebuilding before the first bounded backoff. The UI must expose
+        // the recovery state during that wait; otherwise a foreground resume or a required
+        // Control Mode rebuild looks indistinguishable from a silently disconnected tab.
+        guard let tab = store.tab(id: tabID), tab.generation == generation else { return }
+        store.updateStatus(tabID, to: .reconnecting)
         if let existing = automaticRecoveryTasks[tabID] {
             guard existing.generation != generation else { return }
             existing.task.cancel()

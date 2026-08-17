@@ -61,6 +61,9 @@
     private struct TerminalHostContent: View {
         @StateObject private var controller: TerminalInputController
         @State private var isKeybarExpanded: Bool
+        /// 收起系统键盘后仍保留快捷键栏。键盘响应者状态和快捷键栏展示状态
+        /// 是两个独立的交互状态，不能用同一个 focus 信号驱动。
+        @State private var keepsKeybarVisible = false
         @Environment(\.scenePhase) private var scenePhase
         @Environment(\.connToastCenter) private var toastCenter
 
@@ -100,7 +103,7 @@
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
 
                 if configuration.showsKeybar,
-                   controller.isTerminalFocused || controller.isReviewActive
+                   controller.isTerminalFocused || controller.isReviewActive || keepsKeybarVisible
                 {
                     TerminalKeybar(
                         ctrlActive: controller.ctrlActive,
@@ -115,7 +118,10 @@
                         providerQuickActionGroup: controller.providerQuickActionGroup,
                         performingProviderQuickActionID: controller.performingProviderQuickActionID,
                         onProviderQuickAction: controller.performQuickAction,
-                        onDismissKeyboard: controller.dismissKeyboard,
+                        onDismissKeyboard: {
+                            keepsKeybarVisible = true
+                            controller.dismissKeyboard()
+                        },
                         onExpansionChange: { isKeybarExpanded = $0 }
                     )
                     .frame(
@@ -128,7 +134,7 @@
                 }
             }
             .onChange(of: controller.isTerminalFocused) { _, isFocused in
-                if !isFocused, !controller.isReviewActive {
+                if !isFocused, !controller.isReviewActive, !keepsKeybarVisible {
                     isKeybarExpanded = false
                 }
             }

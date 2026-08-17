@@ -28,35 +28,46 @@ struct HealthCardAccessibilityTests {
         let text = HealthCard.accessibilityDescription(for: model)
         #expect(occurrences(of: L("重连中"), in: text) == 1)
         #expect(occurrences(of: L("采集中…"), in: text) == 0)
+
+        let unknownModel = HealthCard.Model(
+            id: "1b", name: "unknown-reconnecting", address: "root@10.0.0.10",
+            status: .unknown, loadState: .loading, collectPhase: .reconnecting
+        )
+        let unknownText = HealthCard.accessibilityDescription(for: unknownModel)
+        #expect(occurrences(of: L("重连中"), in: unknownText) == 1)
+        #expect(occurrences(of: L("连接中…"), in: unknownText) == 0)
     }
 
     /// 首次采集：`collectPhase == .collecting` 且 `loadState == .loading`——
     /// `MonitorScheduler.attempt` 对无读数的主机恒置 `.collecting`，
     /// `.loading` 的条件正是 `metrics == nil`，两者必然同时成立。
-    /// 这是本次修复要锁住的回归场景：修复前会重复 append「采集中…」两次。
-    @Test("首采（collecting + loading）：「采集中…」只念一次")
+    /// 首次连接没有健康读数时，不能把正常的连接过程播报成「未知」；
+    /// 也不应再重复播报「连接中」和「采集中」。
+    @Test("首采（collecting + loading）：播报连接中而不是未知")
     func firstScanCollecting() {
         let model = HealthCard.Model(
             id: "2", name: "loading-host", address: "root@10.0.0.9",
             status: .unknown, loadState: .loading, collectPhase: .collecting
         )
         let text = HealthCard.accessibilityDescription(for: model)
-        #expect(occurrences(of: L("采集中…"), in: text) == 1)
+        #expect(occurrences(of: L("连接中…"), in: text) == 1)
+        #expect(occurrences(of: L("采集中…"), in: text) == 0)
+        #expect(!text.contains(L("未知")))
     }
 
     /// 覆盖缺口：`loadState == .loading` 且 `collectPhase` 为默认值 `.idle`——
     /// `HealthCard.swift` 自带的 `#Preview`（`id: "2"`，`loading-host`）就是这张卡，
     /// 可达且常见（例如首次进入服务器页、还没收到过任何采集结果时）。
-    /// 判断「是否念一次采集中」的条件是析取 `collectPhase.isCollecting || loadState == .loading`，
-    /// 若被误改成只剩前者，这个组合会导致「采集中…」整句消失——本测试锁住它。
-    @Test("首采（仅 loading，不在采集）：仍念一次「采集中…」")
+    /// 即使阶段事件还没来得及写入，loading 本身也足以说明正在建立连接。
+    @Test("首采（仅 loading，不在采集）：仍播报连接中")
     func loadingWithoutBusy() {
         let model = HealthCard.Model(
             id: "2", name: "loading-host", address: "root@10.0.0.9",
             status: .unknown, loadState: .loading
         )
         let text = HealthCard.accessibilityDescription(for: model)
-        #expect(occurrences(of: L("采集中…"), in: text) == 1)
+        #expect(occurrences(of: L("连接中…"), in: text) == 1)
+        #expect(!text.contains(L("未知")))
     }
 
     @Test("已加载且在后台刷新：先念「采集中…」，再念当前读数")

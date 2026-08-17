@@ -83,6 +83,26 @@ final class ConnUITests: XCTestCase {
         XCTAssertEqual(terminal.frame.height, viewportBeforeTap.height, accuracy: 1)
     }
 
+    @MainActor
+    func testTerminalDismissKeyboardKeepsKeybarVisible() throws {
+        let app = XCUIApplication()
+        app.launchEnvironment["CONN_DEMO"] = "1"
+        app.launchEnvironment["CONN_SMOKE_TERMINAL"] = "1"
+        app.launchArguments += ["-conn.settings.terminalCursorBlinking", "NO"]
+        app.launch()
+
+        let keybar = app.descendants(matching: .any)["terminal.keybar"].firstMatch
+        let dismissKeyboard = app.buttons["terminal.keybar.dismissKeyboard"]
+        XCTAssertTrue(keybar.waitForExistence(timeout: 10))
+        XCTAssertTrue(dismissKeyboard.waitForExistence(timeout: 5))
+
+        dismissKeyboard.tap()
+
+        XCTAssertTrue(keybar.waitForExistence(timeout: 5))
+        XCTAssertTrue(dismissKeyboard.exists)
+        XCTAssertTrue(app.buttons["Esc"].exists)
+    }
+
     /// 使用模拟器里用户已经配置好的真实主机做 opt-in 验收。默认跳过，避免 CI 依赖
     /// 私有凭据；手工验收时设置 CONN_LIVE_TMUX_UI_ACCEPTANCE=1。
     @MainActor
