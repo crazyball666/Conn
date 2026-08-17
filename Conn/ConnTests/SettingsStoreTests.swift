@@ -23,6 +23,8 @@ struct SettingsStoreTests {
 
         #expect(settings.appearance == .dark)
         #expect(settings.accent == .purple)
+        #expect(settings.terminalFontSize == 10)
+        #expect(settings.terminalConfiguration.fontSize == 10)
     }
 
     @Test("终端设置写入 UserDefaults 并可恢复")

@@ -67,24 +67,26 @@ public struct RemoteWorkspaceRef: Sendable, Codable, Equatable {
 /// Durable, provider-neutral information required to open or reconnect an attachment.
 public struct PersistentAttachmentDescriptor: Sendable, Codable, Equatable {
     public let providerID: String
-    public let profileID: String
+    public let configuration: PersistentTerminalConfiguration
     public let workspace: RemoteWorkspaceRef
     public let payloadVersion: Int
     public let providerPayload: Data
 
     public init(
         providerID: String,
-        profileID: String,
+        configuration: PersistentTerminalConfiguration,
         workspace: RemoteWorkspaceRef,
         payloadVersion: Int,
         providerPayload: Data
     ) {
         self.providerID = providerID
-        self.profileID = profileID
+        self.configuration = configuration
         self.workspace = workspace
         self.payloadVersion = payloadVersion
         self.providerPayload = providerPayload
     }
+
+    public var configurationKey: String { configuration.configurationKey }
 }
 
 public enum PersistentAttachmentOpenReason: String, Codable, Sendable, Equatable {
@@ -195,7 +197,7 @@ public struct RemoteWorkspaceSummary: Codable, Sendable, Equatable {
 }
 
 /// Common inputs for creating a top-level workspace. Provider-specific defaults belong to
-/// the selected backend profile rather than leaking into this envelope.
+/// the selected backend configuration rather than leaking into this envelope.
 public struct CreateWorkspaceRequest: Codable, Sendable, Equatable {
     public let name: String?
 
@@ -207,9 +209,8 @@ public struct CreateWorkspaceRequest: Codable, Sendable, Equatable {
 public enum PersistentTerminalError: Error, Sendable, Equatable {
     case unsupportedPlatform
     case providerNotRegistered(String)
-    case providerDisabled
-    case profileUnavailable(String)
     case executableMissing
+    case unsupportedConfigurationVersion(providerID: String, version: Int)
     case incompatibleVersion(String?)
     case serverUnavailable
     case socketPermissionDenied

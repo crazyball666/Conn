@@ -1,8 +1,10 @@
 # Conn tmux 原生集成设计
 
+> **配置持久化说明已被取代：** provider 配置、主机保存和 attachment 恢复的最新边界以 [持久终端配置解耦设计](./2026-08-16-persistent-terminal-configuration-decoupling-design.md) 为准。本文件其余 tmux 产品与协议设计仍然有效。
+
 **日期：** 2026-08-12  
 **状态：** 已确认，评审补强完成，待实现计划\
-**范围：** Linux/macOS 远端 tmux 发现、持久会话接入、原生管理、Control Mode 状态同步与普通 PTY 降级  
+**范围：** Linux/macOS 远端 tmux 发现、持久会话接入、原生管理、强制 Control Mode 与整体验证/重建
 **依赖：** `2026-08-03-terminal-multi-session-design.md`、`2026-08-11-remote-capability-architecture-hardening-design.md`
 
 ## 1. 摘要
@@ -12,11 +14,26 @@ Conn 在现有进程内多终端之上增加远端持久终端能力。首个 pr
 核心架构采用双平面：
 
 - **数据面：** 普通 PTY 直接执行 `tmux attach-session`，由 tmux 绘制完整布局、状态栏、copy-mode 和插件效果，SwiftTerm 继续负责终端模拟；
-- **控制面：** 独立双向远程进程运行 `tmux -CC`，使用 Control Mode 命令、通知和初始快照维护 Session、Window、Pane 状态；
-- **降级：** Control Mode 不满足要求或异常时保留普通 tmux PTY，并降级到按需快照；tmux 未安装时自动打开普通 PTY；
+- **控制面：** 独立双向远程进程运行 `tmux -CC`，它是 tmux attachment 的必需组件，使用 Control Mode 命令、通知和初始快照维护 Session、Window、Pane 状态；
+- **失败边界：** Control Mode 未就绪时不创建/不发布 tmux 数据终端；运行中失效时使完整 attachment generation 失效并通过同一启动流水线重建。远端 tmux Session 不受影响，用户仍可显式新建普通 PTY；
 - **演进：** 控制面、领域状态和 UI 不依赖具体渲染器，后续可以增加逐 Pane 的 Control Mode 原生渲染，不推翻首期模型。
 
 该方案选择“原生管理 + 原始 tmux 终端语义”，不是全量复制 iTerm2。它优先保护重度 tmux 用户已有的 `.tmux.conf`、插件、状态栏、快捷键和多客户端协作，同时为以后实现全原生 Pane、Zellij、GNU Screen、Windows 持久终端或远程 Agent 保留边界。
+
+### 1.1 2026-08-16 必需组件与组合式启动决策
+
+终端创建不是一条不可拆分的 `open()`，而是 provider-neutral 的有序启动事务。每个成功步骤登记自己拥有资源的幂等回滚；后续任一步失败或任务取消时，按逆序释放，只有全部步骤完成才把终端提交给 `TerminalSessionStore`：
+
+```text
+普通 PTY：remote transport → byte terminal → readiness
+tmux：    remote transport → control plane → tmux data process
+          → byte terminal handshake → server identity verification
+          → data/control identity binding → readiness
+```
+
+`Control Mode` 对 tmux 是 required runtime component，不是 optional facet。初次打开、用户手动重连、前台恢复和 required component 自动恢复都消费同一份 `PersistentAttachmentDescriptor` 并重跑同一条 provider 流水线；不得维护一套行为不同的“快速重连”命令。未来 Zellij、Screen 或 Windows provider 通过组合自己的 startup steps、runtime components 和 presentation 实现，不要求 Coordinator 增加 provider 分支。
+
+Control Runtime 可以在同一 host/configuration/server generation 内共享，但终止事件必须广播给每一个依赖它的 attachment，不能让多个 `AsyncStream` iterator 竞争同一终止值。每个受影响 attachment 独立发布 component failure，由 Coordinator 对各自 generation 做有界重建。
 
 ## 2. 背景与问题
 
@@ -39,7 +56,7 @@ Conn 在现有进程内多终端之上增加远端持久终端能力。首个 pr
 
 | 路线 | 代表产品 | 主要能力 | Conn 的取舍 |
 | --- | --- | --- | --- |
-| 透明 PTY | Prompt、Termius、Blink | 用户手工或启动命令进入 tmux | Conn 必须明显超过，仅作为降级 |
+| 透明 PTY | Prompt、Termius、Blink | 用户手工或启动命令进入 tmux | Conn 必须明显超过；普通 PTY 只作为用户显式选择，不冒充 tmux attachment |
 | tmux 增强终端 | Secure ShellFish、TermRover | Session Picker、缩略图或触摸快捷操作 | 首期对齐核心管理，并提供更完整 Window/Pane 状态 |
 | Control Mode 原生客户端 | iTerm2 | 原生 Window/Tab/Split、逐 Pane 输出 | 保留为未来 Renderer；首期不牺牲 tmux 原始语义 |
 | 自定义远端代理 | Pocketmux、WezTerm mux | 原生远端工作区、独立协议或 Agent | 不在首期引入安装、升级和安全维护负担 |
@@ -70,7 +87,7 @@ Handoff、Universal Link、Mosh、缩略图、逐 Pane 原生渲染不是首期�
 - 保护已有桌面客户端的尺寸和 active pane，无法完全隔离时明确提示；
 - 支持默认 tmux server、`-L socket-name` 和 `-S socket-path`；
 - 不自动扫描所有 socket；
-- Control Mode 失败时，交互终端和远端 tmux Session 不被连带关闭；
+- Control Mode 失败时不发布半成品 attachment；运行中失败时关闭本地 data/control generation 并重建，绝不 Kill 远端 tmux Session；
 - 抽象持久终端 provider，为更多 multiplexer/平台保留扩展点；
 - Control Mode 解析器、命令编码器和状态 reducer 可在 macOS host 上独立测试。
 
@@ -472,7 +489,7 @@ probe 至少取得：
 Probe 分两阶段，且不得为了探测能力创建用户不可见的 Session：
 
 1. **静态/无 Session 阶段：** 取得平台、executable、版本、无 start-server 副作用的 `list-commands` 语法、locator 状态和可取得的 server identity；server 不存在时返回 `.serverAbsent(canCreate: true)`，Control Mode/客户端 flag 状态记为 `.deferred`；
-2. **Attach 阶段：** 只有用户选择已有 Session 或成功创建第一个 Session 后，才通过真实 attachment/control client 协商 `-CC`、client flags、format subscription 和 protocol dialect；失败只降级当前 provider，不创建额外工作区。
+2. **Attach 阶段：** 只有用户选择已有 Session 或成功创建第一个 Session 后，才通过真实 attachment/control client 协商 `-CC`、client flags、format subscription 和 protocol dialect；Control Mode 或必需身份绑定失败时回滚本次 attachment，不创建额外工作区，也不退化成无管理面的 tmux PTY。
 
 “Control Mode 可用”不能只由 `tmux -V` 推断，也不能在无 Session 时通过 `tmux -CC new-session` 偷偷建 Session。静态 probe 只能使用经目标版本验证不会设置 start-server 行为的只读命令；测试必须确认它不产生 tmux server 进程、socket 或 Session。可从 `list-commands` 安全确认的语法先确认，必须依赖 client 的能力延迟到第一次 Attach。一次启动选择器内缓存静态 probe；Attach 阶段的结果绑定 server instance token 和 SSH connection identity。
 
@@ -481,7 +498,7 @@ Probe 分两阶段，且不得为了探测能力创建用户不可见的 Session
 - 满足 Control Mode、稳定 ID、可确认 protocol dialect 和安全 snapshot codec：完整拓扑模式；
 - 同时满足 format subscription：动态 metadata 为 live；不满足时保持完整拓扑事件，但相关字段标记 snapshot/stale，不宣称实时；
 - `no-output`、`wait-exit`、`ignore-size`、`active-pane` 等可选 client flag 分别影响带宽、关闭握手、尺寸和焦点隔离；缺少某一项只降级对应能力，不能把它们混成一个“Control Mode 不可用”；
-- Control Mode 不满足必要能力、但普通 tmux 可用：pass-through attach + 按需 snapshot；
+- Control Mode、稳定 client identity 或必需协议能力不满足：tmux attachment unavailable；用户可返回选择器显式打开普通 PTY；
 - tmux executable 缺失：自动普通 PTY；
 - socket 暂无 server/Session：仍允许创建新 Session；
 - socket 权限不足或配置错误：展示该 profile 的错误，同时允许普通 PTY。
@@ -507,7 +524,7 @@ public struct TmuxAttachmentPayload: Sendable, Codable, Equatable {
 
 `RemoteWorkspaceRef.workspaceID` 是 tmux `$sessionID`，其 `providerInstancePayload` 解码为 `TmuxWorkspaceInstancePayload`。attachment payload 不重复保存 envelope/ref 已有的 provider、profile、session ID 或 instance token。首期 `renderMode == .passthroughPTY`；后续增加 `.nativeControlMode` 时提升 attachment payload version，并保留旧版本 decoder。
 
-首次打开 attachment 的顺序固定为：校验 descriptor/profile/token → 取得临时 observation lease，优先用不调用 `refresh-client -C` 的 Control Client 协商 client flags/dialect 并读取最新 client topology → 生成 data attach invocation。这样 `ignore-size/active-pane` 在交互 client 出现前已知，不会先用错误尺寸 Attach 再补救。Control Mode preflight 失败时释放临时 observation lease，使用安全 one-shot snapshot/静态语法能力给出对应 degraded 提示后仍可继续 pass-through；不能因为管理面失败而阻断用户已选择的 tmux 终端。若连 client topology 都无法安全读取，按外部 client 可能存在处理并采用最保守的可用 attach 配置。
+首次打开 attachment 的顺序固定为：校验 descriptor/profile/token → 启动并确认 required Control Runtime → 协商 client flags/dialect 并读取最新 client topology → 生成 data attach invocation → 消费 data handshake → 再次校验 server token → 精确绑定 data/control client identity → readiness。这样 `ignore-size/active-pane` 在交互 client 出现前已知，不会先用错误尺寸 Attach 再补救。Control Mode preflight 失败时释放已取得资源并结束本次 tmux 启动；不得继续创建 data PTY，也不得把一个缺失必需组件的 attachment 提交给 Store。
 
 交互 tmux client 必须有可被控制面精确定位的 `target-client`。数据面启动命令在非登录、非交互 POSIX shell 中输出带随机 nonce 的有界握手帧、当前 `tty` 和 `$$`，随后 `exec tmux attach-session`；renderer 在把输出交给 SwiftTerm 前以相同的有界 preamble 规则查找、消费并验证该帧，忽略帧前可能存在的非交互 Shell 启动输出。验证后的 PTY 名称和进程 PID 仅保存在当前 attachment runtime 中，用于：
 
@@ -517,7 +534,7 @@ public struct TmuxAttachmentPayload: Sendable, Codable, Equatable {
 
 握手帧不得进入 transcript，nonce/tty/PID 不落盘。取得 PTY/PID 后，backend 用同一 profile 的 `list-clients` 同时验证 target-client identity 和 requested Session；验证成功才把 Tab 提交给 `TerminalSessionStore`。进程在 readiness deadline 前退出时使用 `RemoteProcessExit` 和有界 stderr 诊断返回启动失败，不能先创建一张 disconnected Tab。
 
-握手超时、格式错误但远程进程仍在运行时，可以在 readiness deadline 后进入 pass-through degraded 模式；此时将未识别为合法握手帧的有界缓存按原顺序交还终端，隐藏原生 Window/Pane 切换和动态尺寸隔离，不能猜测 target-client。握手成功但 client 明确 Attach 到错误 Session 时必须关闭该 data channel 并报错，不能降级继续。
+握手超时、格式错误、无法取得 tty/PID 或无法在 Control snapshot 中精确定位 data client 时，必须关闭 data channel、释放 Control lease 并返回对应 startup stage failure。未识别的 preamble 不得通过“降级模式”交给一个无法验证身份的 tmux Tab。握手成功但 client 明确 Attach 到错误 Session 时同样关闭并报错。
 
 ### 12.2 与现有 TerminalSession 的接线
 
@@ -525,8 +542,8 @@ public struct TmuxAttachmentPayload: Sendable, Codable, Equatable {
 
 - `PlainPTYBackend` 继续把 `SSHSession.openShell()` 返回的 `ShellChannel` 交给 `TerminalSession`；
 - `TmuxPassthroughAttachment` 位于 `ConnMultiplexer`，包装 `RemoteProcessChannel` 并实现 `PersistentTerminalAttachment`；其 `.byteTerminal` presentation 在握手帧消费后把 PTY 合并输出映射为 `ShellChannel`，并转发 write/resize/close；
-- attachment 内只有一个 output pump 消费 `RemoteProcessChannel.output`：同一状态机先识别/消费握手，再把后续及降级时应保留的字节写入 sanitized `AsyncThrowingStream`。readiness 与 `TerminalSession` 共享这个 pump 的状态/结果，不能各自创建 iterator 竞争读取；Control Client 同样只有 parser actor 消费底层 output；
-- readiness 成功后 attachment 在对应 instance Hub 登记 `attachmentID + tty + PID + requestedSessionID` 的 identity lease；该 lease 不要求 Control Client 存在，也不会单独触发控制通道。attachment close/重连替换时幂等注销旧 lease，避免以后把已退出或 tty 已复用的 client 认作 Conn；
+- attachment 内只有一个 output pump 消费 `RemoteProcessChannel.output`：同一状态机先识别/消费握手，再把后续字节写入 sanitized `AsyncThrowingStream`。readiness 与 `TerminalSession` 共享这个 pump 的状态/结果，不能各自创建 iterator 竞争读取；Control Client 同样只有 parser actor 消费底层 output；
+- readiness 前 attachment 必须在对应 instance Hub 登记 `attachmentID + tty + PID + requestedSessionID` 的 identity lease，并证明其绑定到仍 ready 的 Control Runtime。attachment close/重连替换时幂等注销旧 lease，避免以后把已退出或 tty 已复用的 client 认作 Conn；
 - `ConnTerminal.PersistentProviderBackend` 不理解 tmux，只取得 `.byteTerminal` presentation 并交给现有 `TerminalSession`；
 - `PersistentProviderBackend` 向 Coordinator 返回 channel、通用 descriptor 和 attachment handle；`TerminalSessionCoordinator` 复用现有 generation、transcript、lifecycle 和 Store 流程；
 - `TerminalTab` 的 runtime 强持有 attachment handle，重连 descriptor 保存通用 `PersistentAttachmentDescriptor`；关闭/替换 Tab 时先停止本地 `TerminalSession`，再幂等关闭旧 handle，不能只关 byte channel 后遗留 provider lease；
@@ -586,8 +603,8 @@ Control Client 必须可写，因为它需要执行管理命令；不能设置 `
 - Catalog 是 tmux server 全局的一次性/事件触发快照；
 - Control Client 只 Attach 一个 Session，提供该 Session Window/Pane 的实时事件；
 - `%sessions-changed`、session rename 等全局相关事件使 Catalog 标记 dirty，并触发去抖后的重新抓取；
-- 没有 Control Client 时，进入 Session Center、切换 profile、下拉刷新或操作完成后执行 snapshot；
-- 完整 event + subscription 路径不固定运行 `list-*`；Control Mode、client inspection 或 metadata subscription 任一维度降级时，只对缺失维度在管理界面可见期间刷新：支持安全批量 codec 时默认 2 秒，legacy per-field codec 使用更低频率并标记 stale，用户离开界面立即停止，所有降级模式均保留手动下拉刷新。
+- 没有 Control Client 时只能返回独立的 Catalog snapshot；已打开的 tmux attachment 不存在“无 Control Client 继续运行”的状态；
+- ready Control Mode 路径不固定运行 `list-*`；format subscription 或可选 metadata 能力缺失时，只对缺失维度在管理界面可见期间刷新：支持安全批量 codec 时默认 2 秒，legacy per-field codec 使用更低频率并标记 stale，用户离开界面立即停止，所有能力降级模式均保留手动下拉刷新。
 
 ### 13.4 通知、订阅与字段新鲜度
 
@@ -607,9 +624,9 @@ Control Mode 的原生通知足以驱动大部分拓扑变化，但不提供通�
 `TmuxCommandExecutor` 统一接收 typed operation，UI 不区分底层通道：
 
 - 每种 `TmuxOperation` 显式声明 `.readOnly`、`.idempotentMutation` 或 `.nonIdempotentMutation/.destructive` 语义，executor 的 timeout/retry policy 由该元数据决定，调用页面不能自行猜测；
-- 目标 Session 已有 ready Control Client：通过该 client 串行发送命令并等待 `%end/%error`；
-- 创建第一个 Session、只打开 Session Center、目标 Session 未被观察或 Control Mode 已降级：通过 `SSHSession.exec` 执行同一个 typed operation 经 `TmuxShellInvocationRenderer` 生成的短命令；
-- one-shot 命令完成后立即抓取相关 Catalog/Session snapshot；
+- 已发布 tmux attachment/实时 Catalog 的操作只通过绑定的 ready Control Client 串行发送并等待 `%end/%error`；ready 检查与实际发送之间发生断线时直接失败，不得切换 transport；
+- one-shot renderer 只用于 attachment 之外的静态发现、bootstrap 和显式 Catalog 请求；它不作为已发布 attachment 的命令 fallback；
+- attachment 之外的 one-shot 命令完成后立即抓取相关 Catalog/Session snapshot；
 - 任意 mutation（尤其 bootstrap/new/split/kill）在已发送后超时或 transport 中断都按“结果未知”处理，禁止自动重发；先用同 profile/token 校准 snapshot。只有确认尚未发送或 read-only query 才能按 policy 自动重试；
 - Control Mode 命令失败不能静默改走 one-shot 重试，因为第一次命令可能已经生效；先 reconciliation，再由用户决定是否重试；
 - 一次普通 operation 绑定 host connection identity、profile ID、server instance token 和 generation，不能跨重连换通道继续执行；
@@ -642,7 +659,7 @@ idle
 - `awaitingProtocolMarker`：丢弃/隔离有界的 Shell preamble，等待 tmux `-CC` DSC 起始标记；
 - `synchronizing`：读取 server identity、Session/Window/Pane/Client 完整快照；
 - `ready`：应用事件、接受操作；
-- `recovering`：协议缺口、channel 断开或 snapshot dirty，按有界退避重连；
+- `recovering`：仅表示 attachment owner 已收到 required component failure 并准备重建完整 generation；旧 Control Client 本身不在原 generation 内换通道继续；
 - `terminalFailure`：明确不可恢复的版本、权限、socket 或协议错误；
 - `closing`：按当前 client 已启用配置完成兼容 Detach；启用 `wait-exit` 时额外等待 acknowledgement，超时后只强制关闭当前 channel；
 - 每一代 channel 有 generation，旧代次迟到事件和命令结果全部丢弃。
@@ -668,7 +685,7 @@ public struct TmuxControlClientConfiguration: Sendable, Equatable {
 }
 ```
 
-版本只选择保守的初始候选；第一次无副作用 Control Mode 命令用实际 `%begin/%end` 确认 guard shape，`list-commands` 和真实 client flag/subscription 结果确认 capability，随后记录本 client 确实启用成功的配置。关闭握手、输出处理和尺寸策略只读取 enabled configuration，不能因为“版本理论支持”就假定 flag 已生效。实际结果与候选矛盾时降级或报 `.protocolViolation`，不能继续按错误 grammar 解析。Snapshot codec 是 grammar 的一部分：`quoted` 使用 `q:` lexer，`legacyPerField` 只批量读取安全 ID/数字并逐字段读取不可信文本。
+版本只选择保守的初始候选；第一次无副作用 Control Mode 命令用实际 `%begin/%end` 确认 guard shape，`list-commands` 和真实 client flag/subscription 结果确认 capability，随后记录本 client 确实启用成功的配置。关闭握手、输出处理和尺寸策略只读取 enabled configuration，不能因为“版本理论支持”就假定 flag 已生效。可选 flag 与候选矛盾时只降级对应能力；必需协议 grammar/identity 无法确认时返回 `.protocolViolation` 并回滚 attachment，不能继续按错误 grammar 解析。Snapshot codec 是 grammar 的一部分：`quoted` 使用 `q:` lexer，`legacyPerField` 只批量读取安全 ID/数字并逐字段读取不可信文本。
 
 ### 14.3 字节流解析
 
@@ -937,20 +954,20 @@ Conn 不 detach 其他客户端，不修改全局 tmux option，不永久写入�
 
 ### 18.2 重连协调
 
-同一个 tmux Tab 的数据面和控制面分别重连：
+同一个 tmux Tab 的数据面和控制面属于一个 attachment generation，整体重建：
 
-1. `TerminalSessionCoordinator` 负责本地 data plane generation；
-2. `TmuxControlHub` 负责 control plane generation；
-3. 数据面成功、控制面失败：终端继续可用，管理 UI degraded 并允许重试；
-4. 控制面成功、数据面失败：Catalog 可见，但 Tab 标记 disconnected，用户可以重新 Attach；
-5. 两者不因一方 close 而调用 `ConnectionManager.disconnect(host:)`；
-6. 共享 SSH 实际已死时，沿用 `ConnectionManager.session(for:)` 的存活检查和一次驱逐重试策略；
-7. 重连任务按 host/profile/session 去重，取消不能作为唯一正确性保证，必须检查 generation。
-8. backend profile 被禁用、删除或 identity 发生变化时，立即使旧 profile 的 Catalog/Hub/operation generation 失效并禁止新 Attach/重连，但不主动 Kill Session，也不强关仍可使用的 pass-through data channel；现有 Tab 标记“配置已失效、不可重连”，直到用户关闭或重新选择 profile。
+1. `TerminalSessionCoordinator` 负责 Tab generation、同一 descriptor 的重建去重和 bounded retry；
+2. provider 的 startup pipeline 负责 Control Runtime、data process、byte channel、身份绑定和 readiness 的构造/逆序回滚；
+3. 任一 required component 失效都发布结构化 lifecycle failure，旧 generation 立即不可操作；
+4. 重建只有全部步骤成功才替换 Store 中的 session/attachment，禁止出现“data 成功、control 失败但仍 connected”的半状态；
+5. 独立 Catalog 可以继续展示 snapshot，但它不代表某个 Tab attachment 已 ready；
+6. 关闭/失效 attachment 不调用 `ConnectionManager.disconnect(host:)`，也不 Kill 远端 Session；
+7. 共享 SSH 实际已死时，沿用 `ConnectionManager.session(for:)` 的存活检查和一次驱逐重试策略；
+8. 重连任务按 Tab 去重，取消不能作为唯一正确性保证，必须检查 generation；多个 attachment 共享 Control Runtime 时，每个 Tab 都接收广播 failure 并独立重建。
 
 ### 18.3 Hub 退避
 
-Control Mode 恢复使用有上限的指数退避并加入抖动；仅在存在 observation lease 或 pending operation 时重试，只有 identity lease 的后台 Tab 不维持控制面。网络不可用、App 后台或最后一个 observation lease 释放时停止。用户主动重试立即开始新 generation。
+required component 自动恢复由 Coordinator 使用短时有界退避重跑完整 attachment pipeline；不在旧 Control Runtime 内自动重放 mutation。网络不可用、App 后台或 Tab 已关闭时停止。用户主动重试立即开始新 generation。独立 Catalog 的 observation 生命周期仍可按 demand 单独管理，但不能替代 Tab 的 required Control Runtime。
 
 ## 19. 错误模型与降级
 
@@ -996,8 +1013,8 @@ public enum PersistentTerminalError: Error, Sendable, Equatable {
 - SSH 建连、认证、host key、channel 等错误保留 `SSHError`；
 - tmux 命令成功执行但环境不可用时映射 provider error，不伪装为网络错误；
 - tmux 未安装：启动普通 PTY，不展示阻断页；
-- Control Mode 不可用：允许 pass-through attach；管理界面显示“有限状态同步”并提供手动刷新；
-- protocol violation：停止应用增量事件，保留最后一次 snapshot 为 stale，只读显示，随后重连校准；
+- Control Mode 不可用：启动阶段回滚并拒绝发布 tmux attachment；运行阶段使完整 attachment generation 失效，传输类错误允许有界自动重建；
+- protocol violation：停止应用增量事件并使 attachment 失效；因协议兼容性可能需要用户处理，默认不自动无限重试；独立 Catalog 可以保留最后一次 snapshot 为 stale；
 - expected token 与同一 invocation 中读到的 instance 不一致：返回 `.serverInstanceChanged`，不发送后续操作命令；
 - mutation command 在已发送后超时/断线：明确提示“结果未知”，禁止自动重试，先 snapshot；bootstrap 也必须先发现是否已创建，不能重复 new；
 - 普通查询可以在校准后由用户重试；
@@ -1116,7 +1133,7 @@ Parser 使用 fuzz/property tests 生成随机分块；相同完整协议输入�
 `ConnSSHCitadelTests` 覆盖 `RemoteProcessChannel`：
 
 - direct exec 不启动交互式/登录 Shell；即使 SSH server 的非交互 Shell 仍产生启动 preamble，机器协议也能靠有界握手帧隔离；
-- Control Mode 在随机 Shell preamble 后依次验证 nonce/tty/PID frame 和 `-CC` DSC marker；marker 缺失/超限时安全降级；
+- Control Mode 在随机 Shell preamble 后依次验证 nonce/tty/PID frame 和 `-CC` DSC marker；marker 缺失/超限时启动失败、逆序回滚且不创建 data PTY；
 - 可写 stdin、持续读取 stdout/stderr；
 - 高吞吐输出下保持顺序并施加有界 backpressure，不能静默丢 terminal/control 字节或无限增长内存；
 - PTY 可选申请和 resize；

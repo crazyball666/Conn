@@ -12,7 +12,7 @@ import NIOSSH
 /// output through the shared bounded bridge, and only closes the child channel on
 /// detach. It never enters an interactive/login shell.
 final class CitadelRemoteProcessChannel: RemoteProcessChannel, @unchecked Sendable {
-    private enum PumpOutcome {
+    enum PumpOutcome {
         case exited(Int32)
         case stopped
         case failed(any Error)
@@ -82,24 +82,18 @@ final class CitadelRemoteProcessChannel: RemoteProcessChannel, @unchecked Sendab
                 writerBox.withLockedValue { $0 = outbound }
                 lifecycle.markReady()
 
-                let pumpTask = Task { [weak self] in
-                    await self?.pump(inbound) ?? .stopped
-                }
-
-                let first: PumpOutcome = await withTaskGroup(of: PumpOutcome.self) { group in
-                    group.addTask { await pumpTask.value }
-                    group.addTask {
-                        await self.lifecycle.waitForStop()
-                        return .stopped
+                let first = await Self.waitForPumpOrStop(
+                    pump: { [weak self] in
+                        await self?.pump(inbound) ?? .stopped
+                    },
+                    stop: { [lifecycle] in
+                        await lifecycle.waitForStop()
                     }
-                    let outcome = await group.next() ?? .stopped
-                    group.cancelAll()
-                    return outcome
-                }
+                )
 
                 outcomeBox.set(first)
                 if case .stopped = first {
-                    pumpTask.cancel()
+                    // The race helper already cancelled and joined the pump child.
                 } else {
                     lifecycle.terminate()
                 }
@@ -149,6 +143,25 @@ final class CitadelRemoteProcessChannel: RemoteProcessChannel, @unchecked Sendab
         }
     }
 
+    /// The pump must be a structured child of this race. If a separate unstructured
+    /// task is awaited here, cancelling the waiter does not cancel that task and local
+    /// close can deadlock while the remote process remains open.
+    static func waitForPumpOrStop(
+        pump: @escaping @Sendable () async -> PumpOutcome,
+        stop: @escaping @Sendable () async -> Void
+    ) async -> PumpOutcome {
+        await withTaskGroup(of: PumpOutcome.self) { group in
+            group.addTask(operation: pump)
+            group.addTask {
+                await stop()
+                return .stopped
+            }
+            let outcome = await group.next() ?? .stopped
+            group.cancelAll()
+            return outcome
+        }
+    }
+
     private func makePTYRequest(_ request: RemoteTerminalRequest) -> SSHChannelRequestEvent.PseudoTerminalRequest {
         let modes = request.modes.reduce(into: [SSHTerminalModes.Opcode: SSHTerminalModes.OpcodeValue]()) {
             $0[SSHTerminalModes.Opcode(rawValue: $1.key.rawValue)] =
@@ -190,6 +203,7 @@ final class CitadelRemoteProcessChannel: RemoteProcessChannel, @unchecked Sendab
 
     func close() async {
         lifecycle.terminate()
+        processTask.cancel()
         _ = try? await processTask.value
     }
 }

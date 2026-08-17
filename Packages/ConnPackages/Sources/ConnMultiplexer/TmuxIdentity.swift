@@ -8,7 +8,7 @@ public enum TmuxIdentityError: Error, Sendable, Equatable {
 }
 
 /// A validated tmux server locator. The value is normalized before it can become part of a
-/// profile key, preventing textually different paths from selecting the same obvious socket.
+/// configuration key, preventing textually different paths from selecting the same obvious socket.
 public struct TmuxServerLocator: Sendable, Codable, Equatable, Hashable {
     public enum Kind: String, Sendable, Codable {
         case `default`

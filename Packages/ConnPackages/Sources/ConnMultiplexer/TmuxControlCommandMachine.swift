@@ -120,9 +120,20 @@ package enum TmuxControlCommandMachineAction: Sendable, Equatable {
 /// protocol framing; this machine establishes command ownership and independently bounds the
 /// aggregate response retained for a caller.
 package struct TmuxControlCommandMachine: Sendable {
+    /// `tmux -CC attach-session` always answers the attach command with one initial
+    /// `%begin`/`%end` block after the DCS marker. That block is owned by tmux startup,
+    /// not by a command submitted through this machine.
+    private struct BootstrapCommand: Sendable {
+        var guardValue: TmuxCommandGuard?
+        var outputBytes = 0
+        var outputLines = 0
+    }
+
     private struct PendingCommand: Sendable {
         let submission: TmuxControlCommandSubmission
+        let completionMarker: Data?
         var guardValue: TmuxCommandGuard?
+        var currentBlockOutputStart: Int?
         var output: [Data]
         var outputBytes: Int
         var timedOut: Bool
@@ -130,6 +141,7 @@ package struct TmuxControlCommandMachine: Sendable {
 
     private enum State: Sendable {
         case awaitingProtocolStart
+        case bootstrapping(BootstrapCommand)
         case ready
         case pending(PendingCommand)
         case awaitingReconciliation
@@ -163,7 +175,7 @@ package struct TmuxControlCommandMachine: Sendable {
             pending.timedOut
         case .awaitingReconciliation, .awaitingReplacement:
             true
-        case .awaitingProtocolStart, .ready, .ended, .failed:
+        case .awaitingProtocolStart, .bootstrapping, .ready, .ended, .failed:
             false
         }
     }
@@ -174,7 +186,7 @@ package struct TmuxControlCommandMachine: Sendable {
             pending.timedOut
         case .awaitingReconciliation:
             true
-        case .awaitingProtocolStart, .ready, .awaitingReplacement, .ended, .failed:
+        case .awaitingProtocolStart, .bootstrapping, .ready, .awaitingReplacement, .ended, .failed:
             false
         }
     }
@@ -197,7 +209,7 @@ package struct TmuxControlCommandMachine: Sendable {
         _ request: TmuxControlRequest
     ) throws -> TmuxControlCommandSubmission {
         switch state {
-        case .awaitingProtocolStart:
+        case .awaitingProtocolStart, .bootstrapping:
             throw TmuxControlCommandMachineError.protocolNotReady
         case .ready:
             break
@@ -224,7 +236,9 @@ package struct TmuxControlCommandMachine: Sendable {
         nextCommandID += 1
         state = .pending(PendingCommand(
             submission: submission,
+            completionMarker: request.completionMarker,
             guardValue: nil,
+            currentBlockOutputStart: nil,
             output: [],
             outputBytes: 0,
             timedOut: false
@@ -304,7 +318,7 @@ package struct TmuxControlCommandMachine: Sendable {
             throw TmuxControlCommandMachineError.generationReplacementRequired
         case .ready:
             return .reconciliationCompleted
-        case .awaitingProtocolStart, .pending, .ended, .failed:
+        case .awaitingProtocolStart, .bootstrapping, .pending, .ended, .failed:
             throw TmuxControlCommandMachineError.invalidProtocolSequence
         }
     }
@@ -349,28 +363,54 @@ package struct TmuxControlCommandMachine: Sendable {
             guard case .awaitingProtocolStart = state else {
                 throw TmuxControlCommandMachineError.invalidProtocolSequence
             }
-            state = .ready
-            return .protocolReady
+            state = .bootstrapping(BootstrapCommand())
+            return .none
 
         case let .notification(notification):
             switch state {
             case .ready, .pending, .awaitingReconciliation:
                 return .notification(notification)
-            case .awaitingProtocolStart, .awaitingReplacement, .ended, .failed:
+            case .awaitingProtocolStart, .bootstrapping, .awaitingReplacement, .ended, .failed:
                 throw TmuxControlCommandMachineError.invalidProtocolSequence
             }
 
         case let .commandBegin(guardValue):
+            if case var .bootstrapping(bootstrap) = state {
+                guard bootstrap.guardValue == nil else {
+                    throw TmuxControlCommandMachineError.invalidProtocolSequence
+                }
+                bootstrap.guardValue = guardValue
+                state = .bootstrapping(bootstrap)
+                return .none
+            }
             guard case var .pending(pending) = state,
                   pending.guardValue == nil
             else {
                 throw TmuxControlCommandMachineError.invalidProtocolSequence
             }
             pending.guardValue = guardValue
+            pending.currentBlockOutputStart = pending.output.count
             state = .pending(pending)
             return .none
 
         case let .commandOutput(data):
+            if case var .bootstrapping(bootstrap) = state {
+                guard bootstrap.guardValue != nil else {
+                    throw TmuxControlCommandMachineError.invalidProtocolSequence
+                }
+                guard bootstrap.outputLines < limits.maxOutputLines,
+                      data.count <= limits.maxOutputBytes - bootstrap.outputBytes
+                else {
+                    throw TmuxControlCommandMachineError.outputLimitExceeded(
+                        maxBytes: limits.maxOutputBytes,
+                        maxLines: limits.maxOutputLines
+                    )
+                }
+                bootstrap.outputLines += 1
+                bootstrap.outputBytes += data.count
+                state = .bootstrapping(bootstrap)
+                return .none
+            }
             guard case var .pending(pending) = state,
                   pending.guardValue != nil
             else {
@@ -390,9 +430,21 @@ package struct TmuxControlCommandMachine: Sendable {
             return .none
 
         case let .commandEnd(actualGuard):
+            if case let .bootstrapping(bootstrap) = state {
+                guard bootstrap.guardValue == actualGuard else {
+                    throw TmuxControlCommandMachineError.invalidProtocolSequence
+                }
+                state = .ready
+                return .protocolReady
+            }
             return try complete(actualGuard, status: .succeeded)
 
         case let .commandError(actualGuard):
+            if case let .bootstrapping(bootstrap) = state,
+               bootstrap.guardValue == actualGuard
+            {
+                throw TmuxControlCommandMachineError.invalidProtocolSequence
+            }
             return try complete(actualGuard, status: .rejected)
 
         case .protocolEnded:
@@ -404,7 +456,7 @@ package struct TmuxControlCommandMachine: Sendable {
                 let uncertain = uncertainCommand(from: pending)
                 state = .awaitingReplacement
                 return .recoveryRequired(uncertain)
-            case .awaitingProtocolStart, .awaitingReplacement, .ended, .failed:
+            case .awaitingProtocolStart, .bootstrapping, .awaitingReplacement, .ended, .failed:
                 throw TmuxControlCommandMachineError.invalidProtocolSequence
             }
         }
@@ -414,8 +466,9 @@ package struct TmuxControlCommandMachine: Sendable {
         _ actualGuard: TmuxCommandGuard,
         status: TmuxControlCommandStatus
     ) throws -> TmuxControlCommandMachineAction {
-        guard case let .pending(pending) = state,
-              let expectedGuard = pending.guardValue
+        guard case var .pending(pending) = state,
+              let expectedGuard = pending.guardValue,
+              let blockOutputStart = pending.currentBlockOutputStart
         else {
             throw TmuxControlCommandMachineError.invalidProtocolSequence
         }
@@ -424,6 +477,18 @@ package struct TmuxControlCommandMachine: Sendable {
                 expected: expectedGuard,
                 actual: actualGuard
             )
+        }
+        if status == .succeeded, let completionMarker = pending.completionMarker {
+            let blockOutput = pending.output[blockOutputStart...]
+            if !blockOutput.isEmpty, pending.output.last == completionMarker {
+                pending.output.removeLast()
+                pending.outputBytes -= completionMarker.count
+            } else {
+                pending.guardValue = nil
+                pending.currentBlockOutputStart = nil
+                state = .pending(pending)
+                return .none
+            }
         }
         if pending.timedOut {
             state = .awaitingReconciliation

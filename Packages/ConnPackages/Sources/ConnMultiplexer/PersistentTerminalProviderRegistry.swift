@@ -1,9 +1,25 @@
 import ConnKit
 import ConnSSH
+import Foundation
 
 public enum PersistentTerminalProviderRegistryError: Error, Sendable, Equatable {
     case emptyProviderID
     case duplicateProviderID(String)
+    case defaultConfigurationProviderMismatch(providerID: String, configurationProviderID: String)
+    case unsupportedDefaultConfigurationVersion(providerID: String, version: Int)
+}
+
+public struct PersistentTerminalProviderDefault: Sendable, Equatable {
+    public let descriptor: PersistentTerminalProviderDescriptor
+    public let configuration: PersistentTerminalConfiguration
+
+    public init(
+        descriptor: PersistentTerminalProviderDescriptor,
+        configuration: PersistentTerminalConfiguration
+    ) {
+        self.descriptor = descriptor
+        self.configuration = configuration
+    }
 }
 
 /// Immutable provider registry with deterministic, exact routing and no fallback provider.
@@ -35,21 +51,47 @@ public struct PersistentTerminalProviderRegistry: Sendable {
             throw PersistentTerminalProviderRegistryError.duplicateProviderID(duplicateID)
         }
 
+        for provider in providers {
+            let configuration = provider.defaultConfiguration
+            guard configuration.providerID == provider.descriptor.id else {
+                throw PersistentTerminalProviderRegistryError.defaultConfigurationProviderMismatch(
+                    providerID: provider.descriptor.id,
+                    configurationProviderID: configuration.providerID
+                )
+            }
+            guard provider.descriptor.supportedConfigurationVersions.contains(
+                configuration.payloadVersion
+            ) else {
+                throw PersistentTerminalProviderRegistryError.unsupportedDefaultConfigurationVersion(
+                    providerID: provider.descriptor.id,
+                    version: configuration.payloadVersion
+                )
+            }
+        }
+
         providersByID = Dictionary(uniqueKeysWithValues: providers.map { ($0.descriptor.id, $0) })
     }
 
+    public func registeredDefaults() -> [PersistentTerminalProviderDefault] {
+        providersByID.values
+            .sorted { $0.descriptor.id < $1.descriptor.id }
+            .map {
+                PersistentTerminalProviderDefault(
+                    descriptor: $0.descriptor,
+                    configuration: $0.defaultConfiguration
+                )
+            }
+    }
+
     public func provider(
-        for profile: TerminalBackendProfile,
+        for configuration: PersistentTerminalConfiguration,
         platform: RemotePlatformKind
     ) throws -> any PersistentTerminalProvider {
-        guard profile.isEnabled else {
-            throw PersistentTerminalError.providerDisabled
-        }
-        guard let provider = providersByID[profile.providerID] else {
-            throw PersistentTerminalError.providerNotRegistered(profile.providerID)
+        guard let provider = providersByID[configuration.providerID] else {
+            throw PersistentTerminalError.providerNotRegistered(configuration.providerID)
         }
         try validatePlatform(platform, for: provider)
-        try validateConfiguration(profile, for: provider)
+        try validateConfiguration(configuration, for: provider)
         return provider
     }
 
@@ -57,7 +99,7 @@ public struct PersistentTerminalProviderRegistry: Sendable {
     /// outside the static feature ceiling declared by its descriptor.
     public func probe(in context: PersistentTerminalContext) async throws -> PersistentTerminalAvailability {
         let provider = try provider(
-            for: context.backendProfile,
+            for: context.backendConfiguration,
             platform: context.platformProfile.kind
         )
         let availability = try await provider.probe(in: context)
@@ -86,7 +128,7 @@ public struct PersistentTerminalProviderRegistry: Sendable {
         }
 
         try validatePlatform(context.platformProfile.kind, for: provider)
-        try validateProfile(context.backendProfile, against: descriptor, for: provider)
+        try validateConfiguration(context.backendConfiguration, against: descriptor, for: provider)
         try validateVersions(descriptor, for: provider)
 
         return try await provider.openAttachment(
@@ -101,7 +143,7 @@ public struct PersistentTerminalProviderRegistry: Sendable {
         in context: PersistentTerminalContext
     ) async throws -> any PersistentTerminalCatalogAttachment {
         let provider = try provider(
-            for: context.backendProfile,
+            for: context.backendConfiguration,
             platform: context.platformProfile.kind
         )
         guard let catalogProvider = provider as? any PersistentTerminalCatalogProvider else {
@@ -123,31 +165,31 @@ public struct PersistentTerminalProviderRegistry: Sendable {
     }
 
     private func validateConfiguration(
-        _ profile: TerminalBackendProfile,
+        _ configuration: PersistentTerminalConfiguration,
         for provider: any PersistentTerminalProvider
     ) throws {
-        guard provider.descriptor.supportedConfigurationVersions.contains(profile.configurationVersion) else {
-            throw PersistentTerminalError.incompatibleVersion(
-                "profile configuration \(profile.configurationVersion)"
+        guard provider.descriptor.supportedConfigurationVersions.contains(
+            configuration.payloadVersion
+        ) else {
+            throw PersistentTerminalError.unsupportedConfigurationVersion(
+                providerID: provider.descriptor.id,
+                version: configuration.payloadVersion
             )
         }
     }
 
-    private func validateProfile(
-        _ profile: TerminalBackendProfile,
+    private func validateConfiguration(
+        _ configuration: PersistentTerminalConfiguration,
         against descriptor: PersistentAttachmentDescriptor,
         for provider: any PersistentTerminalProvider
     ) throws {
-        guard profile.isEnabled else {
-            throw PersistentTerminalError.providerDisabled
-        }
-        guard profile.id == descriptor.profileID,
-              profile.providerID == descriptor.providerID,
-              profile.providerID == provider.descriptor.id
+        guard configuration == descriptor.configuration,
+              configuration.providerID == descriptor.providerID,
+              configuration.providerID == provider.descriptor.id
         else {
-            throw PersistentTerminalError.profileUnavailable(descriptor.profileID)
+            throw PersistentTerminalError.invalidConfiguration
         }
-        try validateConfiguration(profile, for: provider)
+        try validateConfiguration(configuration, for: provider)
     }
 
     private func validateVersions(

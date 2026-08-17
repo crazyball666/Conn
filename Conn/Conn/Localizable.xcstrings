@@ -1,398 +1,6 @@
 {
   "sourceLanguage" : "zh-Hans",
   "strings" : {
-    "当前主机平台不支持执行此片段。" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "The current host platform does not support running this snippet."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "現在のホストプラットフォームではこのスニペットを実行できません。"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "현재 호스트 플랫폼에서는 이 스니펫을 실행할 수 없습니다."
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "目前主機平台不支援執行此片段。"
-          }
-        }
-      }
-    },
-    "远程主机缺少执行此片段所需的命令。" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "The remote host is missing a command required to run this snippet."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "リモートホストに、このスニペットの実行に必要なコマンドがありません。"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "원격 호스트에 이 스니펫을 실행하는 데 필요한 명령이 없습니다."
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "遠端主機缺少執行此片段所需的命令。"
-          }
-        }
-      }
-    },
-    "当前用户没有执行此片段所需的权限。" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "The current user does not have permission to run this snippet."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "現在のユーザーには、このスニペットの実行に必要な権限がありません。"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "현재 사용자에게 이 스니펫을 실행하는 데 필요한 권한이 없습니다."
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "目前使用者沒有執行此片段所需的權限。"
-          }
-        }
-      }
-    },
-    "执行此片段所需的服务未运行。" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "A service required to run this snippet is not running."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "このスニペットの実行に必要なサービスが起動していません。"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "이 스니펫을 실행하는 데 필요한 서비스가 실행 중이 아닙니다."
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "執行此片段所需的服務未執行。"
-          }
-        }
-      }
-    },
-    "远程主机未提供执行此片段所需的完整数据。" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "The remote host did not provide all data required to run this snippet."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "リモートホストから、このスニペットの実行に必要なデータをすべて取得できませんでした。"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "원격 호스트에서 이 스니펫을 실행하는 데 필요한 전체 데이터를 제공하지 않았습니다."
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "遠端主機未提供執行此片段所需的完整資料。"
-          }
-        }
-      }
-    },
-    "无法确认远程主机是否满足片段要求。" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Could not confirm whether the remote host meets the snippet requirements."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "リモートホストがスニペットの要件を満たしているか確認できませんでした。"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "원격 호스트가 스니펫 요구 사항을 충족하는지 확인할 수 없습니다."
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "無法確認遠端主機是否符合片段要求。"
-          }
-        }
-      }
-    },
-    "远程主机暂时无法满足片段要求。" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "The remote host cannot currently meet the snippet requirements."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "リモートホストは現在、スニペットの要件を満たせません。"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "원격 호스트가 현재 스니펫 요구 사항을 충족할 수 없습니다."
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "遠端主機暫時無法符合片段要求。"
-          }
-        }
-      }
-    },
-    "当前主机平台仅支持此片段的部分能力，仍可继续执行。" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "The current host platform supports only some capabilities required by this snippet, but it can still run."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "現在のホストプラットフォームは、このスニペットの一部の機能のみをサポートしていますが、実行は続行できます。"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "현재 호스트 플랫폼은 이 스니펫의 일부 기능만 지원하지만 계속 실행할 수 있습니다."
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "目前主機平台僅支援此片段的部分能力，仍可繼續執行。"
-          }
-        }
-      }
-    },
-    "远程主机缺少部分可选命令，片段仍可继续执行。" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "The remote host is missing some optional commands, but the snippet can still run."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "リモートホストに一部のオプションコマンドがありませんが、スニペットは実行できます。"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "원격 호스트에 일부 선택적 명령이 없지만 스니펫은 계속 실행할 수 있습니다."
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "遠端主機缺少部分選用命令，片段仍可繼續執行。"
-          }
-        }
-      }
-    },
-    "部分片段能力受权限限制，仍可继续执行。" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Some snippet capabilities are permission-restricted, but the snippet can still run."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "スニペットの一部の機能は権限により制限されていますが、実行は続行できます。"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "일부 스니펫 기능이 권한으로 제한되지만 계속 실행할 수 있습니다."
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "部分片段能力受權限限制，仍可繼續執行。"
-          }
-        }
-      }
-    },
-    "部分片段能力依赖的服务未运行，仍可继续执行。" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "A service used by some snippet capabilities is not running, but the snippet can still run."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "スニペットの一部の機能が使用するサービスは起動していませんが、実行は続行できます。"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "일부 스니펫 기능에 필요한 서비스가 실행 중이 아니지만 계속 실행할 수 있습니다."
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "部分片段能力所依賴的服務未執行，仍可繼續執行。"
-          }
-        }
-      }
-    },
-    "部分远程能力数据不可用，片段仍可继续执行。" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Some remote capability data is unavailable, but the snippet can still run."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "一部のリモート機能データを利用できませんが、スニペットは実行できます。"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "일부 원격 기능 데이터를 사용할 수 없지만 스니펫은 계속 실행할 수 있습니다."
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "部分遠端能力資料無法使用，片段仍可繼續執行。"
-          }
-        }
-      }
-    },
-    "部分片段要求无法确认，仍可继续执行。" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Some snippet requirements could not be confirmed, but the snippet can still run."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "スニペットの一部の要件を確認できませんが、実行は続行できます。"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "일부 스니펫 요구 사항을 확인할 수 없지만 계속 실행할 수 있습니다."
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "部分片段要求無法確認，仍可繼續執行。"
-          }
-        }
-      }
-    },
-    "部分片段能力状态未知，仍可继续执行。" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "The status of some snippet capabilities is unknown, but the snippet can still run."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "スニペットの一部の機能の状態は不明ですが、実行は続行できます。"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "일부 스니펫 기능의 상태를 알 수 없지만 계속 실행할 수 있습니다."
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "部分片段能力狀態未知，仍可繼續執行。"
-          }
-        }
-      }
-    },
     "—" : {
       "localizations" : {
         "en" : {
@@ -441,6 +49,9 @@
           }
         }
       }
+    },
+    "·" : {
+
     },
     "（无输出）" : {
       "extractionState" : "stale",
@@ -1565,6 +1176,9 @@
         }
       }
     },
+    "$ " : {
+
+    },
     "1 分钟" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -1661,6 +1275,12 @@
           }
         }
       }
+    },
+    "A" : {
+
+    },
+    "Aa" : {
+
     },
     "Compose" : {
       "extractionState" : "stale",
@@ -1987,6 +1607,35 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Docker Compose 重新啟動專案"
+          }
+        }
+      }
+    },
+    "Docker Desktop 未运行。请在这台 Mac 上启动 Docker Desktop 后重试。" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Docker Desktop is not running. Start Docker Desktop on this Mac and try again."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Docker Desktop が実行されていません。この Mac で Docker Desktop を起動してから再試行してください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Docker Desktop이 실행 중이 아닙니다. 이 Mac에서 Docker Desktop을 시작한 후 다시 시도하세요."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Docker Desktop 未執行。請在這台 Mac 上啟動 Docker Desktop 後重試。"
           }
         }
       }
@@ -2422,6 +2071,35 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Docker 操作"
+          }
+        }
+      }
+    },
+    "Docker 服务未运行。请在目标主机上启动 Docker 后重试。" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The Docker service is not running. Start Docker on the target host and try again."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Docker サービスが実行されていません。対象ホストで Docker を起動してから再試行してください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Docker 서비스가 실행 중이 아닙니다. 대상 호스트에서 Docker를 시작한 후 다시 시도하세요."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Docker 服務未執行。請在目標主機上啟動 Docker 後重試。"
           }
         }
       }
@@ -3808,6 +3486,35 @@
         }
       }
     },
+    "主机指标采集暂不可用" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Host metrics collection is temporarily unavailable"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ホストメトリクスの収集は一時的に利用できません"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "호스트 지표 수집을 일시적으로 사용할 수 없습니다"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "主機指標收集暫時無法使用"
+          }
+        }
+      }
+    },
     "主机端口" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -4371,35 +4078,6 @@
         }
       }
     },
-    "偏好设置" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Preferences"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "環境設定"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "환경설정"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "偏好設定"
-          }
-        }
-      }
-    },
     "保存主机失败" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -4574,6 +4252,41 @@
         }
       }
     },
+    "修改持久终端别名会同时重命名远端会话；留空会恢复当前会话名称。" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Renaming a persistent terminal also renames the remote session. Leave blank to restore the current session name."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "永続ターミナルの名前を変更すると、リモートセッション名も変更されます。空欄にすると現在のセッション名に戻ります。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "지속 터미널의 이름을 변경하면 원격 세션 이름도 변경됩니다. 비워 두면 현재 세션 이름으로 복원됩니다."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "修改持久终端别名会同时重命名远端会话；留空会恢复当前会话名称。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "修改持久終端別名會同時重新命名遠端工作階段；留空會恢復目前的工作階段名稱。"
+          }
+        }
+      }
+    },
     "修改日期" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -4686,6 +4399,35 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "值"
+          }
+        }
+      }
+    },
+    "偏好设置" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Preferences"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "環境設定"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "환경설정"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "偏好設定"
           }
         }
       }
@@ -10307,6 +10049,122 @@
         }
       }
     },
+    "当前主机平台不支持执行此片段。" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The current host platform does not support running this snippet."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "現在のホストプラットフォームではこのスニペットを実行できません。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "현재 호스트 플랫폼에서는 이 스니펫을 실행할 수 없습니다."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "目前主機平台不支援執行此片段。"
+          }
+        }
+      }
+    },
+    "当前主机平台仅支持此片段的部分能力，仍可继续执行。" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The current host platform supports only some capabilities required by this snippet, but it can still run."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "現在のホストプラットフォームは、このスニペットの一部の機能のみをサポートしていますが、実行は続行できます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "현재 호스트 플랫폼은 이 스니펫의 일부 기능만 지원하지만 계속 실행할 수 있습니다."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "目前主機平台僅支援此片段的部分能力，仍可繼續執行。"
+          }
+        }
+      }
+    },
+    "当前主机平台暂不支持指标采集" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Metrics collection is not yet supported on this host platform"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このホストプラットフォームではメトリクス収集はまだサポートされていません"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이 호스트 플랫폼에서는 아직 지표 수집을 지원하지 않습니다"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "目前主機平台尚不支援指標收集"
+          }
+        }
+      }
+    },
+    "当前平台尚不支持 Docker 管理。" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Docker management is not yet supported on this platform."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このプラットフォームでは Docker 管理はまだサポートされていません。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이 플랫폼에서는 아직 Docker 관리를 지원하지 않습니다."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "目前平台尚不支援 Docker 管理。"
+          }
+        }
+      }
+    },
     "当前用户无权访问 Docker。\n将用户加入 docker 组：\nsudo usermod -aG docker $USER\n然后重新登录后重试。" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -10361,6 +10219,64 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "目前使用者無法存取 Docker。\\n請將使用者加入 docker 群組：\\nsudo usermod -aG docker $USER\\n然後重新登入並重試。"
+          }
+        }
+      }
+    },
+    "当前用户无权访问 Docker。请检查 Docker Desktop 或 Docker socket 的访问权限。" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The current user cannot access Docker. Check access to Docker Desktop or the Docker socket."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "現在のユーザーには Docker へのアクセス権がありません。Docker Desktop または Docker ソケットのアクセス権を確認してください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "현재 사용자는 Docker에 접근할 수 없습니다. Docker Desktop 또는 Docker 소켓 접근 권한을 확인하세요."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "目前使用者無權存取 Docker。請檢查 Docker Desktop 或 Docker socket 的存取權限。"
+          }
+        }
+      }
+    },
+    "当前用户没有执行此片段所需的权限。" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The current user does not have permission to run this snippet."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "現在のユーザーには、このスニペットの実行に必要な権限がありません。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "현재 사용자에게 이 스니펫을 실행하는 데 필요한 권한이 없습니다."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "目前使用者沒有執行此片段所需的權限。"
           }
         }
       }
@@ -10854,6 +10770,35 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "執行失敗：%@"
+          }
+        }
+      }
+    },
+    "执行此片段所需的服务未运行。" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A service required to run this snippet is not running."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このスニペットの実行に必要なサービスが起動していません。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이 스니펫을 실행하는 데 필요한 서비스가 실행 중이 아닙니다."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "執行此片段所需的服務未執行。"
           }
         }
       }
@@ -12953,6 +12898,35 @@
         }
       }
     },
+    "无法确认远程主机是否满足片段要求。" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Could not confirm whether the remote host meets the snippet requirements."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "リモートホストがスニペットの要件を満たしているか確認できませんでした。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "원격 호스트가 스니펫 요구 사항을 충족하는지 확인할 수 없습니다."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法確認遠端主機是否符合片段要求。"
+          }
+        }
+      }
+    },
     "无镜像" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -13539,6 +13513,35 @@
         }
       }
     },
+    "未检测到 Docker CLI。请确认该主机已安装 Docker。" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Docker CLI not found. Make sure Docker is installed on this host."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Docker CLI が見つかりません。このホストに Docker がインストールされているか確認してください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Docker CLI를 찾을 수 없습니다. 이 호스트에 Docker가 설치되어 있는지 확인하세요."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未偵測到 Docker CLI。請確認該主機已安裝 Docker。"
+          }
+        }
+      }
+    },
     "未检测到 Docker CLI。请确认该服务器已安装 Docker。" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -13564,6 +13567,35 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "未偵測到 Docker CLI。請確認該伺服器已安裝 Docker。"
+          }
+        }
+      }
+    },
+    "未检测到 Docker CLI。请确认这台 Mac 已安装 Docker Desktop。" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Docker CLI not found. Make sure Docker Desktop is installed on this Mac."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Docker CLI が見つかりません。この Mac に Docker Desktop がインストールされているか確認してください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Docker CLI를 찾을 수 없습니다. 이 Mac에 Docker Desktop이 설치되어 있는지 확인하세요."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未偵測到 Docker CLI。請確認這台 Mac 已安裝 Docker Desktop。"
           }
         }
       }
@@ -13916,6 +13948,35 @@
         }
       }
     },
+    "检查脚本兼容性失败：%@" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Could not check script compatibility: %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "スクリプトの互換性を確認できませんでした：%@"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "스크립트 호환성을 확인하지 못했습니다: %@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "檢查腳本相容性失敗：%@"
+          }
+        }
+      }
+    },
     "概要" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -14028,6 +14089,35 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "正在拉取映像檔"
+          }
+        }
+      }
+    },
+    "正在检查脚本兼容性…" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Checking script compatibility…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "スクリプトの互換性を確認中…"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "스크립트 호환성을 확인하는 중…"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在檢查腳本相容性…"
           }
         }
       }
@@ -14150,6 +14240,35 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "此操作無法復原。"
+          }
+        }
+      }
+    },
+    "此脚本不支持该主机平台" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This script does not support the host platform"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このスクリプトはホストのプラットフォームに対応していません"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이 스크립트는 호스트 플랫폼을 지원하지 않습니다"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此腳本不支援該主機平台"
           }
         }
       }
@@ -18431,6 +18550,35 @@
         }
       }
     },
+    "该主机缺少脚本所需能力：%@" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This host is missing a required script capability: %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このホストにはスクリプトに必要な機能がありません：%@"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이 호스트에 스크립트 실행에 필요한 기능이 없습니다: %@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "該主機缺少腳本所需能力：%@"
+          }
+        }
+      }
+    },
     "该片段被标记为危险" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -20289,6 +20437,122 @@
         }
       }
     },
+    "远程主机暂时无法满足片段要求。" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The remote host cannot currently meet the snippet requirements."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "リモートホストは現在、スニペットの要件を満たせません。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "원격 호스트가 현재 스니펫 요구 사항을 충족할 수 없습니다."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "遠端主機暫時無法符合片段要求。"
+          }
+        }
+      }
+    },
+    "远程主机未提供执行此片段所需的完整数据。" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The remote host did not provide all data required to run this snippet."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "リモートホストから、このスニペットの実行に必要なデータをすべて取得できませんでした。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "원격 호스트에서 이 스니펫을 실행하는 데 필요한 전체 데이터를 제공하지 않았습니다."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "遠端主機未提供執行此片段所需的完整資料。"
+          }
+        }
+      }
+    },
+    "远程主机缺少执行此片段所需的命令。" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The remote host is missing a command required to run this snippet."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "リモートホストに、このスニペットの実行に必要なコマンドがありません。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "원격 호스트에 이 스니펫을 실행하는 데 필요한 명령이 없습니다."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "遠端主機缺少執行此片段所需的命令。"
+          }
+        }
+      }
+    },
+    "远程主机缺少部分可选命令，片段仍可继续执行。" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The remote host is missing some optional commands, but the snippet can still run."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "リモートホストに一部のオプションコマンドがありませんが、スニペットは実行できます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "원격 호스트에 일부 선택적 명령이 없지만 스니펫은 계속 실행할 수 있습니다."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "遠端主機缺少部分選用命令，片段仍可繼續執行。"
+          }
+        }
+      }
+    },
     "连接" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -20957,6 +21221,151 @@
         }
       }
     },
+    "部分主机指标不可用" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Some host metrics are unavailable"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "一部のホストメトリクスを利用できません"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "일부 호스트 지표를 사용할 수 없습니다"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "部分主機指標無法使用"
+          }
+        }
+      }
+    },
+    "部分片段能力依赖的服务未运行，仍可继续执行。" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A service used by some snippet capabilities is not running, but the snippet can still run."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "スニペットの一部の機能が使用するサービスは起動していませんが、実行は続行できます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "일부 스니펫 기능에 필요한 서비스가 실행 중이 아니지만 계속 실행할 수 있습니다."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "部分片段能力所依賴的服務未執行，仍可繼續執行。"
+          }
+        }
+      }
+    },
+    "部分片段能力受权限限制，仍可继续执行。" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Some snippet capabilities are permission-restricted, but the snippet can still run."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "スニペットの一部の機能は権限により制限されていますが、実行は続行できます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "일부 스니펫 기능이 권한으로 제한되지만 계속 실행할 수 있습니다."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "部分片段能力受權限限制，仍可繼續執行。"
+          }
+        }
+      }
+    },
+    "部分片段能力状态未知，仍可继续执行。" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The status of some snippet capabilities is unknown, but the snippet can still run."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "スニペットの一部の機能の状態は不明ですが、実行は続行できます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "일부 스니펫 기능의 상태를 알 수 없지만 계속 실행할 수 있습니다."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "部分片段能力狀態未知，仍可繼續執行。"
+          }
+        }
+      }
+    },
+    "部分片段要求无法确认，仍可继续执行。" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Some snippet requirements could not be confirmed, but the snippet can still run."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "スニペットの一部の要件を確認できませんが、実行は続行できます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "일부 스니펫 요구 사항을 확인할 수 없지만 계속 실행할 수 있습니다."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "部分片段要求無法確認，仍可繼續執行。"
+          }
+        }
+      }
+    },
     "部分运行" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -20982,6 +21391,35 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "部分執行中"
+          }
+        }
+      }
+    },
+    "部分远程能力数据不可用，片段仍可继续执行。" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Some remote capability data is unavailable, but the snippet can still run."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "一部のリモート機能データを利用できませんが、スニペットは実行できます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "일부 원격 기능 데이터를 사용할 수 없지만 스니펫은 계속 실행할 수 있습니다."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "部分遠端能力資料無法使用，片段仍可繼續執行。"
           }
         }
       }
@@ -22206,370 +22644,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "預設"
-          }
-        }
-      }
-    },
-    "Docker Desktop 未运行。请在这台 Mac 上启动 Docker Desktop 后重试。" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Docker Desktop is not running. Start Docker Desktop on this Mac and try again."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Docker Desktop が実行されていません。この Mac で Docker Desktop を起動してから再試行してください。"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Docker Desktop이 실행 중이 아닙니다. 이 Mac에서 Docker Desktop을 시작한 후 다시 시도하세요."
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Docker Desktop 未執行。請在這台 Mac 上啟動 Docker Desktop 後重試。"
-          }
-        }
-      }
-    },
-    "Docker 服务未运行。请在目标主机上启动 Docker 后重试。" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "The Docker service is not running. Start Docker on the target host and try again."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Docker サービスが実行されていません。対象ホストで Docker を起動してから再試行してください。"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Docker 서비스가 실행 중이 아닙니다. 대상 호스트에서 Docker를 시작한 후 다시 시도하세요."
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Docker 服務未執行。請在目標主機上啟動 Docker 後重試。"
-          }
-        }
-      }
-    },
-    "当前用户无权访问 Docker。请检查 Docker Desktop 或 Docker socket 的访问权限。" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "The current user cannot access Docker. Check access to Docker Desktop or the Docker socket."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "現在のユーザーには Docker へのアクセス権がありません。Docker Desktop または Docker ソケットのアクセス権を確認してください。"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "현재 사용자는 Docker에 접근할 수 없습니다. Docker Desktop 또는 Docker 소켓 접근 권한을 확인하세요."
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "目前使用者無權存取 Docker。請檢查 Docker Desktop 或 Docker socket 的存取權限。"
-          }
-        }
-      }
-    },
-    "未检测到 Docker CLI。请确认该主机已安装 Docker。" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Docker CLI not found. Make sure Docker is installed on this host."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Docker CLI が見つかりません。このホストに Docker がインストールされているか確認してください。"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Docker CLI를 찾을 수 없습니다. 이 호스트에 Docker가 설치되어 있는지 확인하세요."
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "未偵測到 Docker CLI。請確認該主機已安裝 Docker。"
-          }
-        }
-      }
-    },
-    "未检测到 Docker CLI。请确认这台 Mac 已安装 Docker Desktop。" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Docker CLI not found. Make sure Docker Desktop is installed on this Mac."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Docker CLI が見つかりません。この Mac に Docker Desktop がインストールされているか確認してください。"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Docker CLI를 찾을 수 없습니다. 이 Mac에 Docker Desktop이 설치되어 있는지 확인하세요."
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "未偵測到 Docker CLI。請確認這台 Mac 已安裝 Docker Desktop。"
-          }
-        }
-      }
-    },
-    "正在检查脚本兼容性…" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Checking script compatibility…"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "スクリプトの互換性を確認中…"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "스크립트 호환성을 확인하는 중…"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "正在檢查腳本相容性…"
-          }
-        }
-      }
-    },
-    "此脚本不支持该主机平台" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "This script does not support the host platform"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "このスクリプトはホストのプラットフォームに対応していません"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "이 스크립트는 호스트 플랫폼을 지원하지 않습니다"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "此腳本不支援該主機平台"
-          }
-        }
-      }
-    },
-    "该主机缺少脚本所需能力：%@" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "This host is missing a required script capability: %@"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "このホストにはスクリプトに必要な機能がありません：%@"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "이 호스트에 스크립트 실행에 필요한 기능이 없습니다: %@"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "該主機缺少腳本所需能力：%@"
-          }
-        }
-      }
-    },
-    "检查脚本兼容性失败：%@" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Could not check script compatibility: %@"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "スクリプトの互換性を確認できませんでした：%@"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "스크립트 호환성을 확인하지 못했습니다: %@"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "檢查腳本相容性失敗：%@"
-          }
-        }
-      }
-    },
-    "当前平台尚不支持 Docker 管理。" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Docker management is not yet supported on this platform."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "このプラットフォームでは Docker 管理はまだサポートされていません。"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "이 플랫폼에서는 아직 Docker 관리를 지원하지 않습니다."
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "目前平台尚不支援 Docker 管理。"
-          }
-        }
-      }
-    },
-    "部分主机指标不可用" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Some host metrics are unavailable"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "一部のホストメトリクスを利用できません"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "일부 호스트 지표를 사용할 수 없습니다"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "部分主機指標無法使用"
-          }
-        }
-      }
-    },
-    "主机指标采集暂不可用" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Host metrics collection is temporarily unavailable"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "ホストメトリクスの収集は一時的に利用できません"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "호스트 지표 수집을 일시적으로 사용할 수 없습니다"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "主機指標收集暫時無法使用"
-          }
-        }
-      }
-    },
-    "当前主机平台暂不支持指标采集" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Metrics collection is not yet supported on this host platform"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "このホストプラットフォームではメトリクス収集はまだサポートされていません"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "이 호스트 플랫폼에서는 아직 지표 수집을 지원하지 않습니다"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "目前主機平台尚不支援指標收集"
           }
         }
       }

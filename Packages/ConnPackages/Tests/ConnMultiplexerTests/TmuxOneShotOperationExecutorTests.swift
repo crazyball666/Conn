@@ -206,7 +206,7 @@ private struct OneShotFixture: Sendable {
                 address: "server.example",
                 username: "root"
             )),
-            profileID: "profile-1",
+            configurationKey: "profile-1",
             instanceToken: TmuxServerInstanceToken(
                 resolvedSocketPath: "/tmp/tmux/default",
                 serverPID: 100,

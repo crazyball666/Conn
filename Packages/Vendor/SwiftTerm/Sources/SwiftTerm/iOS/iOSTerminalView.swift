@@ -1483,8 +1483,17 @@ open class TerminalView: UIScrollView, UITextInputTraits, UIKeyInput, UIScrollVi
     }
 
     public func extendHostSelection(to point: CGPoint) {
-        selection.pivotExtend(bufferPosition: calculateTapHit(point: point).grid)
+        // Keep the complete seed word while the initial long-press drag crosses
+        // backwards over it. SelectionService owns the word-anchor semantics.
+        selection.dragExtend(bufferPosition: calculateTapHit(point: point).grid)
         requestDisplay()
+    }
+
+    /// Forwards a host-installed pan recognizer into SwiftTerm's native selection
+    /// endpoint, pivot, menu, and edge auto-scroll implementation. Embedders that
+    /// set `hostManagesTouchGestures` use this instead of duplicating selection math.
+    public func handleHostSelectionPan(_ gestureRecognizer: UIPanGestureRecognizer) {
+        panSelectionHandler(gestureRecognizer)
     }
 
     public func finishHostSelection(showMenu: Bool) {
@@ -3134,8 +3143,9 @@ extension TerminalViewDelegate {
     public func bell (source: TerminalView)
     {
         #if os(iOS)
-        let generator = UINotificationFeedbackGenerator()
-        generator.notificationOccurred(.warning)
+        let generator = UIImpactFeedbackGenerator(style: .heavy)
+        generator.prepare()
+        generator.impactOccurred(intensity: 1.0)
         #endif
     }
     

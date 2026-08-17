@@ -51,14 +51,14 @@ private final class NewTerminalOperationsRecorder {
     var hostError: (any Error)?
     var candidateCalls = 0
     var workspaceCalls = 0
-    var candidateResult: [PersistentBackendCandidate] = []
-    var candidateOperation: (@MainActor (Host) async -> [PersistentBackendCandidate])?
+    var candidateResult: [PersistentBackendOption] = []
+    var workspaceOperation: (@MainActor (Host) async throws -> [RemoteWorkspaceSummary])?
     var workspaceResult: [RemoteWorkspaceSummary] = []
     var workspaceError: (any Error)?
-    var existingBackend: TerminalLaunchBackend = .plainPTY
-    var createBackend: TerminalLaunchBackend = .plainPTY
+    var existingLaunch = makeLaunch(workspace: makeWorkspace(id: "$existing", name: "existing"))
+    var createLaunch = makeLaunch(workspace: makeWorkspace(id: "$created", name: "created"))
     var createBackendGate: FlowPrepareGate?
-    var existingWorkspaceCalls: [RemoteWorkspaceRef] = []
+    var existingWorkspaceCalls: [RemoteWorkspaceSummary] = []
     var createSelections: [PersistentWorkspaceCreateSelection] = []
     var prepareGate: FlowPrepareGate?
     var prepareResult: Result<Void, TerminalLaunchFailure> = .success(())
@@ -72,26 +72,27 @@ private final class NewTerminalOperationsRecorder {
                 if let error = self?.hostError { throw error }
                 return self?.hostResult ?? []
             },
-            persistentBackendCandidates: { [weak self] host in
+            persistentBackendOptions: { [weak self] in
                 self?.candidateCalls += 1
-                if let candidateOperation = self?.candidateOperation {
-                    return await candidateOperation(host)
-                }
                 return self?.candidateResult ?? []
             },
-            persistentWorkspaceOptions: { [weak self] _, _ in
+            persistentWorkspaceOptions: { [weak self] _, host in
                 self?.workspaceCalls += 1
+                if let workspaceOperation = self?.workspaceOperation {
+                    return try await workspaceOperation(host)
+                }
                 if let error = self?.workspaceError { throw error }
                 return self?.workspaceResult ?? []
             },
             makeExistingBackend: { [weak self] _, workspace, _ in
                 self?.existingWorkspaceCalls.append(workspace)
-                return self?.existingBackend ?? .plainPTY
+                return self?.existingLaunch ?? makeLaunch(workspace: workspace)
             },
             makeCreateBackend: { [weak self] _, selection, _ in
                 self?.createSelections.append(selection)
                 if let gate = self?.createBackendGate { await gate.wait() }
-                return self?.createBackend ?? .plainPTY
+                return self?.createLaunch
+                    ?? makeLaunch(workspace: makeWorkspace(id: "$created", name: "created"))
             },
             beginLaunchAttempt: {
                 TerminalLaunchAttemptID(rawValue: UUID())
@@ -131,18 +132,17 @@ struct NewTerminalFlowModelTests {
         #expect(recorder.completion == NewTerminalFlowCompletion(host: host, tabID: "tab-1"))
     }
 
-    @Test("选择 persistent 后才探测并保留不可用候选的诊断")
-    func persistentSelectionRetainsUnavailableCandidateDiagnostics() async {
+    @Test("选中 persistent 后发现远端未安装 provider 时自动回退普通 PTY")
+    func persistentSelectionFallsBackToPlainPTYWhenExecutableIsMissing() async {
         let host = Host(id: "host-1", name: "web", address: "10.0.0.1", username: "root")
         let recorder = NewTerminalOperationsRecorder()
-        let unavailable = PersistentBackendCandidate(
-            providerID: "tmux",
-            profileID: "tmux-host-1",
-            displayName: "tmux",
-            availability: .unavailable,
-            issue: .executableMissing
+        let unavailable = makeOption(
+            key: "zellij-host-1",
+            displayName: "Zellij",
+            providerID: "zellij"
         )
         recorder.candidateResult = [unavailable]
+        recorder.workspaceError = PersistentTerminalError.executableMissing
         let model = NewTerminalFlowModel(
             fixedHost: host,
             operations: recorder.operations,
@@ -152,25 +152,19 @@ struct NewTerminalFlowModelTests {
         await model.selectPersistent()
 
         #expect(recorder.candidateCalls == 1)
-        #expect(recorder.workspaceCalls == 0)
-        #expect(model.candidates == [unavailable])
-        #expect(model.usableCandidates.isEmpty)
-        #expect(model.phase == .providerSelection)
-        #expect(model.errorMessage == PersistentTerminalError.executableMissing.userFacingDiagnosis)
+        #expect(recorder.workspaceCalls == 1)
+        #expect(model.options == [unavailable])
+        #expect(recorder.preparedRequests.last?.backend == .plainPTY)
+        #expect(recorder.completion?.notice?.contains("Zellij") == true)
     }
 
     @Test("单个可用 persistent 候选自动执行一次 Workspace 查询")
     func singleUsablePersistentCandidateLoadsOneWorkspaceSnapshot() async {
         let host = Host(id: "host-1", name: "web", address: "10.0.0.1", username: "root")
         let recorder = NewTerminalOperationsRecorder()
-        let candidate = PersistentBackendCandidate(
-            providerID: "tmux",
-            profileID: "tmux-host-1",
-            displayName: "tmux",
-            availability: .available
-        )
+        let option = makeOption(key: "tmux-host-1", displayName: "tmux")
         let workspace = makeWorkspace(id: "$1", name: "main")
-        recorder.candidateResult = [candidate]
+        recorder.candidateResult = [option]
         recorder.workspaceResult = [workspace]
         let model = NewTerminalFlowModel(
             fixedHost: host,
@@ -182,7 +176,7 @@ struct NewTerminalFlowModelTests {
 
         #expect(recorder.candidateCalls == 1)
         #expect(recorder.workspaceCalls == 1)
-        #expect(model.selectedCandidate == candidate)
+        #expect(model.selectedOption == option)
         #expect(model.workspaces == [workspace])
         #expect(model.phase == .workspaceSelection)
     }
@@ -234,18 +228,8 @@ struct NewTerminalFlowModelTests {
     func multiplePersistentCandidatesRequireExplicitCandidateSelection() async {
         let host = Host(id: "host-1", name: "web", address: "10.0.0.1", username: "root")
         let recorder = NewTerminalOperationsRecorder()
-        let first = PersistentBackendCandidate(
-            providerID: "tmux",
-            profileID: "tmux-default",
-            displayName: "tmux default",
-            availability: .available
-        )
-        let second = PersistentBackendCandidate(
-            providerID: "tmux",
-            profileID: "tmux-work",
-            displayName: "tmux work",
-            availability: .degraded
-        )
+        let first = makeOption(key: "tmux-default", displayName: "tmux default")
+        let second = makeOption(key: "tmux-work", displayName: "tmux work")
         let workspace = makeWorkspace(id: "$2", name: "work")
         recorder.candidateResult = [first, second]
         recorder.workspaceResult = [workspace]
@@ -259,10 +243,10 @@ struct NewTerminalFlowModelTests {
         #expect(model.phase == .providerSelection)
         #expect(recorder.workspaceCalls == 0)
 
-        await model.selectCandidate(second)
+        await model.selectOption(second)
 
         #expect(recorder.workspaceCalls == 1)
-        #expect(model.selectedCandidate == second)
+        #expect(model.selectedOption == second)
         #expect(model.workspaces == [workspace])
     }
 
@@ -270,14 +254,9 @@ struct NewTerminalFlowModelTests {
     func failedRefreshPreservesPreviousWorkspaceSnapshot() async {
         let host = Host(id: "host-1", name: "web", address: "10.0.0.1", username: "root")
         let recorder = NewTerminalOperationsRecorder()
-        let candidate = PersistentBackendCandidate(
-            providerID: "tmux",
-            profileID: "tmux-host-1",
-            displayName: "tmux",
-            availability: .available
-        )
+        let option = makeOption(key: "tmux-host-1", displayName: "tmux")
         let workspace = makeWorkspace(id: "$1", name: "main")
-        recorder.candidateResult = [candidate]
+        recorder.candidateResult = [option]
         recorder.workspaceResult = [workspace]
         let model = NewTerminalFlowModel(
             fixedHost: host,
@@ -289,7 +268,7 @@ struct NewTerminalFlowModelTests {
 
         await model.refresh()
 
-        #expect(recorder.candidateCalls == 2)
+        #expect(recorder.candidateCalls == 1)
         #expect(recorder.workspaceCalls == 2)
         #expect(model.workspaces == [workspace])
         #expect(model.errorMessage != nil)
@@ -300,17 +279,15 @@ struct NewTerminalFlowModelTests {
     func attachingWorkspaceUsesPersistentBackendDescriptor() async {
         let host = Host(id: "host-1", name: "web", address: "10.0.0.1", username: "root")
         let recorder = NewTerminalOperationsRecorder()
-        let candidate = PersistentBackendCandidate(
-            providerID: "tmux",
-            profileID: "tmux-host-1",
-            displayName: "tmux",
-            availability: .available
-        )
+        let option = makeOption(key: "tmux-host-1", displayName: "tmux")
         let workspace = makeWorkspace(id: "$1", name: "main")
         let descriptor = makeDescriptor(workspace: workspace.workspace)
-        recorder.candidateResult = [candidate]
+        recorder.candidateResult = [option]
         recorder.workspaceResult = [workspace]
-        recorder.existingBackend = .persistent(descriptor)
+        recorder.existingLaunch = PersistentTerminalLaunch(
+            descriptor: descriptor,
+            workspaceName: workspace.name
+        )
         let model = NewTerminalFlowModel(
             fixedHost: host,
             operations: recorder.operations,
@@ -320,8 +297,9 @@ struct NewTerminalFlowModelTests {
 
         await model.attach(workspace)
 
-        #expect(recorder.existingWorkspaceCalls == [workspace.workspace])
+        #expect(recorder.existingWorkspaceCalls == [workspace])
         #expect(recorder.preparedRequests.last?.backend == .persistent(descriptor))
+        #expect(recorder.preparedRequests.last?.automaticAlias == "main")
         #expect(recorder.completion?.tabID == "tab-1")
     }
 
@@ -329,12 +307,7 @@ struct NewTerminalFlowModelTests {
     func creatingWorkspaceUsesExplicitCreateSelection() async {
         let host = Host(id: "host-1", name: "web", address: "10.0.0.1", username: "root")
         let recorder = NewTerminalOperationsRecorder()
-        let candidate = PersistentBackendCandidate(
-            providerID: "tmux",
-            profileID: "tmux-host-1",
-            displayName: "tmux",
-            availability: .degraded
-        )
+        let option = makeOption(key: "tmux-host-1", displayName: "tmux")
         let descriptor = makeDescriptor(
             workspace: RemoteWorkspaceRef(
                 workspaceID: "$new",
@@ -342,8 +315,11 @@ struct NewTerminalFlowModelTests {
                 providerInstancePayload: Data()
             )
         )
-        recorder.candidateResult = [candidate]
-        recorder.createBackend = .persistent(descriptor)
+        recorder.candidateResult = [option]
+        recorder.createLaunch = PersistentTerminalLaunch(
+            descriptor: descriptor,
+            workspaceName: "ops-remote"
+        )
         let model = NewTerminalFlowModel(
             fixedHost: host,
             operations: recorder.operations,
@@ -355,6 +331,7 @@ struct NewTerminalFlowModelTests {
 
         #expect(recorder.createSelections == [PersistentWorkspaceCreateSelection(name: "ops")])
         #expect(recorder.preparedRequests.last?.backend == .persistent(descriptor))
+        #expect(recorder.preparedRequests.last?.automaticAlias == "ops-remote")
         #expect(recorder.completion?.tabID == "tab-1")
     }
 
@@ -362,16 +339,11 @@ struct NewTerminalFlowModelTests {
     func failedPersistentAttachPreservesWorkspaceSelection() async {
         let host = Host(id: "host-1", name: "web", address: "10.0.0.1", username: "root")
         let recorder = NewTerminalOperationsRecorder()
-        let candidate = PersistentBackendCandidate(
-            providerID: "tmux",
-            profileID: "tmux-host-1",
-            displayName: "tmux",
-            availability: .available
-        )
+        let option = makeOption(key: "tmux-host-1", displayName: "tmux")
         let workspace = makeWorkspace(id: "$1", name: "main")
-        recorder.candidateResult = [candidate]
+        recorder.candidateResult = [option]
         recorder.workspaceResult = [workspace]
-        recorder.existingBackend = .persistent(makeDescriptor(workspace: workspace.workspace))
+        recorder.existingLaunch = makeLaunch(workspace: workspace)
         recorder.prepareResult = .failure(TerminalLaunchFailure(message: "attach failed"))
         let model = NewTerminalFlowModel(
             fixedHost: host,
@@ -411,12 +383,13 @@ struct NewTerminalFlowModelTests {
         #expect(recorder.completion == nil)
     }
 
-    @Test("关闭流程会取消正在执行的 provider 探测任务")
+    @Test("关闭流程会取消正在执行的所选 provider 探测任务")
     func closingFlowCancelsProviderProbeTask() async {
         let host = Host(id: "host-1", name: "web", address: "10.0.0.1", username: "root")
         let probe = FlowCancellationProbe()
         let recorder = NewTerminalOperationsRecorder()
-        recorder.candidateOperation = { _ in
+        recorder.candidateResult = [makeOption()]
+        recorder.workspaceOperation = { _ in
             await probe.run()
             return []
         }
@@ -439,15 +412,10 @@ struct NewTerminalFlowModelTests {
     @Test("关闭流程会隔离不响应取消的迟到 Workspace 创建结果")
     func closingFlowRejectsLateWorkspaceCreationResult() async {
         let host = Host(id: "host-1", name: "web", address: "10.0.0.1", username: "root")
-        let candidate = PersistentBackendCandidate(
-            providerID: "tmux",
-            profileID: "tmux-host-1",
-            displayName: "tmux",
-            availability: .degraded
-        )
+        let option = makeOption(key: "tmux-host-1", displayName: "tmux")
         let gate = FlowPrepareGate()
         let recorder = NewTerminalOperationsRecorder()
-        recorder.candidateResult = [candidate]
+        recorder.candidateResult = [option]
         recorder.createBackendGate = gate
         let model = NewTerminalFlowModel(
             fixedHost: host,
@@ -484,12 +452,36 @@ private func makeWorkspace(id: String, name: String) -> RemoteWorkspaceSummary {
     )
 }
 
+private func makeOption(
+    key: String = "default",
+    displayName: String = "tmux",
+    providerID: String = "tmux"
+) -> PersistentBackendOption {
+    PersistentBackendOption(
+        providerID: providerID,
+        displayName: displayName,
+        configuration: PersistentTerminalConfiguration(
+            providerID: providerID,
+            configurationKey: key,
+            payloadVersion: 1,
+            providerPayload: Data()
+        )
+    )
+}
+
 private func makeDescriptor(workspace: RemoteWorkspaceRef) -> PersistentAttachmentDescriptor {
     PersistentAttachmentDescriptor(
         providerID: "tmux",
-        profileID: "tmux-host-1",
+        configuration: makeOption(key: "tmux-host-1").configuration,
         workspace: workspace,
         payloadVersion: 1,
         providerPayload: Data()
+    )
+}
+
+private func makeLaunch(workspace: RemoteWorkspaceSummary) -> PersistentTerminalLaunch {
+    PersistentTerminalLaunch(
+        descriptor: makeDescriptor(workspace: workspace.workspace),
+        workspaceName: workspace.name
     )
 }

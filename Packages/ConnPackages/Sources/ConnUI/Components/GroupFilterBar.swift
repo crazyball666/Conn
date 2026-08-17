@@ -93,9 +93,7 @@ public struct GroupFilterBar: View {
         .background(Color.connSurface, in: trackShape)
         .clipShape(trackShape)
         .padding(.horizontal, ConnSpacing.page)
-        // 选择器语义用 .selection：iOS 上是轻促的一下，与系统分段控件一致。
-        // 不用 UIImpactFeedbackGenerator——那是 UIKit-only，本 target 同时编 macOS。
-        .sensoryFeedback(.selection, trigger: selection)
+        .sensoryFeedback(ConnHapticFeedback.highImpact, trigger: selection)
     }
 
     /// 单个 chip。

@@ -34,17 +34,15 @@ public struct AppDatabase: @unchecked Sendable {
         return try AppDatabase(DatabasePool(path: url.path, configuration: baseConfiguration))
     }
 
-    /// 迁移器。预发布阶段由初始 schema 创建空数据库。
+    /// 迁移器。即使仍处于预发布阶段也保留开发库中的主机和密钥元数据；
+    /// schema 演进统一通过显式迁移完成。
     public static var migrator: DatabaseMigrator {
         var migrator = DatabaseMigrator()
-        #if DEBUG
-            // 开发期 schema 变更后自动重建，避免手动删 App
-            migrator.eraseDatabaseOnSchemaChange = true
-        #endif
         SchemaV1.register(in: &migrator)
         SchemaV2.register(in: &migrator)
         SchemaV3.register(in: &migrator)
         SchemaV4.register(in: &migrator)
+        SchemaV5.register(in: &migrator)
         return migrator
     }
 

@@ -2,6 +2,29 @@ import Foundation
 import Testing
 
 struct AppWideUIConsistencyTests {
+    @Test("全 App 交互触感统一使用高强度策略")
+    func appHapticsUseHighImpactPolicy() throws {
+        let sources = [
+            try appSource("Hosts/HostOverviewView.swift"),
+            try packageSource("Sources/ConnUI/Components/GroupFilterBar.swift"),
+            try packageSource("Sources/ConnTerminal/TerminalDirectionPad.swift"),
+            try packageSource("Sources/ConnTerminal/TerminalKeybar.swift"),
+            try packageSource("Sources/ConnTerminal/TerminalHostingView.swift"),
+        ]
+        for source in sources {
+            #expect(!source.contains(".sensoryFeedback(.selection"))
+            #expect(!source.contains("weight: .light"))
+            #expect(!source.contains("UISelectionFeedbackGenerator"))
+        }
+        #expect(sources.allSatisfy { $0.contains("ConnHapticFeedback.highImpact")
+            || $0.contains("ConnHapticFeedback.performHighImpact()") })
+
+        let swiftTerm = try vendorSource("SwiftTerm/Sources/SwiftTerm/iOS/iOSTerminalView.swift")
+        #expect(swiftTerm.contains("UIImpactFeedbackGenerator(style: .heavy)"))
+        #expect(swiftTerm.contains("impactOccurred(intensity: 1.0)"))
+        #expect(!swiftTerm.contains("UINotificationFeedbackGenerator"))
+    }
+
     @Test("终端模拟器依赖固定到仓库内 SwiftTerm vendor")
     func terminalEmulatorUsesRepositoryOwnedVendor() throws {
         let package = try packageSource("Package.swift")
@@ -106,6 +129,16 @@ struct AppWideUIConsistencyTests {
         }
     }
 
+    @Test("持久终端别名通过协调器同步远端而不是直接修改 Store")
+    func terminalRenameUsesCoordinatorTransaction() throws {
+        let screen = try appSource("Terminal/TerminalScreen.swift")
+        let sheet = try appSource("Terminal/TerminalSessionListSheet.swift")
+
+        #expect(screen.contains("await terminalSessions.rename(id, to: alias)"))
+        #expect(!screen.contains("terminalSessions.store.updateAlias(id, to: alias)"))
+        #expect(sheet.contains("修改持久终端别名会同时重命名远端会话"))
+    }
+
     @Test("新建终端主机列表整行可点击")
     func terminalHostPickerRowsMakeEntireRowInteractive() throws {
         let source = try appSource("Terminal/NewTerminalSheet.swift")
@@ -123,18 +156,128 @@ struct AppWideUIConsistencyTests {
         #expect(source.contains("Text(sessionSubtitle)"))
     }
 
+    @Test("终端主题使用自定义列表展示完整预览而不是系统 Picker 文本降级")
+    func terminalThemesUseCustomPreviewList() throws {
+        let settings = try appSource("Me/TerminalSettingsView.swift")
+        let previews = try appSource("Me/TerminalSettingsPreviews.swift")
+
+        #expect(settings.contains("@State private var isThemePickerPresented = false"))
+        #expect(settings.contains("isThemePickerPresented = true"))
+        #expect(settings.contains("TerminalThemePickerLabel(theme: selectedTheme)"))
+        #expect(settings.contains("TerminalThemeSelectionSheet("))
+        #expect(settings.contains("selection: $settings.terminalThemeID"))
+        #expect(!settings.contains("Picker(selection: $settings.terminalThemeID)"))
+        #expect(previews.contains("struct TerminalThemeSelectionSheet: View"))
+        #expect(previews.contains("Section(L(\"深色\"))"))
+        #expect(previews.contains("Section(L(\"浅色\"))"))
+        #expect(previews.contains("TerminalThemePreviewCard("))
+        #expect(previews.contains("selection = theme.id"))
+        #expect(previews.contains("Text(\"Aa\")"))
+        #expect(previews.contains("theme.background"))
+        #expect(previews.contains("theme.foreground"))
+        #expect(previews.contains("theme.cursor"))
+        #expect(previews.contains("ForEach(Array(theme.ansi.prefix(8).enumerated())"))
+    }
+
+    @Test("终端光标设置显示三种真实形状并直接绑定现有枚举")
+    func terminalCursorUsesSelectableShapePreviews() throws {
+        let settings = try appSource("Me/TerminalSettingsView.swift")
+        let previews = try appSource("Me/TerminalSettingsPreviews.swift")
+
+        #expect(settings.contains("TerminalCursorShapePicker("))
+        #expect(settings.contains("selection: $settings.terminalCursorShape"))
+        #expect(settings.contains("theme: selectedTheme"))
+        #expect(settings.contains("Toggle(isOn: $settings.terminalCursorBlinking)"))
+        #expect(!settings.contains(".pickerStyle(.segmented)"))
+        #expect(previews.contains("ForEach(TerminalCursorShape.allCases)"))
+        #expect(previews.contains("selection = shape"))
+        #expect(previews.contains("case .block:"))
+        #expect(previews.contains("case .bar:"))
+        #expect(previews.contains("case .underline:"))
+        #expect(previews.contains(".frame(minHeight: 44)"))
+    }
+
+    @Test("终端系统明暗外观跟随当前终端主题")
+    func terminalScreenUsesThemeAppearance() throws {
+        let source = try appSource("Terminal/TerminalScreen.swift")
+
+        #expect(source.contains("settings.terminalConfiguration.theme.appearance"))
+        #expect(source.contains("private var terminalColorScheme: ColorScheme"))
+        #expect(source.contains(".toolbarColorScheme(terminalColorScheme, for: .navigationBar)"))
+        #expect(source.contains(".preferredColorScheme(terminalColorScheme)"))
+        #expect(!source.contains(".toolbarColorScheme(.dark, for: .navigationBar)"))
+        #expect(!source.contains(".preferredColorScheme(.dark)"))
+    }
+
+    @Test("全屏终端页提供本地全局 Toast 覆盖层")
+    func terminalScreenHostsToastAboveFullScreenPresentation() throws {
+        let source = try appSource("Terminal/TerminalScreen.swift")
+
+        #expect(source.contains(".connGlobalToast()"))
+    }
+
     @Test("终端页只传 provider-neutral 交互 facet，不感知 tmux")
     func terminalScreenUsesOptionalInteractionFacet() throws {
         let screen = try appSource("Terminal/TerminalScreen.swift")
         let host = try packageSource("Sources/ConnTerminal/TerminalHostingView.swift")
+        let keybar = try packageSource("Sources/ConnTerminal/TerminalKeybar.swift")
+        let swiftTerm = try vendorSource("SwiftTerm/Sources/SwiftTerm/iOS/iOSTerminalView.swift")
 
         #expect(screen.contains("as? any PersistentTerminalInteractiveAttachment"))
         #expect(screen.contains(")?.interaction"))
         #expect(screen.contains("terminalGeneration: tab.generation"))
         #expect(!screen.contains("TmuxProvider"))
         #expect(!host.contains("TmuxProvider"))
-        #expect(host.contains("TerminalReviewTextView"))
         #expect(host.contains("hostManagesTouchGestures = true"))
+        #expect(host.contains("beginHostSelection("))
+        #expect(host.contains("extendHostSelection(to:"))
+        #expect(host.contains("finishHostSelection(showMenu: true)"))
+        #expect(host.contains("handleHostSelectionPan("))
+        #expect(host.contains("terminalView.clearSelection()"))
+        #expect(host.contains("if terminalView.hasActiveSelection"))
+        #expect(host.contains("historyCaptureTask?.cancel()"))
+        #expect(host.contains("guard !Task.isCancelled,"))
+        #expect(!host.contains("terminalView.clearSelection()\n                return"))
+        #expect(swiftTerm.contains(
+            "public func extendHostSelection(to point: CGPoint) {\n        selection.dragExtend(bufferPosition:"
+        ))
+        #expect(!host.contains("capturePersistentHistory(selectionHit:"))
+        #expect(host.contains("self.presentReview(snapshot, selectionOffset: nil)"))
+        #expect(!host.contains(".allowsHitTesting(!controller.isReviewActive)"))
+        #expect(!host.contains("terminalActions"))
+        #expect(!host.contains("terminal.pointerMode"))
+        #expect(!host.contains("terminal.actions"))
+        #expect(keybar.contains("ScrollView(.horizontal)"))
+        #expect(!keybar.contains("onAllowClipboardReadOnce"))
+        #expect(!keybar.contains("允许读取剪贴板一次"))
+        #expect(!host.contains("allowClipboardReadOnce"))
+        #expect(keybar.components(separatedBy: "TerminalDirectionPad(").count == 2)
+        #expect(keybar.contains("private static let compactKeys: [TerminalKey] = [\n            .esc, .ctrl, .tab, .ctrlC,"))
+        #expect(!keybar.contains(".esc, .ctrl, .tab, .up, .down, .left, .right"))
+    }
+
+    @Test("终端关闭先退出页面再异步释放会话")
+    func terminalCloseDismissesBeforeCleanup() throws {
+        let source = try appSource("Terminal/TerminalScreen.swift")
+        let helperStart = try #require(source.range(of: "private func closeTerminalAndDismiss()"))
+        let helper = source[helperStart.lowerBound...]
+        let dismissIndex = try #require(helper.range(of: "dismiss()")?.lowerBound)
+        let taskIndex = try #require(helper.range(of: "Task {")?.lowerBound)
+
+        #expect(dismissIndex < taskIndex)
+        #expect(helper.contains("await terminalSessions.close(closingID)"))
+        #expect(!helper.prefix(500).contains("tmux"))
+    }
+
+    @Test("终端真实重连提示延迟后居中显示并使用紧凑实色背景")
+    func terminalReconnectNoticeUsesDelayedCenteredPresentation() throws {
+        let source = try appSource("Terminal/TerminalScreen.swift")
+
+        #expect(source.contains("TerminalReconnectingNotice()"))
+        #expect(source.contains("Task.sleep(for: .milliseconds(350))"))
+        #expect(source.contains("RoundedRectangle(cornerRadius: ConnRadius.key, style: .continuous)"))
+        #expect(source.contains(".black.opacity(0.82)"))
+        #expect(source.contains("maxHeight: .infinity, alignment: .top"))
     }
 
     @Test("终端会话中心只显示本地 Store 中有 Tab 的主机")
@@ -261,15 +404,20 @@ struct AppWideUIConsistencyTests {
         #expect(!source.contains("Task { await model.close() }"))
     }
 
-    @Test("新保存的主机立即幂等创建默认 tmux profile")
-    func savedHostsProvisionDefaultTmuxProfileImmediately() throws {
+    @Test("保存主机不创建或查询持久终端 provider 配置")
+    func savedHostsStayIndependentFromPersistentTerminalProviders() throws {
         let source = try appSource("ConnApp.swift")
+        let hostStore = try packageSource("Sources/ConnStore/DAO/HostStore.swift")
+        let coordinator = try packageSource("Sources/ConnTerminal/TerminalSessionCoordinator.swift")
 
-        #expect(source.contains("profileProvisioner:"))
-        #expect(source.contains("ensureDefaultTerminalProfile(for: host"))
-        #expect(source.contains("hostID: host.id"))
-        #expect(source.contains("providerID: TmuxProvider.providerID"))
-        #expect(source.contains(").isEmpty else"))
+        #expect(source.contains("HostStore(database: database)"))
+        #expect(!source.contains("TerminalBackendProfile"))
+        #expect(!source.contains("defaultTerminalProfiles"))
+        #expect(!source.contains("provisionDefaultTerminalProfiles"))
+        #expect(!hostStore.contains("TerminalBackendProfile"))
+        #expect(!hostStore.contains("terminal_backend_profile"))
+        #expect(coordinator.contains("PersistentProviderBackend(registry: providerRegistry)"))
+        #expect(!coordinator.contains("profileRepository"))
     }
 
     @Test("tmux 管理页只提交 typed operation 并使用破坏性确认")
@@ -496,6 +644,17 @@ struct AppWideUIConsistencyTests {
             .deletingLastPathComponent()
         return try String(
             contentsOf: projectURL.appending(path: "Packages/ConnPackages/\(relativePath)"),
+            encoding: .utf8
+        )
+    }
+
+    private func vendorSource(_ relativePath: String) throws -> String {
+        let projectURL = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        return try String(
+            contentsOf: projectURL.appending(path: "Packages/Vendor/\(relativePath)"),
             encoding: .utf8
         )
     }

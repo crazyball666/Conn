@@ -8,6 +8,7 @@ public enum TmuxOperationImpactError: Error, Sendable, Equatable {
     case ambiguousClientTarget(TmuxClientTarget)
     case clientTargetNotConnInteractive(TmuxClientID)
     case clientTargetDoesNotMatchInitiatingAttachment(TmuxClientID)
+    case clientNotAttachedToSession(clientID: TmuxClientID, sessionID: TmuxSessionID)
     case windowNotLinkedToClientSession(windowID: TmuxWindowID, clientID: TmuxClientID)
     case paneNotLinkedToClientSession(paneID: TmuxPaneID, clientID: TmuxClientID)
 }
@@ -48,6 +49,8 @@ public enum TmuxSharedStateEffect: String, Sendable, Codable, Equatable, Hashabl
     case windowPaneSelection
     case clientPaneSelection
     case windowPaneTopology
+    case windowPaneLayout
+    case windowOption
     case windowZoom
     case clientAttachment
 }
@@ -193,6 +196,24 @@ public struct TmuxOperationImpactAnalyzer: Sendable {
             analysis.clientScope = .sessions([client.sessionID])
             analysis.sharedStateEffects = [.sessionWindowSelection]
 
+        case let .selectRelativeWindow(sessionID, _, _, target):
+            let session = try requireSession(sessionID, in: snapshot)
+            let client = try requireOwnedInteractiveClient(
+                target,
+                in: snapshot,
+                context: context
+            )
+            guard client.sessionID == sessionID else {
+                throw TmuxOperationImpactError.clientNotAttachedToSession(
+                    clientID: client.id,
+                    sessionID: sessionID
+                )
+            }
+            analysis.target = .session(id: session.id, name: session.name)
+            analysis.affectedSessionIDs = [session.id]
+            analysis.clientScope = .sessions([session.id])
+            analysis.sharedStateEffects = [.sessionWindowSelection]
+
         case let .createWindow(sessionID, _):
             let session = try requireSession(sessionID, in: snapshot)
             let affectedSessions: Set<TmuxSessionID>
@@ -265,6 +286,26 @@ public struct TmuxOperationImpactAnalyzer: Sendable {
             analysis.clientScope = .sessions(sessions)
             analysis.sharedStateEffects = [.windowPaneTopology]
 
+        case let .applyPaneLayout(windowID, _), let .cyclePaneLayout(windowID):
+            let window = try requireWindow(windowID, in: snapshot)
+            let sessions = sessionIDs(linkedTo: window.id, snapshot: snapshot)
+            analysis.target = .window(id: window.id, name: window.name)
+            analysis.affectedSessionIDs = sessions
+            analysis.affectedWindowIDs = [window.id]
+            analysis.affectedPaneIDs = paneIDs(in: [window.id], snapshot: snapshot)
+            analysis.clientScope = .sessions(sessions)
+            analysis.sharedStateEffects = [.windowPaneLayout]
+
+        case let .toggleSynchronizePanes(windowID):
+            let window = try requireWindow(windowID, in: snapshot)
+            let sessions = sessionIDs(linkedTo: window.id, snapshot: snapshot)
+            analysis.target = .window(id: window.id, name: window.name)
+            analysis.affectedSessionIDs = sessions
+            analysis.affectedWindowIDs = [window.id]
+            analysis.affectedPaneIDs = paneIDs(in: [window.id], snapshot: snapshot)
+            analysis.clientScope = .sessions(sessions)
+            analysis.sharedStateEffects = [.windowOption]
+
         case let .setPaneZoom(paneID, _):
             let pane = try requirePane(paneID, in: snapshot)
             let window = try requireWindow(pane.windowID, in: snapshot)
@@ -275,6 +316,24 @@ public struct TmuxOperationImpactAnalyzer: Sendable {
             analysis.affectedPaneIDs = paneIDs(in: [window.id], snapshot: snapshot)
             analysis.clientScope = .sessions(sessions)
             analysis.sharedStateEffects = [.windowZoom]
+
+        case let .resizePane(paneID, _, _), let .swapPane(paneID, _):
+            let pane = try requirePane(paneID, in: snapshot)
+            let window = try requireWindow(pane.windowID, in: snapshot)
+            let sessions = sessionIDs(linkedTo: window.id, snapshot: snapshot)
+            analysis.target = paneTarget(pane, window: window)
+            analysis.affectedSessionIDs = sessions
+            analysis.affectedWindowIDs = [window.id]
+            analysis.affectedPaneIDs = paneIDs(in: [window.id], snapshot: snapshot)
+            analysis.clientScope = .sessions(sessions)
+            analysis.sharedStateEffects = [.windowPaneLayout]
+
+        case let .enterCopyMode(paneID):
+            let pane = try requirePane(paneID, in: snapshot)
+            let window = try requireWindow(pane.windowID, in: snapshot)
+            analysis.target = paneTarget(pane, window: window)
+            analysis.affectedWindowIDs = [window.id]
+            analysis.affectedPaneIDs = [pane.id]
 
         case let .killPane(paneID):
             let pane = try requirePane(paneID, in: snapshot)

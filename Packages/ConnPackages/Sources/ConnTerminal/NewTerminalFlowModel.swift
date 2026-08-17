@@ -8,10 +8,12 @@ import Observation
 public struct NewTerminalFlowCompletion: Sendable, Equatable {
     public let host: ConnKit.Host
     public let tabID: String
+    public let notice: String?
 
-    public init(host: ConnKit.Host, tabID: String) {
+    public init(host: ConnKit.Host, tabID: String, notice: String? = nil) {
         self.host = host
         self.tabID = tabID
+        self.notice = notice
     }
 }
 
@@ -31,14 +33,14 @@ public final class NewTerminalFlowModel {
 
     public struct Operations {
         public let loadHosts: @MainActor () throws -> [ConnKit.Host]
-        public let persistentBackendCandidates:
-            @MainActor (ConnKit.Host) async -> [PersistentBackendCandidate]
+        public let persistentBackendOptions:
+            @MainActor () -> [PersistentBackendOption]
         public let persistentWorkspaceOptions:
-            @MainActor (PersistentBackendCandidate, ConnKit.Host) async throws -> [RemoteWorkspaceSummary]
+            @MainActor (PersistentBackendOption, ConnKit.Host) async throws -> [RemoteWorkspaceSummary]
         public let makeExistingBackend:
-            @MainActor (PersistentBackendCandidate, RemoteWorkspaceRef, ConnKit.Host) async throws -> TerminalLaunchBackend
+            @MainActor (PersistentBackendOption, RemoteWorkspaceSummary, ConnKit.Host) async throws -> PersistentTerminalLaunch
         public let makeCreateBackend:
-            @MainActor (PersistentBackendCandidate, PersistentWorkspaceCreateSelection, ConnKit.Host) async throws -> TerminalLaunchBackend
+            @MainActor (PersistentBackendOption, PersistentWorkspaceCreateSelection, ConnKit.Host) async throws -> PersistentTerminalLaunch
         public let beginLaunchAttempt: @MainActor () -> TerminalLaunchAttemptID
         public let prepareLaunch:
             @MainActor (TerminalLaunchRequest, TerminalLaunchAttemptID) async -> Result<Void, TerminalLaunchFailure>
@@ -48,17 +50,17 @@ public final class NewTerminalFlowModel {
 
         public init(
             loadHosts: @escaping @MainActor () throws -> [ConnKit.Host],
-            persistentBackendCandidates: @escaping @MainActor (ConnKit.Host) async -> [PersistentBackendCandidate],
-            persistentWorkspaceOptions: @escaping @MainActor (PersistentBackendCandidate, ConnKit.Host) async throws -> [RemoteWorkspaceSummary],
-            makeExistingBackend: @escaping @MainActor (PersistentBackendCandidate, RemoteWorkspaceRef, ConnKit.Host) async throws -> TerminalLaunchBackend,
-            makeCreateBackend: @escaping @MainActor (PersistentBackendCandidate, PersistentWorkspaceCreateSelection, ConnKit.Host) async throws -> TerminalLaunchBackend,
+            persistentBackendOptions: @escaping @MainActor () -> [PersistentBackendOption],
+            persistentWorkspaceOptions: @escaping @MainActor (PersistentBackendOption, ConnKit.Host) async throws -> [RemoteWorkspaceSummary],
+            makeExistingBackend: @escaping @MainActor (PersistentBackendOption, RemoteWorkspaceSummary, ConnKit.Host) async throws -> PersistentTerminalLaunch,
+            makeCreateBackend: @escaping @MainActor (PersistentBackendOption, PersistentWorkspaceCreateSelection, ConnKit.Host) async throws -> PersistentTerminalLaunch,
             beginLaunchAttempt: @escaping @MainActor () -> TerminalLaunchAttemptID,
             prepareLaunch: @escaping @MainActor (TerminalLaunchRequest, TerminalLaunchAttemptID) async -> Result<Void, TerminalLaunchFailure>,
             commitLaunch: @escaping @MainActor (TerminalLaunchAttemptID) async -> Result<String, TerminalLaunchFailure>,
             cancelLaunch: @escaping @MainActor (TerminalLaunchAttemptID) async -> Void
         ) {
             self.loadHosts = loadHosts
-            self.persistentBackendCandidates = persistentBackendCandidates
+            self.persistentBackendOptions = persistentBackendOptions
             self.persistentWorkspaceOptions = persistentWorkspaceOptions
             self.makeExistingBackend = makeExistingBackend
             self.makeCreateBackend = makeCreateBackend
@@ -74,22 +76,22 @@ public final class NewTerminalFlowModel {
         ) -> Operations {
             Operations(
                 loadHosts: { try hostRepository.allHosts() },
-                persistentBackendCandidates: { host in
-                    await coordinator.persistentBackendCandidates(for: host)
+                persistentBackendOptions: {
+                    coordinator.persistentBackendOptions()
                 },
-                persistentWorkspaceOptions: { candidate, host in
-                    try await coordinator.persistentWorkspaceOptions(for: candidate, host: host)
+                persistentWorkspaceOptions: { option, host in
+                    try await coordinator.persistentWorkspaceOptions(for: option, host: host)
                 },
-                makeExistingBackend: { candidate, workspace, host in
+                makeExistingBackend: { option, workspace, host in
                     try await coordinator.makePersistentBackend(
-                        from: candidate,
+                        from: option,
                         workspace: workspace,
                         for: host
                     )
                 },
-                makeCreateBackend: { candidate, selection, host in
+                makeCreateBackend: { option, selection, host in
                     try await coordinator.makePersistentBackend(
-                        from: candidate,
+                        from: option,
                         create: selection,
                         for: host
                     )
@@ -114,19 +116,13 @@ public final class NewTerminalFlowModel {
     public private(set) var phase: Phase
     public private(set) var hosts: [ConnKit.Host] = []
     public private(set) var selectedHost: ConnKit.Host?
-    public private(set) var candidates: [PersistentBackendCandidate] = []
-    public private(set) var selectedCandidate: PersistentBackendCandidate?
+    public private(set) var options: [PersistentBackendOption] = []
+    public private(set) var selectedOption: PersistentBackendOption?
     public private(set) var workspaces: [RemoteWorkspaceSummary] = []
     public private(set) var isLoading = false
     public private(set) var isRefreshing = false
     public private(set) var isCreating = false
     public private(set) var errorMessage: String?
-
-    public var usableCandidates: [PersistentBackendCandidate] {
-        candidates.filter { candidate in
-            candidate.availability == .available || candidate.availability == .degraded
-        }
-    }
 
     private let operations: Operations
     @ObservationIgnored private let onCompleted: @MainActor (NewTerminalFlowCompletion) -> Void
@@ -166,8 +162,8 @@ public final class NewTerminalFlowModel {
         guard !closed else { return }
         generation &+= 1
         selectedHost = host
-        candidates = []
-        selectedCandidate = nil
+        options = []
+        selectedOption = nil
         workspaces = []
         errorMessage = nil
         phase = .terminalTypeSelection
@@ -193,50 +189,46 @@ public final class NewTerminalFlowModel {
         isLoading = true
         phase = .providerLoading
 
-        let loadedCandidates = await operations.persistentBackendCandidates(host)
+        let loadedOptions = operations.persistentBackendOptions()
         guard isCurrent(loadingGeneration) else { return }
-        candidates = loadedCandidates
+        options = loadedOptions
         isLoading = false
 
-        let usable = usableCandidates
-        guard !usable.isEmpty else {
-            selectedCandidate = nil
+        guard !loadedOptions.isEmpty else {
+            selectedOption = nil
             workspaces = []
             phase = .providerSelection
-            let diagnoses = loadedCandidates.compactMap { $0.issue?.userFacingDiagnosis }
-            errorMessage = diagnoses.isEmpty
-                ? L("没有可用的持久终端")
-                : diagnoses.joined(separator: "\n")
+            errorMessage = L("没有可用的持久终端")
             return
         }
 
-        if usable.count == 1, let candidate = usable.first {
+        if loadedOptions.count == 1, let option = loadedOptions.first {
             await loadWorkspaces(
-                for: candidate,
+                for: option,
                 host: host,
                 generation: loadingGeneration,
                 preserveExisting: false
             )
         } else {
-            selectedCandidate = nil
+            selectedOption = nil
             workspaces = []
             phase = .providerSelection
         }
     }
 
-    public func selectCandidate(_ candidate: PersistentBackendCandidate) async {
+    public func selectOption(_ option: PersistentBackendOption) async {
         await runTrackedOperation { model in
-            await model.performCandidateSelection(candidate)
+            await model.performOptionSelection(option)
         }
     }
 
-    private func performCandidateSelection(_ candidate: PersistentBackendCandidate) async {
-        guard !closed, let host = selectedHost, usableCandidates.contains(candidate) else { return }
+    private func performOptionSelection(_ option: PersistentBackendOption) async {
+        guard !closed, let host = selectedHost, options.contains(option) else { return }
         generation &+= 1
         let loadingGeneration = generation
         errorMessage = nil
         await loadWorkspaces(
-            for: candidate,
+            for: option,
             host: host,
             generation: loadingGeneration,
             preserveExisting: false
@@ -256,32 +248,13 @@ public final class NewTerminalFlowModel {
         isRefreshing = true
         errorMessage = nil
 
-        let refreshedCandidates = await operations.persistentBackendCandidates(host)
-        guard isCurrent(refreshGeneration) else { return }
-        candidates = refreshedCandidates
-        let usable = usableCandidates
-        guard !usable.isEmpty else {
+        guard let selectedOption else {
             isRefreshing = false
-            selectedCandidate = nil
-            phase = .providerSelection
-            let diagnoses = refreshedCandidates.compactMap { $0.issue?.userFacingDiagnosis }
-            errorMessage = diagnoses.isEmpty
-                ? L("没有可用的持久终端")
-                : diagnoses.joined(separator: "\n")
-            return
-        }
-
-        let refreshedSelection = selectedCandidate.flatMap { selected in
-            usable.first { $0.profileID == selected.profileID && $0.providerID == selected.providerID }
-        } ?? (usable.count == 1 ? usable.first : nil)
-        guard let refreshedSelection else {
-            isRefreshing = false
-            selectedCandidate = nil
             phase = .providerSelection
             return
         }
         await loadWorkspaces(
-            for: refreshedSelection,
+            for: selectedOption,
             host: host,
             generation: refreshGeneration,
             preserveExisting: true
@@ -297,7 +270,7 @@ public final class NewTerminalFlowModel {
     private func performAttach(_ workspace: RemoteWorkspaceSummary) async {
         guard !closed,
               let host = selectedHost,
-              let candidate = selectedCandidate,
+              let option = selectedOption,
               workspaces.contains(workspace)
         else { return }
         generation &+= 1
@@ -306,14 +279,18 @@ public final class NewTerminalFlowModel {
         errorMessage = nil
         phase = .creating
         do {
-            let backend = try await operations.makeExistingBackend(
-                candidate,
-                workspace.workspace,
+            let persistentLaunch = try await operations.makeExistingBackend(
+                option,
+                workspace,
                 host
             )
             guard isCurrent(descriptorGeneration) else { return }
             isCreating = false
-            await launch(backend: backend, failurePhase: .workspaceSelection)
+            await launch(
+                backend: .persistent(persistentLaunch.descriptor),
+                failurePhase: .workspaceSelection,
+                automaticAlias: persistentLaunch.workspaceName
+            )
         } catch {
             guard isCurrent(descriptorGeneration) else { return }
             isCreating = false
@@ -329,7 +306,7 @@ public final class NewTerminalFlowModel {
     }
 
     private func performCreateWorkspace(name: String?) async {
-        guard !closed, let host = selectedHost, let candidate = selectedCandidate else { return }
+        guard !closed, let host = selectedHost, let option = selectedOption else { return }
         let cleanedName = name?
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .nilIfEmpty
@@ -339,14 +316,18 @@ public final class NewTerminalFlowModel {
         errorMessage = nil
         phase = .creating
         do {
-            let backend = try await operations.makeCreateBackend(
-                candidate,
+            let persistentLaunch = try await operations.makeCreateBackend(
+                option,
                 PersistentWorkspaceCreateSelection(name: cleanedName),
                 host
             )
             guard isCurrent(descriptorGeneration) else { return }
             isCreating = false
-            await launch(backend: backend, failurePhase: .workspaceSelection)
+            await launch(
+                backend: .persistent(persistentLaunch.descriptor),
+                failurePhase: .workspaceSelection,
+                automaticAlias: persistentLaunch.workspaceName
+            )
         } catch {
             guard isCurrent(descriptorGeneration) else { return }
             isCreating = false
@@ -376,8 +357,8 @@ public final class NewTerminalFlowModel {
                 phase = .hostSelection
             }
         case .providerLoading, .providerSelection, .workspaceSelection, .creating:
-            candidates = []
-            selectedCandidate = nil
+            options = []
+            selectedOption = nil
             workspaces = []
             phase = .terminalTypeSelection
         }
@@ -404,7 +385,9 @@ public final class NewTerminalFlowModel {
 
     private func launch(
         backend: TerminalLaunchBackend,
-        failurePhase: Phase
+        failurePhase: Phase,
+        automaticAlias: String? = nil,
+        notice: String? = nil
     ) async {
         guard !closed, !didComplete, let host = selectedHost else { return }
         generation &+= 1
@@ -421,7 +404,8 @@ public final class NewTerminalFlowModel {
             host: host,
             policy: .createNew,
             source: .shell,
-            backend: backend
+            backend: backend,
+            automaticAlias: automaticAlias
         )
 
         switch await operations.prepareLaunch(request, attemptID) {
@@ -436,7 +420,7 @@ public final class NewTerminalFlowModel {
                 activeAttemptID = nil
                 isCreating = false
                 didComplete = true
-                onCompleted(NewTerminalFlowCompletion(host: host, tabID: tabID))
+                onCompleted(NewTerminalFlowCompletion(host: host, tabID: tabID, notice: notice))
             case let .failure(failure):
                 finishLaunchFailure(
                     failure,
@@ -496,28 +480,51 @@ public final class NewTerminalFlowModel {
     }
 
     private func loadWorkspaces(
-        for candidate: PersistentBackendCandidate,
+        for option: PersistentBackendOption,
         host: ConnKit.Host,
         generation expectedGeneration: UInt64,
         preserveExisting: Bool
     ) async {
-        selectedCandidate = candidate
+        selectedOption = option
         isLoading = !preserveExisting
         isRefreshing = preserveExisting
         phase = .workspaceSelection
         do {
-            let loadedWorkspaces = try await operations.persistentWorkspaceOptions(candidate, host)
+            let loadedWorkspaces = try await operations.persistentWorkspaceOptions(option, host)
             guard isCurrent(expectedGeneration) else { return }
             workspaces = loadedWorkspaces
             errorMessage = nil
         } catch {
             guard isCurrent(expectedGeneration) else { return }
+            if shouldFallBackToPlainPTY(for: error) {
+                isLoading = false
+                isRefreshing = false
+                await launch(
+                    backend: .plainPTY,
+                    failurePhase: .terminalTypeSelection,
+                    notice: String(
+                        format: L("%@ 不可用，已改用普通终端"),
+                        option.displayName
+                    )
+                )
+                return
+            }
             if !preserveExisting { workspaces = [] }
             errorMessage = diagnosis(for: error)
         }
         guard isCurrent(expectedGeneration) else { return }
         isLoading = false
         isRefreshing = false
+    }
+
+    private func shouldFallBackToPlainPTY(for error: any Error) -> Bool {
+        guard let issue = error as? PersistentTerminalError else { return false }
+        return switch issue {
+        case .executableMissing, .unsupportedPlatform:
+            true
+        default:
+            false
+        }
     }
 
     private func finishLaunchFailure(

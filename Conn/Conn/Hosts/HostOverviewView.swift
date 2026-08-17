@@ -385,7 +385,7 @@ private extension HostOverviewView {
                 .accessibilityHint(L("双击切换图表折线"))
             }
         }
-        .sensoryFeedback(.selection, trigger: cpuVisibility)
+        .sensoryFeedback(ConnHapticFeedback.highImpact, trigger: cpuVisibility)
     }
 
     var cpuBreakdownItems: [CPUStatItem] {

@@ -1,8 +1,14 @@
 import Foundation
+import OSLog
 
-/// The optional Control Mode process is shared by all tabs that point at one exact
-/// connection/profile/server generation. Data attachments remain independent PTYs; this
-/// registry only owns the management-plane runtime and its leases.
+private let tmuxControlRegistryLogger = Logger(
+    subsystem: "com.crazyball.Conn",
+    category: "TmuxControlRegistry"
+)
+
+/// The required Control Mode process is shared by all tmux attachments that point at one exact
+/// connection/configuration/server generation. Data attachments remain independent PTYs; this
+/// registry owns the shared management-plane runtime and exact per-attachment bindings.
 actor TmuxProviderControlRuntimeRegistry {
     private struct Entry {
         var runtime: TmuxControlRuntime?
@@ -28,8 +34,9 @@ actor TmuxProviderControlRuntimeRegistry {
     }
 
     private var entries: [TmuxOperationScope: Entry] = [:]
-    /// Data-plane ownership outlives any optional Control Mode process. Keeping this
-    /// registry separate lets background tabs retain identity without retaining SSH work.
+    /// Bindings are indexed separately from the shared runtime so Hub setup and teardown can
+    /// be transactional. A published attachment is ready only while its binding and runtime
+    /// are both valid; this table is not an optional data-only fallback.
     private var attachmentRegistrations: [
         TmuxOperationScope: [UUID: AttachmentRegistration]
     ] = [:]
@@ -128,7 +135,8 @@ actor TmuxProviderControlRuntimeRegistry {
                         identity,
                         attachmentGeneration: attachmentGeneration,
                         on: hub,
-                        scope: preflight.scope
+                        scope: preflight.scope,
+                        refreshBeforeValidation: true
                     )
                     guard var current = entries[preflight.scope], current.runtime === preflight.runtime else {
                         await removeAttachmentRegistration(
@@ -143,6 +151,7 @@ actor TmuxProviderControlRuntimeRegistry {
                     let lease = TmuxProviderControlInteractionLease(
                         registry: self,
                         scope: preflight.scope,
+                        runtime: preflight.runtime,
                         registrationID: registration.id,
                         snapshots: registration.snapshots,
                         identity: identity,
@@ -155,6 +164,9 @@ actor TmuxProviderControlRuntimeRegistry {
                     )
                     return lease
                 } catch {
+                    tmuxControlRegistryLogger.error(
+                        "Registering attachment on existing Hub failed; type=\(String(reflecting: type(of: error)), privacy: .public)"
+                    )
                     await releasePreflight(preflight)
                     return nil
                 }
@@ -182,13 +194,18 @@ actor TmuxProviderControlRuntimeRegistry {
             }
 
             do {
-                try await restoreAttachmentRegistrations(
-                    on: setup.hub,
-                    scope: preflight.scope
-                )
                 let registration = try await registerAttachment(
                     setup.identity,
                     attachmentGeneration: attachmentGeneration,
+                    on: setup.hub,
+                    scope: preflight.scope,
+                    refreshBeforeValidation: false
+                )
+                // Bind the identity used to build the validated initial snapshot before
+                // restoring older registrations. If restoration needs one refresh, that
+                // refresh then includes both the new and restored identities and cannot
+                // accidentally reclassify the new data client as external.
+                try await restoreAttachmentRegistrations(
                     on: setup.hub,
                     scope: preflight.scope
                 )
@@ -204,10 +221,16 @@ actor TmuxProviderControlRuntimeRegistry {
                 current.creatingHub = false
                 current.pendingCount = max(0, current.pendingCount - 1)
                 entries[preflight.scope] = current
+                // Do not consume buffered topology notifications until the validated
+                // initial snapshot has been bound to this attachment. Starting the event
+                // stream earlier lets an ordinary `%sessions-changed` race the required
+                // identity registration and can make a healthy startup fail intermittently.
+                await setup.hub.startEventStream(preflight.runtime.events)
                 signalChange()
                 let lease = TmuxProviderControlInteractionLease(
                     registry: self,
                     scope: preflight.scope,
+                    runtime: preflight.runtime,
                     registrationID: registration.id,
                     snapshots: registration.snapshots,
                     identity: setup.identity,
@@ -220,6 +243,9 @@ actor TmuxProviderControlRuntimeRegistry {
                 )
                 return lease
             } catch {
+                tmuxControlRegistryLogger.error(
+                    "Registering attachment on new Hub failed; type=\(String(reflecting: type(of: error)), privacy: .public)"
+                )
                 await releaseHubLeases(from: setup.hub, scope: preflight.scope)
                 guard var current = entries[preflight.scope], current.runtime === preflight.runtime else {
                     return nil
@@ -392,6 +418,56 @@ actor TmuxProviderControlRuntimeRegistry {
         )
     }
 
+    func performQuickAction(
+        _ lease: TmuxProviderControlInteractionLease,
+        request: PersistentTerminalQuickActionRequest
+    ) async throws {
+        guard let registration = attachmentRegistrations[lease.scope]?[lease.registrationID]
+        else {
+            throw TmuxInteractionError.closed
+        }
+        guard request.attachmentGeneration == registration.attachmentGeneration else {
+            throw PersistentTerminalInteractionError.staleAttachmentGeneration
+        }
+        guard let action = TmuxTerminalQuickAction(rawValue: request.actionID) else {
+            throw PersistentTerminalInteractionError.unsupportedQuickAction(request.actionID)
+        }
+        guard (1 ... PersistentTerminalQuickActionRequest.maximumRepeatCount)
+            .contains(request.repeatCount)
+        else {
+            throw PersistentTerminalInteractionError.invalidQuickActionRepeatCount(
+                request.repeatCount
+            )
+        }
+        guard let hub = entries[lease.scope]?.hub,
+              let hubLease = registration.hubLease
+        else {
+            throw TmuxInteractionError.closed
+        }
+        _ = try await hub.executeQuickAction(
+            lease: hubLease,
+            target: request.target,
+            attachmentGeneration: registration.attachmentGeneration,
+            expectedRevision: request.expectedStateRevision,
+            action: action,
+            argument: request.argument,
+            repeatCount: request.repeatCount,
+            timeout: .seconds(30)
+        )
+    }
+
+    /// A lease proves ownership of the management route, but its long-lived Control Mode
+    /// process may already have terminated. Quick interactions must not enter the Hub's
+    /// slower one-shot reconciliation path when the direct command channel is gone.
+    func hasReadyControlRuntime(
+        _ lease: TmuxProviderControlInteractionLease
+    ) async -> Bool {
+        guard attachmentRegistrations[lease.scope]?[lease.registrationID] != nil,
+              let runtime = entries[lease.scope]?.runtime
+        else { return false }
+        return await runtime.isReady
+    }
+
     func releaseCatalog(_ lease: TmuxProviderControlCatalogLease) async {
         guard let entry = entries[lease.scope], entry.runtime === lease.runtime else { return }
         await lease.hub.releaseLease(lease.observation.lease)
@@ -442,7 +518,8 @@ actor TmuxProviderControlRuntimeRegistry {
         _ identity: TmuxControlInteractiveIdentity,
         attachmentGeneration: UInt64,
         on hub: TmuxControlHub,
-        scope: TmuxOperationScope
+        scope: TmuxOperationScope,
+        refreshBeforeValidation: Bool
     ) async throws -> (id: UUID, snapshots: AsyncStream<TmuxServerSnapshot>) {
         let registrationID = UUID()
         let bindingID = UUID()
@@ -464,7 +541,14 @@ actor TmuxProviderControlRuntimeRegistry {
             observationTask: nil
         )
         do {
-            _ = try await hub.refresh(reason: .userRequested)
+            if refreshBeforeValidation {
+                _ = try await hub.refresh(reason: .userRequested)
+            }
+            _ = try await hub.resolveInteraction(
+                lease: observation.lease,
+                attachmentGeneration: attachmentGeneration,
+                refreshIfNeeded: false
+            )
             guard var registration = attachmentRegistrations[scope]?[registrationID],
                   registration.bindingID == bindingID,
                   let currentEntry = entries[scope],
@@ -524,6 +608,7 @@ actor TmuxProviderControlRuntimeRegistry {
                 attachmentRegistrations[scope]?[registrationID] = current
                 acquired.append((registrationID, bindingID, observation))
             }
+            guard !acquired.isEmpty else { return }
             _ = try await hub.refresh(reason: .userRequested)
             for acquiredBinding in acquired {
                 guard var current = attachmentRegistrations[scope]?[acquiredBinding.registrationID],
@@ -669,6 +754,7 @@ struct TmuxProviderControlSetup: Sendable {
 package struct TmuxProviderControlInteractionLease: Sendable {
     let registry: TmuxProviderControlRuntimeRegistry
     let scope: TmuxOperationScope
+    let runtime: TmuxControlRuntime
     let registrationID: UUID
     let snapshots: AsyncStream<TmuxServerSnapshot>
     let identity: TmuxControlInteractiveIdentity

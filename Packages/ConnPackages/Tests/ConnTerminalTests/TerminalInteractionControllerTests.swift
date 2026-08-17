@@ -4,6 +4,39 @@ import Testing
 @Suite("Terminal interaction controller")
 @MainActor
 struct TerminalInteractionControllerTests {
+    @Test("水平滑动只接受明显横向手势并要求足够位移或甩动速度")
+    func horizontalSwipeClassification() {
+        let classifier = TerminalHorizontalSwipeClassifier()
+
+        #expect(classifier.canBegin(velocityX: 500, velocityY: 100))
+        #expect(!classifier.canBegin(velocityX: 100, velocityY: 500))
+        #expect(!classifier.canBegin(velocityX: 100, velocityY: 20))
+        #expect(classifier.completedDirection(
+            translationX: -60,
+            translationY: 10,
+            velocityX: -500,
+            velocityY: 100
+        ) == .left)
+        #expect(classifier.completedDirection(
+            translationX: 10,
+            translationY: 4,
+            velocityX: 800,
+            velocityY: 100
+        ) == .right)
+        #expect(classifier.completedDirection(
+            translationX: 20,
+            translationY: 5,
+            velocityX: 400,
+            velocityY: 50
+        ) == nil)
+        #expect(classifier.completedDirection(
+            translationX: -60,
+            translationY: 10,
+            velocityX: 0,
+            velocityY: 0
+        ) == .left)
+    }
+
     @Test("one route remains pinned for a gesture and is invalidated by protocol change")
     func pinsRouteAcrossGesture() {
         let controller = TerminalInteractionController()
@@ -54,6 +87,34 @@ struct TerminalInteractionControllerTests {
         controller.presentReview(review())
         #expect(controller.handleEscape() == .consumedLocally)
         #expect(controller.review == nil)
+    }
+
+    @Test("远端声明鼠标协议时普通单击直接发送主按钮点击")
+    func directTapUsesRemoteMouseWithoutPointerMode() {
+        let controller = TerminalInteractionController()
+
+        controller.update(context(mouse: .pressAndRelease))
+        #expect(controller.mode == .live)
+        #expect(controller.directTapAction() == .remotePrimaryClick)
+
+        controller.update(context(mouse: .off))
+        #expect(controller.directTapAction() == .focusOnly)
+    }
+
+    @Test("本地 Review 和选词状态不会把单击泄漏给远端")
+    func frozenLocalModesKeepDirectTapLocal() {
+        let controller = TerminalInteractionController()
+        controller.update(context(mouse: .allMotion))
+
+        controller.presentReview(review())
+        #expect(controller.directTapAction() == .focusOnly)
+
+        controller.beginSelection(
+            review(),
+            utf16Offset: 0,
+            granularity: .character
+        )
+        #expect(controller.directTapAction() == .focusOnly)
     }
 
     @Test("reconnect, pane change, resize and capability loss cancel transient state")

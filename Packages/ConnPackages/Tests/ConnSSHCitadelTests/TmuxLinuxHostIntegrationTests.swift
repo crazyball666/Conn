@@ -32,17 +32,20 @@ struct TmuxLinuxHostIntegrationTests {
                     CreateWorkspaceRequest(name: name),
                     in: context
                 )
-                workspace = created
+                workspace = created.workspace
                 let listed = try await provider.listWorkspaces(in: context)
-                #expect(listed.contains { $0.workspace.workspaceID == created.workspaceID })
+                #expect(listed.contains { $0.workspace.workspaceID == created.workspace.workspaceID })
 
                 let renamed = "\(name)-renamed"
-                try await provider.renameWorkspace(created, to: renamed, in: context)
+                try await provider.renameWorkspace(created.workspace, to: renamed, in: context)
                 #expect(try await provider.listWorkspaces(in: context).contains {
-                    $0.workspace.workspaceID == created.workspaceID && $0.name == renamed
+                    $0.workspace.workspaceID == created.workspace.workspaceID && $0.name == renamed
                 })
 
-                let descriptor = try provider.makeAttachmentDescriptor(to: created, in: context)
+                let descriptor = try provider.makeAttachmentDescriptor(
+                    to: created.workspace,
+                    in: context
+                )
                 let openedAttachment = try await provider.openAttachment(
                     descriptor,
                     reason: .initial,
@@ -72,7 +75,7 @@ struct TmuxLinuxHostIntegrationTests {
                 await openedCatalog.close()
                 catalog = nil
 
-                try await provider.destroyWorkspace(created, in: context)
+                try await provider.destroyWorkspace(created.workspace, in: context)
                 workspace = nil
             } catch {
                 await catalog?.close()
@@ -111,18 +114,9 @@ struct TmuxLinuxHostIntegrationTests {
             session: session,
             profile: platform
         )
-        let providerJSON = try JSONEncoder().encode(TmuxProviderConfiguration())
-        let profile = TerminalBackendProfile(
-            id: "tmux-linux-acceptance-profile",
-            hostID: host.id,
-            providerID: TmuxProvider.providerID,
-            providerConfigurationKey: "default",
-            displayName: "tmux Linux acceptance",
-            configurationJSON: String(decoding: providerJSON, as: UTF8.self)
-        )
-        let context = try PersistentTerminalContext(
+        let context = PersistentTerminalContext(
             platformContext: platformContext,
-            backendProfile: profile
+            backendConfiguration: TmuxProvider().defaultConfiguration
         )
         let result: Result<Value, any Error>
         do {

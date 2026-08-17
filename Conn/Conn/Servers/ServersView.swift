@@ -140,7 +140,7 @@ struct ServersView: View {
             )
         )
         .onChange(of: viewModel.errorMessage) { _, message in
-            toastCenter.show(message)
+            toastCenter.show(message, style: .error)
         }
     }
 
@@ -227,6 +227,7 @@ struct ServersView: View {
     private func openPendingTerminal() {
         guard let completion = pendingTerminalCompletion else { return }
         pendingTerminalCompletion = nil
+        toastCenter.show(completion.notice, style: .success)
         terminalRoute = TerminalRoute(host: completion.host, tabID: completion.tabID)
     }
 

@@ -77,7 +77,10 @@ struct RunHistoryView: View {
         } catch {
             entries = []
             hostNames = [:]
-            toastCenter.show(String(format: L("读取执行历史失败：%@"), error.friendlyDiagnosis))
+            toastCenter.show(
+                String(format: L("读取执行历史失败：%@"), error.friendlyDiagnosis),
+                style: .error
+            )
         }
     }
 

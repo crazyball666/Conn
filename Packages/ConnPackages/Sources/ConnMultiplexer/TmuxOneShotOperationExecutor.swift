@@ -65,7 +65,7 @@ package struct TmuxOneShotOperationResult: Sendable, Equatable {
 }
 
 /// Executes exactly one typed mutation through one token-guarded tmux process invocation.
-/// The bound scope represents the SSH connection/profile/runtime that supplied the session.
+/// The bound scope represents the SSH connection/configuration/runtime that supplied the session.
 package struct TmuxOneShotOperationExecutor: Sendable {
     package typealias NonceFactory = @Sendable () throws -> TmuxInvocationNonce
 

@@ -4,8 +4,10 @@ import Foundation
 public enum TmuxOperationError: Error, Sendable, Equatable {
     case invalidName
     case invalidClientTarget
-    case invalidProfileID
+    case invalidConfigurationKey
     case invalidScrollRows(Int)
+    case invalidResizeCells(Int)
+    case invalidWindowNavigationSteps(Int)
 }
 
 /// A name Conn is allowed to create or rename. Existing remote names are decoded separately
@@ -68,9 +70,60 @@ public enum TmuxSplitOrientation: String, Sendable, Codable, Equatable {
     case vertical
 }
 
+/// Stable tmux layout names accepted by `select-layout`. Keeping this closed prevents the
+/// presentation layer from passing arbitrary tmux syntax through a nominally typed action.
+public enum TmuxPaneLayout: String, Sendable, Codable, Equatable, CaseIterable {
+    case evenHorizontal = "even-horizontal"
+    case evenVertical = "even-vertical"
+    case mainHorizontal = "main-horizontal"
+    case mainVertical = "main-vertical"
+    case tiled
+}
+
+public enum TmuxPaneResizeDirection: String, Sendable, Codable, Equatable, CaseIterable {
+    case left
+    case right
+    case up
+    case down
+}
+
+public enum TmuxPaneSwapDirection: String, Sendable, Codable, Equatable {
+    case previous
+    case next
+}
+
+public struct TmuxResizeCellCount: Sendable, Equatable, Hashable {
+    public static let maximum = 100
+    public let value: Int
+
+    public init(_ value: Int) throws {
+        guard (1 ... Self.maximum).contains(value) else {
+            throw TmuxOperationError.invalidResizeCells(value)
+        }
+        self.value = value
+    }
+}
+
 public enum TmuxScrollDirection: Sendable, Equatable {
     case up
     case down
+}
+
+public enum TmuxWindowNavigationDirection: Sendable, Equatable {
+    case previous
+    case next
+}
+
+public struct TmuxWindowNavigationStepCount: Sendable, Equatable, Hashable {
+    public static let maximum = PersistentTerminalQuickActionRequest.maximumRepeatCount
+    public let value: Int
+
+    public init(_ value: Int) throws {
+        guard (1 ... Self.maximum).contains(value) else {
+            throw TmuxOperationError.invalidWindowNavigationSteps(value)
+        }
+        self.value = value
+    }
 }
 
 public struct TmuxScrollRowCount: Sendable, Equatable, Hashable {
@@ -96,13 +149,25 @@ public enum TmuxOperation: Sendable, Equatable {
     case killSession(TmuxSessionID)
 
     case selectWindow(TmuxWindowID, for: TmuxClientTarget)
+    case selectRelativeWindow(
+        in: TmuxSessionID,
+        direction: TmuxWindowNavigationDirection,
+        steps: TmuxWindowNavigationStepCount,
+        for: TmuxClientTarget
+    )
     case createWindow(in: TmuxSessionID, name: TmuxName?)
     case renameWindow(TmuxWindowID, to: TmuxName)
     case killWindow(TmuxWindowID)
 
     case selectPane(TmuxPaneID, for: TmuxClientTarget)
     case splitPane(TmuxPaneID, orientation: TmuxSplitOrientation)
+    case applyPaneLayout(TmuxWindowID, layout: TmuxPaneLayout)
+    case cyclePaneLayout(TmuxWindowID)
+    case toggleSynchronizePanes(TmuxWindowID)
     case setPaneZoom(TmuxPaneID, zoomed: Bool)
+    case resizePane(TmuxPaneID, direction: TmuxPaneResizeDirection, cells: TmuxResizeCellCount)
+    case swapPane(TmuxPaneID, direction: TmuxPaneSwapDirection)
+    case enterCopyMode(TmuxPaneID)
     case killPane(TmuxPaneID)
     case scrollPaneMode(TmuxPaneID, direction: TmuxScrollDirection, rows: TmuxScrollRowCount)
 }
@@ -127,9 +192,10 @@ public extension TmuxOperation {
     var semantics: TmuxOperationSemantics {
         switch self {
         case .renameSession, .detachClient, .selectWindow, .renameWindow, .selectPane,
-             .setPaneZoom:
+             .applyPaneLayout, .setPaneZoom, .enterCopyMode:
             .idempotentMutation
-        case .createSession, .createWindow, .splitPane, .scrollPaneMode:
+        case .createSession, .selectRelativeWindow, .createWindow, .splitPane, .cyclePaneLayout,
+             .toggleSynchronizePanes, .resizePane, .swapPane, .scrollPaneMode:
             .nonIdempotentMutation
         case .killSession, .killWindow, .killPane:
             .destructive
@@ -152,32 +218,32 @@ public extension TmuxOperation {
 }
 
 /// Complete runtime identity for one operation queue. Equal tmux socket/PID values on another
-/// host or backend profile are deliberately a different scope.
+/// host or backend configuration are deliberately a different scope.
 public struct TmuxOperationScope: Sendable, Equatable, Hashable {
-    public static let maximumProfileIDUTF8Length = 256
+    public static let maximumConfigurationKeyUTF8Length = 256
 
     public let connectionIdentity: SSHConnectionIdentity
-    public let profileID: String
+    public let configurationKey: String
     public let instanceToken: TmuxServerInstanceToken
     public let generation: UInt64
 
     public init(
         connectionIdentity: SSHConnectionIdentity,
-        profileID: String,
+        configurationKey: String,
         instanceToken: TmuxServerInstanceToken,
         generation: UInt64
     ) throws {
-        guard !profileID.isEmpty,
-              profileID.utf8.count <= Self.maximumProfileIDUTF8Length,
-              !profileID.unicodeScalars.contains(where: { scalar in
+        guard !configurationKey.isEmpty,
+              configurationKey.utf8.count <= Self.maximumConfigurationKeyUTF8Length,
+              !configurationKey.unicodeScalars.contains(where: { scalar in
                   scalar.value <= 0x1F || (0x7F ... 0x9F).contains(scalar.value)
               })
         else {
-            throw TmuxOperationError.invalidProfileID
+            throw TmuxOperationError.invalidConfigurationKey
         }
 
         self.connectionIdentity = connectionIdentity
-        self.profileID = profileID
+        self.configurationKey = configurationKey
         self.instanceToken = instanceToken
         self.generation = generation
     }

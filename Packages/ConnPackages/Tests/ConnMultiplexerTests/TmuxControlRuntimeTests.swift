@@ -209,7 +209,7 @@ private func makeRuntimeScope() throws -> TmuxOperationScope {
             address: "server.example",
             username: "root"
         )),
-        profileID: "profile-1",
+        configurationKey: "profile-1",
         instanceToken: TmuxServerInstanceToken(
             resolvedSocketPath: "/tmp/tmux-1000/default",
             serverPID: 1234,
@@ -238,6 +238,7 @@ private final class NegotiatingControlProcessChannel: RemoteProcessChannel, @unc
 
     func startProtocol() {
         continuation.yield(.stdout(TmuxProtocolMarker.start))
+        continuation.yield(.stdout(Data("%begin 9 0 0\n%end 9 0 0\n".utf8)))
     }
 
     func write(_ data: Data) async throws {

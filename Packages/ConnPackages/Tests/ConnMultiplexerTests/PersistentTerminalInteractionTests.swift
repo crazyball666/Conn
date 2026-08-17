@@ -62,6 +62,59 @@ struct PersistentTerminalInteractionTests {
         #expect(request.target == target)
         #expect(request.attachmentGeneration == 7)
         #expect(request.expectedStateRevision == 9)
+
+        let action = PersistentTerminalQuickActionRequest(
+            actionID: "provider.action",
+            target: target,
+            attachmentGeneration: 7,
+            expectedStateRevision: 9,
+            argument: "value",
+            repeatCount: 4
+        )
+        #expect(action.target == target)
+        #expect(action.actionID == "provider.action")
+        #expect(action.attachmentGeneration == 7)
+        #expect(action.expectedStateRevision == 9)
+        #expect(action.argument == "value")
+        #expect(action.repeatCount == 4)
+    }
+
+    @Test("quick actions are independently optional")
+    func optionalQuickActions() async {
+        let facet = FakeFacet()
+        #expect(await facet.quickActionGroup == nil)
+        await #expect(throws: PersistentTerminalInteractionError.unsupportedQuickAction("x")) {
+            try await facet.performQuickAction(PersistentTerminalQuickActionRequest(
+                actionID: "x",
+                target: target,
+                attachmentGeneration: 7,
+                expectedStateRevision: 9
+            ))
+        }
+    }
+
+    @Test("provider swipe bindings reuse typed quick action IDs without exposing commands")
+    func providerSwipeBindings() {
+        let group = PersistentTerminalQuickActionGroup(
+            id: "provider",
+            title: "Provider",
+            sections: [
+                .init(id: "navigation", titleKey: "Navigation", actions: [
+                    .init(id: "provider.next", titleKey: "Next", systemImageName: "arrow.right"),
+                ]),
+            ],
+            swipeActions: [
+                .init(
+                    direction: .left,
+                    actionID: "provider.next",
+                    successNoticeKey: "Switched"
+                ),
+            ]
+        )
+
+        #expect(group.swipeAction(for: .left)?.actionID == "provider.next")
+        #expect(group.swipeAction(for: .right) == nil)
+        #expect(group.swipeAction(for: .left)?.successNoticeKey == "Switched")
     }
 
     private var target: PersistentTerminalInteractionTarget {
@@ -109,7 +162,12 @@ struct PersistentTerminalInteractionTests {
 private class BaseAttachment: PersistentTerminalAttachment, @unchecked Sendable {
     let descriptor = PersistentAttachmentDescriptor(
         providerID: "fake",
-        profileID: "profile",
+        configuration: PersistentTerminalConfiguration(
+            providerID: "fake",
+            configurationKey: "default",
+            payloadVersion: 1,
+            providerPayload: Data()
+        ),
         workspace: RemoteWorkspaceRef(
             workspaceID: "workspace",
             instancePayloadVersion: 1,

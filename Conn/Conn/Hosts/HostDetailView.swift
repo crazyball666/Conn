@@ -21,6 +21,7 @@ struct HostDetailView: View {
     @State private var terminalRoute: ExistingTerminalRoute?
     @State private var isNewTerminalPresented = false
     @State private var pendingTerminalCompletion: NewTerminalFlowCompletion?
+    @Environment(\.connToastCenter) private var toastCenter
 
     init(host: Host, dependencies: AppDependencies, initialSegment: Segment = .overview) {
         self.host = host
@@ -106,6 +107,7 @@ struct HostDetailView: View {
     private func openPendingTerminal() {
         guard let completion = pendingTerminalCompletion else { return }
         pendingTerminalCompletion = nil
+        toastCenter.show(completion.notice, style: .success)
         terminalRoute = ExistingTerminalRoute(host: completion.host, tabID: completion.tabID)
     }
 

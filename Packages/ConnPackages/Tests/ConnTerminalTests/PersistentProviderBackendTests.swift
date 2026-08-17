@@ -10,20 +10,9 @@ struct PersistentProviderBackendTests {
     @Test("通用 backend 只按 descriptor/registry 打开 byte presentation")
     func opensProviderAttachmentWithoutProviderSwitch() async throws {
         let host = Host(id: "host-1", name: "Linux", address: "linux.local", username: "tester")
-        let profile = TerminalBackendProfile(
-            id: "profile-1",
-            hostID: host.id,
-            providerID: "fake",
-            providerConfigurationKey: "default",
-            displayName: "Fake",
-            configurationJSON: "{}"
-        )
         let provider = FakePersistentProvider()
         let registry = try PersistentTerminalProviderRegistry(providers: [provider])
-        let backend = PersistentProviderBackend(
-            registry: registry,
-            profileRepository: InMemoryTerminalBackendProfiles(profiles: [profile])
-        )
+        let backend = PersistentProviderBackend(registry: registry)
         let manager = ConnectionManager(
             transport: MockSSHTransport(),
             platformDetector: FixedPlatformDetector()
@@ -47,14 +36,6 @@ struct PersistentProviderBackendTests {
     @MainActor
     func coordinatorPrepareUsesPersistentRuntimeDiagnosis() async throws {
         let host = Host(id: "host-1", name: "Linux", address: "linux.local", username: "tester")
-        let profile = TerminalBackendProfile(
-            id: "profile-1",
-            hostID: host.id,
-            providerID: "fake",
-            providerConfigurationKey: "default",
-            displayName: "Fake",
-            configurationJSON: "{}"
-        )
         let provider = FakePersistentProvider(openError: .transportClosed)
         let coordinator = TerminalSessionCoordinator(
             hostRepository: PersistentTestHostRepository(host: host),
@@ -62,8 +43,7 @@ struct PersistentProviderBackendTests {
                 transport: MockSSHTransport(),
                 platformDetector: FixedPlatformDetector()
             ),
-            providerRegistry: try PersistentTerminalProviderRegistry(providers: [provider]),
-            profileRepository: InMemoryTerminalBackendProfiles(profiles: [profile])
+            providerRegistry: try PersistentTerminalProviderRegistry(providers: [provider])
         )
         let attemptID = coordinator.beginLaunchAttempt()
 
@@ -88,149 +68,153 @@ struct PersistentProviderBackendTests {
     @Test("启动选择指定远端 workspace 时不自动改用第一个")
     func selectedWorkspaceIsUsedForAttachmentDescriptor() async throws {
         let host = Host(id: "host-1", name: "Linux", address: "linux.local", username: "tester")
-        let profile = TerminalBackendProfile(
-            id: "profile-1",
-            hostID: host.id,
-            providerID: "fake",
-            providerConfigurationKey: "default",
-            displayName: "Fake",
-            configurationJSON: "{}"
-        )
         let provider = FakePersistentProvider(workspaceIDs: ["first", "selected"])
         let registry = try PersistentTerminalProviderRegistry(providers: [provider])
-        let backend = PersistentProviderBackend(
-            registry: registry,
-            profileRepository: InMemoryTerminalBackendProfiles(profiles: [profile])
-        )
+        let backend = PersistentProviderBackend(registry: registry)
         let manager = ConnectionManager(
             transport: MockSSHTransport(),
             platformDetector: FixedPlatformDetector()
         )
 
         let workspaces = try await backend.workspaceOptions(
-            for: PersistentBackendCandidate(
-                providerID: "fake",
-                profileID: profile.id,
-                displayName: profile.displayName,
-                availability: .available
-            ),
+            for: try #require(backend.options().first),
             host: host,
             connectionManager: manager
         )
         let selectedWorkspace = try #require(workspaces.first { $0.workspace.workspaceID == "selected" })
-        let descriptor = try await backend.descriptor(
-            for: selectedWorkspace.workspace,
-            providerID: "fake",
-            profileID: profile.id,
+        let launch = try await backend.launch(
+            for: selectedWorkspace,
+            option: try #require(backend.options().first),
             host: host,
             connectionManager: manager
         )
 
-        #expect(descriptor.workspace.workspaceID == "selected")
+        #expect(launch.descriptor.workspace.workspaceID == "selected")
+        #expect(launch.workspaceName == "selected")
         #expect(await provider.createdWorkspaceCount == 0)
     }
 
     @Test("启动选择新建 workspace 时调用 provider 创建而不是复用已有 workspace")
     func createSelectionCreatesWorkspace() async throws {
         let host = Host(id: "host-1", name: "Linux", address: "linux.local", username: "tester")
-        let profile = TerminalBackendProfile(
-            id: "profile-1",
-            hostID: host.id,
-            providerID: "fake",
-            providerConfigurationKey: "default",
-            displayName: "Fake",
-            configurationJSON: "{}"
-        )
         let provider = FakePersistentProvider(workspaceIDs: ["existing"])
         let registry = try PersistentTerminalProviderRegistry(providers: [provider])
-        let backend = PersistentProviderBackend(
-            registry: registry,
-            profileRepository: InMemoryTerminalBackendProfiles(profiles: [profile])
-        )
+        let backend = PersistentProviderBackend(registry: registry)
         let manager = ConnectionManager(
             transport: MockSSHTransport(),
             platformDetector: FixedPlatformDetector()
         )
 
-        let descriptor = try await backend.createDescriptor(
+        let launch = try await backend.createLaunch(
             for: PersistentWorkspaceCreateSelection(name: "new-session"),
-            candidate: PersistentBackendCandidate(
-                providerID: "fake",
-                profileID: profile.id,
-                displayName: profile.displayName,
-                availability: .available
-            ),
+            option: try #require(backend.options().first),
             host: host,
             connectionManager: manager
         )
 
-        #expect(descriptor.workspace.workspaceID == "created-new-session")
+        #expect(launch.descriptor.workspace.workspaceID == "created-new-session")
+        #expect(launch.workspaceName == "new-session")
         #expect(await provider.createdWorkspaceCount == 1)
     }
 
-    @Test("Catalog 枚举全部启用 profile 并按显式候选打开")
-    func catalogsAreProfileScoped() async throws {
+    @Test("持久终端重命名使用 descriptor 配置并路由到所属 provider")
+    func renameRoutesThroughDescriptorConfiguration() async throws {
         let host = Host(id: "host-1", name: "Linux", address: "linux.local", username: "tester")
-        let first = TerminalBackendProfile(
-            id: "profile-1",
-            hostID: host.id,
-            providerID: "fake",
-            providerConfigurationKey: "first",
-            displayName: "First",
-            isPrimary: true,
-            configurationJSON: "{}",
-            sortOrder: 0
+        let provider = FakePersistentProvider(workspaceIDs: ["ops"])
+        let backend = PersistentProviderBackend(
+            registry: try PersistentTerminalProviderRegistry(providers: [provider])
         )
-        let second = TerminalBackendProfile(
-            id: "profile-2",
-            hostID: host.id,
-            providerID: "fake",
-            providerConfigurationKey: "second",
-            displayName: "Second",
-            isPrimary: false,
-            configurationJSON: "{}",
-            sortOrder: 1
+        let manager = ConnectionManager(
+            transport: MockSSHTransport(),
+            platformDetector: FixedPlatformDetector()
         )
+        let option = try #require(backend.options().first)
+        let summary = try #require(
+            try await backend.workspaceOptions(
+                for: option,
+                host: host,
+                connectionManager: manager
+            ).first
+        )
+        let launch = try await backend.launch(
+            for: summary,
+            option: option,
+            host: host,
+            connectionManager: manager
+        )
+
+        try await backend.renameWorkspace(
+            launch.descriptor,
+            to: "production",
+            host: host,
+            connectionManager: manager
+        )
+
+        #expect(await provider.renamedWorkspaces == ["ops:production"])
+    }
+
+    @Test("provider 选项来自本地注册表且枚举时不探测远端")
+    func optionsAreLocalAndDoNotProbeRemote() async throws {
+        let host = Host(id: "host-1", name: "Linux", address: "linux.local", username: "tester")
         let provider = FakePersistentProvider()
         let backend = PersistentProviderBackend(
-            registry: try PersistentTerminalProviderRegistry(providers: [provider]),
-            profileRepository: InMemoryTerminalBackendProfiles(profiles: [second, first])
+            registry: try PersistentTerminalProviderRegistry(providers: [provider])
         )
         let manager = ConnectionManager(
             transport: MockSSHTransport(),
             platformDetector: FixedPlatformDetector()
         )
 
-        let candidates = await backend.candidates(for: host, connectionManager: manager)
-        #expect(candidates.map(\.profileID) == [first.id, second.id])
-        let selected = try #require(candidates.first { $0.profileID == second.id })
+        let options = backend.options()
+
+        #expect(options.map(\.providerID) == ["fake"])
+        #expect(options.map(\.configuration) == [provider.defaultConfiguration])
+        #expect(await provider.probeCount == 0)
+
+        let selected = try #require(options.first)
         let catalog = try await backend.openCatalog(
             for: selected,
             host: host,
             connectionManager: manager
         )
         var iterator = catalog.snapshots.makeAsyncIterator()
-        #expect(await iterator.next()?.profileID == second.id)
-        #expect(await provider.openedCatalogProfileIDs == [second.id])
+        #expect(await iterator.next()?.configurationKey == "default")
+        #expect(await provider.openedCatalogConfigurationKeys == ["default"])
         await catalog.close()
     }
-}
 
-private final class InMemoryTerminalBackendProfiles: TerminalBackendProfileRepository, @unchecked Sendable {
-    private let values: [String: TerminalBackendProfile]
+    @Test("多 provider 的目录查询只路由到用户选择项且不做重复 probe")
+    func multipleProvidersQueryOnlyTheSelectedOptionWithoutProbe() async throws {
+        let host = Host(id: "host-1", name: "Linux", address: "linux.local", username: "tester")
+        let tmux = FakePersistentProvider(id: "tmux", displayName: "tmux")
+        let zellij = FakePersistentProvider(id: "zellij", displayName: "Zellij")
+        let backend = PersistentProviderBackend(
+            registry: try PersistentTerminalProviderRegistry(providers: [zellij, tmux])
+        )
+        let manager = ConnectionManager(
+            transport: MockSSHTransport(),
+            platformDetector: FixedPlatformDetector()
+        )
 
-    init(profiles: [TerminalBackendProfile]) {
-        values = Dictionary(uniqueKeysWithValues: profiles.map { ($0.id, $0) })
+        let options = backend.options()
+
+        #expect(options.map(\.providerID) == ["tmux", "zellij"])
+        #expect(await tmux.probeCount == 0)
+        #expect(await zellij.probeCount == 0)
+
+        let selected = try #require(options.first { $0.providerID == "zellij" })
+        _ = try await backend.workspaceOptions(
+            for: selected,
+            host: host,
+            connectionManager: manager
+        )
+
+        #expect(await tmux.probeCount == 0)
+        #expect(await zellij.probeCount == 0)
+        #expect(await tmux.workspaceListCount == 0)
+        #expect(await zellij.workspaceListCount == 1)
+        #expect(selected.configuration.providerID == "zellij")
     }
-
-    func profiles(hostID: String, providerID: String?) throws -> [TerminalBackendProfile] {
-        values.values.filter { $0.hostID == hostID && (providerID == nil || $0.providerID == providerID) }
-    }
-
-    func profile(id: String) throws -> TerminalBackendProfile? { values[id] }
-    func save(_ profile: TerminalBackendProfile) throws {}
-    func delete(id: String) throws {}
-    func setPrimary(id: String?, hostID: String, providerID: String) throws {}
 }
 
 private final class PersistentTestHostRepository: HostRepository, @unchecked Sendable {
@@ -263,33 +247,50 @@ private actor WorkspaceCreateRecorder {
     func increment() { value += 1 }
 }
 
-private actor CatalogProfileRecorder {
+private actor ConfigurationRecorder {
     private(set) var values: [String] = []
+    private(set) var probes = 0
+    private(set) var workspaceLists = 0
+    private(set) var renames: [String] = []
 
     func append(_ value: String) { values.append(value) }
+    func recordProbe() { probes += 1 }
+    func recordWorkspaceList() { workspaceLists += 1 }
+    func recordRename(workspaceID: String, name: String) {
+        renames.append("\(workspaceID):\(name)")
+    }
 }
 
 private struct FakePersistentProvider: PersistentTerminalCatalogProvider, Sendable {
     let descriptor: PersistentTerminalProviderDescriptor
+    let defaultConfiguration: PersistentTerminalConfiguration
     let descriptorForTest: PersistentAttachmentDescriptor
     let recorder: ReasonRecorder
     let workspaces: [RemoteWorkspaceSummary]
     let createdCount: WorkspaceCreateRecorder
-    let catalogProfiles: CatalogProfileRecorder
+    let configurationRecorder: ConfigurationRecorder
     let openError: PersistentTerminalError?
 
     init(
+        id: String = "fake",
+        displayName: String = "Fake",
         workspaceIDs: [String] = [],
         openError: PersistentTerminalError? = nil
     ) {
         descriptor = PersistentTerminalProviderDescriptor(
-            id: "fake",
-            displayName: "Fake",
+            id: id,
+            displayName: displayName,
             supportedPlatforms: [.linux],
             supportedConfigurationVersions: [1],
             supportedWorkspaceInstancePayloadVersions: [1],
             supportedAttachmentPayloadVersions: [1],
             potentialFeatures: [.readOnlyAttach]
+        )
+        defaultConfiguration = PersistentTerminalConfiguration(
+            providerID: id,
+            configurationKey: "default",
+            payloadVersion: 1,
+            providerPayload: Data("{}".utf8)
         )
         workspaces = workspaceIDs.map { id in
             RemoteWorkspaceSummary(
@@ -307,10 +308,10 @@ private struct FakePersistentProvider: PersistentTerminalCatalogProvider, Sendab
             )
         }
         createdCount = WorkspaceCreateRecorder()
-        catalogProfiles = CatalogProfileRecorder()
+        configurationRecorder = ConfigurationRecorder()
         descriptorForTest = PersistentAttachmentDescriptor(
             providerID: "fake",
-            profileID: "profile-1",
+            configuration: defaultConfiguration,
             workspace: RemoteWorkspaceRef(
                 workspaceID: "workspace-1",
                 instancePayloadVersion: 1,
@@ -328,22 +329,37 @@ private struct FakePersistentProvider: PersistentTerminalCatalogProvider, Sendab
     }
 
     func probe(in context: PersistentTerminalContext) async throws -> PersistentTerminalAvailability {
-        .init(state: .available, effectiveFeatures: [.readOnlyAttach])
+        await configurationRecorder.recordProbe()
+        return .init(state: .available, effectiveFeatures: [.readOnlyAttach])
     }
 
-    func listWorkspaces(in context: PersistentTerminalContext) async throws -> [RemoteWorkspaceSummary] { workspaces }
+    func listWorkspaces(in context: PersistentTerminalContext) async throws -> [RemoteWorkspaceSummary] {
+        await configurationRecorder.recordWorkspaceList()
+        return workspaces
+    }
 
-    func createWorkspace(_ request: CreateWorkspaceRequest, in context: PersistentTerminalContext) async throws -> RemoteWorkspaceRef {
+    func createWorkspace(
+        _ request: CreateWorkspaceRequest,
+        in context: PersistentTerminalContext
+    ) async throws -> RemoteWorkspaceSummary {
         await createdCount.increment()
-        return RemoteWorkspaceRef(
-            workspaceID: "created-\(request.name ?? "default")",
-            instancePayloadVersion: 1,
-            providerInstancePayload: Data()
+        return RemoteWorkspaceSummary(
+            workspace: RemoteWorkspaceRef(
+                workspaceID: "created-\(request.name ?? "default")",
+                instancePayloadVersion: 1,
+                providerInstancePayload: Data()
+            ),
+            name: request.name ?? "generated",
+            occupancy: RemoteWorkspaceOccupancy(
+                affectedAttachmentCount: nil,
+                observedAt: .now,
+                freshness: .fresh
+            )
         )
     }
 
     func renameWorkspace(_ workspace: RemoteWorkspaceRef, to newName: String, in context: PersistentTerminalContext) async throws {
-        throw PersistentTerminalError.unsupportedFeature(providerID: descriptor.id, feature: "rename")
+        await configurationRecorder.recordRename(workspaceID: workspace.workspaceID, name: newName)
     }
 
     func destroyWorkspace(_ workspace: RemoteWorkspaceRef, in context: PersistentTerminalContext) async throws {
@@ -353,7 +369,7 @@ private struct FakePersistentProvider: PersistentTerminalCatalogProvider, Sendab
     func makeAttachmentDescriptor(to workspace: RemoteWorkspaceRef, in context: PersistentTerminalContext) throws -> PersistentAttachmentDescriptor {
         PersistentAttachmentDescriptor(
             providerID: descriptor.id,
-            profileID: context.backendProfile.id,
+            configuration: context.backendConfiguration,
             workspace: workspace,
             payloadVersion: 1,
             providerPayload: Data()
@@ -368,15 +384,30 @@ private struct FakePersistentProvider: PersistentTerminalCatalogProvider, Sendab
         get async { await createdCount.value }
     }
 
-    var openedCatalogProfileIDs: [String] {
-        get async { await catalogProfiles.values }
+    var workspaceListCount: Int {
+        get async { await configurationRecorder.workspaceLists }
+    }
+
+    var openedCatalogConfigurationKeys: [String] {
+        get async { await configurationRecorder.values }
+    }
+
+    var probeCount: Int {
+        get async { await configurationRecorder.probes }
+    }
+
+    var renamedWorkspaces: [String] {
+        get async { await configurationRecorder.renames }
     }
 
     func openCatalog(
         in context: PersistentTerminalContext
     ) async throws -> any PersistentTerminalCatalogAttachment {
-        await catalogProfiles.append(context.backendProfile.id)
-        return FakeCatalogAttachment(profileID: context.backendProfile.id)
+        await configurationRecorder.append(context.backendConfiguration.configurationKey)
+        return FakeCatalogAttachment(
+            providerID: descriptor.id,
+            configurationKey: context.backendConfiguration.configurationKey
+        )
     }
 
     func openAttachment(
@@ -399,12 +430,12 @@ private final class FakeCatalogAttachment: PersistentTerminalCatalogAttachment, 
     let snapshots: AsyncStream<PersistentWorkspaceCatalogSnapshot>
     private let continuation: AsyncStream<PersistentWorkspaceCatalogSnapshot>.Continuation
 
-    init(profileID: String) {
+    init(providerID: String, configurationKey: String) {
         (snapshots, continuation) = AsyncStream.makeStream()
         let observedAt = Date()
         continuation.yield(PersistentWorkspaceCatalogSnapshot(
-            providerID: "fake",
-            profileID: profileID,
+            providerID: providerID,
+            configurationKey: configurationKey,
             instance: nil,
             workspaces: [],
             freshness: .snapshot(observedAt: observedAt),

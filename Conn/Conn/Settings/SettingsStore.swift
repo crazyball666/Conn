@@ -196,7 +196,7 @@ final class SettingsStore {
             id: defaults.string(forKey: Key.terminalTheme) ?? TerminalTheme.conn.id
         ).id
         terminalFontSize = defaults.object(forKey: Key.terminalFontSize) == nil
-            ? 12
+            ? TerminalConfiguration.defaultFontSize
             : defaults.double(forKey: Key.terminalFontSize)
         terminalScrollback = defaults.object(forKey: Key.terminalScrollback) == nil
             ? 500

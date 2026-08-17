@@ -165,19 +165,20 @@ struct TerminalSessionCenterView: View {
     private func open(_ tab: TerminalTab) {
         do {
             guard let host = try dependencies.hostRepository.host(id: tab.hostID) else {
-                toastCenter.show(L("主机已被删除"))
+                toastCenter.show(L("主机已被删除"), style: .warning)
                 return
             }
             sessions.select(tab.id)
             route = ExistingTerminalRoute(host: host, tabID: tab.id)
         } catch {
-            toastCenter.show(error.localizedDescription)
+            toastCenter.show(error.localizedDescription, style: .error)
         }
     }
 
     private func openPendingCompletion() {
         guard let completion = pendingCompletion else { return }
         pendingCompletion = nil
+        toastCenter.show(completion.notice, style: .success)
         route = ExistingTerminalRoute(host: completion.host, tabID: completion.tabID)
     }
 

@@ -5,6 +5,7 @@ import SwiftUI
 /// 终端显示与交互偏好。全部设置即时写入 UserDefaults。
 struct TerminalSettingsView: View {
     @Environment(SettingsStore.self) private var settings
+    @State private var isThemePickerPresented = false
 
     private let scrollbackOptions = [500, 2_000, 5_000, 10_000]
 
@@ -12,13 +13,19 @@ struct TerminalSettingsView: View {
         @Bindable var settings = settings
         Form {
             Section(L("显示")) {
-                Picker(selection: $settings.terminalThemeID) {
-                    ForEach(TerminalTheme.all) { theme in
-                        themeLabel(theme).tag(theme.id)
-                    }
+                Button {
+                    isThemePickerPresented = true
                 } label: {
-                    Label(L("主题"), systemImage: "paintpalette")
+                    HStack(spacing: ConnSpacing.sm) {
+                        Label(L("主题"), systemImage: "paintpalette")
+                        Spacer(minLength: ConnSpacing.xs)
+                        TerminalThemePickerLabel(theme: selectedTheme)
+                        Image(systemName: "chevron.forward")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.tertiary)
+                    }
                 }
+                .buttonStyle(.plain)
 
                 Stepper(
                     value: $settings.terminalFontSize,
@@ -35,12 +42,13 @@ struct TerminalSettingsView: View {
             }
 
             Section(L("光标")) {
-                Picker(L("光标形状"), selection: $settings.terminalCursorShape) {
-                    ForEach(TerminalCursorShape.allCases) { shape in
-                        Text(cursorLabel(shape)).tag(shape)
-                    }
+                VStack(alignment: .leading, spacing: ConnSpacing.xs) {
+                    Label(L("光标形状"), systemImage: "cursorarrow")
+                    TerminalCursorShapePicker(
+                        selection: $settings.terminalCursorShape,
+                        theme: selectedTheme
+                    )
                 }
-                .pickerStyle(.segmented)
 
                 Toggle(isOn: $settings.terminalCursorBlinking) {
                     Label(L("光标闪烁"), systemImage: "cursorarrow.rays")
@@ -63,34 +71,14 @@ struct TerminalSettingsView: View {
         }
         .navigationTitle(L("终端设置"))
         .navigationBarTitleDisplayMode(.inline)
-    }
-
-    private func themeLabel(_ theme: TerminalTheme) -> some View {
-        HStack(spacing: ConnSpacing.sm) {
-            HStack(spacing: 3) {
-                Circle().fill(color(theme.background))
-                Circle().fill(color(theme.cursor))
-                Circle().fill(color(theme.foreground))
-            }
-            .frame(width: 39, height: 11)
-            .accessibilityHidden(true)
-            Text(theme.name)
+        .sheet(isPresented: $isThemePickerPresented) {
+            TerminalThemeSelectionSheet(selection: $settings.terminalThemeID)
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
         }
     }
 
-    private func cursorLabel(_ shape: TerminalCursorShape) -> String {
-        switch shape {
-        case .block: L("块状")
-        case .bar: L("竖线")
-        case .underline: L("下划线")
-        }
-    }
-
-    private func color(_ rgb: TerminalTheme.RGB) -> Color {
-        Color(
-            red: Double(rgb.r) / 255,
-            green: Double(rgb.g) / 255,
-            blue: Double(rgb.b) / 255
-        )
+    private var selectedTheme: TerminalTheme {
+        TerminalTheme.theme(id: settings.terminalThemeID)
     }
 }

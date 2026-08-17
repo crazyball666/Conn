@@ -121,7 +121,7 @@ struct TmuxDestructiveConfirmationTests {
         }
 
         let changedIdentityScope = try fixture.scope(hostID: "host-2")
-        let changedProfileScope = try fixture.scope(profileID: "profile-2")
+        let changedProfileScope = try fixture.scope(configurationKey: "profile-2")
         let changedGenerationScope = try fixture.scope(generation: 8)
         for changedScope in [changedIdentityScope, changedProfileScope, changedGenerationScope] {
             #expect(throws: TmuxDestructiveConfirmationError.staleConfirmation) {
@@ -279,7 +279,7 @@ private struct ConfirmationFixture {
 
     func scope(
         hostID: String = "host-1",
-        profileID: String = "profile-1",
+        configurationKey: String = "profile-1",
         token: TmuxServerInstanceToken? = nil,
         generation: UInt64 = 7
     ) throws -> TmuxOperationScope {
@@ -290,7 +290,7 @@ private struct ConfirmationFixture {
                 address: "server.example",
                 username: "root"
             )),
-            profileID: profileID,
+            configurationKey: configurationKey,
             instanceToken: token ?? self.token,
             generation: generation
         )

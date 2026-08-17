@@ -128,18 +128,6 @@ struct SchemaV4Tests {
         #expect(remaining == 0)
     }
 
-    @Test("AppDatabase 正式迁移链包含 v4")
-    func appDatabaseRegistersV4() throws {
-        let database = try AppDatabase.inMemory()
-        let exists = try database.writer.read { db in
-            try Bool.fetchOne(
-                db,
-                sql: "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?)",
-                arguments: ["terminal_backend_profile"]
-            )
-        }
-        #expect(exists == true)
-    }
 }
 
 private struct SchemaColumn: Equatable {

@@ -39,6 +39,49 @@ public enum TerminalEscapeDisposition: Sendable, Equatable {
     case sendToRemote
 }
 
+public enum TerminalDirectTapAction: Sendable, Equatable {
+    case focusOnly
+    case remotePrimaryClick
+}
+
+public enum TerminalHorizontalSwipeDirection: Sendable, Equatable {
+    case left
+    case right
+}
+
+/// Directional gate shared by the UIKit recognizer and unit tests. A horizontal provider
+/// gesture must be deliberate enough not to steal ordinary vertical terminal scrolling.
+public struct TerminalHorizontalSwipeClassifier: Sendable {
+    public static let minimumStartVelocity = 220.0
+    public static let minimumCompletionTranslation = 44.0
+    public static let minimumFlickVelocity = 700.0
+    public static let horizontalDominance = 1.4
+
+    public init() {}
+
+    public func canBegin(velocityX: Double, velocityY: Double) -> Bool {
+        let horizontal = abs(velocityX)
+        return horizontal >= Self.minimumStartVelocity
+            && horizontal >= abs(velocityY) * Self.horizontalDominance
+    }
+
+    public func completedDirection(
+        translationX: Double,
+        translationY: Double,
+        velocityX: Double,
+        velocityY: Double
+    ) -> TerminalHorizontalSwipeDirection? {
+        let horizontalTranslation = abs(translationX)
+        let completedByDistance = horizontalTranslation >= Self.minimumCompletionTranslation
+            && horizontalTranslation >= abs(translationY) * Self.horizontalDominance
+        let completedByFlick = abs(velocityX) >= Self.minimumFlickVelocity
+            && abs(velocityX) >= abs(velocityY) * Self.horizontalDominance
+        guard completedByDistance || completedByFlick else { return nil }
+        let signedIntent = completedByDistance ? translationX : velocityX
+        return signedIntent < 0 ? .left : .right
+    }
+}
+
 /// Main-actor state machine for gesture routing and frozen review state. It deliberately
 /// owns no UIKit recognizers and performs no provider I/O; the host view executes its typed
 /// decisions and validates their route token before every asynchronous continuation.
@@ -150,6 +193,18 @@ public final class TerminalInteractionController {
             deactivatePointer()
             return .consumedLocally
         }
+    }
+
+    /// A terminal application that enables mouse reporting owns ordinary taps even
+    /// while touch-drag remains in live scrolling mode. This lets tmux select panes
+    /// and TUIs activate controls without requiring a separate pointer-mode toggle.
+    public func directTapAction() -> TerminalDirectTapAction {
+        guard mode == .live || mode == .pointer,
+              context?.protocolState.mouseTracking.reportsMouse == true
+        else {
+            return .focusOnly
+        }
+        return .remotePrimaryClick
     }
 
     public func invalidate() {

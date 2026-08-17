@@ -201,6 +201,23 @@ struct ConnectionManagerTests {
         #expect(await !manager.hasPooledSession(for: host))
     }
 
+    @Test("连接池健康查询只观察存活状态，不创建或驱逐会话")
+    func reportsPooledSessionHealthWithoutMutation() async throws {
+        let manager = ConnectionManager(transport: MockSSHTransport())
+        let host = host()
+
+        #expect(await manager.pooledSessionHealth(for: host) == .absent)
+
+        let session = try await manager.session(for: host)
+        #expect(await manager.pooledSessionHealth(for: host) == .connected)
+
+        let mock = try #require(session as? MockSSHSession)
+        mock.simulateDisconnect()
+
+        #expect(await manager.pooledSessionHealth(for: host) == .disconnected)
+        #expect(await manager.activeCount == 1)
+    }
+
     @Test("invalidateAll 清空全部池化会话")
     func invalidateAllClearsPool() async throws {
         let manager = ConnectionManager(transport: MockSSHTransport())

@@ -42,13 +42,6 @@ package protocol TmuxReadyControlClientLocating: Sendable {
     ) async throws -> (any TmuxControlOperationExecuting)?
 }
 
-package protocol TmuxOneShotOperationExecuting: Sendable {
-    func execute(
-        _ request: TmuxOperationRequest,
-        timeout: Duration
-    ) async throws -> TmuxOneShotOperationResult
-}
-
 package protocol TmuxControlHubSnapshotLoading: Sendable {
     func loadSnapshot(
         scope: TmuxOperationScope,
@@ -103,29 +96,25 @@ package struct TmuxControlClientOperationExecutor: TmuxControlOperationExecuting
     }
 }
 
-extension TmuxOneShotOperationExecutor: TmuxOneShotOperationExecuting {}
-
-/// Routes Hub work to an already-ready Control Mode executor or to a guarded one-shot
-/// executor. It contains no SSH engine, shell selection, UI, or platform switch.
+/// Routes Hub work only to the required, already-ready Control Mode executor. Discovery
+/// may use bounded one-shot reads before attachment startup, but an attached tmux runtime
+/// never changes command transports after readiness.
 package actor TmuxControlHubRuntimeAdapter: TmuxControlHubAdapter {
     private var currentScope: TmuxOperationScope
     private var latestDemandSequence: UInt64 = 0
 
     private let controlClients: any TmuxReadyControlClientLocating
-    private let oneShot: any TmuxOneShotOperationExecuting
     private let snapshots: any TmuxControlHubSnapshotLoading
     private let lifecycle: any TmuxControlRuntimeLifecycleDriving
 
     package init(
         initialScope: TmuxOperationScope,
         controlClients: any TmuxReadyControlClientLocating,
-        oneShot: any TmuxOneShotOperationExecuting,
         snapshots: any TmuxControlHubSnapshotLoading,
         lifecycle: any TmuxControlRuntimeLifecycleDriving
     ) {
         currentScope = initialScope
         self.controlClients = controlClients
-        self.oneShot = oneShot
         self.snapshots = snapshots
         self.lifecycle = lifecycle
     }
@@ -139,40 +128,17 @@ package actor TmuxControlHubRuntimeAdapter: TmuxControlHubAdapter {
             throw TmuxControlHubRuntimeAdapterError.invalidTimeout
         }
         try accept(scope: request.scope)
+        _ = identities
 
-        // A selected Control executor owns the route for this attempt. Any error after this
-        // lookup is propagated; it must never become a silent one-shot replay.
-        if let control = try await controlClients.readyExecutor(for: request) {
-            let execution = try await control.execute(request, timeout: timeout)
-            try validate(execution, for: request)
-            try ensureCurrent(scope: request.scope)
-            return TmuxControlHubOperationReceipt(
-                request: request,
-                output: execution.output
-            )
+        guard let control = try await controlClients.readyExecutor(for: request) else {
+            throw TmuxControlHubRuntimeAdapterError.controlClientNotReady
         }
-
-        let execution = try await oneShot.execute(request, timeout: timeout)
-        guard execution.scope == request.scope,
-              execution.operation == request.operation
-        else {
-            throw TmuxControlHubRuntimeAdapterError.invalidExecutionResult
-        }
-        try ensureCurrent(scope: request.scope)
-
-        let snapshot = try await snapshots.loadSnapshot(
-            scope: request.scope,
-            reason: .operationCompleted(request.operation),
-            identities: identities
-        )
-        guard snapshot.instance.token == request.scope.instanceToken else {
-            throw TmuxControlHubRuntimeAdapterError.snapshotTokenMismatch
-        }
+        let execution = try await control.execute(request, timeout: timeout)
+        try validate(execution, for: request)
         try ensureCurrent(scope: request.scope)
         return TmuxControlHubOperationReceipt(
             request: request,
-            output: normalizeOneShotOutput(execution.output),
-            reconciliationSnapshot: snapshot
+            output: execution.output
         )
     }
 
@@ -253,19 +219,8 @@ package actor TmuxControlHubRuntimeAdapter: TmuxControlHubAdapter {
         as other: TmuxOperationScope
     ) -> Bool {
         scope.connectionIdentity == other.connectionIdentity
-            && scope.profileID == other.profileID
+            && scope.configurationKey == other.configurationKey
             && scope.instanceToken == other.instanceToken
     }
 
-    private func normalizeOneShotOutput(_ output: Data) -> [Data] {
-        guard !output.isEmpty else { return [] }
-        var value = output
-        while value.last == UInt8(ascii: "\n") {
-            value.removeLast()
-            if value.last == UInt8(ascii: "\r") {
-                value.removeLast()
-            }
-        }
-        return value.isEmpty ? [] : [value]
-    }
 }

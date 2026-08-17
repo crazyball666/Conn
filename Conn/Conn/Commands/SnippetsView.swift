@@ -116,7 +116,7 @@ struct SnippetsView: View {
                 )
             )
             .onChange(of: viewModel.errorMessage) { _, message in
-                toastCenter.show(message)
+                toastCenter.show(message, style: .error)
             }
     }
 

@@ -55,4 +55,18 @@ struct ShellChannelLifecycleGateTests {
         gate.terminate()
         #expect(!gate.isWritable)
     }
+
+    @Test("取消停止等待不会消费后续真正的终止信号")
+    func cancelledStopWaiterDoesNotConsumeTermination() async {
+        let gate = ShellChannelLifecycleGate()
+        let cancelledWaiter = Task { await gate.waitForStop() }
+        await Task.yield()
+        cancelledWaiter.cancel()
+        await cancelledWaiter.value
+
+        let terminalWaiter = Task { await gate.waitForStop() }
+        await Task.yield()
+        gate.terminate()
+        await terminalWaiter.value
+    }
 }

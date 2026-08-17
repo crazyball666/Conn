@@ -52,7 +52,14 @@ struct TmuxControlCommandMachineTests {
         #expect(throws: TmuxControlCommandMachineError.protocolNotReady) {
             try machine.submit(fixture.renameSession)
         }
-        #expect(try machine.receive(.protocolStarted, generation: 7) == .protocolReady)
+        #expect(try machine.receive(.protocolStarted, generation: 7) == .none)
+        #expect(!machine.isReady)
+        #expect(throws: TmuxControlCommandMachineError.protocolNotReady) {
+            try machine.submit(fixture.renameSession)
+        }
+        let bootstrapGuard = TmuxCommandGuard(time: 9, commandNumber: 1, flags: 0)
+        #expect(try machine.receive(.commandBegin(bootstrapGuard), generation: 7) == .none)
+        #expect(try machine.receive(.commandEnd(bootstrapGuard), generation: 7) == .protocolReady)
 
         let submission = try machine.submit(fixture.renameSession)
         #expect(submission.id.rawValue == 0)
@@ -106,6 +113,38 @@ struct TmuxControlCommandMachineTests {
         #expect(try machine.receive(.commandError(guardValue), generation: 7) == .commandCompleted(expected))
         #expect(machine.isReady)
         _ = try machine.submit(fixture.renameSession)
+    }
+
+    @Test("nonce completion marker correlates a real multi-block command sequence")
+    func correlatesMultiBlockSequence() throws {
+        let marker = "__CONN_TEST_REQUEST_END__"
+        let request = try TmuxControlRequest(
+            renderedCommand: .init(
+                value: "list-sessions ; display-message -p '\(marker)'"
+            ),
+            semantics: .readOnly,
+            completionMarker: marker
+        )
+        var machine = try CommandMachineFixture().readyMachine()
+        let submission = try machine.submit(request)
+        let firstGuard = TmuxCommandGuard(time: 12, commandNumber: 4, flags: 1)
+        let finalGuard = TmuxCommandGuard(time: 12, commandNumber: 5, flags: 1)
+
+        #expect(try machine.receive(.commandBegin(firstGuard), generation: 7) == .none)
+        #expect(try machine.receive(.commandOutput(Data("$1".utf8)), generation: 7) == .none)
+        #expect(try machine.receive(.commandEnd(firstGuard), generation: 7) == .none)
+        #expect(try machine.receive(.commandBegin(finalGuard), generation: 7) == .none)
+        #expect(try machine.receive(.commandOutput(Data(marker.utf8)), generation: 7) == .none)
+        #expect(try machine.receive(.commandEnd(finalGuard), generation: 7) == .commandCompleted(
+            TmuxControlCommandResult(
+                commandID: submission.id,
+                generation: 7,
+                guardValue: finalGuard,
+                output: [Data("$1".utf8)],
+                status: .succeeded
+            )
+        ))
+        #expect(machine.isReady)
     }
 
     @Test("notifications preserve wire order before and between command blocks")
@@ -278,7 +317,10 @@ struct TmuxControlCommandMachineTests {
         #expect(try machine.installGeneration(8) == .generationInstalled(8))
         #expect(try machine.receive(.protocolStarted, generation: 7) == .discardedStaleGeneration)
         #expect(!machine.isReady)
-        #expect(try machine.receive(.protocolStarted, generation: 8) == .protocolReady)
+        #expect(try machine.receive(.protocolStarted, generation: 8) == .none)
+        let bootstrapGuard = TmuxCommandGuard(time: 16, commandNumber: 9, flags: 0)
+        #expect(try machine.receive(.commandBegin(bootstrapGuard), generation: 8) == .none)
+        #expect(try machine.receive(.commandEnd(bootstrapGuard), generation: 8) == .protocolReady)
         #expect(machine.isReady)
         let next = try machine.submit(fixture.renameSession)
         #expect(next.generation == 8)
@@ -328,6 +370,9 @@ private struct CommandMachineFixture {
             limits: .init(maxOutputBytes: maxOutputBytes, maxOutputLines: maxOutputLines)
         )
         _ = try machine.receive(.protocolStarted, generation: 7)
+        let bootstrapGuard = TmuxCommandGuard(time: 1, commandNumber: 1, flags: 0)
+        _ = try machine.receive(.commandBegin(bootstrapGuard), generation: 7)
+        _ = try machine.receive(.commandEnd(bootstrapGuard), generation: 7)
         return machine
     }
 }

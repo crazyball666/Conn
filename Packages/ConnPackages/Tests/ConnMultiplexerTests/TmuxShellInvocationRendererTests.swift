@@ -105,6 +105,44 @@ struct TmuxShellInvocationRendererTests {
         #expect(!invocation.script.contains("sh -c"))
     }
 
+    @Test("pane layouts remain typed inside the guarded one-shot invocation")
+    func rendersPaneLayout() throws {
+        let window = try #require(TmuxWindowID(rawValue: "@8"))
+        let invocation = try TmuxShellInvocationRenderer().render(
+            .applyPaneLayout(window, layout: .mainVertical),
+            executable: TmuxExecutablePath("/usr/bin/tmux"),
+            locator: .default,
+            expectedInstance: makeToken(),
+            nonce: TmuxInvocationNonce("layout")
+        )
+
+        #expect(invocation.arguments[3].contains(
+            "select-layout -t '@8' 'main-vertical'"
+        ))
+    }
+
+    @Test("相对 Window 导航使用 tmux 原生偏移在单条命令中合并多步")
+    func rendersBatchedRelativeWindowNavigation() throws {
+        let session = try #require(TmuxSessionID(rawValue: "$7"))
+        let client = try TmuxClientTarget("/dev/pts/9")
+        let invocation = try TmuxShellInvocationRenderer().render(
+            .selectRelativeWindow(
+                in: session,
+                direction: .previous,
+                steps: TmuxWindowNavigationStepCount(2),
+                for: client
+            ),
+            executable: TmuxExecutablePath("/usr/bin/tmux"),
+            locator: .default,
+            expectedInstance: makeToken(),
+            nonce: TmuxInvocationNonce("window-nav")
+        )
+
+        #expect(invocation.arguments[3].contains(
+            "switch-client -c '/dev/pts/9' -t '$7:-2'"
+        ))
+    }
+
     @Test("tmux executable 与 invocation nonce 必须是受限类型")
     func validatesExecutableAndNonce() throws {
         #expect(try TmuxExecutablePath("/opt//tmux/./bin/tmux").value == "/opt/tmux/bin/tmux")

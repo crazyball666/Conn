@@ -139,6 +139,36 @@ struct TmuxOperationImpactTests {
         #expect(split.affectedPaneIDs == [fixture.sharedPane1])
         #expect(split.sharedStateEffects == [.windowPaneTopology])
 
+        let layout = try analyzer.analyze(
+            .applyPaneLayout(fixture.sharedWindow, layout: .tiled),
+            in: groupedSnapshot,
+            context: context
+        )
+        #expect(layout.affectedSessionIDs == [fixture.session1, fixture.session2])
+        #expect(layout.affectedWindowIDs == [fixture.sharedWindow])
+        #expect(layout.affectedPaneIDs == [fixture.sharedPane1, fixture.sharedPane2])
+        #expect(layout.sharedStateEffects == [.windowPaneLayout])
+
+        let resize = try analyzer.analyze(
+            .resizePane(
+                fixture.sharedPane1,
+                direction: .right,
+                cells: TmuxResizeCellCount(5)
+            ),
+            in: groupedSnapshot,
+            context: context
+        )
+        #expect(resize.affectedSessionIDs == [fixture.session1, fixture.session2])
+        #expect(resize.affectedPaneIDs == [fixture.sharedPane1, fixture.sharedPane2])
+        #expect(resize.sharedStateEffects == [.windowPaneLayout])
+
+        let synchronize = try analyzer.analyze(
+            .toggleSynchronizePanes(fixture.sharedWindow),
+            in: groupedSnapshot,
+            context: context
+        )
+        #expect(synchronize.sharedStateEffects == [.windowOption])
+
         let zoom = try analyzer.analyze(
             .setPaneZoom(fixture.sharedPane1, zoomed: true),
             in: groupedSnapshot,

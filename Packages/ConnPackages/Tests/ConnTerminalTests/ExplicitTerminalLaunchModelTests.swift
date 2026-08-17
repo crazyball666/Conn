@@ -32,10 +32,10 @@ private final class ExplicitLaunchRecorder {
     var operations: NewTerminalFlowModel.Operations {
         .init(
             loadHosts: { [] },
-            persistentBackendCandidates: { _ in [] },
+            persistentBackendOptions: { [] },
             persistentWorkspaceOptions: { _, _ in [] },
-            makeExistingBackend: { _, _, _ in .plainPTY },
-            makeCreateBackend: { _, _, _ in .plainPTY },
+            makeExistingBackend: { _, _, _ in throw CancellationError() },
+            makeCreateBackend: { _, _, _ in throw CancellationError() },
             beginLaunchAttempt: { TerminalLaunchAttemptID(rawValue: UUID()) },
             prepareLaunch: { [weak self] request, _ in
                 self?.preparedRequests.append(request)

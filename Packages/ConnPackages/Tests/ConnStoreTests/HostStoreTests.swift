@@ -83,6 +83,39 @@ struct HostStoreTests {
         #expect(hosts.first?.name == "new")
     }
 
+    @Test("落盘 DatabasePool 可连续新增主机且不依赖终端配置表")
+    func onDiskPoolSavesHostsWithoutTerminalConfigurationPersistence() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appending(path: "ConnHostStoreTests-\(UUID().uuidString)", directoryHint: .isDirectory)
+        let database = try AppDatabase.onDisk(at: directory.appending(path: "conn.sqlite"))
+        defer {
+            try? database.writer.close()
+            try? FileManager.default.removeItem(at: directory)
+        }
+        let store = HostStore(database: database)
+
+        for index in 0 ..< 50 {
+            try store.save(DomainHost(
+                id: "host-\(index)",
+                name: "host-\(index)",
+                address: "10.0.0.\(index + 1)",
+                username: "root"
+            ))
+        }
+
+        let result = try database.writer.read { db in
+            let hostCount = try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM host") ?? -1
+            let obsoleteTableExists = try Bool.fetchOne(
+                db,
+                sql: "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?)",
+                arguments: ["terminal_backend_profile"]
+            ) ?? true
+            return (hostCount, obsoleteTableExists)
+        }
+        #expect(result.0 == 50)
+        #expect(result.1 == false)
+    }
+
     @Test("删除被主机引用的 SSH 密钥会被拒绝")
     func deletingReferencedKeyIsRejected() throws {
         let database = try AppDatabase.inMemory()

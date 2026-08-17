@@ -1,9 +1,15 @@
 import ConnKit
 import ConnSSH
 import Foundation
+import OSLog
 
-/// Durable configuration owned by the tmux provider. The generic profile stores its
-/// JSON opaquely; only this provider is allowed to interpret the payload.
+private let tmuxProviderLogger = Logger(
+    subsystem: "com.crazyball.Conn",
+    category: "TmuxProvider"
+)
+
+/// Provider-owned tmux configuration. Shared layers carry the payload opaquely;
+/// only this provider is allowed to interpret it.
 public struct TmuxProviderConfiguration: Codable, Sendable, Equatable {
     public let locator: TmuxServerLocator
 
@@ -65,6 +71,24 @@ package func tmuxHandshakeScript(
         + invocation
 }
 
+/// tmux release versions commonly carry suffixes such as `3.5a` and may be prefixed by
+/// distributor text. Extract numeric runs instead of requiring every dot-separated token
+/// to be an integer; otherwise modern releases silently fall back to the very expensive
+/// legacy per-field snapshot codec during attachment startup.
+package func tmuxProtocolDialectCandidate(for version: String) -> TmuxProtocolDialect {
+    let numbers = version
+        .split(whereSeparator: { !$0.isNumber })
+        .compactMap { Int($0) }
+    let major = numbers.first ?? 0
+    let minor = numbers.dropFirst().first ?? 0
+    let modernGuards = major > 2 || (major == 2 && minor >= 7)
+    let quoted = major > 3 || (major == 3 && minor >= 1)
+    return TmuxProtocolDialect(
+        commandGuardShape: modernGuards ? .threeFields : .twoFields,
+        snapshotCodec: quoted ? .quoted : .legacyPerField
+    )
+}
+
 /// Provider entry point for the generic persistent-terminal registry.
 ///
 /// This implementation owns platform routing, safe static probing, workspace identity
@@ -77,10 +101,25 @@ public struct TmuxProvider: PersistentTerminalCatalogProvider {
     public static let attachmentPayloadVersion = 1
     private static let controlRuntimeRegistry = TmuxProviderControlRuntimeRegistry()
     private static let attachmentGenerations = TmuxAttachmentGenerationSource()
+    private static let staticRuntimeCache = TmuxStaticRuntimeCache()
 
     public let descriptor: PersistentTerminalProviderDescriptor
+    public let defaultConfiguration: PersistentTerminalConfiguration
 
     public init() {
+        let configuration = TmuxProviderConfiguration()
+        let configurationData: Data
+        do {
+            configurationData = try JSONEncoder().encode(configuration)
+        } catch {
+            preconditionFailure("built-in tmux configuration must encode: \(error)")
+        }
+        defaultConfiguration = PersistentTerminalConfiguration(
+            providerID: Self.providerID,
+            configurationKey: configuration.locator.configurationKey,
+            payloadVersion: Self.configurationVersion,
+            providerPayload: configurationData
+        )
         descriptor = PersistentTerminalProviderDescriptor(
             id: Self.providerID,
             displayName: "tmux",
@@ -112,7 +151,7 @@ public struct TmuxProvider: PersistentTerminalCatalogProvider {
             )
         }
 
-        let configuration = try decodeConfiguration(from: context.backendProfile)
+        let configuration = try decodeConfiguration(from: context.backendConfiguration)
         let runtime: TmuxStaticRuntime
         do {
             runtime = try await resolveRuntime(configuration: configuration, in: context)
@@ -142,55 +181,31 @@ public struct TmuxProvider: PersistentTerminalCatalogProvider {
     }
 
     public func listWorkspaces(in context: PersistentTerminalContext) async throws -> [RemoteWorkspaceSummary] {
-        let configuration = try decodeConfiguration(from: context.backendProfile)
+        let configuration = try decodeConfiguration(from: context.backendConfiguration)
         let runtime = try await resolveRuntime(configuration: configuration, in: context)
-        guard let token = try await readServerIdentity(using: runtime, in: context) else {
-            return []
+        let catalog: TmuxWorkspaceCatalogObservation?
+        switch tmuxProtocolDialectCandidate(for: runtime.version).snapshotCodec {
+        case .quoted:
+            catalog = try await readQuotedWorkspaceCatalog(using: runtime, in: context)
+        case .legacyPerField:
+            catalog = try await readLegacyWorkspaceCatalog(using: runtime, in: context)
         }
+        guard let catalog else { return [] }
 
-        let list = try await execute(
-            script: tmuxScript(
-                executable: runtime.executable,
-                locator: configuration.locator,
-                arguments: [
-                    "list-sessions", "-F", "#{session_id}",
-                ]
-            ),
-            runtime: runtime.runtime,
-            in: context
-        )
-        guard list.isSuccess else {
-            throw commandRejected(list)
-        }
-
-        let sessionIDs = try decodeSessionIDs(list.stdout)
         let observedAt = Date()
         let workspacePayload = try JSONEncoder().encode(
-            TmuxWorkspaceInstancePayload(serverInstanceToken: token)
+            TmuxWorkspaceInstancePayload(serverInstanceToken: catalog.token)
         )
         var summaries: [RemoteWorkspaceSummary] = []
-        summaries.reserveCapacity(sessionIDs.count)
-        for sessionID in sessionIDs {
-            let nameResult = try await execute(
-                script: tmuxScript(
-                    executable: runtime.executable,
-                    locator: configuration.locator,
-                    arguments: [
-                        "display-message", "-p", "-t", sessionID.rawValue, "#{session_name}",
-                    ]
-                ),
-                runtime: runtime.runtime,
-                in: context
-            )
-            guard nameResult.isSuccess else { throw commandRejected(nameResult) }
-            let name = try decodeSingleTextField(nameResult.stdout)
+        summaries.reserveCapacity(catalog.sessions.count)
+        for session in catalog.sessions {
             summaries.append(RemoteWorkspaceSummary(
                 workspace: RemoteWorkspaceRef(
-                    workspaceID: sessionID.rawValue,
+                    workspaceID: session.id.rawValue,
                     instancePayloadVersion: Self.workspaceInstancePayloadVersion,
                     providerInstancePayload: workspacePayload
                 ),
-                name: name,
+                name: session.name,
                 occupancy: RemoteWorkspaceOccupancy(
                     affectedAttachmentCount: nil,
                     observedAt: observedAt,
@@ -204,8 +219,8 @@ public struct TmuxProvider: PersistentTerminalCatalogProvider {
     public func createWorkspace(
         _ request: CreateWorkspaceRequest,
         in context: PersistentTerminalContext
-    ) async throws -> RemoteWorkspaceRef {
-        let configuration = try decodeConfiguration(from: context.backendProfile)
+    ) async throws -> RemoteWorkspaceSummary {
+        let configuration = try decodeConfiguration(from: context.backendConfiguration)
         let runtime = try await resolveRuntime(configuration: configuration, in: context)
         let name = try request.name.map(TmuxName.init)
 
@@ -226,8 +241,12 @@ public struct TmuxProvider: PersistentTerminalCatalogProvider {
                 ),
                 timeout: .seconds(30)
             )
-            let sessionID = try decodeFirstSessionID(result.output)
-            return try workspaceRef(sessionID: sessionID, token: token)
+            let created = try decodeCreatedWorkspace(result.output)
+            return try workspaceSummary(
+                sessionID: created.sessionID,
+                name: created.name,
+                token: token
+            )
         }
 
         // Bootstrap is one remote invocation. It re-checks that the locator is still
@@ -240,7 +259,11 @@ public struct TmuxProvider: PersistentTerminalCatalogProvider {
             configuration: configuration,
             in: context
         )
-        return try workspaceRef(sessionID: bootstrap.sessionID, token: bootstrap.token)
+        return try workspaceSummary(
+            sessionID: bootstrap.sessionID,
+            name: bootstrap.name,
+            token: bootstrap.token
+        )
     }
 
     public func renameWorkspace(
@@ -249,7 +272,7 @@ public struct TmuxProvider: PersistentTerminalCatalogProvider {
         in context: PersistentTerminalContext
     ) async throws {
         let name = try TmuxName(newName)
-        let configuration = try decodeConfiguration(from: context.backendProfile)
+        let configuration = try decodeConfiguration(from: context.backendConfiguration)
         let runtime = try await resolveRuntime(configuration: configuration, in: context)
         let token = try decodeToken(from: workspace)
         let currentToken = try await readServerIdentity(using: runtime, in: context)
@@ -280,7 +303,7 @@ public struct TmuxProvider: PersistentTerminalCatalogProvider {
         _ workspace: RemoteWorkspaceRef,
         in context: PersistentTerminalContext
     ) async throws {
-        let configuration = try decodeConfiguration(from: context.backendProfile)
+        let configuration = try decodeConfiguration(from: context.backendConfiguration)
         let runtime = try await resolveRuntime(configuration: configuration, in: context)
         let token = try decodeToken(from: workspace)
         let currentToken = try await readServerIdentity(using: runtime, in: context)
@@ -313,7 +336,7 @@ public struct TmuxProvider: PersistentTerminalCatalogProvider {
         let payload = try JSONEncoder().encode(TmuxAttachmentPayload())
         return PersistentAttachmentDescriptor(
             providerID: Self.providerID,
-            profileID: context.backendProfile.id,
+            configuration: context.backendConfiguration,
             workspace: workspace,
             payloadVersion: Self.attachmentPayloadVersion,
             providerPayload: payload
@@ -328,7 +351,7 @@ public struct TmuxProvider: PersistentTerminalCatalogProvider {
     ) async throws -> any PersistentTerminalAttachment {
         _ = reason
         guard descriptor.providerID == Self.providerID,
-              descriptor.profileID == context.backendProfile.id,
+              descriptor.configuration == context.backendConfiguration,
               descriptor.payloadVersion == Self.attachmentPayloadVersion
         else {
             if descriptor.payloadVersion != Self.attachmentPayloadVersion {
@@ -338,7 +361,7 @@ public struct TmuxProvider: PersistentTerminalCatalogProvider {
                     version: descriptor.payloadVersion
                 )
             }
-            throw PersistentTerminalError.profileUnavailable(descriptor.profileID)
+            throw PersistentTerminalError.invalidConfiguration
         }
         let payload: TmuxAttachmentPayload
         do {
@@ -352,7 +375,7 @@ public struct TmuxProvider: PersistentTerminalCatalogProvider {
         let runtimeAttachmentID = UUID().uuidString
         let attachmentGeneration = await Self.attachmentGenerations.next()
 
-        let configuration = try decodeConfiguration(from: context.backendProfile)
+        let configuration = try decodeConfiguration(from: context.backendConfiguration)
         let runtime = try await resolveRuntime(configuration: configuration, in: context)
         let expectedToken = try decodeToken(from: descriptor.workspace)
         guard try await readServerIdentity(using: runtime, in: context) == expectedToken else {
@@ -360,174 +383,215 @@ public struct TmuxProvider: PersistentTerminalCatalogProvider {
         }
         let sessionID = try decodeSessionID(descriptor.workspace.workspaceID)
         let controlScope = try makeScope(context: context, token: expectedToken)
-        // Control Mode is an optional management plane. Establish it before the
-        // data client so client flags/dialect failure can degrade without blocking
-        // the user-selected pass-through attachment.
-        let controlLease = await preflightControlMode(
-            sessionID: sessionID,
-            runtime: runtime,
-            configuration: configuration,
-            context: context,
-            scope: controlScope,
-            terminalSize: terminalSize
-        )
+        let startup = TmuxAttachmentStartupTransaction()
+        let controlFailure = TmuxAttachmentStartupFailureBox()
         let nonce = try Self.makeNonce()
-        let clientFlags: Set<TmuxClientFlag>
-        if let controlLease {
-            clientFlags = await controlLease.runtime.capabilities.supportedClientFlags.intersection([
-                .activePane,
-                .ignoreSize,
-            ])
-        } else {
-            clientFlags = []
-        }
-        var attachArguments = ["attach-session"]
-        if !clientFlags.isEmpty {
-            attachArguments += [
-                "-f",
-                clientFlags.sorted { $0.rawValue < $1.rawValue }
-                    .map(\.rawValue)
-                    .joined(separator: ","),
-            ]
-        }
-        attachArguments += ["-t", sessionID.rawValue]
-        let attachInvocation = tmuxScript(
+        let dialect = tmuxProtocolDialectCandidate(for: runtime.version)
+        let oneShotExecutor = TmuxOneShotReadOnlyCommandExecutor(
+            session: context.session,
+            runtime: runtime.runtime,
             executable: runtime.executable,
             locator: configuration.locator,
-            arguments: attachArguments
+            scope: controlScope,
+            nonceFactory: { try Self.makeNonce() }
         )
-        let attachScript = tmuxHandshakeScript(
-            kind: .attachment,
-            nonce: nonce.value,
-            invocation: attachInvocation
+        let captureExecutor = TmuxStreamingPaneHistoryCaptureExecutor(
+            session: context.session,
+            runtime: runtime.runtime,
+            executable: runtime.executable,
+            locator: configuration.locator,
+            scope: controlScope,
+            nonceFactory: { try Self.makeNonce() }
         )
-        let command = try runtime.runtime.invocation(for: attachScript)
-        let process: any RemoteProcessChannel
-        do {
-            process = try await context.session.openProcess(
-                RemoteProcessRequest(
-                    command: command,
-                    terminal: RemoteTerminalRequest(
-                        type: "xterm-256color",
-                        size: terminalSize
+
+        let pipeline = TerminalStartupPipeline(steps: [
+            .init(id: .controlPlane) { [self] in
+                guard let lease = await preflightControlMode(
+                    sessionID: sessionID,
+                    runtime: runtime,
+                    configuration: configuration,
+                    context: context,
+                    scope: controlScope,
+                    terminalSize: terminalSize,
+                    failureBox: controlFailure,
+                    maximumAttempts: 2
+                ) else {
+                    throw await controlFailure.failure
+                        ?? PersistentTerminalError.controlModeUnavailable
+                }
+                await startup.storeControlPreflight(lease)
+                return TerminalStartupRollback {
+                    await startup.rollbackControlPreflight()
+                }
+            },
+            .init(id: .remoteProcess) { [self] in
+                let controlLease = try await startup.controlPreflight()
+                let clientFlags = await controlLease.runtime.capabilities.supportedClientFlags
+                    .intersection([.activePane, .ignoreSize])
+                var attachArguments = ["attach-session"]
+                if !clientFlags.isEmpty {
+                    attachArguments += [
+                        "-f",
+                        clientFlags.sorted { $0.rawValue < $1.rawValue }
+                            .map(\.rawValue)
+                            .joined(separator: ","),
+                    ]
+                }
+                attachArguments += ["-t", sessionID.rawValue]
+                let invocation = tmuxScript(
+                    executable: runtime.executable,
+                    locator: configuration.locator,
+                    arguments: attachArguments
+                )
+                let script = tmuxHandshakeScript(
+                    kind: .attachment,
+                    nonce: nonce.value,
+                    invocation: invocation
+                )
+                let command = try runtime.runtime.invocation(for: script)
+                let process = try await context.session.openProcess(
+                    RemoteProcessRequest(
+                        command: command,
+                        terminal: RemoteTerminalRequest(
+                            type: "xterm-256color",
+                            size: terminalSize
+                        )
                     )
                 )
-            )
-        } catch {
-            if let controlLease {
-                await Self.controlRuntimeRegistry.releasePreflight(controlLease)
-            }
-            throw error
-        }
-        let attachment: TmuxPassthroughAttachment
-        do {
-            let oneShotExecutor = TmuxOneShotReadOnlyCommandExecutor(
-                session: context.session,
-                runtime: runtime.runtime,
-                executable: runtime.executable,
-                locator: configuration.locator,
-                scope: controlScope,
-                nonceFactory: { try Self.makeNonce() }
-            )
-            let captureExecutor = TmuxStreamingPaneHistoryCaptureExecutor(
-                session: context.session,
-                runtime: runtime.runtime,
-                executable: runtime.executable,
-                locator: configuration.locator,
-                scope: controlScope,
-                nonceFactory: { try Self.makeNonce() }
-            )
-            let dialect = dialectCandidate(for: runtime.version)
-            attachment = try await TmuxPassthroughAttachment.open(
-                descriptor: descriptor,
-                process: process,
-                nonce: nonce,
-                runtimeAttachmentID: runtimeAttachmentID,
-                attachmentGeneration: attachmentGeneration,
-                interactionFactory: { tty, processID in
-                    let fallback = TmuxOneShotInteractionBackend(
-                        executor: oneShotExecutor,
-                        captureExecutor: captureExecutor,
-                        scope: controlScope,
-                        dialect: dialect,
-                        attachmentID: runtimeAttachmentID,
-                        attachmentGeneration: attachmentGeneration,
-                        requestedSessionID: sessionID,
-                        tty: tty,
-                        processID: processID,
-                        nonceFactory: { try Self.makeNonce() }
-                    )
-                    return TmuxInteractionFacet(
-                        attachmentGeneration: attachmentGeneration,
-                        fallback: fallback
-                    )
+                await startup.storeProcess(process)
+                return TerminalStartupRollback {
+                    await startup.rollbackProcess()
                 }
-            )
-        } catch {
-            if let controlLease {
-                await Self.controlRuntimeRegistry.releasePreflight(controlLease)
-            }
-            throw error
-        }
-        do {
-            guard try await readServerIdentity(using: runtime, in: context) == expectedToken else {
-                throw PersistentTerminalError.serverInstanceChanged
-            }
-        } catch {
-            await attachment.close()
-            if let controlLease {
-                await Self.controlRuntimeRegistry.releasePreflight(controlLease)
-            }
-            throw error
-        }
-        if let controlLease, let identity = attachment.processIdentity {
-            let controlAttachmentLease = await Self.controlRuntimeRegistry.acquireAttachment(
-                controlLease,
-                attachmentID: runtimeAttachmentID,
-                attachmentGeneration: attachmentGeneration,
-                requestedSessionID: sessionID,
-                makeHub: { [self] controlRuntime in
-                    await makeControlHub(
-                        sessionID: sessionID,
-                        runtime: runtime,
-                        configuration: configuration,
-                        context: context,
-                        controlRuntime: controlRuntime,
-                        scope: controlScope,
-                        attachmentIdentity: identity,
-                        attachmentID: runtimeAttachmentID
-                    )
-                },
-                resolveIdentity: { [self] runtime in
-                    await resolveControlIdentity(
-                        sessionID: sessionID,
-                        runtime: runtime,
-                        scope: controlScope,
-                        attachmentIdentity: identity,
-                        attachmentID: runtimeAttachmentID
-                    )
+            },
+            .init(id: .byteTerminal) {
+                let process = try await startup.process()
+                let attachment = try await TmuxPassthroughAttachment.open(
+                    descriptor: descriptor,
+                    process: process,
+                    nonce: nonce,
+                    runtimeAttachmentID: runtimeAttachmentID,
+                    attachmentGeneration: attachmentGeneration,
+                    interactionFactory: { tty, processID in
+                        let historyBackend = TmuxOneShotInteractionBackend(
+                            executor: oneShotExecutor,
+                            captureExecutor: captureExecutor,
+                            scope: controlScope,
+                            dialect: dialect,
+                            attachmentID: runtimeAttachmentID,
+                            attachmentGeneration: attachmentGeneration,
+                            requestedSessionID: sessionID,
+                            tty: tty,
+                            processID: processID,
+                            nonceFactory: { try Self.makeNonce() }
+                        )
+                        return TmuxInteractionFacet(
+                            attachmentGeneration: attachmentGeneration,
+                            historyBackend: historyBackend
+                        )
+                    }
+                )
+                await startup.storeAttachment(attachment)
+                return TerminalStartupRollback {
+                    await startup.rollbackAttachment()
                 }
-            )
-            if let controlAttachmentLease {
-                await attachment.installControlLease(controlAttachmentLease)
-            }
-        } else if let controlLease {
-            await Self.controlRuntimeRegistry.releasePreflight(controlLease)
-        }
-        return attachment
+            },
+            .init(id: "tmux.server-identity") { [self] in
+                guard try await readServerIdentity(using: runtime, in: context) == expectedToken else {
+                    throw PersistentTerminalError.serverInstanceChanged
+                }
+                return nil
+            },
+            .init(id: .identityBinding) { [self] in
+                let attachment = try await startup.attachment()
+                guard let identity = attachment.processIdentity else {
+                    throw TmuxProviderError.attachmentHandshakeFailed
+                }
+                let controlLease = try await startup.consumeControlPreflight()
+                let bindingFailure = TmuxAttachmentStartupFailureBox()
+                guard let interactionLease = await Self.controlRuntimeRegistry.acquireAttachment(
+                    controlLease,
+                    attachmentID: runtimeAttachmentID,
+                    attachmentGeneration: attachmentGeneration,
+                    requestedSessionID: sessionID,
+                    makeHub: { [self] controlRuntime in
+                        do {
+                            return try await makeControlHub(
+                                sessionID: sessionID,
+                                controlRuntime: controlRuntime,
+                                scope: controlScope,
+                                attachmentIdentity: identity,
+                                attachmentID: runtimeAttachmentID
+                            )
+                        } catch {
+                            await bindingFailure.record(error)
+                            return nil
+                        }
+                    },
+                    resolveIdentity: { [self] controlRuntime in
+                        do {
+                            return try await resolveControlIdentity(
+                                sessionID: sessionID,
+                                runtime: controlRuntime,
+                                scope: controlScope,
+                                attachmentIdentity: identity,
+                                attachmentID: runtimeAttachmentID
+                            )
+                        } catch {
+                            await bindingFailure.record(error)
+                            return nil
+                        }
+                    }
+                ) else {
+                    let failure = await bindingFailure.failure
+                    tmuxProviderLogger.error(
+                        "Control registry did not publish attachment lease; recorded failure type=\(failure.map { String(reflecting: type(of: $0)) } ?? "none", privacy: .public)"
+                    )
+                    throw failure ?? PersistentTerminalError.controlModeUnavailable
+                }
+                do {
+                    guard await Self.controlRuntimeRegistry.hasReadyControlRuntime(
+                        interactionLease
+                    ) else {
+                        tmuxProviderLogger.error(
+                            "Control registry published an attachment lease without a ready runtime"
+                        )
+                        throw PersistentTerminalError.controlModeUnavailable
+                    }
+                    _ = try await Self.controlRuntimeRegistry.resolveInteractionContext(
+                        interactionLease,
+                        refreshIfNeeded: false
+                    )
+                    await attachment.installControlLease(interactionLease)
+                    await startup.markControlBound()
+                } catch {
+                    tmuxProviderLogger.error(
+                        "Attachment lease readiness validation failed; type=\(String(reflecting: type(of: error)), privacy: .public)"
+                    )
+                    await Self.controlRuntimeRegistry.release(interactionLease)
+                    throw error
+                }
+                return nil
+            },
+            .init(id: .readiness) {
+                try await startup.validateReady()
+                return nil
+            },
+        ])
+        try await pipeline.run()
+        return try await startup.finishedAttachment()
     }
 
     public func openCatalog(
         in context: PersistentTerminalContext
     ) async throws -> any PersistentTerminalCatalogAttachment {
-        let configuration = try decodeConfiguration(from: context.backendProfile)
+        let configuration = try decodeConfiguration(from: context.backendConfiguration)
         let runtime = try await resolveRuntime(configuration: configuration, in: context)
         guard let token = try await readServerIdentity(using: runtime, in: context) else {
             let observedAt = Date()
             return TmuxStaticCatalogAttachment(
                 snapshot: PersistentWorkspaceCatalogSnapshot(
                     providerID: Self.providerID,
-                    profileID: context.backendProfile.id,
+                    configurationKey: context.backendConfiguration.configurationKey,
                     instance: nil,
                     workspaces: [],
                     freshness: .snapshot(observedAt: observedAt),
@@ -541,7 +605,7 @@ public struct TmuxProvider: PersistentTerminalCatalogProvider {
                 snapshot: try makeCatalogSnapshot(
                     token: token,
                     workspaces: [],
-                    profileID: context.backendProfile.id,
+                    configurationKey: context.backendConfiguration.configurationKey,
                     freshness: .snapshot(observedAt: Date())
                 )
             )
@@ -563,7 +627,7 @@ public struct TmuxProvider: PersistentTerminalCatalogProvider {
                 snapshot: try makeCatalogSnapshot(
                     token: token,
                     workspaces: workspaces,
-                    profileID: context.backendProfile.id,
+                    configurationKey: context.backendConfiguration.configurationKey,
                     freshness: .snapshot(observedAt: Date())
                 )
             )
@@ -572,10 +636,6 @@ public struct TmuxProvider: PersistentTerminalCatalogProvider {
             preflight,
             makeHub: { [self] controlRuntime in
                 await makeCatalogHub(
-                    runtime: runtime,
-                    configuration: configuration,
-                    context: context,
-                    sessionID: sessionID,
                     scope: scope,
                     controlRuntime: controlRuntime
                 )
@@ -585,7 +645,7 @@ public struct TmuxProvider: PersistentTerminalCatalogProvider {
                 snapshot: try makeCatalogSnapshot(
                     token: token,
                     workspaces: workspaces,
-                    profileID: context.backendProfile.id,
+                    configurationKey: context.backendConfiguration.configurationKey,
                     freshness: .snapshot(observedAt: Date())
                 )
             )
@@ -594,7 +654,7 @@ public struct TmuxProvider: PersistentTerminalCatalogProvider {
         let controlConfiguration = await lease.runtime.configuration
         return TmuxWorkspaceCatalogAttachment(
             providerID: Self.providerID,
-            profileID: context.backendProfile.id,
+            configurationKey: context.backendConfiguration.configurationKey,
             instanceToken: token,
             lease: lease,
             controlCapabilities: controlCapabilities,
@@ -602,63 +662,38 @@ public struct TmuxProvider: PersistentTerminalCatalogProvider {
         )
     }
 
-    /// Completes the optional management-plane handshake after the data client has a
-    /// verified tty/PID. If any snapshot or ownership proof is unavailable, the caller
-    /// keeps the byte attachment and closes only this optional control runtime.
+    /// Completes the required management-plane handshake after the data client has a
+    /// verified tty/PID. Returning nil fails and rolls back the complete attachment startup.
     private func makeControlHub(
         sessionID: TmuxSessionID,
-        runtime: TmuxStaticRuntime,
-        configuration: TmuxProviderConfiguration,
-        context: PersistentTerminalContext,
         controlRuntime: TmuxControlRuntime,
         scope: TmuxOperationScope,
         attachmentIdentity: (tty: String, pid: Int32),
         attachmentID: String
-    ) async -> TmuxProviderControlSetup? {
-        do {
-            let firstSnapshot = try await controlRuntime.loadSnapshot(
-                reason: .userRequested,
-                identities: [],
-                controlClientID: nil,
-                timeout: .seconds(5)
-            )
-            guard let controlClient = firstSnapshot.clients.values.first(where: {
-                $0.tty == controlRuntime.processIdentity.tty
-                    && $0.id.processID == controlRuntime.processIdentity.processID
-                    && $0.kind == .controlMode
-            })?.id,
-            let dataClient = firstSnapshot.clients.values.first(where: {
-                $0.tty == attachmentIdentity.tty
-                    && $0.id.processID == attachmentIdentity.pid
-                    && $0.sessionID == sessionID
-                    && $0.kind == .interactiveTerminal
-            })?.id
-            else { return nil }
+    ) async throws -> TmuxProviderControlSetup {
+        let registeredClients = try await waitForRegisteredAttachmentClients(
+            sessionID: sessionID,
+            controlRuntime: controlRuntime,
+            attachmentIdentity: attachmentIdentity
+        )
+        let controlClient = registeredClients.controlClient
+        let dataClient = registeredClients.dataClient
 
-            let identity = TmuxControlInteractiveIdentity(
+        let identity = TmuxControlInteractiveIdentity(
                 attachmentID: attachmentID,
                 clientID: dataClient,
                 requestedSessionID: sessionID
             )
-            let snapshot = try await controlRuntime.loadSnapshot(
+        let snapshot = try await controlRuntime.loadSnapshot(
                 reason: .userRequested,
                 identities: [identity],
                 controlClientID: controlClient,
                 timeout: .seconds(5)
             )
-            await controlRuntime.setControlClientID(controlClient)
-            let oneShot = TmuxOneShotOperationExecutor(
-                session: context.session,
-                runtime: runtime.runtime,
-                executable: runtime.executable,
-                locator: configuration.locator,
-                scope: scope,
-                nonceFactory: { try Self.makeNonce() }
-            )
-            let adapter = TmuxControlHubRuntimeAdapter(
+        await controlRuntime.setControlClientID(controlClient)
+        let adapter = TmuxControlHubRuntimeAdapter(
                 initialScope: scope,
                 controlClients: controlRuntime,
-                oneShot: oneShot,
                 snapshots: controlRuntime,
                 lifecycle: TmuxControlRuntimeLifecycleBridge(
                     runtime: controlRuntime,
@@ -666,23 +701,67 @@ public struct TmuxProvider: PersistentTerminalCatalogProvider {
                     scope: scope
                 )
             )
-            let hub = try TmuxControlHub(
+        let hub = try TmuxControlHub(
                 scope: scope,
                 initialSnapshot: snapshot,
                 adapter: adapter
             )
-            await hub.startEventStream(controlRuntime.events)
-            return TmuxProviderControlSetup(hub: hub, identity: identity)
-        } catch {
-            return nil
+        return TmuxProviderControlSetup(hub: hub, identity: identity)
+    }
+
+    /// The shell handshake is intentionally emitted before `exec tmux attach-session`.
+    /// Its tty/PID is authoritative, but the tmux server may publish that client a few
+    /// scheduling ticks later. Poll the authoritative Control Mode snapshot for a short,
+    /// bounded interval instead of treating that normal registration race as a missing
+    /// required component.
+    private func waitForRegisteredAttachmentClients(
+        sessionID: TmuxSessionID,
+        controlRuntime: TmuxControlRuntime,
+        attachmentIdentity: (tty: String, pid: Int32)
+    ) async throws -> (controlClient: TmuxClientID, dataClient: TmuxClientID) {
+        for attempt in 0 ..< 10 {
+            try Task.checkCancellation()
+            let snapshot = try await controlRuntime.loadSnapshot(
+                reason: .userRequested,
+                identities: [],
+                controlClientID: nil,
+                timeout: .seconds(5)
+            )
+            let controlClient = snapshot.clients.values.first(where: {
+                $0.tty == controlRuntime.processIdentity.tty
+                    && $0.id.processID == controlRuntime.processIdentity.processID
+                    && $0.kind == .controlMode
+            })?.id
+            let dataClient = snapshot.clients.values.first(where: {
+                $0.tty == attachmentIdentity.tty
+                    && $0.id.processID == attachmentIdentity.pid
+                    && $0.sessionID == sessionID
+                    && $0.kind == .interactiveTerminal
+            })?.id
+            if let controlClient, let dataClient {
+                return (controlClient, dataClient)
+            }
+            if attempt == 9 {
+                let observed = snapshot.clients.values
+                    .map {
+                        let tty = $0.tty ?? "none"
+                        let processID = $0.id.processID.map(String.init) ?? "none"
+                        return "\($0.kind):\(tty):\(processID):\($0.sessionID.rawValue)"
+                    }
+                    .sorted()
+                    .joined(separator: ",")
+                tmuxProviderLogger.error(
+                    "Attachment client was not registered; expected tty=\(attachmentIdentity.tty, privacy: .public) pid=\(attachmentIdentity.pid, privacy: .public) session=\(sessionID.rawValue, privacy: .public); observed=\(observed, privacy: .public)"
+                )
+            }
+            if attempt < 9 {
+                try await Task.sleep(for: .milliseconds(100))
+            }
         }
+        throw PersistentTerminalError.controlModeUnavailable
     }
 
     private func makeCatalogHub(
-        runtime: TmuxStaticRuntime,
-        configuration: TmuxProviderConfiguration,
-        context: PersistentTerminalContext,
-        sessionID: TmuxSessionID,
         scope: TmuxOperationScope,
         controlRuntime: TmuxControlRuntime
     ) async -> TmuxControlHub? {
@@ -707,18 +786,9 @@ public struct TmuxProvider: PersistentTerminalCatalogProvider {
                 timeout: .seconds(5)
             )
             await controlRuntime.setControlClientID(controlClient)
-            let oneShot = TmuxOneShotOperationExecutor(
-                session: context.session,
-                runtime: runtime.runtime,
-                executable: runtime.executable,
-                locator: configuration.locator,
-                scope: scope,
-                nonceFactory: { try Self.makeNonce() }
-            )
             let adapter = TmuxControlHubRuntimeAdapter(
                 initialScope: scope,
                 controlClients: controlRuntime,
-                oneShot: oneShot,
                 snapshots: controlRuntime,
                 lifecycle: TmuxControlRuntimeLifecycleBridge(
                     runtime: controlRuntime,
@@ -744,35 +814,52 @@ public struct TmuxProvider: PersistentTerminalCatalogProvider {
         scope: TmuxOperationScope,
         attachmentIdentity: (tty: String, pid: Int32),
         attachmentID: String
-    ) async -> TmuxControlInteractiveIdentity? {
-        do {
+    ) async throws -> TmuxControlInteractiveIdentity {
+        let client = try await waitForRegisteredDataClient(
+            sessionID: sessionID,
+            runtime: runtime,
+            scope: scope,
+            attachmentIdentity: attachmentIdentity
+        )
+        let identity = TmuxControlInteractiveIdentity(
+            attachmentID: attachmentID,
+            clientID: client,
+            requestedSessionID: sessionID
+        )
+        _ = try await runtime.loadSnapshot(
+            scope: scope,
+            reason: .userRequested,
+            identities: [identity]
+        )
+        return identity
+    }
+
+    private func waitForRegisteredDataClient(
+        sessionID: TmuxSessionID,
+        runtime: TmuxControlRuntime,
+        scope: TmuxOperationScope,
+        attachmentIdentity: (tty: String, pid: Int32)
+    ) async throws -> TmuxClientID {
+        for attempt in 0 ..< 10 {
+            try Task.checkCancellation()
             let snapshot = try await runtime.loadSnapshot(
                 scope: scope,
                 reason: .userRequested,
                 identities: []
             )
-            guard let client = snapshot.clients.values.first(where: {
+            if let client = snapshot.clients.values.first(where: {
                 $0.tty == attachmentIdentity.tty
                     && $0.id.processID == attachmentIdentity.pid
                     && $0.sessionID == sessionID
                     && $0.kind == .interactiveTerminal
-            }) else {
-                return nil
+            })?.id {
+                return client
             }
-            let identity = TmuxControlInteractiveIdentity(
-                attachmentID: attachmentID,
-                clientID: client.id,
-                requestedSessionID: sessionID
-            )
-            _ = try await runtime.loadSnapshot(
-                scope: scope,
-                reason: .userRequested,
-                identities: [identity]
-            )
-            return identity
-        } catch {
-            return nil
+            if attempt < 9 {
+                try await Task.sleep(for: .milliseconds(100))
+            }
         }
+        throw PersistentTerminalError.controlModeUnavailable
     }
 
     private func preflightControlMode(
@@ -781,19 +868,32 @@ public struct TmuxProvider: PersistentTerminalCatalogProvider {
         configuration: TmuxProviderConfiguration,
         context: PersistentTerminalContext,
         scope: TmuxOperationScope,
-        terminalSize: TermSize
+        terminalSize: TermSize,
+        failureBox: TmuxAttachmentStartupFailureBox? = nil,
+        maximumAttempts: Int = 1
     ) async -> TmuxProviderControlRuntimeLease? {
-        let controlRuntime = await Self.controlRuntimeRegistry.acquireRuntime(for: scope) {
-            await openControlRuntime(
-                sessionID: sessionID,
-                runtime: runtime,
-                configuration: configuration,
-                context: context,
-                scope: scope,
-                terminalSize: terminalSize
-            )
+        for _ in 0 ..< max(1, maximumAttempts) {
+            guard !Task.isCancelled else { return nil }
+            let controlRuntime = await Self.controlRuntimeRegistry.acquireRuntime(for: scope) {
+                do {
+                    return try await openControlRuntime(
+                        sessionID: sessionID,
+                        runtime: runtime,
+                        configuration: configuration,
+                        context: context,
+                        scope: scope,
+                        terminalSize: terminalSize
+                    )
+                } catch {
+                    if let failureBox {
+                        await failureBox.record(error)
+                    }
+                    return nil
+                }
+            }
+            if let controlRuntime { return controlRuntime }
         }
-        return controlRuntime
+        return nil
     }
 
     private func openControlRuntime(
@@ -803,26 +903,25 @@ public struct TmuxProvider: PersistentTerminalCatalogProvider {
         context: PersistentTerminalContext,
         scope: TmuxOperationScope,
         terminalSize: TermSize
-    ) async -> TmuxControlRuntime? {
+    ) async throws -> TmuxControlRuntime {
         let controlScript = tmuxScript(
             executable: runtime.executable,
             locator: configuration.locator,
             arguments: ["-CC", "attach-session", "-t", sessionID.rawValue]
         )
-        let controlNonce = (try? Self.makeNonce())?.value ?? UUID().uuidString
+        let controlNonce = try Self.makeNonce().value
         let controlWrapper = tmuxHandshakeScript(
             kind: .control,
             nonce: controlNonce,
             invocation: controlScript
         )
-        guard let command = try? runtime.runtime.invocation(for: controlWrapper),
-              let channel = try? await context.session.openProcess(
-                  RemoteProcessRequest(
-                      command: command,
-                      terminal: RemoteTerminalRequest(type: "xterm-256color", size: terminalSize)
-                  )
-              )
-        else { return nil }
+        let command = try runtime.runtime.invocation(for: controlWrapper)
+        let channel = try await context.session.openProcess(
+            RemoteProcessRequest(
+                command: command,
+                terminal: RemoteTerminalRequest(type: "xterm-256color", size: terminalSize)
+            )
+        )
 
         do {
             let controlChannel = try await TmuxControlHandshakeChannel.open(
@@ -832,7 +931,7 @@ public struct TmuxProvider: PersistentTerminalCatalogProvider {
             let control = try TmuxControlRuntime(
                 channel: controlChannel,
                 scope: scope,
-                dialect: dialectCandidate(for: runtime.version),
+                dialect: tmuxProtocolDialectCandidate(for: runtime.version),
                 processIdentity: .init(
                     tty: controlChannel.processIdentity.tty,
                     processID: controlChannel.processIdentity.pid
@@ -842,23 +941,8 @@ public struct TmuxProvider: PersistentTerminalCatalogProvider {
             return control
         } catch {
             await channel.close()
-            return nil
+            throw error
         }
-    }
-
-    /// Version only chooses a conservative parser candidate. Readiness still comes
-    /// from the actual Control Mode marker; capability flags are not advertised by
-    /// this preflight until a future attach runtime completes negotiation.
-    private func dialectCandidate(for version: String) -> TmuxProtocolDialect {
-        let numbers = version.split(separator: ".").compactMap { Int($0) }
-        let major = numbers.first ?? 0
-        let minor = numbers.dropFirst().first ?? 0
-        let modernGuards = major > 2 || (major == 2 && minor >= 7)
-        let quoted = major > 3 || (major == 3 && minor >= 1)
-        return TmuxProtocolDialect(
-            commandGuardShape: modernGuards ? .threeFields : .twoFields,
-            snapshotCodec: quoted ? .quoted : .legacyPerField
-        )
     }
 
     private struct TmuxStaticRuntime: Sendable {
@@ -868,9 +952,77 @@ public struct TmuxProvider: PersistentTerminalCatalogProvider {
         let version: String
     }
 
+    /// Static executable/version discovery is stable for one concrete pooled SSH
+    /// session. This short-lived provider cache lets selection, creation and attachment
+    /// startup share one probe without persisting capability state or crossing a
+    /// ConnectionManager session replacement.
+    private struct TmuxStaticRuntimeCacheKey: Hashable, @unchecked Sendable {
+        let sessionObjectID: ObjectIdentifier
+        let connectionIdentity: SSHConnectionIdentity
+        let configuration: PersistentTerminalConfiguration
+
+        init(context: PersistentTerminalContext) {
+            sessionObjectID = ObjectIdentifier(context.session)
+            connectionIdentity = context.connectionIdentity
+            configuration = context.backendConfiguration
+        }
+    }
+
+    private actor TmuxStaticRuntimeCache {
+        private struct Entry: Sendable {
+            let runtime: TmuxStaticRuntime
+            // Retaining the exact session for the short cache lifetime prevents its
+            // ObjectIdentifier from being recycled for a newly connected session.
+            let session: any SSHSession
+            var lastAccess: Date
+        }
+
+        private let lifetime: TimeInterval = 120
+        private let maximumEntryCount = 32
+        private var entries: [TmuxStaticRuntimeCacheKey: Entry] = [:]
+
+        func value(for key: TmuxStaticRuntimeCacheKey) -> TmuxStaticRuntime? {
+            let now = Date()
+            entries = entries.filter { now.timeIntervalSince($0.value.lastAccess) <= lifetime }
+            guard var entry = entries[key] else { return nil }
+            entry.lastAccess = now
+            entries[key] = entry
+            return entry.runtime
+        }
+
+        func insert(
+            _ runtime: TmuxStaticRuntime,
+            session: any SSHSession,
+            for key: TmuxStaticRuntimeCacheKey
+        ) {
+            let now = Date()
+            entries[key] = Entry(runtime: runtime, session: session, lastAccess: now)
+            guard entries.count > maximumEntryCount,
+                  let oldest = entries.min(by: { $0.value.lastAccess < $1.value.lastAccess })?.key
+            else { return }
+            entries[oldest] = nil
+        }
+    }
+
+    private struct TmuxWorkspaceCatalogObservation: Sendable {
+        struct Session: Sendable {
+            let id: TmuxSessionID
+            let name: String
+        }
+
+        let token: TmuxServerInstanceToken
+        let sessions: [Session]
+    }
+
     private struct BootstrapResult: Sendable {
         let sessionID: TmuxSessionID
+        let name: String
         let token: TmuxServerInstanceToken
+    }
+
+    private struct CreatedWorkspace: Sendable {
+        let sessionID: TmuxSessionID
+        let name: String
     }
 
     private func bootstrapCreateWorkspace(
@@ -884,7 +1036,9 @@ public struct TmuxProvider: PersistentTerminalCatalogProvider {
             locator: configuration.locator,
             arguments: ["list-sessions", "-F", "#{session_id}"]
         )
-        var newArguments = ["new-session", "-d", "-P", "-F", "#{session_id}"]
+        var newArguments = [
+            "new-session", "-d", "-P", "-F", "#{session_id}\t#{session_name}",
+        ]
         if let name { newArguments += ["-s", name.value] }
         let create = tmuxScript(
             executable: runtime.executable,
@@ -914,7 +1068,7 @@ public struct TmuxProvider: PersistentTerminalCatalogProvider {
             .components(separatedBy: .newlines)
         if lines.last == "" { lines.removeLast() }
         guard lines.count == 4,
-              let sessionID = try? decodeSessionID(lines[0]),
+              let created = try? decodeCreatedWorkspace(Data(lines[0].utf8)),
               let pid = Int32(lines[2]),
               let start = Int64(lines[3]),
               !lines[1].isEmpty
@@ -923,7 +1077,8 @@ public struct TmuxProvider: PersistentTerminalCatalogProvider {
         }
         do {
             return BootstrapResult(
-                sessionID: sessionID,
+                sessionID: created.sessionID,
+                name: created.name,
                 token: try TmuxServerInstanceToken(
                     resolvedSocketPath: lines[1],
                     serverPID: pid,
@@ -936,19 +1091,19 @@ public struct TmuxProvider: PersistentTerminalCatalogProvider {
     }
 
     private func decodeConfiguration(
-        from profile: TerminalBackendProfile
+        from configurationEnvelope: PersistentTerminalConfiguration
     ) throws -> TmuxProviderConfiguration {
-        guard profile.providerID == Self.providerID,
-              profile.configurationVersion == Self.configurationVersion
+        guard configurationEnvelope.providerID == Self.providerID,
+              configurationEnvelope.payloadVersion == Self.configurationVersion
         else {
             throw PersistentTerminalError.invalidConfiguration
         }
-        guard let data = profile.configurationJSON.data(using: .utf8) else {
-            throw PersistentTerminalError.invalidConfiguration
-        }
         do {
-            let configuration = try JSONDecoder().decode(TmuxProviderConfiguration.self, from: data)
-            guard profile.providerConfigurationKey == configuration.locator.configurationKey else {
+            let configuration = try JSONDecoder().decode(
+                TmuxProviderConfiguration.self,
+                from: configurationEnvelope.providerPayload
+            )
+            guard configurationEnvelope.configurationKey == configuration.locator.configurationKey else {
                 throw PersistentTerminalError.invalidConfiguration
             }
             return configuration
@@ -960,6 +1115,26 @@ public struct TmuxProvider: PersistentTerminalCatalogProvider {
     }
 
     private func resolveRuntime(
+        configuration: TmuxProviderConfiguration,
+        in context: PersistentTerminalContext
+    ) async throws -> TmuxStaticRuntime {
+        let cacheKey = TmuxStaticRuntimeCacheKey(context: context)
+        if let cached = await Self.staticRuntimeCache.value(for: cacheKey) {
+            return cached
+        }
+        let resolved = try await resolveRuntimeUncached(
+            configuration: configuration,
+            in: context
+        )
+        await Self.staticRuntimeCache.insert(
+            resolved,
+            session: context.session,
+            for: cacheKey
+        )
+        return resolved
+    }
+
+    private func resolveRuntimeUncached(
         configuration: TmuxProviderConfiguration,
         in context: PersistentTerminalContext
     ) async throws -> TmuxStaticRuntime {
@@ -979,49 +1154,48 @@ public struct TmuxProvider: PersistentTerminalCatalogProvider {
             throw PersistentTerminalError.invalidConfiguration
         }
 
-        let tmuxPathResult = try await execute(
-            script: "command -v tmux",
+        let tmuxPrefix = (["\"$tmux_path\""] + configuration.locator.arguments.map(
+            POSIXShellArgument.encode
+        )).joined(separator: " ")
+        let staticProbe = """
+        set -u
+        tmux_path=$(command -v tmux) || exit 72
+        case "$tmux_path" in /*) ;; *) exit 73 ;; esac
+        printf '__CONN_TMUX_EXECUTABLE__%s\\n' "$tmux_path"
+        if tmux_version=$(\(tmuxPrefix) -V); then
+            printf '__CONN_TMUX_VERSION__%s\\n' "$tmux_version"
+        else
+            exit 74
+        fi
+        \(tmuxPrefix) list-commands >/dev/null || exit 75
+        """
+        let staticResult = try await execute(
+            script: staticProbe,
             runtime: runtime,
             in: context
         )
-        guard tmuxPathResult.isSuccess else {
-            throw PersistentTerminalError.executableMissing
+        guard staticResult.isSuccess else {
+            switch staticResult.exitCode {
+            case 72, 127:
+                throw PersistentTerminalError.executableMissing
+            case 73:
+                throw PersistentTerminalError.invalidConfiguration
+            case 74:
+                throw PersistentTerminalError.incompatibleVersion(staticResult.stderrText)
+            default:
+                throw commandRejected(staticResult)
+            }
         }
+
         let executable: TmuxExecutablePath
+        let version: String
         do {
-            executable = try TmuxExecutablePath(decodeExecutablePath(tmuxPathResult.stdout))
+            (executable, version) = try decodeStaticRuntimeProbe(staticResult.stdout)
         } catch {
             throw PersistentTerminalError.invalidConfiguration
         }
-
-        let versionResult = try await execute(
-            script: tmuxScript(
-                executable: executable,
-                locator: configuration.locator,
-                arguments: ["-V"]
-            ),
-            runtime: runtime,
-            in: context
-        )
-        guard versionResult.isSuccess else {
-            throw PersistentTerminalError.incompatibleVersion(versionResult.stderrText)
-        }
-        let version = decodeVersion(versionResult.stdout)
         guard !version.isEmpty else {
             throw PersistentTerminalError.incompatibleVersion(nil)
-        }
-
-        let commands = try await execute(
-            script: tmuxScript(
-                executable: executable,
-                locator: configuration.locator,
-                arguments: ["list-commands"]
-            ),
-            runtime: runtime,
-            in: context
-        )
-        guard commands.isSuccess else {
-            throw commandRejected(commands)
         }
         return TmuxStaticRuntime(
             configuration: configuration,
@@ -1029,6 +1203,141 @@ public struct TmuxProvider: PersistentTerminalCatalogProvider {
             executable: executable,
             version: version
         )
+    }
+
+    private func decodeStaticRuntimeProbe(
+        _ data: Data
+    ) throws -> (TmuxExecutablePath, String) {
+        guard let text = String(data: data, encoding: .utf8),
+              !text.unicodeScalars.contains(where: { $0.value == 0 })
+        else {
+            throw TmuxProviderError.malformedProbeOutput
+        }
+        var lines = text.components(separatedBy: .newlines)
+        if lines.last == "" { lines.removeLast() }
+        let executableMarker = "__CONN_TMUX_EXECUTABLE__"
+        let versionMarker = "__CONN_TMUX_VERSION__"
+        guard lines.count == 2,
+              lines[0].hasPrefix(executableMarker),
+              lines[1].hasPrefix(versionMarker)
+        else {
+            throw TmuxProviderError.malformedProbeOutput
+        }
+        let executable = try TmuxExecutablePath(String(lines[0].dropFirst(executableMarker.count)))
+        let rawVersion = String(lines[1].dropFirst(versionMarker.count))
+        let version = decodeVersion(Data(rawVersion.utf8))
+        guard !version.isEmpty else { throw TmuxProviderError.malformedProbeOutput }
+        return (executable, version)
+    }
+
+    private func readQuotedWorkspaceCatalog(
+        using runtime: TmuxStaticRuntime,
+        in context: PersistentTerminalContext
+    ) async throws -> TmuxWorkspaceCatalogObservation? {
+        // Identity and sessions come from one tmux command queue. Besides saving an
+        // SSH round trip, this cannot combine an old server identity with a restarted
+        // server's session list.
+        let identityFormat = "\"I\" \"#{q:socket_path}\" \"#{pid}\" \"#{start_time}\""
+        let sessionFormat = "\"S\" \"#{q:session_id}\" \"#{q:session_name}\" \"\""
+        let result = try await execute(
+            script: tmuxScript(
+                executable: runtime.executable,
+                locator: runtime.configuration.locator,
+                arguments: [
+                    "display-message", "-p", identityFormat,
+                    ";",
+                    "list-sessions", "-F", sessionFormat,
+                ]
+            ),
+            runtime: runtime.runtime,
+            in: context
+        )
+        guard result.isSuccess else {
+            if isServerAbsent(result.stderrText) { return nil }
+            throw commandRejected(result)
+        }
+
+        var output = result.stdout
+        if output.last == UInt8(ascii: "\n") {
+            output.removeLast()
+            if output.last == UInt8(ascii: "\r") { output.removeLast() }
+        }
+        guard !output.isEmpty else { throw TmuxProviderError.malformedProbeOutput }
+        let records = try TmuxQuotedSnapshotCodec().decode(
+            commandOutputLines: [output],
+            expectedFieldCount: 4
+        )
+        guard let identity = records.first,
+              identity[0] == "I",
+              let pid = Int32(identity[2]),
+              let startTime = Int64(identity[3])
+        else {
+            throw TmuxProviderError.malformedProbeOutput
+        }
+        let token: TmuxServerInstanceToken
+        do {
+            token = try TmuxServerInstanceToken(
+                resolvedSocketPath: identity[1],
+                serverPID: pid,
+                serverStartTime: startTime
+            )
+        } catch {
+            throw TmuxProviderError.malformedProbeOutput
+        }
+
+        var sessions: [TmuxWorkspaceCatalogObservation.Session] = []
+        sessions.reserveCapacity(max(records.count - 1, 0))
+        for record in records.dropFirst() {
+            guard record[0] == "S", record[3].isEmpty else {
+                throw TmuxProviderError.malformedProbeOutput
+            }
+            sessions.append(.init(
+                id: try decodeSessionID(record[1]),
+                name: record[2]
+            ))
+        }
+        return TmuxWorkspaceCatalogObservation(token: token, sessions: sessions)
+    }
+
+    private func readLegacyWorkspaceCatalog(
+        using runtime: TmuxStaticRuntime,
+        in context: PersistentTerminalContext
+    ) async throws -> TmuxWorkspaceCatalogObservation? {
+        guard let token = try await readServerIdentity(using: runtime, in: context) else {
+            return nil
+        }
+        let list = try await execute(
+            script: tmuxScript(
+                executable: runtime.executable,
+                locator: runtime.configuration.locator,
+                arguments: ["list-sessions", "-F", "#{session_id}"]
+            ),
+            runtime: runtime.runtime,
+            in: context
+        )
+        guard list.isSuccess else { throw commandRejected(list) }
+        let sessionIDs = try decodeSessionIDs(list.stdout)
+        var sessions: [TmuxWorkspaceCatalogObservation.Session] = []
+        sessions.reserveCapacity(sessionIDs.count)
+        for sessionID in sessionIDs {
+            let nameResult = try await execute(
+                script: tmuxScript(
+                    executable: runtime.executable,
+                    locator: runtime.configuration.locator,
+                    arguments: [
+                        "display-message", "-p", "-t", sessionID.rawValue, "#{session_name}",
+                    ]
+                ),
+                runtime: runtime.runtime,
+                in: context
+            )
+            guard nameResult.isSuccess else { throw commandRejected(nameResult) }
+            sessions.append(.init(
+                id: sessionID,
+                name: try decodeSingleTextField(nameResult.stdout)
+            ))
+        }
+        return TmuxWorkspaceCatalogObservation(token: token, sessions: sessions)
     }
 
     private func readServerIdentity(
@@ -1080,7 +1389,10 @@ public struct TmuxProvider: PersistentTerminalCatalogProvider {
         runtime: PreparedRemoteScriptRuntime,
         in context: PersistentTerminalContext
     ) async throws -> ExecResult {
-        try await context.session.exec(try runtime.invocation(for: script), timeout: .seconds(30))
+        try await context.session.exec(
+            try runtime.invocation(for: script),
+            timeout: .seconds(30)
+        )
     }
 
     private func tmuxScript(
@@ -1131,12 +1443,23 @@ public struct TmuxProvider: PersistentTerminalCatalogProvider {
         return sessionID
     }
 
-    private func decodeFirstSessionID(_ data: Data) throws -> TmuxSessionID {
-        let ids = try decodeSessionIDs(data)
-        guard let id = ids.first, ids.count == 1 else {
+    private func decodeCreatedWorkspace(_ data: Data) throws -> CreatedWorkspace {
+        var bytes = data
+        if bytes.last == UInt8(ascii: "\n") { bytes.removeLast() }
+        if bytes.last == UInt8(ascii: "\r") { bytes.removeLast() }
+        let fields = bytes.split(separator: UInt8(ascii: "\t"), omittingEmptySubsequences: false)
+        guard fields.count == 2,
+              let sessionIDText = String(data: Data(fields[0]), encoding: .utf8),
+              let name = String(data: Data(fields[1]), encoding: .utf8),
+              !name.isEmpty,
+              !name.unicodeScalars.contains(where: { $0.value == 0 })
+        else {
             throw TmuxProviderError.malformedProbeOutput
         }
-        return id
+        return CreatedWorkspace(
+            sessionID: try decodeSessionID(sessionIDText),
+            name: name
+        )
     }
 
     private func makeProviderInstance(
@@ -1152,7 +1475,7 @@ public struct TmuxProvider: PersistentTerminalCatalogProvider {
     private func makeCatalogSnapshot(
         token: TmuxServerInstanceToken,
         workspaces: [RemoteWorkspaceSummary],
-        profileID: String,
+        configurationKey: String,
         freshness: PersistentWorkspaceCatalogFreshness
     ) throws -> PersistentWorkspaceCatalogSnapshot {
         let observedAt: Date = switch freshness {
@@ -1162,7 +1485,7 @@ public struct TmuxProvider: PersistentTerminalCatalogProvider {
         }
         return PersistentWorkspaceCatalogSnapshot(
             providerID: Self.providerID,
-            profileID: profileID,
+            configurationKey: configurationKey,
             instance: try makeProviderInstance(token: token),
             workspaces: workspaces,
             freshness: freshness,
@@ -1179,6 +1502,22 @@ public struct TmuxProvider: PersistentTerminalCatalogProvider {
             instancePayloadVersion: Self.workspaceInstancePayloadVersion,
             providerInstancePayload: try JSONEncoder().encode(
                 TmuxWorkspaceInstancePayload(serverInstanceToken: token)
+            )
+        )
+    }
+
+    private func workspaceSummary(
+        sessionID: TmuxSessionID,
+        name: String,
+        token: TmuxServerInstanceToken
+    ) throws -> RemoteWorkspaceSummary {
+        RemoteWorkspaceSummary(
+            workspace: try workspaceRef(sessionID: sessionID, token: token),
+            name: name,
+            occupancy: RemoteWorkspaceOccupancy(
+                affectedAttachmentCount: nil,
+                observedAt: .now,
+                freshness: .fresh
             )
         )
     }
@@ -1207,7 +1546,7 @@ public struct TmuxProvider: PersistentTerminalCatalogProvider {
     ) throws -> TmuxOperationScope {
         try TmuxOperationScope(
             connectionIdentity: context.connectionIdentity,
-            profileID: context.backendProfile.id,
+            configurationKey: context.backendConfiguration.configurationKey,
             instanceToken: token,
             generation: 0
         )
@@ -1236,6 +1575,107 @@ package protocol TmuxRuntimeAttachmentIdentifying: PersistentTerminalAttachment 
     var runtimeAttachmentID: String { get }
 }
 
+private enum TmuxAttachmentStartupTransactionError: Error, Sendable {
+    case missingControlPreflight
+    case missingProcess
+    case missingAttachment
+    case missingControlBinding
+}
+
+private actor TmuxAttachmentStartupFailureBox {
+    private(set) var failure: (any Error)?
+
+    func record(_ error: any Error) {
+        if failure == nil { failure = error }
+    }
+}
+
+/// Provider-owned mutable state captured by generic startup steps. Every take/rollback
+/// operation is idempotent so cancellation and a concurrently closing tab cannot leak a
+/// partially assembled Control Mode or PTY process.
+private actor TmuxAttachmentStartupTransaction {
+    private var controlLease: TmuxProviderControlRuntimeLease?
+    private var remoteProcess: (any RemoteProcessChannel)?
+    private var openedAttachment: TmuxPassthroughAttachment?
+    private var isControlBound = false
+
+    func storeControlPreflight(_ lease: TmuxProviderControlRuntimeLease) {
+        controlLease = lease
+    }
+
+    func controlPreflight() throws -> TmuxProviderControlRuntimeLease {
+        guard let controlLease else {
+            throw TmuxAttachmentStartupTransactionError.missingControlPreflight
+        }
+        return controlLease
+    }
+
+    func consumeControlPreflight() throws -> TmuxProviderControlRuntimeLease {
+        let lease = try controlPreflight()
+        controlLease = nil
+        return lease
+    }
+
+    func rollbackControlPreflight() async {
+        guard let lease = controlLease else { return }
+        controlLease = nil
+        await lease.registry.releasePreflight(lease)
+    }
+
+    func storeProcess(_ process: any RemoteProcessChannel) {
+        remoteProcess = process
+    }
+
+    func process() throws -> any RemoteProcessChannel {
+        guard let remoteProcess else {
+            throw TmuxAttachmentStartupTransactionError.missingProcess
+        }
+        return remoteProcess
+    }
+
+    func rollbackProcess() async {
+        guard let process = remoteProcess else { return }
+        remoteProcess = nil
+        await process.close()
+    }
+
+    func storeAttachment(_ attachment: TmuxPassthroughAttachment) {
+        openedAttachment = attachment
+    }
+
+    func attachment() throws -> TmuxPassthroughAttachment {
+        guard let openedAttachment else {
+            throw TmuxAttachmentStartupTransactionError.missingAttachment
+        }
+        return openedAttachment
+    }
+
+    func rollbackAttachment() async {
+        guard let attachment = openedAttachment else { return }
+        openedAttachment = nil
+        isControlBound = false
+        await attachment.close()
+    }
+
+    func markControlBound() {
+        isControlBound = true
+    }
+
+    func validateReady() throws {
+        guard openedAttachment != nil else {
+            throw TmuxAttachmentStartupTransactionError.missingAttachment
+        }
+        guard isControlBound else {
+            throw TmuxAttachmentStartupTransactionError.missingControlBinding
+        }
+    }
+
+    func finishedAttachment() throws -> TmuxPassthroughAttachment {
+        try validateReady()
+        return try attachment()
+    }
+}
+
 private actor TmuxAttachmentGenerationSource {
     private var generation: UInt64 = 0
 
@@ -1250,15 +1690,22 @@ package final class TmuxPassthroughAttachment:
     PersistentTerminalInteractiveAttachment,
     @unchecked Sendable
 {
+    private static let controlComponentID: PersistentTerminalRuntimeComponentID =
+        "tmux.control-mode"
+
     package let descriptor: PersistentAttachmentDescriptor
     package let presentation: PersistentAttachmentPresentation
+    package let lifecycleEvents: AsyncStream<PersistentTerminalAttachmentLifecycleEvent>
     package let runtimeAttachmentID: String
     package let attachmentGeneration: UInt64
     package var interaction: any PersistentTerminalInteractionFacet { interactionFacet }
     private let channel: TmuxProcessShellChannel
     private let interactionFacet: TmuxInteractionFacet
+    private let lifecycleContinuation:
+        AsyncStream<PersistentTerminalAttachmentLifecycleEvent>.Continuation
     private let lifecycleLock = NSLock()
     private var didClose = false
+    private var controlLifecycleTask: Task<Void, Never>?
 
     private init(
         descriptor: PersistentAttachmentDescriptor,
@@ -1273,6 +1720,12 @@ package final class TmuxPassthroughAttachment:
         self.attachmentGeneration = attachmentGeneration
         self.interactionFacet = interactionFacet
         presentation = .byteTerminal(channel)
+        let lifecycle = AsyncStream.makeStream(
+            of: PersistentTerminalAttachmentLifecycleEvent.self,
+            bufferingPolicy: .bufferingNewest(1)
+        )
+        lifecycleEvents = lifecycle.stream
+        lifecycleContinuation = lifecycle.continuation
     }
 
     static func open(
@@ -1313,6 +1766,14 @@ package final class TmuxPassthroughAttachment:
             return
         }
         await interactionFacet.install(controlLease)
+        let terminations = controlLease.runtime.terminationEvents()
+        controlLifecycleTask = Task { [weak self] in
+            for await reason in terminations {
+                guard !Task.isCancelled else { return }
+                await self?.controlModeTerminated(reason)
+                return
+            }
+        }
     }
 
     package func close() async {
@@ -1322,6 +1783,40 @@ package final class TmuxPassthroughAttachment:
             return true
         }
         guard shouldClose else { return }
+        controlLifecycleTask?.cancel()
+        controlLifecycleTask = nil
+        await interactionFacet.close()
+        await channel.close()
+        lifecycleContinuation.finish()
+    }
+
+    private func controlModeTerminated(_ reason: TmuxControlClientTermination) async {
+        let shouldInvalidate = lifecycleLock.withLock {
+            guard !didClose else { return false }
+            didClose = true
+            return true
+        }
+        guard shouldInvalidate else { return }
+
+        let issue: PersistentTerminalError
+        let recovery: PersistentTerminalAttachmentRecovery
+        switch reason {
+        case .protocolViolation:
+            issue = .protocolViolation
+            recovery = .manual
+        case .remoteExit:
+            issue = .remoteObjectMissing
+            recovery = .manual
+        case .transportFailure, .requested:
+            issue = .transportClosed
+            recovery = .rebuildAttachment
+        }
+        lifecycleContinuation.yield(.failed(.init(
+            componentID: Self.controlComponentID,
+            issue: issue,
+            recovery: recovery
+        )))
+        lifecycleContinuation.finish()
         await interactionFacet.close()
         await channel.close()
     }
@@ -1341,7 +1836,7 @@ public final class TmuxWorkspaceCatalogAttachment: TmuxWorkspaceCatalogManaging,
 
     init(
         providerID: String,
-        profileID: String,
+        configurationKey: String,
         instanceToken: TmuxServerInstanceToken,
         lease: TmuxProviderControlCatalogLease,
         controlCapabilities: TmuxNegotiatedCapabilities,
@@ -1362,7 +1857,7 @@ public final class TmuxWorkspaceCatalogAttachment: TmuxWorkspaceCatalogManaging,
                 topologyContinuation.yield(snapshot)
                 continuation.yield(Self.makeCatalogSnapshot(
                     providerID: providerID,
-                    profileID: profileID,
+                    configurationKey: configurationKey,
                     instanceToken: instanceToken,
                     snapshot: snapshot
                 ))
@@ -1416,7 +1911,7 @@ public final class TmuxWorkspaceCatalogAttachment: TmuxWorkspaceCatalogManaging,
 
     private static func makeCatalogSnapshot(
         providerID: String,
-        profileID: String,
+        configurationKey: String,
         instanceToken: TmuxServerInstanceToken,
         snapshot: TmuxServerSnapshot
     ) -> PersistentWorkspaceCatalogSnapshot {
@@ -1449,7 +1944,7 @@ public final class TmuxWorkspaceCatalogAttachment: TmuxWorkspaceCatalogManaging,
             }
         return PersistentWorkspaceCatalogSnapshot(
             providerID: providerID,
-            profileID: profileID,
+            configurationKey: configurationKey,
             instance: instance,
             workspaces: workspaces,
             freshness: .liveSubscription(observedAt: snapshot.observedAt),
@@ -1508,10 +2003,13 @@ private final class TmuxProcessShellChannel: ShellChannel, @unchecked Sendable {
     func waitForReadiness() async throws {
         let timeout = Task { [weak self] in
             try? await Task.sleep(for: .seconds(2))
-            self?.degradeReadiness()
+            self?.gate.fail(TmuxProviderError.attachmentHandshakeFailed)
         }
         defer { timeout.cancel() }
-        processIdentity = try await gate.waitForReady()
+        guard let identity = try await gate.waitForReady() else {
+            throw TmuxProviderError.attachmentHandshakeFailed
+        }
+        processIdentity = identity
     }
 
     func write(_ bytes: Data) async throws {
@@ -1532,6 +2030,7 @@ private final class TmuxProcessShellChannel: ShellChannel, @unchecked Sendable {
         await process.close()
         pumpTask?.cancel()
         if let pumpTask { await pumpTask.value }
+        outputContinuation.finish()
     }
 
     private func pump() async {
@@ -1567,7 +2066,7 @@ private final class TmuxProcessShellChannel: ShellChannel, @unchecked Sendable {
 
         var bufferedOutput: Data?
         var identity: (tty: String, pid: Int32)?
-        var shouldDegrade = false
+        var readinessFailure: TmuxProviderError?
         lock.lock()
         if didResolveReadiness {
             lock.unlock()
@@ -1577,11 +2076,9 @@ private final class TmuxProcessShellChannel: ShellChannel, @unchecked Sendable {
 
         preamble.append(data)
         if preamble.count > 4 * 1_024 {
-            didResolveReadiness = true
-            bufferedOutput = preamble
             preamble.removeAll(keepingCapacity: true)
             preambleScanOffset = 0
-            shouldDegrade = true
+            readinessFailure = .attachmentHandshakeFailed
         } else {
             while preambleScanOffset < preamble.count,
                   let newline = preamble[preambleScanOffset...]
@@ -1606,8 +2103,10 @@ private final class TmuxProcessShellChannel: ShellChannel, @unchecked Sendable {
 
         if let identity {
             gate.ready(identity)
-        } else if shouldDegrade {
-            gate.ready(nil)
+        } else if let readinessFailure {
+            gate.fail(readinessFailure)
+            outputContinuation.finish(throwing: readinessFailure)
+            return
         }
         if let bufferedOutput, !bufferedOutput.isEmpty {
             outputContinuation.yield(bufferedOutput)
@@ -1632,21 +2131,6 @@ private final class TmuxProcessShellChannel: ShellChannel, @unchecked Sendable {
         return (tty, pid)
     }
 
-    private func degradeReadiness() {
-        let bufferedOutput: Data? = lock.withLock {
-            guard !didResolveReadiness else { return nil }
-            didResolveReadiness = true
-            let buffered = preamble
-            preamble.removeAll(keepingCapacity: true)
-            preambleScanOffset = 0
-            return buffered
-        }
-        guard bufferedOutput != nil else { return }
-        gate.ready(nil)
-        if let bufferedOutput, !bufferedOutput.isEmpty {
-            outputContinuation.yield(bufferedOutput)
-        }
-    }
 }
 
 /// Consumes and validates the provider-owned Control Mode handshake before exposing the
@@ -1713,6 +2197,7 @@ private final class TmuxControlHandshakeChannel: RemoteProcessChannel, @unchecke
         await process.close()
         pumpTask?.cancel()
         if let pumpTask { await pumpTask.value }
+        outputContinuation.finish()
     }
 
     private func waitForReadiness() async throws -> (tty: String, pid: Int32) {

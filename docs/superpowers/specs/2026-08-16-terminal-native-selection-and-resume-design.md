@@ -6,7 +6,7 @@
 
 ## 1. Summary
 
-Conn will restore the platform-native mobile terminal interaction model: a long press on terminal content immediately opens a frozen, selectable text surface with native selection handles and the iOS edit menu. Copy and Select All are explicit user actions; entering selection never copies automatically. Remote pointer mode and OSC 52 clipboard-read authorization remain available as advanced tools but no longer float above terminal content.
+Conn will restore the platform-native mobile terminal interaction model: a long press selects directly in SwiftTerm's live renderer, preserving the terminal font, ANSI colors, attributes, viewport, and scrollback. The same renderer draws the selection highlight and handles and presents the iOS Copy/Select All menu; no `UITextView` or other text surface covers the terminal. Copy remains an explicit user action. The software keyboard and compact keybar stay usable throughout selection. Remote pointer mode remains an advanced tool and no controls float above terminal content. Remote OSC 52 clipboard reads remain denied without a session-level authorization entry point.
 
 Returning from the background will preserve healthy SSH, PTY, and tmux attachments. Conn will recover only sessions already known to be disconnected/reconnecting or sessions whose pooled SSH transport is affirmatively dead. A surviving tmux attachment therefore remains directly operable; a dead transport is rebuilt and reattached to the original persistent descriptor.
 
@@ -16,7 +16,7 @@ No database migration is required. All affected state is runtime connection, int
 
 ### 2.1 Selection and floating controls
 
-`TerminalHostingView` currently places pointer and clipboard controls in a `ZStack` over the terminal viewport. Touch pointer mode also prevents the selection long-press recognizer from beginning. `TerminalReviewTextView` becomes first responder after a programmatic selection but does not explicitly present the modern iOS edit menu, so the user does not reliably receive the native Copy/Select All interaction.
+`TerminalHostingView` disables SwiftTerm's built-in touch gestures so Conn can route ordinary scroll, tmux copy-mode scroll, TUI mouse reporting, and touch-pointer mode. The replacement long-press path incorrectly snapshots terminal text into `TerminalReviewTextView`. That overlay discards per-cell ANSI styling, replaces the terminal font/color rendering with a plain text rendering pass, and captures the viewport and keybar interaction until review is dismissed. The compact keybar also replaced the existing four-way direction pad with four separate arrow keycaps, consuming unnecessary horizontal space.
 
 ### 2.2 Foreground reconnect
 
@@ -28,14 +28,16 @@ This contradicts the existing multi-session design: backgrounding must not proac
 
 ### 3.1 Native text selection
 
-- Long press always takes precedence over touch pointer input and opens local text selection.
-- The selected word is visible with draggable native handles.
+- Long press always takes precedence over touch pointer input and begins word selection in the live SwiftTerm renderer.
+- Long-press drag extends the native terminal selection; subsequent drags can adjust its rendered endpoints.
+- Selection preserves the exact terminal canvas, font, foreground/background colors, ANSI attributes, and cursor context.
 - The iOS edit menu is presented immediately and includes Copy and Select All.
 - Copy writes only the current selection after the user chooses Copy.
-- Select All selects the complete bounded review snapshot.
-- Leaving review is an explicit Done action in the edit menu or an outside-tap dismissal supported by the review surface; there is no floating close button.
-- Live terminal output continues beneath the immutable review surface.
-- The same interaction is used for ordinary PTY and tmux review content; only the snapshot provider differs.
+- Select All selects the current terminal buffer using SwiftTerm's selection service.
+- Entering and leaving selection does not collapse, reopen, or resize the software keyboard or keybar.
+- A terminal tap or the next keyboard/keybar input clears the selection and resumes normal terminal operation; Copy also clears the selection after writing.
+- Live terminal output continues in the same renderer. No overlay can leave the terminal or keybar stuck.
+- Ordinary PTY, tmux, and full-screen TUIs use the same rendered-buffer selection path. Existing scroll routing remains responsible for bringing local or remote history into the viewport before selection.
 
 ### 3.2 Advanced tools
 
@@ -43,10 +45,18 @@ This contradicts the existing multi-session design: backgrounding must not proac
 - Hardware mouse reporting and touch wheel routing remain automatic from terminal protocol state.
 - Touch remote-pointer mode remains an explicit advanced action because drag gestures otherwise conflict with local scrolling and selection.
 - OSC 52 clipboard writes from the remote remain bounded and replay-protected as today.
-- OSC 52 clipboard reads remain denied by default and require one explicit, single-use, 30-second authorization.
-- Remote pointer and clipboard-read authorization move into one low-frequency tools menu in the existing terminal keybar.
+- OSC 52 clipboard reads remain denied. No terminal-session UI grants remote access to the local clipboard.
+- Remote pointer mode moves into the expanded keybar as a low-frequency action.
+- The compact keybar is one high-density row no taller than 52 points. It keeps a fixed compact four-way direction pad and horizontally scrolls the remaining high-frequency keys/actions.
+- Keycaps may be visually smaller, but every action retains at least a 44-point effective touch target. The expanded panel remains bounded to approximately 176 points.
 
-### 3.3 Foreground resume
+### 3.3 Close behavior
+
+- The top-right close action dismisses `TerminalScreen` immediately, then releases the local terminal resources asynchronously.
+- Closing a persistent tmux terminal detaches the local client; it does not kill the remote tmux session.
+- Resource cleanup latency must never leave an empty terminal screen visible.
+
+### 3.4 Foreground resume
 
 - Background intervals at or below the existing threshold remain a no-op.
 - A `.connected` tab remains untouched when the connection pool reports a live session or has no affirmative evidence that its transport died.
@@ -57,7 +67,7 @@ This contradicts the existing multi-session design: backgrounding must not proac
 - Persistent tabs reconnect from their `PersistentAttachmentDescriptor`; tmux is reattached rather than recreated.
 - Half-open sockets that still report alive are handled by the existing input/output failure path. Conn will not inject probe bytes into a user terminal.
 
-### 3.4 Reconnect presentation
+### 3.5 Reconnect presentation
 
 - Healthy sessions show no reconnect UI.
 - A real reconnect uses a compact notice centered over the terminal.
@@ -88,15 +98,17 @@ A pure value-level policy accepts tab status and pool health and returns whether
 
 The coordinator resolves each tab's current host configuration, evaluates the policy, prioritizes `store.currentTabID`, and invokes the existing `reconnect(_:)` path only for candidates. Missing hosts are left for the existing host-delete lifecycle rather than guessed.
 
-### 4.3 Native edit-menu host
+### 4.3 Host-driven SwiftTerm selection
 
-`TerminalReviewTextView` owns a `UIEditMenuInteraction` and presents it at the selected text range after becoming first responder. It keeps UIKit's built-in selection gestures and handles enabled. Its action surface explicitly supports Copy, Select All, and Done while remaining non-editable.
+`KeybarTerminalView` continues setting `hostManagesTouchGestures = true`; Conn still needs one provider-neutral router for local scrollback, alternate buffers, tmux copy mode, mouse-reporting TUIs, and touch-pointer mode. Conn does not re-enable SwiftTerm's whole built-in gesture set because that would create competing pans and long presses.
 
-The live `KeybarTerminalView` long-press recognizer no longer checks touch pointer mode. Beginning selection first deactivates pointer mode through the interaction coordinator, then captures review content.
+Instead, the host forwards only selection lifecycle events into SwiftTerm's existing `SelectionService`: long-press began calls word selection at a renderer cell; changed extends the renderer selection; ended presents SwiftTerm's standard edit menu. A dedicated host selection pan delegates to SwiftTerm's existing endpoint/pivot and auto-scroll algorithm while `hasActiveSelection` is true. Remote scroll and pointer recognizers yield during that state. Terminal taps and typed/keybar input call `clearSelection()` before continuing normally.
+
+This preserves one authoritative buffer-to-cell mapping and one rendering pass for long-press selection. `TerminalReviewTextView`, duplicate UTF-16 word selection, responder transfer, and review input locks are not part of the long-press path. The existing bounded history review remains only as the fallback for tmux history that is not present in SwiftTerm's local buffer; any terminal/keybar input dismisses that fallback and continues immediately, so it cannot lock the session.
 
 ### 4.4 Keybar tools
 
-`TerminalKeybar` receives typed state and callbacks for pointer availability/activation and one-time clipboard-read authorization. A single menu keycap renders those low-frequency actions. The terminal viewport remains visually unobstructed.
+`TerminalKeybar` uses a one-row compact layout with the existing `TerminalDirectionPad` fixed at the trailing edge. Esc, Ctrl, Tab, Ctrl-C, paste, expand, and keyboard-dismiss actions occupy smaller horizontally scrollable keycaps. The four directions therefore consume one control footprint rather than four. The expanded panel contains low-frequency actions, including touch pointer mode when available. No callback can authorize a remote clipboard read. The terminal viewport remains visually unobstructed.
 
 ## 5. Failure Handling
 
@@ -104,7 +116,8 @@ The live `KeybarTerminalView` long-press recognizer no longer checks touch point
 - Recovery of other candidates continues even if one host fails.
 - If a tab closes or its generation changes during recovery, existing generation/ownership checks discard stale results.
 - If pool health changes after candidate selection, `ConnectionManager.session(for:)` and backend open remain the final liveness authority.
-- Selection capture failure leaves the live terminal interactive and does not alter clipboard content.
+- If selection cannot begin, the live terminal remains interactive and clipboard content is unchanged.
+- Selection cancellation clears SwiftTerm's selection and immediately returns gesture/input routing to live mode.
 
 ## 6. Testing and Acceptance
 
@@ -115,10 +128,12 @@ Automated coverage must prove:
 3. a tab backed by an affirmatively dead pooled SSH session is recovered;
 4. the current tab is selected as the first recovery candidate and unrelated healthy tabs are skipped;
 5. the terminal canvas no longer contains floating pointer/actions controls;
-6. the keybar exposes the advanced tools menu;
+6. the compact keybar is a single row no taller than 52 points, contains one four-way `TerminalDirectionPad`, and exposes no remote clipboard-read authorization;
 7. long press is not blocked by pointer mode;
-8. the review surface remains non-editable, selectable, supports native Copy/Select All/Done, and does not auto-copy;
-9. the reconnect notice is centered and uses the compact rounded-rectangle style.
+8. long press and drag call SwiftTerm's native begin/extend/finish selection hooks and never present `TerminalReviewTextView`;
+9. selection remains in the ANSI renderer, remote scroll/pointer gestures yield, and terminal tap or input clears selection without blocking the keybar;
+10. terminal close dismisses before asynchronous cleanup, including tmux detach;
+11. the reconnect notice is centered and uses the compact rounded-rectangle style.
 
 Run package tests, app tests that do not require a simulator, and a generic iOS build. UI acceptance may use only the one simulator already booted by the user; if CoreSimulatorService or that device is unavailable, stop simulator work and report it without creating or switching devices.
 

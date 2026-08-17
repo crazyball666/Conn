@@ -54,6 +54,17 @@ public struct RemotePlatformContext: Sendable {
     }
 }
 
+/// 连接池中某个主机条目的只读存活状态。
+///
+/// `.absent` 与 `.connecting` 都不能证明已打开的长命通道已经死亡；调用方只有在
+/// `.disconnected` 时才应主动恢复现有终端。查询本身不创建、关闭或驱逐连接。
+public enum SSHPooledSessionHealth: Sendable, Equatable {
+    case absent
+    case connecting
+    case connected
+    case disconnected
+}
+
 /// 全局唯一的连接池管理器（技术方案 §4.1）。
 ///
 /// 每主机复用 1 条 SSH 连接；并发请求同一主机只握手一次。经 Environment 注入，
@@ -287,6 +298,17 @@ public actor ConnectionManager {
     /// 后者在主机本来有读数时意味着「重连中」，UI 据此显示转圈而非静默。
     public func hasPooledSession(for host: ConnKit.Host) -> Bool {
         entries[poolKey(for: host)] != nil
+    }
+
+    public func pooledSessionHealth(for host: ConnKit.Host) -> SSHPooledSessionHealth {
+        switch entries[poolKey(for: host)] {
+        case nil:
+            .absent
+        case .connecting:
+            .connecting
+        case let .connected(session):
+            session.isConnected ? .connected : .disconnected
+        }
     }
 
     /// 驱逐全部池化会话（不等待关闭）。

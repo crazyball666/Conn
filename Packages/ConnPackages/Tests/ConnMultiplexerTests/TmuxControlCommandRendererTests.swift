@@ -15,11 +15,11 @@ struct TmuxControlCommandRendererTests {
         let fixtures: [(TmuxOperation, String)] = [
             (
                 .createSession(name: try TmuxName("ops")),
-                "new-session -d -P -F '#{session_id}' -s 'ops'"
+                "new-session -d -P -F '#{session_id}\t#{session_name}' -s 'ops'"
             ),
             (
                 .createSession(name: nil),
-                "new-session -d -P -F '#{session_id}'"
+                "new-session -d -P -F '#{session_id}\t#{session_name}'"
             ),
             (
                 .renameSession(session, to: try TmuxName("prod api")),
@@ -30,6 +30,15 @@ struct TmuxControlCommandRendererTests {
             (
                 .selectWindow(window, for: client),
                 "switch-client -c '/dev/pts/9' -t '@2'"
+            ),
+            (
+                .selectRelativeWindow(
+                    in: session,
+                    direction: .next,
+                    steps: try TmuxWindowNavigationStepCount(3),
+                    for: client
+                ),
+                "switch-client -c '/dev/pts/9' -t '$1:+3'"
             ),
             (
                 .createWindow(in: session, name: try TmuxName("logs")),
@@ -57,6 +66,15 @@ struct TmuxControlCommandRendererTests {
                 "split-window -d -P -F '#{pane_id}' -v -t '%3'"
             ),
             (
+                .applyPaneLayout(window, layout: .evenHorizontal),
+                "select-layout -t '@2' 'even-horizontal'"
+            ),
+            (.cyclePaneLayout(window), "next-layout -t '@2'"),
+            (
+                .toggleSynchronizePanes(window),
+                "set-window-option -t '@2' synchronize-panes"
+            ),
+            (
                 .setPaneZoom(pane, zoomed: true),
                 "if-shell -F -t '%3' '#{==:#{window_zoomed_flag},0}' "
                     + "'resize-pane -Z -t %3' ''"
@@ -66,6 +84,12 @@ struct TmuxControlCommandRendererTests {
                 "if-shell -F -t '%3' '#{window_zoomed_flag}' "
                     + "'resize-pane -Z -t %3' ''"
             ),
+            (
+                .resizePane(pane, direction: .left, cells: try TmuxResizeCellCount(5)),
+                "resize-pane -L -t '%3' '5'"
+            ),
+            (.swapPane(pane, direction: .previous), "swap-pane -U -t '%3'"),
+            (.enterCopyMode(pane), "copy-mode -t '%3'"),
             (.killPane(pane), "kill-pane -t '%3'"),
             (
                 .scrollPaneMode(pane, direction: .up, rows: try TmuxScrollRowCount(12)),

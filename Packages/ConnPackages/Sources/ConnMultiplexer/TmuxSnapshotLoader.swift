@@ -121,12 +121,12 @@ package actor TmuxSnapshotLoader {
 
     private struct RuntimeKey: Sendable, Hashable {
         let connectionIdentity: SSHConnectionIdentity
-        let profileID: String
+        let configurationKey: String
         let instanceToken: TmuxServerInstanceToken
 
         init(_ scope: TmuxOperationScope) {
             connectionIdentity = scope.connectionIdentity
-            profileID = scope.profileID
+            configurationKey = scope.configurationKey
             instanceToken = scope.instanceToken
         }
     }

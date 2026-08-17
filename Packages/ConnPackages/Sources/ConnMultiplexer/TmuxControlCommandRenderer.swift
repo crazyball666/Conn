@@ -38,7 +38,10 @@ package struct TmuxControlCommandRenderer: Sendable {
         let command: String
         switch operation {
         case let .createSession(name):
-            var arguments = ["new-session", "-d", "-P", "-F", encode("#{session_id}")]
+            var arguments = [
+                "new-session", "-d", "-P", "-F",
+                encode("#{session_id}\t#{session_name}"),
+            ]
             if let name {
                 arguments += ["-s", encode(name.value)]
             }
@@ -58,6 +61,15 @@ package struct TmuxControlCommandRenderer: Sendable {
                 "switch-client",
                 "-c", encode(client.value),
                 "-t", encode(windowID.rawValue)
+            )
+
+        case let .selectRelativeWindow(sessionID, direction, steps, client):
+            let suffix = direction == .next ? "+" : "-"
+            let offset = suffix + (steps.value == 1 ? "" : String(steps.value))
+            command = join(
+                "switch-client",
+                "-c", encode(client.value),
+                "-t", encode(sessionID.rawValue + ":" + offset)
             )
 
         case let .createWindow(sessionID, name):
@@ -90,6 +102,19 @@ package struct TmuxControlCommandRenderer: Sendable {
                 direction, "-t", encode(paneID.rawValue)
             )
 
+        case let .applyPaneLayout(windowID, layout):
+            command = join(
+                "select-layout", "-t", encode(windowID.rawValue), encode(layout.rawValue)
+            )
+
+        case let .cyclePaneLayout(windowID):
+            command = join("next-layout", "-t", encode(windowID.rawValue))
+
+        case let .toggleSynchronizePanes(windowID):
+            command = join(
+                "set-window-option", "-t", encode(windowID.rawValue), "synchronize-panes"
+            )
+
         case let .setPaneZoom(paneID, zoomed):
             let condition = zoomed
                 ? "#{==:#{window_zoomed_flag},0}"
@@ -99,6 +124,26 @@ package struct TmuxControlCommandRenderer: Sendable {
                 "if-shell", "-F", "-t", encode(paneID.rawValue),
                 encode(condition), encode(toggle), encode("")
             )
+
+        case let .resizePane(paneID, direction, cells):
+            let flag = switch direction {
+            case .left: "-L"
+            case .right: "-R"
+            case .up: "-U"
+            case .down: "-D"
+            }
+            command = join(
+                "resize-pane", flag, "-t", encode(paneID.rawValue), encode(String(cells.value))
+            )
+
+        case let .swapPane(paneID, direction):
+            command = join(
+                "swap-pane", direction == .previous ? "-U" : "-D",
+                "-t", encode(paneID.rawValue)
+            )
+
+        case let .enterCopyMode(paneID):
+            command = join("copy-mode", "-t", encode(paneID.rawValue))
 
         case let .killPane(paneID):
             command = join("kill-pane", "-t", encode(paneID.rawValue))

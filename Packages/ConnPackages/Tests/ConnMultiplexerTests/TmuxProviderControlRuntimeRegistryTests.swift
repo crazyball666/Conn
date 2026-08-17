@@ -6,6 +6,40 @@ import Testing
 
 @Suite("tmux provider control runtime registry")
 struct TmuxProviderControlRuntimeRegistryTests {
+    @Test("new Hub registers against its validated initial snapshot without a redundant refresh")
+    func newHubRegistrationDoesNotReloadValidatedSnapshot() async throws {
+        let fixture = try RegistryFixture()
+        let registry = TmuxProviderControlRuntimeRegistry()
+        let channel = RegistryTrackingProcessChannel()
+        let runtime = try fixture.runtime(channel: channel)
+        let preflight = try #require(await registry.acquireRuntime(for: fixture.scope) {
+            runtime
+        })
+        let adapter = RegistryHubAdapter(fixture: fixture)
+        let validatedSnapshot = try fixture.snapshot(identities: [fixture.identity])
+
+        let attachment = try #require(await registry.acquireAttachment(
+            preflight,
+            attachmentID: fixture.attachmentID,
+            attachmentGeneration: 3,
+            requestedSessionID: fixture.session,
+            makeHub: { _ in
+                let hub = try? TmuxControlHub(
+                    scope: fixture.scope,
+                    initialSnapshot: validatedSnapshot,
+                    adapter: adapter
+                )
+                return hub.map { TmuxProviderControlSetup(hub: $0, identity: fixture.identity) }
+            },
+            resolveIdentity: { _ in fixture.identity }
+        ))
+
+        #expect(await adapter.snapshotLoadCount == 0)
+        _ = try await registry.resolveInteraction(attachment)
+        await registry.release(attachment)
+        #expect(channel.closeCount == 1)
+    }
+
     @Test("interactive attachment keeps control alive and dispatches only against its verified pane")
     func interactiveAttachmentOwnsObservationAndModeScroll() async throws {
         let fixture = try RegistryFixture()
@@ -16,6 +50,7 @@ struct TmuxProviderControlRuntimeRegistryTests {
             firstRuntime
         })
         let firstAdapter = RegistryHubAdapter(fixture: fixture)
+        let validatedInitialSnapshot = try fixture.snapshot(identities: [fixture.identity])
         let attachmentLease = try #require(await registry.acquireAttachment(
             firstPreflight,
             attachmentID: fixture.attachmentID,
@@ -24,7 +59,7 @@ struct TmuxProviderControlRuntimeRegistryTests {
             makeHub: { _ in
                 let hub = try? TmuxControlHub(
                     scope: fixture.scope,
-                    initialSnapshot: fixture.externalSnapshot,
+                    initialSnapshot: validatedInitialSnapshot,
                     adapter: firstAdapter
                 )
                 return hub.map { TmuxProviderControlSetup(hub: $0, identity: fixture.identity) }
@@ -43,7 +78,7 @@ struct TmuxProviderControlRuntimeRegistryTests {
         let state = try await registry.resolveInteraction(attachmentLease)
         let target = state.target
         #expect(state.modeCapability == .scrollable)
-        #expect(state.revision > fixture.externalSnapshot.revision)
+        #expect(state.revision == validatedInitialSnapshot.revision)
 
         let request = try PersistentTerminalModeScrollRequest(
             target: target,
@@ -58,6 +93,89 @@ struct TmuxProviderControlRuntimeRegistryTests {
                 fixture.pane,
                 direction: .up,
                 rows: try TmuxScrollRowCount(7)
+            ),
+        ])
+
+        try await registry.performQuickAction(
+            attachmentLease,
+            request: .init(
+                actionID: TmuxTerminalQuickAction.splitHorizontal.rawValue,
+                target: target,
+                attachmentGeneration: 3,
+                expectedStateRevision: state.revision
+            )
+        )
+        try await registry.performQuickAction(
+            attachmentLease,
+            request: .init(
+                actionID: TmuxTerminalQuickAction.tiledLayout.rawValue,
+                target: target,
+                attachmentGeneration: 3,
+                expectedStateRevision: state.revision
+            )
+        )
+        try await registry.performQuickAction(
+            attachmentLease,
+            request: .init(
+                actionID: TmuxTerminalQuickAction.newWindow.rawValue,
+                target: target,
+                attachmentGeneration: 3,
+                expectedStateRevision: state.revision
+            )
+        )
+        await #expect(throws: PersistentTerminalInteractionError.invalidQuickActionRepeatCount(0)) {
+            try await registry.performQuickAction(
+                attachmentLease,
+                request: .init(
+                    actionID: TmuxTerminalQuickAction.nextWindow.rawValue,
+                    target: target,
+                    attachmentGeneration: 3,
+                    expectedStateRevision: state.revision,
+                    repeatCount: 0
+                )
+            )
+        }
+        await #expect(throws: PersistentTerminalInteractionError.invalidQuickActionRepeatCount(2)) {
+            try await registry.performQuickAction(
+                attachmentLease,
+                request: .init(
+                    actionID: TmuxTerminalQuickAction.splitHorizontal.rawValue,
+                    target: target,
+                    attachmentGeneration: 3,
+                    expectedStateRevision: state.revision,
+                    repeatCount: 2
+                )
+            )
+        }
+        try await registry.performQuickAction(
+            attachmentLease,
+            request: .init(
+                actionID: TmuxTerminalQuickAction.nextWindow.rawValue,
+                target: target,
+                attachmentGeneration: 3,
+                expectedStateRevision: state.revision,
+                repeatCount: 4
+            )
+        )
+        let clientTarget = try TmuxClientTarget(fixture.dataClient.targetName)
+        let createdPane = try #require(TmuxPaneID(rawValue: "%2"))
+        let createdWindow = try #require(TmuxWindowID(rawValue: "@2"))
+        #expect(await firstAdapter.operations == [
+            .scrollPaneMode(
+                fixture.pane,
+                direction: .up,
+                rows: try TmuxScrollRowCount(7)
+            ),
+            .splitPane(fixture.pane, orientation: .horizontal),
+            .selectPane(createdPane, for: clientTarget),
+            .applyPaneLayout(fixture.window, layout: .tiled),
+            .createWindow(in: fixture.session, name: nil),
+            .selectWindow(createdWindow, for: clientTarget),
+            .selectRelativeWindow(
+                in: fixture.session,
+                direction: .next,
+                steps: try TmuxWindowNavigationStepCount(4),
+                for: clientTarget
             ),
         ])
 
@@ -85,7 +203,7 @@ struct TmuxProviderControlRuntimeRegistryTests {
         await #expect(throws: TmuxInteractionError.targetMismatch) {
             try await registry.scrollInteraction(attachmentLease, request: wrongPane)
         }
-        #expect(await firstAdapter.operations.count == 1)
+        #expect(await firstAdapter.operations.count == 7)
 
         await registry.release(attachmentLease)
         #expect(firstChannel.closeCount == 1)
@@ -122,7 +240,7 @@ private struct RegistryFixture: Sendable {
                 address: "server.example",
                 username: "root"
             )),
-            profileID: "profile-1",
+            configurationKey: "profile-1",
             instanceToken: token,
             generation: 7
         )
@@ -250,6 +368,7 @@ private struct RegistryFixture: Sendable {
 private actor RegistryHubAdapter: TmuxControlHubAdapter {
     let fixture: RegistryFixture
     private(set) var operations: [TmuxOperation] = []
+    private(set) var snapshotLoadCount = 0
 
     init(fixture: RegistryFixture) {
         self.fixture = fixture
@@ -261,7 +380,16 @@ private actor RegistryHubAdapter: TmuxControlHubAdapter {
         identities: Set<TmuxControlInteractiveIdentity>
     ) async throws -> TmuxControlHubOperationReceipt {
         operations.append(request.operation)
-        return TmuxControlHubOperationReceipt(request: request, output: [])
+        let output: [Data]
+        switch request.operation {
+        case .createWindow:
+            output = [Data("@2\n".utf8)]
+        case .splitPane:
+            output = [Data("%2\n".utf8)]
+        default:
+            output = []
+        }
+        return TmuxControlHubOperationReceipt(request: request, output: output)
     }
 
     func loadSnapshot(
@@ -269,7 +397,8 @@ private actor RegistryHubAdapter: TmuxControlHubAdapter {
         reason: TmuxControlHubSnapshotReason,
         identities: Set<TmuxControlInteractiveIdentity>
     ) async throws -> TmuxServerSnapshot {
-        try fixture.snapshot(identities: identities)
+        snapshotLoadCount += 1
+        return try fixture.snapshot(identities: identities)
     }
 
     func demandChanged(_ demand: TmuxControlHubDemand) async {}

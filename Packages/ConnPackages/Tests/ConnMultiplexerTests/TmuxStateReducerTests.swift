@@ -56,7 +56,10 @@ struct TmuxStateReducerTests {
     @Test("self-contained rename, selection and metadata events update normalized state")
     func appliesSelfContainedEvents() throws {
         let fixture = try ReducerFixture()
-        var reducer = TmuxStateReducer(snapshot: try fixture.snapshot, generation: 1)
+        var reducer = TmuxStateReducer(
+            snapshot: try fixture.snapshot(clients: fixture.clients),
+            generation: 1
+        )
 
         #expect(try reducer.apply(fixture.envelope(
             event: .sessionRenamed(fixture.session, name: "renamed session")
@@ -99,6 +102,8 @@ struct TmuxStateReducerTests {
         let snapshot = try #require(reducer.snapshot)
         #expect(snapshot.sessions[fixture.session]?.name == "renamed session")
         #expect(snapshot.sessions[fixture.session]?.currentWindowID == fixture.window2)
+        #expect(snapshot.clients.values.first?.currentWindowID == fixture.window2)
+        #expect(snapshot.clients.values.first?.activePaneID == nil)
         #expect(snapshot.windows[fixture.window1]?.name == "renamed window")
         #expect(snapshot.windows[fixture.window1]?.activePaneID == fixture.pane2)
         #expect(snapshot.windows[fixture.window1]?.isZoomed == true)

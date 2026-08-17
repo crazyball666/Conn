@@ -85,6 +85,57 @@ package enum TmuxDataClientFocusPolicy {
     }
 }
 
+/// `AsyncStream` iterators compete for elements, so exposing one shared stream would let
+/// only one of several attachments observe a shared Control Mode failure. This small
+/// broadcaster gives every attachment its own buffered subscription and replays the terminal
+/// reason to a subscriber that arrives concurrently with shutdown.
+private final class TmuxControlTerminationBroadcaster: @unchecked Sendable {
+    private let lock = NSLock()
+    private var continuations: [
+        UUID: AsyncStream<TmuxControlClientTermination>.Continuation
+    ] = [:]
+    private var terminalReason: TmuxControlClientTermination?
+
+    func stream() -> AsyncStream<TmuxControlClientTermination> {
+        let id = UUID()
+        let (stream, continuation) = AsyncStream.makeStream(
+            of: TmuxControlClientTermination.self,
+            bufferingPolicy: .bufferingNewest(1)
+        )
+        continuation.onTermination = { [weak self] _ in
+            self?.remove(id)
+        }
+        let observedReason = lock.withLock { () -> TmuxControlClientTermination? in
+            if let terminalReason = self.terminalReason { return terminalReason }
+            continuations[id] = continuation
+            return nil
+        }
+        if let observedReason {
+            continuation.yield(observedReason)
+            continuation.finish()
+        }
+        return stream
+    }
+
+    func finish(_ reason: TmuxControlClientTermination) {
+        let active = lock.withLock { () -> [AsyncStream<TmuxControlClientTermination>.Continuation] in
+            guard terminalReason == nil else { return [] }
+            terminalReason = reason
+            let active = Array(continuations.values)
+            continuations.removeAll()
+            return active
+        }
+        for continuation in active {
+            continuation.yield(reason)
+            continuation.finish()
+        }
+    }
+
+    private func remove(_ id: UUID) {
+        lock.withLock { continuations[id] = nil }
+    }
+}
+
 /// Runtime owner for one direct `tmux -CC` process generation.
 ///
 /// The process channel is supplied by the provider so this type stays independent
@@ -93,12 +144,12 @@ package enum TmuxDataClientFocusPolicy {
 package actor TmuxControlRuntime {
     private let client: TmuxControlClient
     private let eventContinuation: AsyncStream<TmuxControlClientEvent>.Continuation
+    private nonisolated let terminationBroadcaster: TmuxControlTerminationBroadcaster
 
     package let scope: TmuxOperationScope
     package let dialect: TmuxProtocolDialect
     package let processIdentity: TmuxControlProcessIdentity
     package let events: AsyncStream<TmuxControlClientEvent>
-
     private let snapshotLoader: TmuxSnapshotLoader
     private var controlClientID: TmuxClientID?
     private var negotiatedCapabilities = TmuxNegotiatedCapabilities(
@@ -124,8 +175,10 @@ package actor TmuxControlRuntime {
         let (events, eventContinuation) = AsyncStream<TmuxControlClientEvent>.makeStream(
             bufferingPolicy: .bufferingNewest(256)
         )
+        let terminationBroadcaster = TmuxControlTerminationBroadcaster()
         self.events = events
         self.eventContinuation = eventContinuation
+        self.terminationBroadcaster = terminationBroadcaster
         let client = try TmuxControlClient(
             channel: channel,
             generation: scope.generation,
@@ -134,7 +187,8 @@ package actor TmuxControlRuntime {
             eventHandler: { event in
                 eventContinuation.yield(event)
                 await eventHandler(event)
-                if case .closed = event {
+                if case let .closed(_, reason) = event {
+                    terminationBroadcaster.finish(reason)
                     eventContinuation.finish()
                 }
             }
@@ -149,6 +203,12 @@ package actor TmuxControlRuntime {
                 )
             }
         )
+    }
+
+    /// Every caller receives an independent stream. This is required because one shared
+    /// runtime can be a mandatory component of multiple data attachments.
+    package nonisolated func terminationEvents() -> AsyncStream<TmuxControlClientTermination> {
+        terminationBroadcaster.stream()
     }
 
     package var isReady: Bool {

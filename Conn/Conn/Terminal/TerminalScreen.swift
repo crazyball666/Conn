@@ -45,7 +45,7 @@ struct TerminalScreen: View {
                 .navigationTitle(hostTitle)
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbarBackground(.hidden, for: .navigationBar)
-                .toolbarColorScheme(.dark, for: .navigationBar)
+                .toolbarColorScheme(terminalColorScheme, for: .navigationBar)
                 .toolbar {
                     ToolbarItem(placement: .principal) {
                         VStack(spacing: 0) {
@@ -64,7 +64,11 @@ struct TerminalScreen: View {
                     terminalToolbar
                 }
         }
-        .preferredColorScheme(.dark)
+        .preferredColorScheme(terminalColorScheme)
+        // TerminalScreen is presented as a full-screen modal. The App-root toast
+        // overlay sits below that presentation, so terminal interaction notices need
+        // a presentation-local overlay backed by the same environment toast center.
+        .connGlobalToast()
         .onAppear { verifyExistingTab() }
         .sheet(isPresented: $isCommandPickerPresented) {
             if let snippetRepository, let snippetGroupRepository {
@@ -94,7 +98,12 @@ struct TerminalScreen: View {
                     isSessionListPresented = false
                 },
                 onRename: { id, alias in
-                    terminalSessions.store.updateAlias(id, to: alias)
+                    Task {
+                        if case let .failure(failure) = await terminalSessions.rename(id, to: alias),
+                           let message = terminalSessions.consumeFailure(failure) {
+                            toastCenter.show(message, style: .error)
+                        }
+                    }
                 },
                 onClose: { id in
                     Task {
@@ -133,6 +142,13 @@ struct TerminalScreen: View {
         terminalSessions.store.tab(id: tabID)
     }
 
+    private var terminalColorScheme: ColorScheme {
+        switch settings.terminalConfiguration.theme.appearance {
+        case .dark: .dark
+        case .light: .light
+        }
+    }
+
     private var hostTitle: String {
         let name = host.name.trimmingCharacters(in: .whitespacesAndNewlines)
         return name.isEmpty ? host.address : name
@@ -160,15 +176,12 @@ struct TerminalScreen: View {
                     onReconnect: { Task { await reconnect(tab.id) } }
                 )
                 .ignoresSafeArea(.container, edges: .bottom)
-                .overlay(alignment: .top) {
+                .overlay {
                     if case let .disconnected(message) = tab.status {
                         reconnectNotice(message)
+                            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                     } else if case .reconnecting = tab.status {
-                        ProgressView(L("正在重新连接…"))
-                            .tint(.connAccent)
-                            .padding(ConnSpacing.sm)
-                            .background(.black.opacity(0.72), in: Capsule())
-                            .padding(.top, ConnSpacing.xs)
+                        TerminalReconnectingNotice()
                     }
                 }
             } else {
@@ -191,13 +204,7 @@ struct TerminalScreen: View {
             .accessibilityLabel(L("返回"))
         }
         ToolbarItemGroup(placement: .topBarTrailing) {
-            Button {
-                let closingID = tabID
-                Task {
-                    await terminalSessions.close(closingID)
-                    dismiss()
-                }
-            } label: {
+            Button(action: closeTerminalAndDismiss) {
                 Image(systemName: "xmark.circle")
             }
             .accessibilityLabel(L("退出终端"))
@@ -206,6 +213,14 @@ struct TerminalScreen: View {
                 Image(systemName: "rectangle.stack")
             }
             .accessibilityLabel(L("会话列表"))
+        }
+    }
+
+    private func closeTerminalAndDismiss() {
+        let closingID = tabID
+        dismiss()
+        Task {
+            await terminalSessions.close(closingID)
         }
     }
 
@@ -243,7 +258,7 @@ struct TerminalScreen: View {
         defer { isReconnecting = false }
         if case let .failure(failure) = await terminalSessions.reconnect(id),
            let message = terminalSessions.consumeFailure(failure) {
-            toastCenter.show(message)
+            toastCenter.show(message, style: .error)
         }
     }
 
@@ -252,7 +267,7 @@ struct TerminalScreen: View {
             terminalSessions.store.select(tabID)
             return
         }
-        toastCenter.show(L("终端会话不存在"))
+        toastCenter.show(L("终端会话不存在"), style: .error)
     }
 
     private func presentDeferredNewTerminal() {
@@ -264,6 +279,7 @@ struct TerminalScreen: View {
     private func switchToPendingCompletion() {
         guard let completion = pendingCompletion else { return }
         pendingCompletion = nil
+        toastCenter.show(completion.notice, style: .success)
         terminalSessions.store.select(completion.tabID)
         tabID = completion.tabID
     }
@@ -278,5 +294,38 @@ struct TerminalScreen: View {
         isCommandPickerPresented = false
         guard let tab = activeTab else { return }
         Task { try? await tab.session.send(Array(command.utf8)) }
+    }
+}
+
+private struct TerminalReconnectingNotice: View {
+    @State private var isVisible = false
+
+    var body: some View {
+        Group {
+            if isVisible {
+                HStack(spacing: ConnSpacing.xs) {
+                    ProgressView()
+                        .tint(.connAccent)
+                    Text(L("正在重新连接…"))
+                        .font(.connFootnote)
+                        .foregroundStyle(.white)
+                }
+                .padding(.horizontal, ConnSpacing.sm)
+                .padding(.vertical, ConnSpacing.xs)
+                .background(
+                    .black.opacity(0.82),
+                    in: RoundedRectangle(cornerRadius: ConnRadius.key, style: .continuous)
+                )
+                .allowsHitTesting(false)
+            }
+        }
+        .task {
+            do {
+                try await Task.sleep(for: .milliseconds(350))
+                isVisible = true
+            } catch {
+                // 状态在延迟内结束时 SwiftUI 会取消 task；此时无需闪现提示。
+            }
+        }
     }
 }

@@ -6,7 +6,8 @@ public enum HostStoreError: Error, Equatable {
     case unknownAuthKind(rawValue: String)
 }
 
-/// `host` 表的读写入口。`ConnKit.HostRepository` 的 GRDB 实现。
+/// `host` 表的读写入口。保存主机只处理主机及分组成员关系；终端 provider
+/// 的内置配置由运行时注册表提供，不属于主机持久化事务。
 public struct HostStore: HostRepository {
     private let database: AppDatabase
 
@@ -14,13 +15,6 @@ public struct HostStore: HostRepository {
         self.database = database
     }
 
-    /// 插入或整体覆盖一台主机。
-    ///
-    /// 会自动刷新 `updatedAt` 并置 `syncDirty`，供 v1.1 的同步引擎消费。
-    ///
-    /// **先写实体记录再写成员行**——外键要求两端实体已存在。
-    /// 库中不存在的 group id 会被静默丢弃（分组被删是良性竞态），
-    /// 否则外键违例会打掉整个保存事务。
     public func save(_ host: ConnKit.Host) throws {
         var updated = host
         updated.updatedAt = Timestamp.now()
@@ -47,7 +41,6 @@ public struct HostStore: HostRepository {
         }
     }
 
-    /// 全部主机，按 `sortOrder` 再按名称排序。
     public func allHosts() throws -> [ConnKit.Host] {
         try database.writer.read { db in
             try HostRecord
@@ -57,7 +50,6 @@ public struct HostStore: HostRepository {
         }
     }
 
-    /// 按 id 取一台主机。
     public func host(id: String) throws -> ConnKit.Host? {
         try database.writer.read { db in
             guard let record = try HostRecord.fetchOne(db, key: id) else { return nil }
@@ -65,7 +57,6 @@ public struct HostStore: HostRepository {
         }
     }
 
-    /// 某主机所属分组的 id，按分组自身的排序权重返回。
     private func groupIDs(for hostID: String, in db: Database) throws -> [String] {
         try String.fetchAll(
             db,
@@ -80,7 +71,6 @@ public struct HostStore: HostRepository {
         )
     }
 
-    /// 删除（真 DELETE，不可恢复）。
     public func delete(id: String) throws {
         try database.writer.write { db in
             try db.execute(sql: "DELETE FROM host WHERE uuid = ?", arguments: [id])

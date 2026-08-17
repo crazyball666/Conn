@@ -15,7 +15,10 @@ final class ShellChannelLifecycleGate: @unchecked Sendable {
     private struct State {
         var readiness: Readiness = .pending
         var readinessContinuation: CheckedContinuation<Void, Error>?
-        var stopContinuation: CheckedContinuation<Void, Never>?
+        var stopContinuation: (
+            id: UUID,
+            continuation: CheckedContinuation<Void, Never>
+        )?
         var stopRequested = false
         var terminated = false
     }
@@ -69,7 +72,7 @@ final class ShellChannelLifecycleGate: @unchecked Sendable {
             state.terminated = true
             state.stopRequested = true
             let readiness = state.readinessContinuation
-            let stop = state.stopContinuation
+            let stop = state.stopContinuation?.continuation
             state.readinessContinuation = nil
             state.stopContinuation = nil
             return (readiness, stop)
@@ -79,18 +82,29 @@ final class ShellChannelLifecycleGate: @unchecked Sendable {
     }
 
     func waitForStop() async {
-        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
-            let shouldResume = state.withLockedValue { state -> Bool in
-                if state.stopRequested {
-                    return true
-                } else {
-                    state.stopContinuation = continuation
-                    return false
+        let waiterID = UUID()
+        await withTaskCancellationHandler {
+            await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+                let shouldResume = state.withLockedValue { state -> Bool in
+                    if state.stopRequested || Task.isCancelled {
+                        return true
+                    } else {
+                        state.stopContinuation = (waiterID, continuation)
+                        return false
+                    }
+                }
+                if shouldResume {
+                    continuation.resume()
                 }
             }
-            if shouldResume {
-                continuation.resume()
+        } onCancel: {
+            let continuation = state.withLockedValue {
+                state -> CheckedContinuation<Void, Never>? in
+                guard state.stopContinuation?.id == waiterID else { return nil }
+                defer { state.stopContinuation = nil }
+                return state.stopContinuation?.continuation
             }
+            continuation?.resume()
         }
     }
 
@@ -101,7 +115,7 @@ final class ShellChannelLifecycleGate: @unchecked Sendable {
             state.terminated = true
             state.stopRequested = true
             defer { state.stopContinuation = nil }
-            return state.stopContinuation
+            return state.stopContinuation?.continuation
         }
         continuation?.resume()
     }

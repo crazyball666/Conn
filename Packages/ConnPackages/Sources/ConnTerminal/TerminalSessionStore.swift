@@ -61,7 +61,7 @@ public struct TerminalTab: Identifiable, Sendable {
     public let transcript: TerminalTranscript
     public let source: TerminalSessionSource
     public let reconnectDescriptor: TerminalReconnectDescriptor
-    public let automaticAlias: String
+    public var automaticAlias: String
     public var alias: String?
     public var status: TerminalTabStatus
     public var generation: UInt64
@@ -180,6 +180,17 @@ public final class TerminalSessionStore {
         guard let index = tabs.firstIndex(where: { $0.id == tabID }) else { return }
         let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
         tabs[index].alias = trimmed.isEmpty ? nil : trimmed
+    }
+
+    /// Commits provider-owned workspace metadata after a successful remote rename.
+    /// The workspace name becomes the new automatic title; a stale local override
+    /// must not hide it.
+    public func updatePersistentWorkspaceName(_ tabID: String, to value: String) {
+        guard let index = tabs.firstIndex(where: { $0.id == tabID }) else { return }
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        tabs[index].automaticAlias = trimmed
+        tabs[index].alias = nil
     }
 
     public func updateStatus(_ tabID: String, to status: TerminalTabStatus) {

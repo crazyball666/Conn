@@ -3,7 +3,8 @@ import ConnTerminal
 import ConnUI
 import SwiftUI
 
-/// 当前主机的会话切换器。会话仅在内存中保留，别名也随 App 进程结束而清空。
+/// 当前主机的会话切换器。会话与本地展示元数据仅在内存中保留；
+/// 持久终端的非空重命名由 provider 同步到远端 workspace。
 struct TerminalSessionListSheet: View {
     let host: Host
     let store: TerminalSessionStore
@@ -80,9 +81,16 @@ struct TerminalSessionListSheet: View {
                     renameTarget = nil
                 }
             } message: {
-                Text(L("留空会恢复自动名称。"))
+                Text(renameMessage)
             }
         }
+    }
+
+    private var renameMessage: String {
+        if let renameTarget, case .persistent = renameTarget.source {
+            return L("修改持久终端别名会同时重命名远端会话；留空会恢复当前会话名称。")
+        }
+        return L("留空会恢复自动名称。")
     }
 
     private func sessionRow(_ tab: TerminalTab) -> some View {

@@ -19,12 +19,30 @@ struct TmuxOperationSemanticsTests {
             (.detachClient(client), .idempotentMutation),
             (.killSession(session), .destructive),
             (.selectWindow(window, for: client), .idempotentMutation),
+            (
+                .selectRelativeWindow(
+                    in: session,
+                    direction: .previous,
+                    steps: try TmuxWindowNavigationStepCount(2),
+                    for: client
+                ),
+                .nonIdempotentMutation
+            ),
             (.createWindow(in: session, name: nil), .nonIdempotentMutation),
             (.renameWindow(window, to: name), .idempotentMutation),
             (.killWindow(window), .destructive),
             (.selectPane(pane, for: client), .idempotentMutation),
             (.splitPane(pane, orientation: .horizontal), .nonIdempotentMutation),
+            (.applyPaneLayout(window, layout: .tiled), .idempotentMutation),
+            (.cyclePaneLayout(window), .nonIdempotentMutation),
+            (.toggleSynchronizePanes(window), .nonIdempotentMutation),
             (.setPaneZoom(pane, zoomed: true), .idempotentMutation),
+            (
+                .resizePane(pane, direction: .left, cells: try TmuxResizeCellCount(5)),
+                .nonIdempotentMutation
+            ),
+            (.swapPane(pane, direction: .next), .nonIdempotentMutation),
+            (.enterCopyMode(pane), .idempotentMutation),
             (.killPane(pane), .destructive),
             (
                 .scrollPaneMode(pane, direction: .up, rows: try TmuxScrollRowCount(12)),
@@ -32,7 +50,7 @@ struct TmuxOperationSemanticsTests {
             ),
         ]
 
-        #expect(fixtures.count == 13)
+        #expect(fixtures.count == 20)
         for (operation, expected) in fixtures {
             #expect(operation.semantics == expected)
             #expect(operation.isDestructive == (expected == .destructive))
@@ -59,7 +77,7 @@ struct TmuxOperationSemanticsTests {
         )
         let scope = try TmuxOperationScope(
             connectionIdentity: identity,
-            profileID: "profile-1",
+            configurationKey: "profile-1",
             instanceToken: token,
             generation: 7
         )
@@ -67,7 +85,7 @@ struct TmuxOperationSemanticsTests {
         let request = TmuxOperationRequest(scope: scope, operation: operation)
 
         #expect(request.scope.connectionIdentity == identity)
-        #expect(request.scope.profileID == "profile-1")
+        #expect(request.scope.configurationKey == "profile-1")
         #expect(request.scope.instanceToken == token)
         #expect(request.scope.generation == 7)
         #expect(request.operation == operation)
@@ -87,11 +105,11 @@ struct TmuxOperationSemanticsTests {
             serverStartTime: 200
         )
 
-        for profileID in ["", "profile\n2", String(repeating: "p", count: 257)] {
-            #expect(throws: TmuxOperationError.invalidProfileID) {
+        for configurationKey in ["", "profile\n2", String(repeating: "p", count: 257)] {
+            #expect(throws: TmuxOperationError.invalidConfigurationKey) {
                 try TmuxOperationScope(
                     connectionIdentity: identity,
-                    profileID: profileID,
+                    configurationKey: configurationKey,
                     instanceToken: token,
                     generation: 1
                 )

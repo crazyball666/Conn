@@ -5,6 +5,46 @@ import Testing
 
 @Suite("tmux control client")
 struct TmuxControlClientTests {
+    @Test("Control Mode readiness 超时不会等待未结束的输出流")
+    func readinessTimeoutDoesNotHangOnOpenTransport() async throws {
+        let fixture = try ControlClientFixture()
+        let channel = ScriptedControlProcessChannel()
+        let client = try TmuxControlClient(
+            channel: channel,
+            generation: 7,
+            dialect: fixture.dialect
+        )
+        await client.start()
+        let startedAt = ContinuousClock.now
+
+        await #expect(throws: TmuxControlClientError.startupTimeout) {
+            try await client.waitUntilReady(timeout: .milliseconds(20))
+        }
+        #expect(ContinuousClock.now - startedAt < .seconds(1))
+        await client.close()
+    }
+
+    @Test("取消 Control Mode readiness 等待会立即释放 continuation")
+    func cancellingReadinessWaitDoesNotHang() async throws {
+        let fixture = try ControlClientFixture()
+        let channel = ScriptedControlProcessChannel()
+        let client = try TmuxControlClient(
+            channel: channel,
+            generation: 7,
+            dialect: fixture.dialect
+        )
+        await client.start()
+        let wait = Task {
+            try await client.waitUntilReady(timeout: .seconds(30))
+        }
+        wait.cancel()
+
+        await #expect(throws: CancellationError.self) {
+            try await wait.value
+        }
+        await client.close()
+    }
+
     @Test("typed read-only request shares serial correlation and bounded response collection")
     func executesTypedReadOnlyRequest() async throws {
         let fixture = try ControlClientFixture()
@@ -237,7 +277,7 @@ private struct ControlClientFixture {
         commandGuardShape: .threeFields,
         snapshotCodec: .quoted
     )
-    let startMarker = Data([0x1B, 0x50, 0x31, 0x30, 0x30, 0x30, 0x70])
+    let startMarker = Data("\u{1B}P1000p%begin 1 1 0\n%end 1 1 0\n".utf8)
     let exitProtocol = Data("%exit\n\u{1B}\\".utf8)
 
     var renderedRename: Data {

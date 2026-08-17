@@ -6,6 +6,12 @@
     import SwiftUI
     import UIKit
 
+    private struct TerminalInteractionNotice: Equatable {
+        let id = UUID()
+        let text: String
+        let style: ConnToastStyle
+    }
+
     /// SwiftUI 终端容器。
     ///
     /// 终端视口与快捷键栏是同一个 `VStack` 里的相邻区域；系统键盘位于两者下方。
@@ -56,6 +62,7 @@
         @StateObject private var controller: TerminalInputController
         @State private var isKeybarExpanded: Bool
         @Environment(\.scenePhase) private var scenePhase
+        @Environment(\.connToastCenter) private var toastCenter
 
         private let configuration: TerminalConfiguration
         private let onChooseCommand: () -> Void
@@ -86,33 +93,15 @@
 
         var body: some View {
             VStack(spacing: 0) {
-                ZStack(alignment: .topTrailing) {
-                    TerminalViewportRepresentable(
-                        configuration: configuration,
-                        controller: controller
-                    )
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                TerminalViewportRepresentable(
+                    configuration: configuration,
+                    controller: controller
+                )
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
 
-                    if !controller.isReviewActive {
-                        terminalActions
-                            .padding(.top, ConnSpacing.xs)
-                            .padding(.trailing, ConnSpacing.sm)
-                    }
-
-                    if let notice = controller.interactionNotice {
-                        Text(notice)
-                            .font(.caption2)
-                            .foregroundStyle(.white)
-                            .padding(.horizontal, ConnSpacing.sm)
-                            .padding(.vertical, ConnSpacing.xs)
-                            .background(.black.opacity(0.74), in: Capsule())
-                            .padding(.top, ConnSpacing.xs)
-                            .frame(maxWidth: .infinity, alignment: .top)
-                            .allowsHitTesting(false)
-                    }
-                }
-
-                if configuration.showsKeybar, controller.isTerminalFocused {
+                if configuration.showsKeybar,
+                   controller.isTerminalFocused || controller.isReviewActive
+                {
                     TerminalKeybar(
                         ctrlActive: controller.ctrlActive,
                         isExpanded: isKeybarExpanded,
@@ -120,6 +109,12 @@
                         onPaste: { controller.handlePaste($0) },
                         onChooseCommand: onChooseCommand,
                         onReconnect: onReconnect,
+                        pointerAvailable: controller.pointerAvailable,
+                        pointerActive: controller.pointerActive,
+                        onTogglePointer: controller.togglePointer,
+                        providerQuickActionGroup: controller.providerQuickActionGroup,
+                        performingProviderQuickActionID: controller.performingProviderQuickActionID,
+                        onProviderQuickAction: controller.performQuickAction,
                         onDismissKeyboard: controller.dismissKeyboard,
                         onExpansionChange: { isKeybarExpanded = $0 }
                     )
@@ -133,43 +128,19 @@
                 }
             }
             .onChange(of: controller.isTerminalFocused) { _, isFocused in
-                if !isFocused {
+                if !isFocused, !controller.isReviewActive {
                     isKeybarExpanded = false
                 }
+            }
+            .onChange(of: controller.interactionNotice) { _, notice in
+                guard let notice else { return }
+                toastCenter.show(notice.text, style: notice.style)
             }
             .onAppear { controller.setApplicationActive(scenePhase == .active) }
             .onChange(of: scenePhase) { _, phase in
                 controller.setApplicationActive(phase == .active)
             }
             .onDisappear { controller.detach() }
-        }
-
-        private var terminalActions: some View {
-            HStack(spacing: ConnSpacing.xs) {
-                if controller.pointerAvailable {
-                    Button(action: controller.togglePointer) {
-                        Image(systemName: controller.pointerActive ? "cursorarrow.rays" : "cursorarrow")
-                            .frame(width: 34, height: 34)
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .tint(controller.pointerActive ? .connAccent : .black.opacity(0.62))
-                    .accessibilityLabel(L("远端指针模式"))
-                    .accessibilityIdentifier("terminal.pointerMode")
-                }
-
-                Menu {
-                    Button(action: controller.allowClipboardReadOnce) {
-                        Label(L("允许读取剪贴板一次（30 秒）"), systemImage: "doc.on.clipboard")
-                    }
-                } label: {
-                    Image(systemName: "ellipsis.circle")
-                        .frame(width: 34, height: 34)
-                }
-                .buttonStyle(.borderedProminent)
-                .tint(.black.opacity(0.62))
-                .accessibilityLabel(L("终端操作"))
-                .accessibilityIdentifier("terminal.actions")
-            }
         }
     }
 
@@ -271,6 +242,9 @@
         private var historyCaptureTask: Task<Void, Never>?
         private var stateResolutionTask: Task<Void, Never>?
         private var providerScrollTask: Task<Void, Never>?
+        private var quickActionDiscoveryTask: Task<Void, Never>?
+        private var quickActionExecutionTask: Task<Void, Never>?
+        private var providerNavigationTask: Task<Void, Never>?
         private var noticeTask: Task<Void, Never>?
         private var attachmentID: UUID?
         private var protocolState: TerminalProtocolState?
@@ -278,6 +252,7 @@
         private var scrollAccumulator = TerminalScrollAccumulator(rowHeight: 18)
         private var scrollHit = TerminalInteractionHit(column: 0, row: 0, pixelX: 0, pixelY: 0)
         private var providerPendingRows = 0
+        private var providerNavigationQueue = TerminalProviderNavigationQueue()
         private var clipboardPolicy = TerminalClipboardPolicy()
         private var focusState = TerminalFocusState()
         private var isTypedPaste = false
@@ -288,7 +263,9 @@
         @Published private(set) var pointerAvailable = false
         @Published private(set) var pointerActive = false
         @Published private(set) var isReviewActive = false
-        @Published private(set) var interactionNotice: String?
+        @Published private(set) var interactionNotice: TerminalInteractionNotice?
+        @Published private(set) var providerQuickActionGroup: PersistentTerminalQuickActionGroup?
+        @Published private(set) var performingProviderQuickActionID: String?
 
         init(
             session: TerminalSession,
@@ -309,6 +286,14 @@
                 Task { @MainActor in self?.acceptHostProtocolState(state) }
             }
             terminalView.installInteractionHost(
+                shouldBeginProviderNavigation: { [weak self, weak terminalView] gesture in
+                    guard let self, let terminalView else { return false }
+                    return self.shouldBeginProviderNavigation(gesture, in: terminalView)
+                },
+                onProviderNavigation: { [weak self, weak terminalView] gesture in
+                    guard let self, let terminalView else { return }
+                    self.handleProviderNavigation(gesture, in: terminalView)
+                },
                 shouldBeginRemoteScroll: { [weak self, weak terminalView] gesture in
                     guard let self, let terminalView else { return false }
                     return self.shouldBeginRemoteScroll(gesture, in: terminalView)
@@ -320,6 +305,9 @@
                 onSelectionLongPress: { [weak self, weak terminalView] gesture in
                     guard let self, let terminalView else { return }
                     self.handleSelectionLongPress(gesture, in: terminalView)
+                },
+                onSelectionPan: { [weak terminalView] gesture in
+                    terminalView?.handleHostSelectionPan(gesture)
                 },
                 shouldBeginDirectPointer: { [weak self] in self?.pointerActive == true },
                 shouldBeginIndirectPointer: { [weak self] in
@@ -350,6 +338,18 @@
                         self?.acceptPersistentState(state)
                     }
                 }
+                discoverProviderQuickActions(using: persistentInteraction)
+                // State streams carry provider updates but are not required to replay an
+                // initial value. Resolve once when attaching so the view starts from the
+                // exact provider-owned state. Required-component failures are handled by
+                // attachment lifecycle/rebuild rather than by this presentation adapter.
+                stateResolutionTask = Task { @MainActor [weak self] in
+                    defer { self?.stateResolutionTask = nil }
+                    guard let state = try? await persistentInteraction.resolveState(),
+                          !Task.isCancelled
+                    else { return }
+                    self?.acceptPersistentState(state)
+                }
             }
         }
 
@@ -359,23 +359,31 @@
             historyCaptureTask?.cancel()
             stateResolutionTask?.cancel()
             providerScrollTask?.cancel()
+            quickActionDiscoveryTask?.cancel()
+            quickActionExecutionTask?.cancel()
+            providerNavigationTask?.cancel()
             noticeTask?.cancel()
             renderTask = nil
             persistentStateTask = nil
             historyCaptureTask = nil
             stateResolutionTask = nil
             providerScrollTask = nil
+            quickActionDiscoveryTask = nil
+            quickActionExecutionTask = nil
+            providerNavigationTask = nil
             noticeTask = nil
             providerPendingRows = 0
-            clipboardPolicy.clearReadAuthority()
+            providerNavigationQueue.removeAll()
             interactionController.invalidate()
             terminalView?.onHostProtocolStateChanged = nil
-            terminalView?.dismissReview()
+            terminalView?.dismissReview(restoringTerminalFocus: false)
             terminalView?.removeInteractionHost()
             terminalView = nil
             pointerActive = false
             pointerAvailable = false
             isReviewActive = false
+            providerQuickActionGroup = nil
+            performingProviderQuickActionID = nil
             guard let attachmentID else { return }
             self.attachmentID = nil
             Task { [transcript] in
@@ -429,14 +437,17 @@
         func setTerminalFocused(_ isFocused: Bool) {
             guard isTerminalFocused != isFocused else { return }
             isTerminalFocused = isFocused
-            if let report = focusState.setFirstResponder(isFocused) {
+            // Local selection temporarily owns UIKit first responder while the terminal
+            // screen remains logically focused. Do not emit an artificial CSI focus-out
+            // event to vim/tmux/Claude Code merely because the user selected text.
+            let hasTerminalScreenFocus = isFocused || isReviewActive
+            if let report = focusState.setFirstResponder(hasTerminalScreenFocus) {
                 terminalView?.setHostFocus(report)
             }
         }
 
         func setApplicationActive(_ isActive: Bool) {
             if !isActive {
-                clipboardPolicy.clearReadAuthority()
                 interactionController.deactivatePointer()
                 syncInteractionPresentation()
             }
@@ -450,6 +461,10 @@
         /// user input outside a terminal feed.
         func send(source: TerminalView, data: ArraySlice<UInt8>) {
             guard replayOutboundGate.allowsTerminalDelegateOutput else { return }
+            if replayOutboundGate.currentFeedProvenance == .outsideFeed {
+                dismissHistoryReviewIfNeeded()
+                source.clearSelection()
+            }
             let bytes = [UInt8](data)
             if replayOutboundGate.currentFeedProvenance == .outsideFeed,
                !isTypedPaste,
@@ -477,6 +492,8 @@
         }
 
         func handleKey(_ key: TerminalKey) {
+            dismissHistoryReviewIfNeeded()
+            terminalView?.clearSelection()
             if key.isSticky {
                 ctrlActive.toggle()
                 return
@@ -491,7 +508,9 @@
         }
 
         func handlePaste(_ text: String, source: TerminalPasteSource = .keybar) {
+            dismissHistoryReviewIfNeeded()
             guard let terminalView else { return }
+            terminalView.clearSelection()
             switch typedInputPlanner.paste(text, source: source) {
             case let .paste(value):
                 isTypedPaste = true
@@ -513,11 +532,6 @@
             syncInteractionPresentation()
         }
 
-        func allowClipboardReadOnce() {
-            clipboardPolicy.grantReadOnce(for: clipboardIdentity)
-            showNotice(L("已允许读取一次，30 秒内有效"))
-        }
-
         private func acceptHostProtocolState(_ state: TerminalHostProtocolState) {
             protocolState = TerminalProtocolState(state)
             updateInteractionContext()
@@ -525,7 +539,98 @@
 
         private func acceptPersistentState(_ state: PersistentTerminalInteractionState) {
             persistentState = state
+            refreshProviderQuickActions(for: state)
             updateInteractionContext()
+            drainProviderNavigation()
+        }
+
+        private func refreshProviderQuickActions(
+            for state: PersistentTerminalInteractionState
+        ) {
+            quickActionDiscoveryTask?.cancel()
+            guard let persistentInteraction else {
+                providerQuickActionGroup = nil
+                return
+            }
+            quickActionDiscoveryTask = Task { @MainActor [weak self] in
+                let group = await persistentInteraction.quickActionGroup
+                guard !Task.isCancelled,
+                      let self,
+                      self.persistentState?.target == state.target,
+                      self.persistentState?.attachmentGeneration == state.attachmentGeneration,
+                      self.persistentState?.revision == state.revision
+                else { return }
+                self.providerQuickActionGroup = group
+                self.quickActionDiscoveryTask = nil
+            }
+        }
+
+        private func discoverProviderQuickActions(
+            using persistentInteraction: any PersistentTerminalInteractionFacet
+        ) {
+            quickActionDiscoveryTask?.cancel()
+            quickActionDiscoveryTask = Task { @MainActor [weak self] in
+                let group = await persistentInteraction.quickActionGroup
+                guard !Task.isCancelled, let self else { return }
+                self.providerQuickActionGroup = group
+                self.quickActionDiscoveryTask = nil
+            }
+        }
+
+        func performQuickAction(_ actionID: String, argument: String?) {
+            executeQuickAction(actionID, argument: argument, successNoticeKey: nil)
+        }
+
+        private func executeQuickAction(
+            _ actionID: String,
+            argument: String?,
+            successNoticeKey: String?
+        ) {
+            guard quickActionExecutionTask == nil,
+                  providerNavigationTask == nil,
+                  providerNavigationQueue.isEmpty,
+                  providerQuickActionGroup?.actions.contains(where: { $0.id == actionID }) == true,
+                  let persistentInteraction,
+                  let state = persistentState
+            else { return }
+            let request = PersistentTerminalQuickActionRequest(
+                actionID: actionID,
+                target: state.target,
+                attachmentGeneration: state.attachmentGeneration,
+                expectedStateRevision: state.revision,
+                argument: argument,
+                repeatCount: 1
+            )
+            performingProviderQuickActionID = actionID
+            quickActionExecutionTask = Task { @MainActor [weak self] in
+                do {
+                    try await persistentInteraction.performQuickAction(request)
+                    if let successNoticeKey {
+                        self?.showNotice(L(successNoticeKey), style: .success)
+                    }
+                } catch {
+                    guard !Task.isCancelled else { return }
+                    self?.showNotice(L("持久终端操作失败，请重试"), style: .error)
+                }
+                self?.performingProviderQuickActionID = nil
+                self?.quickActionExecutionTask = nil
+                self?.refreshPersistentStateAfterQuickAction(using: persistentInteraction)
+            }
+        }
+
+        /// Command acknowledgement is the user-visible completion boundary. Topology
+        /// reconciliation must not delay the terminal redraw, haptic or App-level Toast.
+        private func refreshPersistentStateAfterQuickAction(
+            using persistentInteraction: any PersistentTerminalInteractionFacet
+        ) {
+            guard stateResolutionTask == nil else { return }
+            stateResolutionTask = Task { @MainActor [weak self] in
+                defer { self?.stateResolutionTask = nil }
+                guard let state = try? await persistentInteraction.resolveState(),
+                      !Task.isCancelled
+                else { return }
+                self?.acceptPersistentState(state)
+            }
         }
 
         private func updateInteractionContext() {
@@ -560,6 +665,109 @@
             pointerActive = interactionController.mode == .pointer
             isReviewActive = interactionController.review != nil
             if !isReviewActive { terminalView?.dismissReview() }
+        }
+
+        private func shouldBeginProviderNavigation(
+            _ gesture: UIPanGestureRecognizer,
+            in terminalView: KeybarTerminalView
+        ) -> Bool {
+            guard quickActionExecutionTask == nil,
+                  interactionController.mode == .live,
+                  persistentState != nil,
+                  let group = providerQuickActionGroup
+            else { return false }
+            let velocity = gesture.velocity(in: terminalView)
+            guard TerminalHorizontalSwipeClassifier().canBegin(
+                velocityX: Double(velocity.x),
+                velocityY: Double(velocity.y)
+            ) else { return false }
+            let direction: PersistentTerminalHorizontalSwipeDirection =
+                velocity.x < 0 ? .left : .right
+            guard let binding = group.swipeAction(for: direction) else { return false }
+            return group.actions.contains { $0.id == binding.actionID }
+        }
+
+        private func handleProviderNavigation(
+            _ gesture: UIPanGestureRecognizer,
+            in terminalView: KeybarTerminalView
+        ) {
+            guard gesture.state == .ended,
+                  let group = providerQuickActionGroup
+            else { return }
+            let translation = gesture.translation(in: terminalView)
+            let velocity = gesture.velocity(in: terminalView)
+            guard let direction = TerminalHorizontalSwipeClassifier().completedDirection(
+                translationX: Double(translation.x),
+                translationY: Double(translation.y),
+                velocityX: Double(velocity.x),
+                velocityY: Double(velocity.y)
+            ) else { return }
+            let providerDirection: PersistentTerminalHorizontalSwipeDirection = switch direction {
+            case .left: .left
+            case .right: .right
+            }
+            guard let binding = group.swipeAction(for: providerDirection) else { return }
+
+            ConnHapticFeedback.performHighImpact()
+            enqueueProviderNavigation(binding)
+        }
+
+        private func enqueueProviderNavigation(
+            _ binding: PersistentTerminalSwipeActionDescriptor
+        ) {
+            providerNavigationQueue.enqueue(binding)
+            drainProviderNavigation()
+        }
+
+        /// Relative provider navigation is its own serial lane. It remains open while a
+        /// command is in flight, so additional swipes are compacted instead of rejected.
+        /// State reconciliation is driven by provider notifications and never occupies the
+        /// Control Mode command channel between two queued gestures.
+        private func drainProviderNavigation() {
+            guard providerNavigationTask == nil,
+                  quickActionExecutionTask == nil,
+                  let persistentInteraction,
+                  let state = persistentState,
+                  let batch = providerNavigationQueue.dequeue()
+            else { return }
+            let request = PersistentTerminalQuickActionRequest(
+                actionID: batch.binding.actionID,
+                target: state.target,
+                attachmentGeneration: state.attachmentGeneration,
+                expectedStateRevision: state.revision,
+                argument: nil,
+                repeatCount: batch.repeatCount
+            )
+            performingProviderQuickActionID = batch.binding.actionID
+            providerNavigationTask = Task { @MainActor [weak self] in
+                do {
+                    try await persistentInteraction.performQuickAction(request)
+                    self?.showNotice(
+                        L(batch.binding.successNoticeKey),
+                        style: .success
+                    )
+                } catch {
+                    guard !Task.isCancelled else { return }
+                    self?.providerNavigationQueue.removeAll()
+                    self?.showNotice(
+                        L("持久终端操作失败，请重试"),
+                        style: .error
+                    )
+                }
+                self?.performingProviderQuickActionID = nil
+                self?.providerNavigationTask = nil
+                self?.drainProviderNavigation()
+            }
+        }
+
+        private func dismissHistoryReviewIfNeeded() {
+            // A provider-history request may still be in flight when the user resumes
+            // interacting with the live terminal. Cancel it even before a review exists,
+            // otherwise its late completion can cover the renderer after input has resumed.
+            historyCaptureTask?.cancel()
+            guard isReviewActive else { return }
+            interactionController.dismissReview()
+            syncInteractionPresentation()
         }
 
         private func shouldBeginRemoteScroll(
@@ -624,7 +832,7 @@
             case .providerKeyDrivenMode, .providerAlternateKeys, .plainAlternateKeys:
                 terminalView.sendHostCursorKey(direction, count: abs(rows))
             case .providerHistory:
-                capturePersistentHistory(selectionHit: nil)
+                capturePersistentHistory()
             case .resolvePersistentState:
                 resolvePersistentState(replayingRows: rows)
             case .selection, .pointer, .providerUnsupportedBoundary,
@@ -646,7 +854,7 @@
                     let action = self.interactionController.beginScroll(modeOverride: .live)
                     self.executeScroll(action, rows: rows, in: terminalView)
                 } catch {
-                    self?.showNotice(L("远端终端状态暂不可用，可重试"))
+                    self?.showNotice(L("远端终端状态暂不可用，可重试"), style: .warning)
                 }
             }
         }
@@ -679,7 +887,7 @@
                     try await persistentInteraction.scrollProviderMode(request)
                 } catch {
                     self?.providerPendingRows = 0
-                    self?.showNotice(L("该远端模式暂时无法滚动"))
+                    self?.showNotice(L("该远端模式暂时无法滚动"), style: .warning)
                 }
                 self?.providerScrollTask = nil
                 self?.drainProviderScroll()
@@ -690,47 +898,26 @@
             _ gesture: UILongPressGestureRecognizer,
             in terminalView: KeybarTerminalView
         ) {
-            guard gesture.state == .began else { return }
-            let hit = terminalView.interactionHit(at: gesture.location(in: terminalView))
-            acceptHostProtocolState(terminalView.hostProtocolState)
-            if persistentInteraction != nil, protocolState?.isAlternateBuffer != true {
-                if persistentState == nil {
-                    resolveThenCaptureSelection(hit)
-                } else {
-                    capturePersistentHistory(selectionHit: hit)
-                }
-                return
-            }
-            let scope: TerminalSnapshotScope = protocolState?.isAlternateBuffer == true
-                ? .visible : .normalHistory
-            let source = terminalView.makeHostSnapshot(scope)
-            let snapshot = TerminalReviewSnapshot(
-                swiftTerm: source,
-                terminalGeneration: terminalGeneration,
-                attachmentGeneration: persistentState?.attachmentGeneration ?? terminalGeneration
-            )
-            let line = scope == .visible
-                ? hit.row
-                : source.visibleLineRange.lowerBound + hit.row
-            presentReview(snapshot, selectionOffset: snapshot.utf16Offset(line: line, column: hit.column))
-        }
-
-        private func resolveThenCaptureSelection(_ hit: TerminalInteractionHit) {
-            guard stateResolutionTask == nil, let persistentInteraction else { return }
-            stateResolutionTask = Task { @MainActor [weak self] in
-                defer { self?.stateResolutionTask = nil }
-                do {
-                    let state = try await persistentInteraction.resolveState()
-                    guard let self else { return }
-                    self.acceptPersistentState(state)
-                    self.capturePersistentHistory(selectionHit: hit)
-                } catch {
-                    self?.showNotice(L("远端历史暂不可用，可重试"))
-                }
+            let point = gesture.location(in: terminalView)
+            switch gesture.state {
+            case .began:
+                dismissHistoryReviewIfNeeded()
+                interactionController.deactivatePointer()
+                syncInteractionPresentation()
+                terminalView.clearSelection()
+                terminalView.beginHostSelection(at: point, granularity: .word)
+            case .changed:
+                terminalView.extendHostSelection(to: point)
+            case .ended:
+                terminalView.finishHostSelection(showMenu: true)
+            case .cancelled, .failed:
+                terminalView.clearSelection()
+            default:
+                break
             }
         }
 
-        private func capturePersistentHistory(selectionHit: TerminalInteractionHit?) {
+        private func capturePersistentHistory() {
             guard historyCaptureTask == nil,
                   let persistentInteraction,
                   let state = persistentState,
@@ -747,7 +934,8 @@
                 defer { self?.historyCaptureTask = nil }
                 do {
                     let captured = try await persistentInteraction.captureHistory(request)
-                    guard let self,
+                    guard !Task.isCancelled,
+                          let self,
                           self.terminalGeneration == generation,
                           self.persistentState?.target == captured.target,
                           self.persistentState?.attachmentGeneration == captured.attachmentGeneration
@@ -756,15 +944,10 @@
                         persistent: captured,
                         terminalGeneration: generation
                     )
-                    let offset = selectionHit.flatMap {
-                        snapshot.utf16Offset(
-                            line: snapshot.visibleLineRange.lowerBound + $0.row,
-                            column: $0.column
-                        )
-                    }
-                    self.presentReview(snapshot, selectionOffset: offset)
+                    self.presentReview(snapshot, selectionOffset: nil)
                 } catch {
-                    self?.showNotice(L("远端历史暂不可用，可重试"))
+                    guard !Task.isCancelled else { return }
+                    self?.showNotice(L("远端历史暂不可用，可重试"), style: .warning)
                 }
             }
         }
@@ -782,6 +965,9 @@
             } else {
                 interactionController.presentReview(snapshot)
             }
+            // Publish review ownership before UIKit transfers first responder. This keeps
+            // the SwiftUI keybar mounted throughout the responder handoff.
+            syncInteractionPresentation()
             terminalView?.presentReview(
                 snapshot,
                 selectingUTF16Offset: selectionOffset,
@@ -790,7 +976,6 @@
                     self?.syncInteractionPresentation()
                 }
             )
-            syncInteractionPresentation()
         }
 
         private func handlePointerPan(
@@ -815,12 +1000,17 @@
             in terminalView: KeybarTerminalView
         ) {
             guard gesture.state == .ended else { return }
-            if pointerActive {
+            if terminalView.hasActiveSelection {
+                terminalView.clearSelection()
+                _ = terminalView.becomeFirstResponder()
+                return
+            }
+            _ = terminalView.becomeFirstResponder()
+            acceptHostProtocolState(terminalView.hostProtocolState)
+            if interactionController.directTapAction() == .remotePrimaryClick {
                 let hit = terminalView.interactionHit(at: gesture.location(in: terminalView))
                 terminalView.sendHostPointer(.press(button: 0), at: hit, modifiers: [])
                 terminalView.sendHostPointer(.release(button: 0), at: hit, modifiers: [])
-            } else {
-                _ = terminalView.becomeFirstResponder()
             }
         }
 
@@ -854,9 +1044,12 @@
             )
         }
 
-        private func showNotice(_ text: String) {
+        private func showNotice(_ text: String, style: ConnToastStyle) {
             noticeTask?.cancel()
-            interactionNotice = text
+            // A new value identity matters even when two consecutive swipes produce
+            // the same localized message; String-only state suppresses the second
+            // SwiftUI onChange event.
+            interactionNotice = TerminalInteractionNotice(text: text, style: style)
             noticeTask = Task { @MainActor [weak self] in
                 try? await Task.sleep(for: .seconds(2))
                 guard !Task.isCancelled else { return }
@@ -889,20 +1082,15 @@
             } else {
                 UIPasteboard.general.setData(content, forPasteboardType: "public.data")
             }
-            showNotice(L("已复制"))
+            showNotice(L("已复制"), style: .success)
         }
         func clipboardRead(source: TerminalView) -> Data? {
-            guard replayOutboundGate.allowsHostSideEffects,
-                  clipboardPolicy.consumeReadAuthority(for: clipboardIdentity)
-            else { return nil }
-            if let text = UIPasteboard.general.string {
-                return boundedClipboardData(Data(text.utf8))
-            }
-            return UIPasteboard.general.data(forPasteboardType: "public.data")
-                .flatMap(boundedClipboardData)
-        }
-        private func boundedClipboardData(_ data: Data) -> Data? {
-            data.count <= clipboardPolicy.maximumWriteBytes ? data : nil
+            _ = source
+            guard clipboardPolicy.acceptsRead(
+                provenance: replayOutboundGate.currentFeedProvenance,
+                identity: clipboardIdentity
+            ) else { return nil }
+            return nil
         }
         func rangeChanged(source: TerminalView, startY: Int, endY: Int) {}
     }
@@ -958,15 +1146,20 @@
         private var horizontalContentPadding: CGFloat = 0
         fileprivate var configuredCursorShape: TerminalCursorShape?
         fileprivate var configuredCursorBlinking: Bool?
+        private var providerNavigationPan: UIPanGestureRecognizer?
         private var remoteScrollPan: UIPanGestureRecognizer?
         private var selectionLongPress: UILongPressGestureRecognizer?
+        private var selectionPan: UIPanGestureRecognizer?
         private var directPointerPan: UIPanGestureRecognizer?
         private var directTap: UITapGestureRecognizer?
         private var indirectPointerPan: UIPanGestureRecognizer?
         private var indirectPointerTap: UITapGestureRecognizer?
+        private var shouldBeginProviderNavigation: ((UIPanGestureRecognizer) -> Bool)?
+        private var onProviderNavigation: ((UIPanGestureRecognizer) -> Void)?
         private var shouldBeginRemoteScroll: ((UIPanGestureRecognizer) -> Bool)?
         private var onRemoteScroll: ((UIPanGestureRecognizer) -> Void)?
         private var onSelectionLongPress: ((UILongPressGestureRecognizer) -> Void)?
+        private var onSelectionPan: ((UIPanGestureRecognizer) -> Void)?
         private var shouldBeginDirectPointer: (() -> Bool)?
         private var shouldBeginIndirectPointer: (() -> Bool)?
         private var onDirectPointer: ((UIPanGestureRecognizer) -> Void)?
@@ -974,8 +1167,10 @@
         private var onIndirectPointer: ((UIGestureRecognizer) -> Void)?
         private var reviewSurface: TerminalReviewTextView?
 
+        var installedProviderNavigationGesture: UIPanGestureRecognizer? { providerNavigationPan }
         var installedRemoteScrollGesture: UIPanGestureRecognizer? { remoteScrollPan }
         var installedSelectionGesture: UILongPressGestureRecognizer? { selectionLongPress }
+        var installedSelectionDragGesture: UIPanGestureRecognizer? { selectionPan }
         var installedDirectPointerGesture: UIPanGestureRecognizer? { directPointerPan }
         var installedIndirectPointerGesture: UIPanGestureRecognizer? { indirectPointerPan }
 
@@ -994,18 +1189,24 @@
         }
 
         func installInteractionHost(
+            shouldBeginProviderNavigation: @escaping (UIPanGestureRecognizer) -> Bool,
+            onProviderNavigation: @escaping (UIPanGestureRecognizer) -> Void,
             shouldBeginRemoteScroll: @escaping (UIPanGestureRecognizer) -> Bool,
             onRemoteScroll: @escaping (UIPanGestureRecognizer) -> Void,
             onSelectionLongPress: @escaping (UILongPressGestureRecognizer) -> Void,
+            onSelectionPan: @escaping (UIPanGestureRecognizer) -> Void,
             shouldBeginDirectPointer: @escaping () -> Bool,
             shouldBeginIndirectPointer: @escaping () -> Bool,
             onDirectPointer: @escaping (UIPanGestureRecognizer) -> Void,
             onDirectTap: @escaping (UITapGestureRecognizer) -> Void,
             onIndirectPointer: @escaping (UIGestureRecognizer) -> Void
         ) {
+            self.shouldBeginProviderNavigation = shouldBeginProviderNavigation
+            self.onProviderNavigation = onProviderNavigation
             self.shouldBeginRemoteScroll = shouldBeginRemoteScroll
             self.onRemoteScroll = onRemoteScroll
             self.onSelectionLongPress = onSelectionLongPress
+            self.onSelectionPan = onSelectionPan
             self.shouldBeginDirectPointer = shouldBeginDirectPointer
             self.shouldBeginIndirectPointer = shouldBeginIndirectPointer
             self.onDirectPointer = onDirectPointer
@@ -1023,6 +1224,28 @@
             addGestureRecognizer(longPress)
             selectionLongPress = longPress
 
+            let selectionDrag = UIPanGestureRecognizer(
+                target: self,
+                action: #selector(handleSelectionPan(_:))
+            )
+            selectionDrag.maximumNumberOfTouches = 1
+            selectionDrag.allowedTouchTypes = [NSNumber(value: UITouch.TouchType.direct.rawValue)]
+            selectionDrag.cancelsTouchesInView = true
+            addGestureRecognizer(selectionDrag)
+            selectionPan = selectionDrag
+
+            let navigationPan = UIPanGestureRecognizer(
+                target: self,
+                action: #selector(handleProviderNavigation(_:))
+            )
+            navigationPan.maximumNumberOfTouches = 1
+            navigationPan.allowedTouchTypes = [NSNumber(value: UITouch.TouchType.direct.rawValue)]
+            navigationPan.cancelsTouchesInView = true
+            navigationPan.require(toFail: longPress)
+            navigationPan.require(toFail: selectionDrag)
+            addGestureRecognizer(navigationPan)
+            providerNavigationPan = navigationPan
+
             let remotePan = UIPanGestureRecognizer(
                 target: self,
                 action: #selector(handleRemoteScroll(_:))
@@ -1031,6 +1254,8 @@
             remotePan.allowedTouchTypes = [NSNumber(value: UITouch.TouchType.direct.rawValue)]
             remotePan.cancelsTouchesInView = true
             remotePan.require(toFail: longPress)
+            remotePan.require(toFail: selectionDrag)
+            remotePan.require(toFail: navigationPan)
             addGestureRecognizer(remotePan)
             remoteScrollPan = remotePan
 
@@ -1042,6 +1267,7 @@
             pointerPan.allowedTouchTypes = [NSNumber(value: UITouch.TouchType.direct.rawValue)]
             pointerPan.cancelsTouchesInView = true
             pointerPan.require(toFail: longPress)
+            pointerPan.require(toFail: selectionDrag)
             addGestureRecognizer(pointerPan)
             directPointerPan = pointerPan
 
@@ -1075,26 +1301,34 @@
             addGestureRecognizer(hardwareTap)
             indirectPointerTap = hardwareTap
 
-            // The remote recognizer gets first refusal. It fails immediately for ordinary
-            // normal-buffer history, at which point UIScrollView's native pan proceeds.
+            // Provider navigation gets first refusal for deliberate horizontal movement;
+            // remote mode scrolling then handles vertical movement. Both fail immediately
+            // outside their route so UIScrollView's native history pan can proceed.
+            panGestureRecognizer.require(toFail: navigationPan)
             panGestureRecognizer.require(toFail: remotePan)
             panGestureRecognizer.require(toFail: longPress)
+            panGestureRecognizer.require(toFail: selectionDrag)
         }
 
         func removeInteractionHost() {
-            [remoteScrollPan, selectionLongPress, directPointerPan, directTap,
-             indirectPointerPan, indirectPointerTap]
+            [providerNavigationPan, remoteScrollPan, selectionLongPress, selectionPan,
+             directPointerPan, directTap, indirectPointerPan, indirectPointerTap]
                 .compactMap { $0 }
                 .forEach(removeGestureRecognizer)
+            providerNavigationPan = nil
             remoteScrollPan = nil
             selectionLongPress = nil
+            selectionPan = nil
             directPointerPan = nil
             directTap = nil
             indirectPointerPan = nil
             indirectPointerTap = nil
+            shouldBeginProviderNavigation = nil
+            onProviderNavigation = nil
             shouldBeginRemoteScroll = nil
             onRemoteScroll = nil
             onSelectionLongPress = nil
+            onSelectionPan = nil
             shouldBeginDirectPointer = nil
             shouldBeginIndirectPointer = nil
             onDirectPointer = nil
@@ -1112,6 +1346,8 @@
             review.frame = bounds
             review.autoresizingMask = [.flexibleWidth, .flexibleHeight]
             review.onClose = onClose
+            if review.superview == nil { addSubview(review) }
+            bringSubviewToFront(review)
             review.display(
                 snapshot,
                 selectingUTF16Offset: selectingUTF16Offset,
@@ -1119,11 +1355,12 @@
                 foregroundColor: nativeForegroundColor,
                 backgroundColor: nativeBackgroundColor
             )
-            if review.superview == nil { addSubview(review) }
-            bringSubviewToFront(review)
         }
 
-        func dismissReview() {
+        func dismissReview(restoringTerminalFocus: Bool = true) {
+            if restoringTerminalFocus, reviewSurface?.textView.isFirstResponder == true {
+                _ = becomeFirstResponder()
+            }
             reviewSurface?.removeFromSuperview()
             reviewSurface = nil
         }
@@ -1131,18 +1368,28 @@
         override public func gestureRecognizerShouldBegin(
             _ gestureRecognizer: UIGestureRecognizer
         ) -> Bool {
+            if let providerNavigationPan, gestureRecognizer === providerNavigationPan {
+                guard reviewSurface == nil, !hasActiveSelection else { return false }
+                return shouldBeginProviderNavigation?(providerNavigationPan) == true
+            }
             if let remoteScrollPan, gestureRecognizer === remoteScrollPan {
+                guard !hasActiveSelection else { return false }
                 return shouldBeginRemoteScroll?(remoteScrollPan) == true
             }
+            if gestureRecognizer === selectionPan {
+                return hasActiveSelection
+            }
             if gestureRecognizer === selectionLongPress {
-                return reviewSurface == nil && shouldBeginDirectPointer?() != true
+                return reviewSurface == nil && !hasActiveSelection
             }
             if gestureRecognizer === directPointerPan {
+                guard !hasActiveSelection else { return false }
                 return shouldBeginDirectPointer?() == true
             }
             if gestureRecognizer === indirectPointerPan
                 || gestureRecognizer === indirectPointerTap
             {
+                guard !hasActiveSelection else { return false }
                 return shouldBeginIndirectPointer?() == true
             }
             return super.gestureRecognizerShouldBegin(gestureRecognizer)
@@ -1153,12 +1400,20 @@
             onSystemPaste?(text)
         }
 
+        @objc private func handleProviderNavigation(_ gesture: UIPanGestureRecognizer) {
+            onProviderNavigation?(gesture)
+        }
+
         @objc private func handleRemoteScroll(_ gesture: UIPanGestureRecognizer) {
             onRemoteScroll?(gesture)
         }
 
         @objc private func handleSelectionLongPress(_ gesture: UILongPressGestureRecognizer) {
             onSelectionLongPress?(gesture)
+        }
+
+        @objc private func handleSelectionPan(_ gesture: UIPanGestureRecognizer) {
+            onSelectionPan?(gesture)
         }
 
         @objc private func handleDirectPointer(_ gesture: UIPanGestureRecognizer) {
@@ -1179,6 +1434,9 @@
         private func configureViewportInsets() {
             contentInsetAdjustmentBehavior = .never
             hostManagesTouchGestures = true
+            // Conn forwards host mouse events itself. Keeping SwiftTerm's built-in mouse
+            // reporting disabled also preserves a live native selection while TUI output redraws.
+            allowMouseReporting = false
             // SwiftTerm 默认会创建一排 Esc/Ctrl/方向键等输入附件。Conn 已有与终端
             // 同层的自定义快捷键栏，必须显式关闭默认附件，否则键盘上方会出现重复栏。
             inputAccessoryView = nil
@@ -1229,7 +1487,8 @@
             super.didMoveToWindow()
             if window != nil {
                 DispatchQueue.main.async { [weak self] in
-                    _ = self?.becomeFirstResponder()
+                    guard let self, !self.isFirstResponder else { return }
+                    _ = self.becomeFirstResponder()
                 }
             } else {
                 onFirstResponderChange?(false)

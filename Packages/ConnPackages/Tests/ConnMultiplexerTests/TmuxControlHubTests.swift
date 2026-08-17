@@ -208,6 +208,38 @@ struct TmuxControlHubTests {
         await hub.close()
     }
 
+    @Test("session-window-changed 通知增量更新状态且不触发完整 snapshot")
+    func sessionWindowNotificationUpdatesIncrementally() async throws {
+        let fixture = try ControlHubFixture()
+        let adapter = ScriptedControlHubAdapter()
+        let (events, continuation) = AsyncStream<TmuxControlClientEvent>.makeStream()
+        let nextWindow = try #require(TmuxWindowID(rawValue: "@2"))
+        let initial = try fixture.snapshot(additionalWindow: nextWindow)
+        let hub = try TmuxControlHub(
+            scope: try fixture.scope(),
+            initialSnapshot: initial,
+            adapter: adapter,
+            clock: { fixture.later }
+        )
+        await hub.startEventStream(events)
+
+        continuation.yield(.notification(
+            generation: 7,
+            .known(
+                .sessionWindowChanged,
+                payload: Data("\(fixture.session.rawValue) \(nextWindow.rawValue)".utf8)
+            )
+        ))
+
+        #expect(await waitUntil {
+            await hub.currentSnapshot?.sessions[fixture.session]?.currentWindowID == nextWindow
+        })
+        #expect(await adapter.snapshotRequestCount == 0)
+
+        continuation.finish()
+        await hub.close()
+    }
+
     @Test("an older concurrent refresh cannot overwrite a newer completed snapshot")
     func discardsOutOfOrderRefreshResults() async throws {
         let fixture = try ControlHubFixture()
@@ -334,7 +366,7 @@ struct TmuxControlHubTests {
 
         let changed = await hub.invalidateIfRuntimeChanged(
             connectionIdentity: fixture.connectionIdentity(hostID: "host-2"),
-            profileID: "profile-1"
+            configurationKey: "profile-1"
         )
         #expect(changed)
         await #expect(throws: TmuxControlHubError.invalidated(.connectionIdentityChanged)) {
@@ -358,9 +390,9 @@ struct TmuxControlHubTests {
         )
         #expect(await profileHub.invalidateIfRuntimeChanged(
             connectionIdentity: fixture.connectionIdentity(),
-            profileID: "profile-2"
+            configurationKey: "profile-2"
         ))
-        await #expect(throws: TmuxControlHubError.invalidated(.profileChanged)) {
+        await #expect(throws: TmuxControlHubError.invalidated(.configurationChanged)) {
             try await profileHub.execute(firstRequest, timeout: .seconds(1))
         }
     }
@@ -510,6 +542,78 @@ struct TmuxControlHubTests {
         #expect(await adapter.executionCount == 0)
         #expect(await adapter.snapshotRequestCount == 1)
     }
+
+    @Test("高频 Window 导航忽略显示 revision 漂移并合并为一次相对命令")
+    func burstWindowNavigationDoesNotDependOnSnapshotRefresh() async throws {
+        let fixture = try ControlHubFixture()
+        let adapter = ScriptedControlHubAdapter()
+        let clientID = TmuxClientID(
+            targetName: "/dev/pts/9",
+            processID: 9,
+            createdAt: 9
+        )
+        let attachmentID = "attachment-window-nav"
+        let client = TmuxClientSnapshot(
+            id: clientID,
+            sessionID: fixture.session,
+            currentWindowID: fixture.window,
+            activePaneID: fixture.pane,
+            flags: [],
+            role: .connInteractive(attachmentID: attachmentID),
+            kind: .interactiveTerminal,
+            sizeParticipation: .participating,
+            observedAt: fixture.now
+        )
+        let hub = try TmuxControlHub(
+            scope: try fixture.scope(),
+            initialSnapshot: try fixture.snapshot(clients: [clientID: client]),
+            adapter: adapter,
+            clock: { fixture.later }
+        )
+        let observation = try await hub.acquireInteractionLease(
+            identity: .init(
+                attachmentID: attachmentID,
+                clientID: clientID,
+                requestedSessionID: fixture.session
+            ),
+            target: .session(fixture.session)
+        )
+        _ = try await hub.apply(fixture.envelope(
+            event: .paneMetadataChanged(
+                fixture.pane,
+                field: .title,
+                value: .init(value: "changed", freshness: .snapshot(observedAt: fixture.later))
+            )
+        ))
+
+        _ = try await hub.executeQuickAction(
+            lease: observation.lease,
+            target: .init(
+                providerID: TmuxProvider.providerID,
+                workspaceID: fixture.session.rawValue,
+                targetID: fixture.pane.rawValue
+            ),
+            attachmentGeneration: 3,
+            expectedRevision: 0,
+            action: .nextWindow,
+            argument: nil,
+            repeatCount: 3,
+            timeout: .seconds(1)
+        )
+
+        let steps = try TmuxWindowNavigationStepCount(3)
+        let clientTarget = try TmuxClientTarget(clientID.targetName)
+        #expect(await adapter.executedRequests.map(\.operation) == [
+            .selectRelativeWindow(
+                in: fixture.session,
+                direction: .next,
+                steps: steps,
+                for: clientTarget
+            ),
+        ])
+        #expect(await adapter.snapshotRequestCount == 0)
+        await hub.releaseLease(observation.lease)
+    }
 }
 
 private actor ScriptedControlHubAdapter: TmuxControlHubAdapter {
@@ -638,7 +742,7 @@ private struct ControlHubFixture: Sendable {
     func scope(generation: UInt64 = 7) throws -> TmuxOperationScope {
         try TmuxOperationScope(
             connectionIdentity: connectionIdentity(),
-            profileID: "profile-1",
+            configurationKey: "profile-1",
             instanceToken: token,
             generation: generation
         )
@@ -667,9 +771,28 @@ private struct ControlHubFixture: Sendable {
         token: TmuxServerInstanceToken? = nil,
         name: String = "one",
         observedAt: Date = Date(timeIntervalSince1970: 100),
-        clients: [TmuxClientID: TmuxClientSnapshot] = [:]
+        clients: [TmuxClientID: TmuxClientSnapshot] = [:],
+        additionalWindow: TmuxWindowID? = nil
     ) throws -> TmuxServerSnapshot {
-        try TmuxServerSnapshot(
+        var windows = [window: TmuxWindowSnapshot(
+            id: window,
+            name: "window",
+            layout: nil,
+            isZoomed: false,
+            activePaneID: pane
+        )]
+        var links = [TmuxWindowLink(sessionID: session, windowID: window, index: 0)]
+        if let additionalWindow {
+            windows[additionalWindow] = TmuxWindowSnapshot(
+                id: additionalWindow,
+                name: "second",
+                layout: nil,
+                isZoomed: false,
+                activePaneID: nil
+            )
+            links.append(.init(sessionID: session, windowID: additionalWindow, index: 1))
+        }
+        return try TmuxServerSnapshot(
             instance: .init(token: token ?? self.token, version: "tmux 3.5a"),
             sessions: [session: .init(
                 id: session,
@@ -678,13 +801,7 @@ private struct ControlHubFixture: Sendable {
                 currentWindowID: window
             )],
             sessionGroups: [:],
-            windows: [window: .init(
-                id: window,
-                name: "window",
-                layout: nil,
-                isZoomed: false,
-                activePaneID: pane
-            )],
+            windows: windows,
             panes: [pane: .init(
                 id: pane,
                 windowID: window,
@@ -695,7 +812,7 @@ private struct ControlHubFixture: Sendable {
                 size: .init(cols: 80, rows: 24),
                 isDead: false
             )],
-            windowLinks: [.init(sessionID: session, windowID: window, index: 0)],
+            windowLinks: links,
             clients: clients,
             observedAt: observedAt,
             revision: 0,

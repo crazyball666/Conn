@@ -100,6 +100,26 @@ struct TerminalSessionStoreTests {
         #expect(store.tabs.first?.displayName == "终端")
     }
 
+    @Test("远端 Workspace 重命名后替换自动名称并清除本地覆盖")
+    func updatesPersistentWorkspaceName() {
+        let store = TerminalSessionStore()
+        let channel = InertShellChannel()
+        let tab = TerminalTab(
+            hostID: "h1",
+            hostName: "web",
+            session: TerminalSession(channel: channel),
+            automaticAlias: "ops",
+            alias: "临时名称"
+        )
+        store.add(tab)
+
+        store.updatePersistentWorkspaceName(tab.id, to: "production")
+
+        #expect(store.tabs.first?.automaticAlias == "production")
+        #expect(store.tabs.first?.alias == nil)
+        #expect(store.tabs.first?.displayName == "production")
+    }
+
     @Test("按主机分组只保留有会话的主机")
     func groupsTabsByHost() {
         let store = TerminalSessionStore()

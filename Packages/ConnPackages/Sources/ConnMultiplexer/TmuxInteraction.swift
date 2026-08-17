@@ -10,6 +10,8 @@ package enum TmuxInteractionError: Error, Sendable, Equatable {
     case staleState(expectedRevision: UInt64, actualRevision: UInt64)
     case unsupportedMode
     case closed
+    case createdWindowIdentityUnavailable
+    case createdPaneIdentityUnavailable
 }
 
 /// tmux modes are classified from provider state, never from the foreground process name.
@@ -43,9 +45,207 @@ package enum TmuxInteractionModeClassifier {
     }
 }
 
+/// Provider-owned command palette for an attached tmux terminal. IDs are stable API values;
+/// the terminal renderer only sees the provider-neutral descriptors below.
+package enum TmuxTerminalQuickAction: String, CaseIterable, Sendable {
+    case renameSession = "tmux.session.rename"
+    case newWindow = "tmux.window.new"
+    case previousWindow = "tmux.window.previous"
+    case nextWindow = "tmux.window.next"
+    case renameWindow = "tmux.window.rename"
+    case splitHorizontal = "tmux.pane.split-horizontal"
+    case splitVertical = "tmux.pane.split-vertical"
+    case previousPane = "tmux.pane.previous"
+    case nextPane = "tmux.pane.next"
+    case toggleZoom = "tmux.pane.toggle-zoom"
+    case swapPanePrevious = "tmux.pane.swap-previous"
+    case swapPaneNext = "tmux.pane.swap-next"
+    case resizeLeft = "tmux.pane.resize-left"
+    case resizeRight = "tmux.pane.resize-right"
+    case resizeUp = "tmux.pane.resize-up"
+    case resizeDown = "tmux.pane.resize-down"
+    case toggleSynchronizePanes = "tmux.pane.toggle-synchronize"
+    case copyMode = "tmux.mode.copy"
+    case cycleLayout = "tmux.layout.next"
+    case tiledLayout = "tmux.layout.tiled"
+    case evenHorizontalLayout = "tmux.layout.even-horizontal"
+    case evenVerticalLayout = "tmux.layout.even-vertical"
+    case mainHorizontalLayout = "tmux.layout.main-horizontal"
+    case mainVerticalLayout = "tmux.layout.main-vertical"
+
+    package static let group = PersistentTerminalQuickActionGroup(
+        id: TmuxProvider.providerID,
+        title: "tmux",
+        sections: [
+            .init(id: "session", titleKey: "Session", actions: [
+                descriptor(
+                    .renameSession,
+                    "重命名 Session",
+                    "pencil",
+                    textInput: .init(titleKey: "重命名 Session", placeholderKey: "Session 名称")
+                ),
+            ]),
+            .init(id: "window", titleKey: "Window", actions: [
+                descriptor(.newWindow, "新建 Window", "plus.rectangle"),
+                descriptor(.previousWindow, "上一个 Window", "arrow.left.to.line"),
+                descriptor(.nextWindow, "下一个 Window", "arrow.right.to.line"),
+                descriptor(
+                    .renameWindow,
+                    "重命名 Window",
+                    "pencil",
+                    textInput: .init(titleKey: "重命名 Window", placeholderKey: "Window 名称")
+                ),
+            ]),
+            .init(id: "pane", titleKey: "Pane", actions: [
+                descriptor(.splitHorizontal, "左右分屏", "rectangle.split.2x1"),
+                descriptor(.splitVertical, "上下分屏", "rectangle.split.1x2"),
+                descriptor(.previousPane, "上一个 Pane", "arrow.left"),
+                descriptor(.nextPane, "下一个 Pane", "arrow.right"),
+                descriptor(.toggleZoom, "Pane Zoom", "arrow.up.left.and.arrow.down.right"),
+                descriptor(.swapPanePrevious, "向前交换 Pane", "arrow.up.square"),
+                descriptor(.swapPaneNext, "向后交换 Pane", "arrow.down.square"),
+                descriptor(.resizeLeft, "向左调整", "arrow.left"),
+                descriptor(.resizeRight, "向右调整", "arrow.right"),
+                descriptor(.resizeUp, "向上调整", "arrow.up"),
+                descriptor(.resizeDown, "向下调整", "arrow.down"),
+                descriptor(
+                    .toggleSynchronizePanes,
+                    "切换同步输入",
+                    "arrow.triangle.2.circlepath"
+                ),
+            ]),
+            .init(id: "mode", titleKey: "模式", actions: [
+                descriptor(.copyMode, "复制模式", "doc.on.doc"),
+            ]),
+            .init(id: "layout", titleKey: "Pane 布局", actions: [
+                descriptor(.cycleLayout, "切换布局", "rectangle.3.group"),
+                descriptor(.tiledLayout, "平铺布局", "square.grid.2x2"),
+                descriptor(.evenHorizontalLayout, "等宽布局", "rectangle.split.3x1"),
+                descriptor(.evenVerticalLayout, "等高布局", "rectangle.split.1x2"),
+                descriptor(.mainHorizontalLayout, "主区域居上", "rectangle.tophalf.inset.filled"),
+                descriptor(.mainVerticalLayout, "主区域居左", "rectangle.lefthalf.inset.filled"),
+            ]),
+        ],
+        swipeActions: [
+            // The content follows the finger: swiping left advances, swiping right goes back.
+            .init(
+                direction: .left,
+                actionID: nextWindow.rawValue,
+                successNoticeKey: "已切换到下一个 Window"
+            ),
+            .init(
+                direction: .right,
+                actionID: previousWindow.rawValue,
+                successNoticeKey: "已切换到上一个 Window"
+            ),
+        ]
+    )
+
+    package func operation(
+        for state: TmuxResolvedInteractionState,
+        client: TmuxClientTarget,
+        argument: String? = nil,
+        repeatCount: Int = 1
+    ) throws -> TmuxOperation {
+        guard repeatCount == 1 || self == .previousWindow || self == .nextWindow else {
+            throw PersistentTerminalInteractionError.invalidQuickActionRepeatCount(repeatCount)
+        }
+        return switch self {
+        case .renameSession:
+            .renameSession(state.sessionID, to: try TmuxName(argument ?? ""))
+        case .newWindow:
+            .createWindow(in: state.sessionID, name: nil)
+        case .previousWindow:
+            .selectRelativeWindow(
+                in: state.sessionID,
+                direction: .previous,
+                steps: try TmuxWindowNavigationStepCount(repeatCount),
+                for: client
+            )
+        case .nextWindow:
+            .selectRelativeWindow(
+                in: state.sessionID,
+                direction: .next,
+                steps: try TmuxWindowNavigationStepCount(repeatCount),
+                for: client
+            )
+        case .renameWindow:
+            .renameWindow(state.windowID, to: try TmuxName(argument ?? ""))
+        case .splitHorizontal:
+            .splitPane(state.paneID, orientation: .horizontal)
+        case .splitVertical:
+            .splitPane(state.paneID, orientation: .vertical)
+        case .previousPane:
+            .selectPane(previous(state.paneID, in: state.paneIDs), for: client)
+        case .nextPane:
+            .selectPane(next(state.paneID, in: state.paneIDs), for: client)
+        case .toggleZoom:
+            .setPaneZoom(state.paneID, zoomed: !state.isWindowZoomed)
+        case .swapPanePrevious:
+            .swapPane(state.paneID, direction: .previous)
+        case .swapPaneNext:
+            .swapPane(state.paneID, direction: .next)
+        case .resizeLeft:
+            .resizePane(state.paneID, direction: .left, cells: try TmuxResizeCellCount(5))
+        case .resizeRight:
+            .resizePane(state.paneID, direction: .right, cells: try TmuxResizeCellCount(5))
+        case .resizeUp:
+            .resizePane(state.paneID, direction: .up, cells: try TmuxResizeCellCount(5))
+        case .resizeDown:
+            .resizePane(state.paneID, direction: .down, cells: try TmuxResizeCellCount(5))
+        case .toggleSynchronizePanes:
+            .toggleSynchronizePanes(state.windowID)
+        case .copyMode:
+            .enterCopyMode(state.paneID)
+        case .cycleLayout:
+            .cyclePaneLayout(state.windowID)
+        case .tiledLayout:
+            .applyPaneLayout(state.windowID, layout: .tiled)
+        case .evenHorizontalLayout:
+            .applyPaneLayout(state.windowID, layout: .evenHorizontal)
+        case .evenVerticalLayout:
+            .applyPaneLayout(state.windowID, layout: .evenVertical)
+        case .mainHorizontalLayout:
+            .applyPaneLayout(state.windowID, layout: .mainHorizontal)
+        case .mainVerticalLayout:
+            .applyPaneLayout(state.windowID, layout: .mainVertical)
+        }
+    }
+
+    private static func descriptor(
+        _ action: Self,
+        _ titleKey: String,
+        _ systemImageName: String,
+        textInput: PersistentTerminalQuickActionTextInput? = nil
+    ) -> PersistentTerminalQuickActionDescriptor {
+        .init(
+            id: action.rawValue,
+            titleKey: titleKey,
+            systemImageName: systemImageName,
+            textInput: textInput
+        )
+    }
+
+    private func previous<ID: Equatable>(_ current: ID, in values: [ID]) -> ID {
+        guard let index = values.firstIndex(of: current), values.count > 1 else { return current }
+        return values[(index - 1 + values.count) % values.count]
+    }
+
+    private func next<ID: Equatable>(_ current: ID, in values: [ID]) -> ID {
+        guard let index = values.firstIndex(of: current), values.count > 1 else { return current }
+        return values[(index + 1) % values.count]
+    }
+}
+
 package struct TmuxResolvedInteractionState: Sendable, Equatable {
     package let state: PersistentTerminalInteractionState
+    package let clientID: TmuxClientID
+    package let sessionID: TmuxSessionID
+    package let windowID: TmuxWindowID
+    package let windowIDs: [TmuxWindowID]
     package let paneID: TmuxPaneID
+    package let paneIDs: [TmuxPaneID]
+    package let isWindowZoomed: Bool
     package let paneRows: Int
     package let historySize: Int?
     package let historyLimit: Int?
@@ -121,7 +321,13 @@ package struct TmuxInteractionStateProjector: Sendable {
         )
         return .init(
             state: state,
+            clientID: client.id,
+            sessionID: client.sessionID,
+            windowID: pane.windowID,
+            windowIDs: snapshot.windows(in: client.sessionID),
             paneID: paneID,
+            paneIDs: snapshot.panes(in: pane.windowID),
+            isWindowZoomed: snapshot.windows[pane.windowID]?.isZoomed == true,
             paneRows: pane.size.rows,
             historySize: interaction.historySize.value,
             historyLimit: interaction.historyLimit.value
@@ -587,9 +793,8 @@ package actor TmuxOneShotInteractionBackend {
     private let tty: String
     private let processID: Int32
     private let clock: @Sendable () -> Date
-
     package init(
-        executor: TmuxOneShotReadOnlyCommandExecutor,
+        executor: any TmuxReadOnlyCommandExecuting,
         captureExecutor: any TmuxPaneHistoryCaptureExecuting,
         scope: TmuxOperationScope,
         dialect: TmuxProtocolDialect,
@@ -646,12 +851,13 @@ package actor TmuxOneShotInteractionBackend {
             controlClientID: nil,
             timeout: .seconds(5)
         )
-        return try TmuxInteractionStateProjector().resolve(
+        let resolved = try TmuxInteractionStateProjector().resolve(
             snapshot: owned,
             identity: identity,
             expectedTarget: nil,
             attachmentGeneration: attachmentGeneration
         )
+        return resolved
     }
 
     package func captureHistory(
@@ -715,13 +921,14 @@ package actor TmuxOneShotInteractionBackend {
             throw PersistentTerminalInteractionError.staleStateRevision
         }
     }
+
 }
 
 package actor TmuxInteractionFacet: PersistentTerminalInteractionFacet {
     package nonisolated let states: AsyncStream<PersistentTerminalInteractionState>
     private nonisolated let continuation:
         AsyncStream<PersistentTerminalInteractionState>.Continuation
-    private let fallback: TmuxOneShotInteractionBackend
+    private let historyBackend: TmuxOneShotInteractionBackend
     private let attachmentGeneration: UInt64
     private var controlLease: TmuxProviderControlInteractionLease?
     private var observationTask: Task<Void, Never>?
@@ -730,13 +937,20 @@ package actor TmuxInteractionFacet: PersistentTerminalInteractionFacet {
 
     package init(
         attachmentGeneration: UInt64,
-        fallback: TmuxOneShotInteractionBackend
+        historyBackend: TmuxOneShotInteractionBackend
     ) {
         self.attachmentGeneration = attachmentGeneration
-        self.fallback = fallback
+        self.historyBackend = historyBackend
         let stream = PersistentTerminalInteractionStreams.makeStateStream()
         states = stream.stream
         continuation = stream.continuation
+    }
+
+    public var quickActionGroup: PersistentTerminalQuickActionGroup? {
+        get async {
+            guard !closed else { return nil }
+            return TmuxTerminalQuickAction.group
+        }
     }
 
     package func install(_ lease: TmuxProviderControlInteractionLease) async {
@@ -759,31 +973,30 @@ package actor TmuxInteractionFacet: PersistentTerminalInteractionFacet {
 
     public func resolveState() async throws -> PersistentTerminalInteractionState {
         guard !closed else { throw TmuxInteractionError.closed }
-        if let controlLease,
-           let state = try? await controlLease.registry.resolveInteraction(controlLease)
-        {
-            publish(state)
-            return state
+        guard let controlLease,
+              await controlLease.registry.hasReadyControlRuntime(controlLease)
+        else {
+            throw PersistentTerminalError.controlModeUnavailable
         }
-        let resolved = try await fallback.resolve()
-        publish(resolved.state)
-        return resolved.state
+        let state = try await controlLease.registry.resolveInteraction(controlLease)
+        publish(state)
+        return state
     }
 
     public func captureHistory(
         _ request: PersistentTerminalHistoryRequest
     ) async throws -> PersistentTerminalHistorySnapshot {
         guard !closed else { throw TmuxInteractionError.closed }
-        let pinned: TmuxResolvedInteractionState
-        if let lease = controlLease {
-            pinned = try await lease.registry.resolveInteractionContext(
-                lease,
-                refreshIfNeeded: false
-            )
-        } else {
-            pinned = try await fallback.resolve()
+        guard let lease = controlLease,
+              await lease.registry.hasReadyControlRuntime(lease)
+        else {
+            throw PersistentTerminalError.controlModeUnavailable
         }
-        return try await fallback.captureHistory(request, pinned: pinned)
+        let pinned = try await lease.registry.resolveInteractionContext(
+            lease,
+            refreshIfNeeded: false
+        )
+        return try await historyBackend.captureHistory(request, pinned: pinned)
     }
 
     public func scrollProviderMode(
@@ -793,10 +1006,30 @@ package actor TmuxInteractionFacet: PersistentTerminalInteractionFacet {
         guard request.attachmentGeneration == attachmentGeneration else {
             throw PersistentTerminalInteractionError.staleAttachmentGeneration
         }
-        guard let controlLease else {
-            throw PersistentTerminalInteractionError.unavailable
+        guard let controlLease,
+              await controlLease.registry.hasReadyControlRuntime(controlLease)
+        else {
+            throw PersistentTerminalError.controlModeUnavailable
         }
         try await controlLease.registry.scrollInteraction(controlLease, request: request)
+    }
+
+    public func performQuickAction(
+        _ request: PersistentTerminalQuickActionRequest
+    ) async throws {
+        guard !closed else { throw TmuxInteractionError.closed }
+        guard request.attachmentGeneration == attachmentGeneration else {
+            throw PersistentTerminalInteractionError.staleAttachmentGeneration
+        }
+        guard let controlLease,
+              await controlLease.registry.hasReadyControlRuntime(controlLease)
+        else {
+            throw PersistentTerminalError.controlModeUnavailable
+        }
+        try await controlLease.registry.performQuickAction(
+            controlLease,
+            request: request
+        )
     }
 
     package func close() async {

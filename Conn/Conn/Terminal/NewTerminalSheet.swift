@@ -141,42 +141,23 @@ struct NewTerminalSheet: View {
             if let errorMessage = model.errorMessage {
                 errorSection(errorMessage)
             }
-            if model.usableCandidates.isEmpty {
+            if model.options.isEmpty {
                 Section(L("tmux 不可用")) {
-                    if model.candidates.isEmpty {
-                        Text(L("当前主机没有已启用的 tmux 配置"))
-                            .foregroundStyle(.connMuted)
-                    } else {
-                        ForEach(model.candidates) { candidate in
-                            VStack(alignment: .leading, spacing: ConnSpacing.xs) {
-                                Text(candidate.displayName)
-                                    .foregroundStyle(.connInk)
-                                Text(candidate.issue?.userFacingDiagnosis ?? L("当前配置不可用"))
-                                    .font(.connFootnote)
-                                    .foregroundStyle(.connMuted)
-                            }
-                        }
-                    }
+                    Text(L("当前版本没有可用的持久终端 provider"))
+                        .foregroundStyle(.connMuted)
                 }
                 Section {
                     Button { Task { await model.selectPersistent() } } label: {
-                        Label(L("重新探测"), systemImage: "arrow.clockwise")
+                        Label(L("重新加载"), systemImage: "arrow.clockwise")
                     }
                 }
             } else {
-                Section(L("选择 tmux 配置")) {
-                    ForEach(model.usableCandidates) { candidate in
-                        Button { Task { await model.selectCandidate(candidate) } } label: {
+                Section(L("选择持久终端")) {
+                    ForEach(model.options) { option in
+                        Button { Task { await model.selectOption(option) } } label: {
                             HStack {
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text(candidate.displayName)
-                                        .foregroundStyle(.connInk)
-                                    if candidate.availability == .degraded {
-                                        Text(L("尚无运行中的 Session，可新建"))
-                                            .font(.connFootnote)
-                                            .foregroundStyle(.connMuted)
-                                    }
-                                }
+                                Text(option.displayName)
+                                    .foregroundStyle(.connInk)
                                 Spacer()
                                 Image(systemName: "chevron.forward")
                                     .foregroundStyle(.connMuted)
@@ -297,7 +278,7 @@ struct NewTerminalSheet: View {
         case .hostSelection: L("选择主机")
         case .terminalTypeSelection: L("新建终端")
         case .providerLoading, .providerSelection: "tmux"
-        case .workspaceSelection: model.selectedCandidate?.displayName ?? "tmux"
+        case .workspaceSelection: model.selectedOption?.displayName ?? "tmux"
         case .creating: L("新建终端")
         }
     }

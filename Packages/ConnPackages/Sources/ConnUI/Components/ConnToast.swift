@@ -1,22 +1,70 @@
 import Observation
 import SwiftUI
 
+public enum ConnToastStyle: String, Sendable, Equatable, CaseIterable {
+    case success
+    case info
+    case warning
+    case error
+
+    public var systemImageName: String {
+        switch self {
+        case .success: "checkmark.circle.fill"
+        case .info: "info.circle.fill"
+        case .warning: "exclamationmark.triangle.fill"
+        case .error: "xmark.octagon.fill"
+        }
+    }
+
+    public var autoDismissDuration: Duration {
+        switch self {
+        case .success, .info: .seconds(1.5)
+        case .warning: .seconds(2.5)
+        case .error: ConnToastTimer.autoDismissDuration
+        }
+    }
+}
+
+public struct ConnToastItem: Identifiable, Sendable, Equatable {
+    public let id: UUID
+    public let message: String
+    public let style: ConnToastStyle
+
+    public init(
+        id: UUID = UUID(),
+        message: String,
+        style: ConnToastStyle
+    ) {
+        self.id = id
+        self.message = message
+        self.style = style
+    }
+}
+
 /// App 级 Toast 状态。所有页面共用同一个提示出口，避免错误提示被局限在
 /// 当前页面的导航栈里，切换页面或打开表单时也能保持一致的交互。
 @Observable
 public final class ConnToastCenter {
-    public var message: String?
+    public var item: ConnToastItem?
 
-    public init(message: String? = nil) {
-        self.message = message
+    public init(item: ConnToastItem? = nil) {
+        self.item = item
     }
 
-    public func show(_ message: String?) {
-        self.message = message
+    /// 每次发布都生成新的事件身份。即使连续提示文案相同，也会重新展示并计时。
+    public func show(
+        _ message: String?,
+        style: ConnToastStyle = .error
+    ) {
+        guard let message else {
+            item = nil
+            return
+        }
+        item = ConnToastItem(message: message, style: style)
     }
 
     public func dismiss() {
-        message = nil
+        item = nil
     }
 }
 
@@ -57,15 +105,15 @@ public enum ConnToastTimer {
 /// 挂在**页面内容视图**上（`NavigationStack` 内部），因此天然落在导航栏下方、
 /// 不与大标题重叠。点击或上滑可提前关闭。
 struct ConnToast: View {
-    let message: String
+    let item: ConnToastItem
     let onDismiss: () -> Void
 
     var body: some View {
         HStack(alignment: .top, spacing: ConnSpacing.xs) {
-            Image(systemName: "exclamationmark.triangle.fill")
+            Image(systemName: item.style.systemImageName)
                 .font(.system(size: 14, weight: .semibold))
-                .foregroundStyle(.connCrit)
-            Text(message)
+                .foregroundStyle(iconColor)
+            Text(item.message)
                 .font(.connFootnote)
                 .foregroundStyle(.connInk)
                 .multilineTextAlignment(.leading)
@@ -87,19 +135,29 @@ struct ConnToast: View {
                 }
         )
         .accessibilityElement(children: .combine)
-        .accessibilityLabel(message)
+        .accessibilityLabel(item.message)
+        .accessibilityIdentifier("conn.toast.\(item.style.rawValue)")
+    }
+
+    private var iconColor: Color {
+        switch item.style {
+        case .success: .connGood
+        case .info: .connAccent
+        case .warning: .connWarn
+        case .error: .connCrit
+        }
     }
 }
 
 private struct ConnToastModifier: ViewModifier {
-    @Binding var message: String?
+    @Binding var item: ConnToastItem?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     func body(content: Content) -> some View {
         ZStack(alignment: .top) {
             content
-            if let message {
-                ConnToast(message: message) { self.message = nil }
+            if let item {
+                ConnToast(item: item) { self.item = nil }
                     .frame(maxWidth: .infinity, alignment: .top)
                     .padding(.horizontal, ConnSpacing.page)
                     .padding(.top, ConnSpacing.sm)
@@ -109,10 +167,12 @@ private struct ConnToastModifier: ViewModifier {
                             ? .opacity
                             : .move(edge: .top).combined(with: .opacity)
                     )
-                    // id 绑到消息内容：后到的消息顶掉前一条并重置计时器，不排队叠加。
-                    .task(id: message) {
-                        if await ConnToastTimer.waitForAutoDismiss() {
-                            self.message = nil
+                    .task(id: item.id) {
+                        if await ConnToastTimer.waitForAutoDismiss(
+                            item.style.autoDismissDuration
+                        ) {
+                            guard self.item?.id == item.id else { return }
+                            self.item = nil
                         }
                     }
             }
@@ -121,7 +181,7 @@ private struct ConnToastModifier: ViewModifier {
             reduceMotion
                 ? .easeInOut(duration: 0.18)
                 : .spring(response: 0.34, dampingFraction: 0.86),
-            value: message
+            value: item
         )
     }
 }
@@ -131,16 +191,16 @@ private struct ConnGlobalToastModifier: ViewModifier {
 
     func body(content: Content) -> some View {
         @Bindable var center = center
-        return content.modifier(ConnToastModifier(message: $center.message))
+        return content.modifier(ConnToastModifier(item: $center.item))
     }
 }
 
 public extension View {
-    /// 绑定一段可空提示文案：非 nil 即从导航栏下方滑入，3.5s 后自动清空。
+    /// 绑定一个带语义的提示事件。
     ///
     /// 挂在页面内容视图上（`NavigationStack` 内部），不要挂在 `NavigationStack` 外层。
-    func connToast(message: Binding<String?>) -> some View {
-        modifier(ConnToastModifier(message: message))
+    func connToast(item: Binding<ConnToastItem?>) -> some View {
+        modifier(ConnToastModifier(item: item))
     }
 
     /// 使用 App 级 Toast 中心。应挂在根内容视图上，页面只需调用

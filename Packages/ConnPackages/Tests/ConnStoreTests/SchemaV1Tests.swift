@@ -24,7 +24,7 @@ struct SchemaV1Tests {
             "builtin_snippet_catalog_state", "builtin_snippet_suppression",
             "host", "host_group", "host_group_membership", "known_host",
             "run_history", "snippet", "snippet_group",
-            "snippet_group_membership", "ssh_key", "terminal_backend_profile"
+            "snippet_group_membership", "ssh_key"
         ])
     }
 

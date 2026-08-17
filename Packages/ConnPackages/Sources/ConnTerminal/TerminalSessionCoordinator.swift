@@ -24,6 +24,7 @@ public struct TerminalLaunchRequest: Sendable {
     public let policy: TerminalLaunchPolicy
     public let source: TerminalSessionSource
     public let backend: TerminalLaunchBackend
+    public let automaticAlias: String?
     public let initialCommand: String?
     public let replayInitialCommandOnReconnect: Bool
 
@@ -32,12 +33,15 @@ public struct TerminalLaunchRequest: Sendable {
         policy: TerminalLaunchPolicy,
         source: TerminalSessionSource,
         backend: TerminalLaunchBackend = .plainPTY,
+        automaticAlias: String? = nil,
         initialCommand: String? = nil,
         replayInitialCommandOnReconnect: Bool = false
     ) {
         self.host = host
         self.policy = policy
         self.backend = backend
+        self.automaticAlias = automaticAlias?.trimmingCharacters(in: .whitespacesAndNewlines)
+            .nilIfEmpty
         self.source = switch backend {
         case .plainPTY:
             switch source {
@@ -86,19 +90,26 @@ public final class TerminalSessionCoordinator {
 
     private let hostRepository: any HostRepository
     private let connectionManager: ConnectionManager
-    private let persistentBackend: PersistentProviderBackend?
-    private let profileProvisioner: ((ConnKit.Host) -> Void)?
+    private let persistentBackend: PersistentProviderBackend
     private var inFlightLaunches: [String: Task<Result<TerminalTab, TerminalLaunchFailure>, Never>] = [:]
     /// 主机删除/连接身份变更时递增。Citadel 的建连与开 PTY 不一定响应 cancellation，
     /// 所以必须在完成后再用这个代次阻止旧任务把会话写回 store。
     private var hostLaunchGenerations: [String: UInt64] = [:]
     private var reconnectTasks: [String: Task<Result<TerminalTab, TerminalLaunchFailure>, Never>] = [:]
     private var lifecycleTasks: [String: Task<Void, Never>] = [:]
+    private var attachmentLifecycleTasks: [String: Task<Void, Never>] = [:]
+    private var automaticRecoveryTasks: [String: AutomaticRecoveryTask] = [:]
     private var consumedFailureIDs: Set<UUID> = []
     private var launchAttempts: [TerminalLaunchAttemptID: LaunchAttemptState] = [:]
 
     private struct PreparedLaunch {
         let tab: TerminalTab
+    }
+
+    private struct AutomaticRecoveryTask {
+        let id: UUID
+        let generation: UInt64
+        let task: Task<Void, Never>
     }
 
     private enum LaunchAttemptState {
@@ -111,21 +122,11 @@ public final class TerminalSessionCoordinator {
     public init(
         hostRepository: any HostRepository,
         connectionManager: ConnectionManager,
-        providerRegistry: PersistentTerminalProviderRegistry = .default,
-        profileRepository: (any TerminalBackendProfileRepository)? = nil,
-        profileProvisioner: ((ConnKit.Host) -> Void)? = nil
+        providerRegistry: PersistentTerminalProviderRegistry = .default
     ) {
         self.hostRepository = hostRepository
         self.connectionManager = connectionManager
-        self.profileProvisioner = profileProvisioner
-        if let profileRepository {
-            self.persistentBackend = PersistentProviderBackend(
-                registry: providerRegistry,
-                profileRepository: profileRepository
-            )
-        } else {
-            self.persistentBackend = nil
-        }
+        persistentBackend = PersistentProviderBackend(registry: providerRegistry)
     }
 
     public func launch(_ request: TerminalLaunchRequest) async -> Result<TerminalTab, TerminalLaunchFailure> {
@@ -226,6 +227,11 @@ public final class TerminalSessionCoordinator {
         store.add(tab)
         await tab.session.start()
         observeLifecycle(for: tab.id, generation: tab.generation, session: tab.session)
+        observeAttachmentLifecycle(
+            for: tab.id,
+            generation: tab.generation,
+            attachment: tab.persistentAttachment
+        )
         return .success(tab)
     }
 
@@ -255,89 +261,64 @@ public final class TerminalSessionCoordinator {
     /// Startup UI queries provider capabilities through the generic backend. A
     /// missing/unsupported provider returns an unavailable candidate; plain PTY
     /// remains the caller's safe default.
-    public func persistentBackendCandidates(
-        for host: ConnKit.Host
-    ) async -> [PersistentBackendCandidate] {
-        guard let persistentBackend else { return [] }
-        return await persistentBackend.candidates(
-            for: host,
-            connectionManager: connectionManager
-        )
+    public func persistentBackendOptions() -> [PersistentBackendOption] {
+        persistentBackend.options()
     }
 
     public func makePersistentBackend(
-        from candidate: PersistentBackendCandidate,
+        from option: PersistentBackendOption,
         for host: ConnKit.Host
-    ) async throws -> TerminalLaunchBackend {
-        guard let persistentBackend else {
-            throw PersistentTerminalError.profileUnavailable(candidate.profileID)
-        }
-        let descriptor = try await persistentBackend.defaultDescriptor(
-            for: candidate,
+    ) async throws -> PersistentTerminalLaunch {
+        try await persistentBackend.defaultLaunch(
+            for: option,
             host: host,
             connectionManager: connectionManager
         )
-        return .persistent(descriptor)
     }
 
     public func persistentWorkspaceOptions(
-        for candidate: PersistentBackendCandidate,
+        for option: PersistentBackendOption,
         host: ConnKit.Host
     ) async throws -> [RemoteWorkspaceSummary] {
-        guard let persistentBackend else {
-            throw PersistentTerminalError.profileUnavailable(candidate.profileID)
-        }
         return try await persistentBackend.workspaceOptions(
-            for: candidate,
+            for: option,
             host: host,
             connectionManager: connectionManager
         )
     }
 
     public func makePersistentBackend(
-        from candidate: PersistentBackendCandidate,
-        workspace: RemoteWorkspaceRef,
+        from option: PersistentBackendOption,
+        workspace: RemoteWorkspaceSummary,
         for host: ConnKit.Host
-    ) async throws -> TerminalLaunchBackend {
-        guard let persistentBackend else {
-            throw PersistentTerminalError.profileUnavailable(candidate.profileID)
-        }
-        let descriptor = try await persistentBackend.descriptor(
+    ) async throws -> PersistentTerminalLaunch {
+        try await persistentBackend.launch(
             for: workspace,
-            providerID: candidate.providerID,
-            profileID: candidate.profileID,
+            option: option,
             host: host,
             connectionManager: connectionManager
         )
-        return .persistent(descriptor)
     }
 
     public func makePersistentBackend(
-        from candidate: PersistentBackendCandidate,
+        from option: PersistentBackendOption,
         create selection: PersistentWorkspaceCreateSelection,
         for host: ConnKit.Host
-    ) async throws -> TerminalLaunchBackend {
-        guard let persistentBackend else {
-            throw PersistentTerminalError.profileUnavailable(candidate.profileID)
-        }
-        let descriptor = try await persistentBackend.createDescriptor(
+    ) async throws -> PersistentTerminalLaunch {
+        try await persistentBackend.createLaunch(
             for: selection,
-            candidate: candidate,
+            option: option,
             host: host,
             connectionManager: connectionManager
         )
-        return .persistent(descriptor)
     }
 
     public func openPersistentCatalog(
-        for candidate: PersistentBackendCandidate,
+        for option: PersistentBackendOption,
         host: ConnKit.Host
     ) async throws -> any PersistentTerminalCatalogAttachment {
-        guard let persistentBackend else {
-            throw PersistentTerminalError.profileUnavailable(candidate.profileID)
-        }
         return try await persistentBackend.openCatalog(
-            for: candidate,
+            for: option,
             host: host,
             connectionManager: connectionManager
         )
@@ -345,17 +326,12 @@ public final class TerminalSessionCoordinator {
 
     public func makePersistentAttachmentDescriptor(
         for workspace: RemoteWorkspaceRef,
-        providerID: String,
-        profileID: String,
+        option: PersistentBackendOption,
         host: ConnKit.Host
     ) async throws -> PersistentAttachmentDescriptor {
-        guard let persistentBackend else {
-            throw PersistentTerminalError.profileUnavailable(profileID)
-        }
         return try await persistentBackend.descriptor(
             for: workspace,
-            providerID: providerID,
-            profileID: profileID,
+            option: option,
             host: host,
             connectionManager: connectionManager
         )
@@ -379,18 +355,119 @@ public final class TerminalSessionCoordinator {
         return result
     }
 
-    /// App 长时间退到后台后，SSH 连接可能已被系统回收；回前台时重建所有 PTY。
-    /// 即使旧 tab 仍显示 connected 也要重建，因为半开 socket 不一定会先发布 EOF。
+    /// Renames a local-only terminal immediately. Persistent terminals first rename
+    /// their remote workspace and commit the local title only after that succeeds.
+    public func rename(
+        _ tabID: String,
+        to value: String
+    ) async -> Result<TerminalTab, TerminalLaunchFailure> {
+        guard let tab = store.tab(id: tabID) else {
+            return .failure(TerminalLaunchFailure(message: L("终端会话不存在")))
+        }
+        let name = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !name.isEmpty else {
+            store.updateAlias(tabID, to: "")
+            guard let updated = store.tab(id: tabID) else {
+                return .failure(TerminalLaunchFailure(message: L("终端会话不存在")))
+            }
+            return .success(updated)
+        }
+
+        guard case let .persistent(descriptor) = tab.reconnectDescriptor else {
+            store.updateAlias(tabID, to: name)
+            guard let updated = store.tab(id: tabID) else {
+                return .failure(TerminalLaunchFailure(message: L("终端会话不存在")))
+            }
+            return .success(updated)
+        }
+
+        do {
+            guard let host = try hostRepository.host(id: tab.hostID) else {
+                throw TerminalLaunchFailure(message: L("主机已被删除"))
+            }
+            try await persistentBackend.renameWorkspace(
+                descriptor,
+                to: name,
+                host: host,
+                connectionManager: connectionManager
+            )
+            guard let current = store.tab(id: tabID),
+                  current.reconnectDescriptor == .persistent(descriptor)
+            else {
+                return .failure(TerminalLaunchFailure(message: L("终端会话已关闭")))
+            }
+            store.updatePersistentWorkspaceName(tabID, to: name)
+            guard let updated = store.tab(id: tabID) else {
+                return .failure(TerminalLaunchFailure(message: L("终端会话已关闭")))
+            }
+            return .success(updated)
+        } catch let failure as TerminalLaunchFailure {
+            return .failure(failure)
+        } catch {
+            return .failure(TerminalLaunchFailure(message: terminalUserFacingDiagnosis(error)))
+        }
+    }
+
+    /// App 长时间退到后台后，只恢复已经断开或底层连接明确死亡的终端。
+    ///
+    /// iOS 暂停 App 并不等于 TCP 已断；健康 PTY/tmux attachment 必须原样保留。
+    /// 半开 socket 无法通过同步存活标志充分判定，继续由真实读写失败的生命周期路径处理，
+    /// 这里不向用户终端注入探测字节。
     public func resumeAfterBackground(idleFor: TimeInterval) async {
         guard idleFor > 30 else { return }
-        let tabIDs = store.tabs.map(\.id)
-        for tabID in tabIDs {
-            _ = await reconnect(tabID)
+
+        var candidates: [TerminalForegroundRecoveryCandidate] = []
+        candidates.reserveCapacity(store.tabs.count)
+        for tab in store.tabs {
+            guard let host = try? hostRepository.host(id: tab.hostID) else { continue }
+            let poolHealth = await connectionManager.pooledSessionHealth(for: host)
+            candidates.append(TerminalForegroundRecoveryCandidate(
+                id: tab.id,
+                status: tab.status,
+                poolHealth: poolHealth,
+                lastUsedAt: tab.lastUsedAt
+            ))
+        }
+
+        let tabIDs = TerminalForegroundRecoveryPolicy.orderedCandidateIDs(
+            from: candidates,
+            currentTabID: store.currentTabID
+        )
+        await recoverInBackground(tabIDs, maximumConcurrent: 2)
+    }
+
+    private func recoverInBackground(
+        _ tabIDs: [String],
+        maximumConcurrent: Int
+    ) async {
+        guard !tabIDs.isEmpty else { return }
+        let limit = max(1, maximumConcurrent)
+        await withTaskGroup(of: Void.self) { group in
+            var nextIndex = 0
+
+            func enqueueNext() {
+                guard nextIndex < tabIDs.count else { return }
+                let tabID = tabIDs[nextIndex]
+                nextIndex += 1
+                group.addTask { @MainActor [weak self] in
+                    guard let self else { return }
+                    _ = await self.reconnect(tabID)
+                }
+            }
+
+            for _ in 0 ..< min(limit, tabIDs.count) {
+                enqueueNext()
+            }
+            while await group.next() != nil {
+                enqueueNext()
+            }
         }
     }
 
     public func close(_ tabID: String) async {
         lifecycleTasks.removeValue(forKey: tabID)?.cancel()
+        attachmentLifecycleTasks.removeValue(forKey: tabID)?.cancel()
+        automaticRecoveryTasks.removeValue(forKey: tabID)?.task.cancel()
         reconnectTasks.removeValue(forKey: tabID)?.cancel()
         await store.close(tabID)
     }
@@ -399,6 +476,8 @@ public final class TerminalSessionCoordinator {
         await invalidatePendingLaunches(forHost: hostID)
         for tab in store.tabs(forHost: hostID) {
             lifecycleTasks.removeValue(forKey: tab.id)?.cancel()
+            attachmentLifecycleTasks.removeValue(forKey: tab.id)?.cancel()
+            automaticRecoveryTasks.removeValue(forKey: tab.id)?.task.cancel()
             reconnectTasks.removeValue(forKey: tab.id)?.cancel()
         }
         await store.closeAll(forHost: hostID)
@@ -413,7 +492,6 @@ public final class TerminalSessionCoordinator {
         replacing previousHost: ConnKit.Host?,
         connectionIdentityChanged: Bool
     ) async {
-        profileProvisioner?(host)
         guard connectionIdentityChanged, let previousHost else {
             refreshHostName(host)
             return
@@ -498,7 +576,7 @@ public final class TerminalSessionCoordinator {
                 transcript: transcript,
                 source: request.source,
                 reconnectDescriptor: reconnectDescriptor,
-                automaticAlias: automaticAlias(for: request.source, hostID: host.id),
+                automaticAlias: automaticAlias(for: request, hostID: host.id),
                 generation: generation
             )
             return .success(PreparedLaunch(tab: tab))
@@ -526,6 +604,7 @@ public final class TerminalSessionCoordinator {
         await oldTab.transcript.activateGeneration(nextGeneration)
         await oldTab.transcript.resetForGeneration(nextGeneration)
         lifecycleTasks.removeValue(forKey: tabID)?.cancel()
+        attachmentLifecycleTasks.removeValue(forKey: tabID)?.cancel()
         await oldTab.session.close()
         await oldTab.persistentAttachment?.close()
 
@@ -567,6 +646,11 @@ public final class TerminalSessionCoordinator {
             )
             await session.start()
             observeLifecycle(for: tabID, generation: nextGeneration, session: session)
+            observeAttachmentLifecycle(
+                for: tabID,
+                generation: nextGeneration,
+                attachment: opened.attachment
+            )
             guard let replacement = store.tab(id: tabID) else {
                 return .failure(TerminalLaunchFailure(message: L("终端会话已关闭")))
             }
@@ -601,9 +685,6 @@ public final class TerminalSessionCoordinator {
             )
 
         case let .persistent(descriptor):
-            guard let persistentBackend else {
-                throw PersistentTerminalError.profileUnavailable(descriptor.profileID)
-            }
             let opened = try await persistentBackend.open(
                 descriptor,
                 for: host,
@@ -615,19 +696,45 @@ public final class TerminalSessionCoordinator {
         }
     }
 
-    /// PTY 打开失败通常意味着共享 SSH 已半开。仅在这一步驱逐一次并重新握手，避免无限重试。
+    /// Plain PTY and persistent providers use the same staged-startup contract. A plain
+    /// terminal composes only transport + byte terminal + readiness; tmux adds its own
+    /// required Control Mode and identity-binding stages inside the provider.
+    ///
+    /// PTY 打开失败通常意味着共享 SSH 已半开。仅在 byte-terminal 阶段驱逐一次并
+    /// 重新握手，避免无限重试。断线恢复会重新调用本方法，因此不维护第二套恢复流程。
     private func openShell(for host: ConnKit.Host) async throws -> any ShellChannel {
-        var retriedAfterOpenFailure = false
-        while true {
-            let sshSession = try await connectionManager.session(for: host)
-            do {
-                return try await sshSession.openShell(term: TermSize(cols: 80, rows: 24))
-            } catch {
-                guard !retriedAfterOpenFailure else { throw error }
-                retriedAfterOpenFailure = true
-                await connectionManager.invalidate(host: host)
-            }
-        }
+        let startup = PlainPTYStartupTransaction()
+        let manager = connectionManager
+        let terminalSize = TermSize(cols: 80, rows: 24)
+        let pipeline = TerminalStartupPipeline(steps: [
+            .init(id: .remoteTransport) {
+                let session = try await manager.session(for: host)
+                await startup.storeSession(session)
+                return nil
+            },
+            .init(id: .byteTerminal) {
+                let firstSession = try await startup.session()
+                let channel: any ShellChannel
+                do {
+                    channel = try await firstSession.openShell(term: terminalSize)
+                } catch {
+                    await manager.invalidate(host: host)
+                    let refreshedSession = try await manager.session(for: host)
+                    await startup.storeSession(refreshedSession)
+                    channel = try await refreshedSession.openShell(term: terminalSize)
+                }
+                await startup.storeChannel(channel)
+                return TerminalStartupRollback {
+                    await startup.rollbackChannel()
+                }
+            },
+            .init(id: .readiness) {
+                _ = try await startup.finishedChannel()
+                return nil
+            },
+        ])
+        try await pipeline.run()
+        return try await startup.finishedChannel()
     }
 
     private func observeLifecycle(for tabID: String, generation: UInt64, session: TerminalSession) {
@@ -638,6 +745,77 @@ public final class TerminalSessionCoordinator {
                 self?.receive(event, tabID: tabID, generation: generation)
             }
         }
+    }
+
+    private func observeAttachmentLifecycle(
+        for tabID: String,
+        generation: UInt64,
+        attachment: (any PersistentTerminalAttachment)?
+    ) {
+        attachmentLifecycleTasks.removeValue(forKey: tabID)?.cancel()
+        guard let attachment else { return }
+        attachmentLifecycleTasks[tabID] = Task { [weak self] in
+            for await event in attachment.lifecycleEvents {
+                guard !Task.isCancelled else { return }
+                self?.receive(event, tabID: tabID, generation: generation)
+            }
+        }
+    }
+
+    private func receive(
+        _ event: PersistentTerminalAttachmentLifecycleEvent,
+        tabID: String,
+        generation: UInt64
+    ) {
+        guard let tab = store.tab(id: tabID), tab.generation == generation else { return }
+        switch event {
+        case let .failed(failure):
+            store.updateStatus(
+                tabID,
+                to: .disconnected(message: failure.issue.userFacingDiagnosis)
+            )
+            if failure.recovery == .rebuildAttachment {
+                scheduleAutomaticRecovery(tabID: tabID, generation: generation)
+            }
+        }
+    }
+
+    /// A required auxiliary component (for example tmux Control Mode) invalidates the
+    /// complete attachment generation. Rebuild uses the exact same descriptor and startup
+    /// pipeline as initial launch, with a small bounded retry sequence for transient loss.
+    private func scheduleAutomaticRecovery(tabID: String, generation: UInt64) {
+        if let existing = automaticRecoveryTasks[tabID] {
+            guard existing.generation != generation else { return }
+            existing.task.cancel()
+        }
+        let recoveryID = UUID()
+        let task = Task { @MainActor [weak self] in
+            guard let self else { return }
+            defer {
+                if self.automaticRecoveryTasks[tabID]?.id == recoveryID {
+                    self.automaticRecoveryTasks[tabID] = nil
+                }
+            }
+            let delays: [Duration] = [.milliseconds(200), .seconds(1), .seconds(3)]
+            for delay in delays {
+                do {
+                    try await Task.sleep(for: delay)
+                } catch {
+                    return
+                }
+                guard let current = self.store.tab(id: tabID),
+                      current.generation == generation
+                else { return }
+                if case .success = await self.reconnect(tabID) {
+                    return
+                }
+            }
+        }
+        automaticRecoveryTasks[tabID] = AutomaticRecoveryTask(
+            id: recoveryID,
+            generation: generation,
+            task: task
+        )
     }
 
     private func receive(_ event: TerminalSessionLifecycleEvent, tabID: String, generation: UInt64) {
@@ -676,8 +854,9 @@ public final class TerminalSessionCoordinator {
         launchGeneration(forHost: hostID) == expectedGeneration
     }
 
-    private func automaticAlias(for source: TerminalSessionSource, hostID: String) -> String {
-        switch source {
+    private func automaticAlias(for request: TerminalLaunchRequest, hostID: String) -> String {
+        if let automaticAlias = request.automaticAlias { return automaticAlias }
+        switch request.source {
         case .shell:
             let names = Set(store.tabs(forHost: hostID).map(\.automaticAlias))
             var index = 1
@@ -693,5 +872,47 @@ public final class TerminalSessionCoordinator {
         case let .persistent(providerID):
             return providerID
         }
+    }
+}
+
+private extension String {
+    var nilIfEmpty: String? { isEmpty ? nil : self }
+}
+
+private enum PlainPTYStartupTransactionError: Error, Sendable {
+    case missingSession
+    case missingChannel
+}
+
+private actor PlainPTYStartupTransaction {
+    private var openedSession: (any SSHSession)?
+    private var openedChannel: (any ShellChannel)?
+
+    func storeSession(_ session: any SSHSession) {
+        openedSession = session
+    }
+
+    func session() throws -> any SSHSession {
+        guard let openedSession else {
+            throw PlainPTYStartupTransactionError.missingSession
+        }
+        return openedSession
+    }
+
+    func storeChannel(_ channel: any ShellChannel) {
+        openedChannel = channel
+    }
+
+    func rollbackChannel() async {
+        guard let openedChannel else { return }
+        self.openedChannel = nil
+        await openedChannel.close()
+    }
+
+    func finishedChannel() throws -> any ShellChannel {
+        guard let openedChannel else {
+            throw PlainPTYStartupTransactionError.missingChannel
+        }
+        return openedChannel
     }
 }

@@ -2,6 +2,12 @@ import ConnMultiplexer
 import ConnSSH
 import ConnUI
 import Foundation
+import OSLog
+
+private let persistentTerminalDiagnosticsLogger = Logger(
+    subsystem: "com.crazyball.Conn",
+    category: "PersistentTerminal"
+)
 
 /// Product-facing diagnostics for provider-neutral persistent terminal failures.
 /// Protocol details stay in ConnMultiplexer; presentation layers get stable,
@@ -13,12 +19,10 @@ public extension PersistentTerminalError {
             L("当前主机平台不支持持久终端")
         case let .providerNotRegistered(providerID):
             String(format: L("持久终端 Provider 未注册：%@"), providerID)
-        case .providerDisabled:
-            L("当前持久终端配置已停用")
-        case let .profileUnavailable(profileID):
-            String(format: L("持久终端配置不可用：%@"), profileID)
         case .executableMissing:
             L("远端未安装所需的持久终端程序")
+        case let .unsupportedConfigurationVersion(providerID, version):
+            String(format: L("%@ 配置版本不受支持：%d"), providerID, version)
         case let .incompatibleVersion(version):
             version.map { String(format: L("远端持久终端版本不兼容：%@"), $0) }
                 ?? L("远端持久终端版本不兼容")
@@ -77,6 +81,12 @@ public extension TmuxProviderError {
 }
 
 package func terminalUserFacingDiagnosis(_ error: any Error) -> String {
+    if let startupFailure = error as? TerminalStartupFailure {
+        persistentTerminalDiagnosticsLogger.error(
+            "Startup failed at \(startupFailure.stageID.rawValue, privacy: .public); underlying type: \(String(reflecting: type(of: startupFailure.underlyingError)), privacy: .public)"
+        )
+        return terminalUserFacingDiagnosis(startupFailure.underlyingError)
+    }
     if let persistentError = error as? PersistentTerminalError {
         return persistentError.userFacingDiagnosis
     }

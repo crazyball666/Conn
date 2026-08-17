@@ -6,18 +6,28 @@ import Testing
 
 @Suite("Persistent terminal provider registry")
 struct PersistentTerminalProviderRegistryTests {
+    @Test("registry 确定性枚举代码内置默认配置")
+    func registeredDefaultsAreLocalAndDeterministic() {
+        let defaults = PersistentTerminalProviderRegistry.default.registeredDefaults()
+
+        #expect(defaults.map(\.descriptor.id) == [TmuxProvider.providerID])
+        #expect(defaults.first?.configuration.providerID == TmuxProvider.providerID)
+        #expect(defaults.first?.configuration.configurationKey == "default")
+        #expect(defaults.first?.configuration.payloadVersion == TmuxProvider.configurationVersion)
+    }
+
     @Test("内置 registry 注册 tmux，但仍按平台精确路由")
     func builtInRegistryRegistersTmux() throws {
-        let profile = makeProfile(providerID: TmuxProvider.providerID)
+        let configuration = TmuxProvider().defaultConfiguration
 
         #expect(
             try PersistentTerminalProviderRegistry.default
-                .provider(for: profile, platform: .macOS)
+                .provider(for: configuration, platform: .macOS)
                 .descriptor.id == TmuxProvider.providerID
         )
         #expect(throws: PersistentTerminalError.unsupportedPlatform) {
             try PersistentTerminalProviderRegistry.default
-                .provider(for: profile, platform: .windows)
+                .provider(for: configuration, platform: .windows)
         }
     }
 
@@ -29,20 +39,23 @@ struct PersistentTerminalProviderRegistryTests {
             supportedConfigurationVersions: [1]
         )
         let registry = try PersistentTerminalProviderRegistry(providers: [provider])
-        let profile = makeProfile(providerID: "tmux")
+        let configuration = makeConfiguration(providerID: "tmux")
 
-        #expect(try registry.provider(for: profile, platform: .linux).descriptor.id == "tmux")
-        #expect(try registry.provider(for: profile, platform: .macOS).descriptor.id == "tmux")
+        #expect(try registry.provider(for: configuration, platform: .linux).descriptor.id == "tmux")
+        #expect(try registry.provider(for: configuration, platform: .macOS).descriptor.id == "tmux")
         #expect(throws: PersistentTerminalError.unsupportedPlatform) {
-            try registry.provider(for: profile, platform: .windows)
+            try registry.provider(for: configuration, platform: .windows)
         }
         #expect(throws: PersistentTerminalError.unsupportedPlatform) {
-            try registry.provider(for: profile, platform: .unknown)
+            try registry.provider(for: configuration, platform: .unknown)
         }
 
-        let futureProfile = makeProfile(providerID: "tmux", configurationVersion: 2)
-        #expect(throws: PersistentTerminalError.incompatibleVersion("profile configuration 2")) {
-            try registry.provider(for: futureProfile, platform: .linux)
+        let futureConfiguration = makeConfiguration(providerID: "tmux", payloadVersion: 2)
+        #expect(throws: PersistentTerminalError.unsupportedConfigurationVersion(
+            providerID: "tmux",
+            version: 2
+        )) {
+            try registry.provider(for: futureConfiguration, platform: .linux)
         }
     }
 
@@ -60,7 +73,7 @@ struct PersistentTerminalProviderRegistryTests {
     func probeRejectsUnsupportedInstancePayloadVersion() async throws {
         let provider = FakePersistentTerminalProvider(id: "tmux", probeInstancePayloadVersion: 2)
         let registry = try PersistentTerminalProviderRegistry(providers: [provider])
-        let context = try await makeContext(profile: makeProfile(providerID: "tmux"))
+        let context = try await makeContext(configuration: makeConfiguration(providerID: "tmux"))
 
         await #expect(throws: PersistentTerminalError.unsupportedDescriptorVersion(
             providerID: "tmux",
@@ -75,7 +88,7 @@ struct PersistentTerminalProviderRegistryTests {
     func invalidDescriptorsAreNeverOpened() async throws {
         let provider = FakePersistentTerminalProvider(id: "tmux")
         let registry = try PersistentTerminalProviderRegistry(providers: [provider])
-        let context = try await makeContext(profile: makeProfile(providerID: "tmux"))
+        let context = try await makeContext(configuration: makeConfiguration(providerID: "tmux"))
 
         let unknownProvider = makeDescriptor(providerID: "future")
         await #expect(throws: PersistentTerminalError.providerNotRegistered("future")) {
@@ -122,7 +135,7 @@ struct PersistentTerminalProviderRegistryTests {
     func routesInitialAndReconnectWithoutProviderSwitches() async throws {
         let provider = FakePersistentTerminalProvider(id: "tmux")
         let registry = try PersistentTerminalProviderRegistry(providers: [provider])
-        let context = try await makeContext(profile: makeProfile(providerID: "tmux"))
+        let context = try await makeContext(configuration: makeConfiguration(providerID: "tmux"))
         let descriptor = makeDescriptor()
 
         let initial = try await registry.openAttachment(
@@ -147,7 +160,7 @@ struct PersistentTerminalProviderRegistryTests {
     func attachmentCloseIsIdempotent() async throws {
         let provider = FakePersistentTerminalProvider(id: "tmux")
         let registry = try PersistentTerminalProviderRegistry(providers: [provider])
-        let context = try await makeContext(profile: makeProfile(providerID: "tmux"))
+        let context = try await makeContext(configuration: makeConfiguration(providerID: "tmux"))
         let attachment = try await registry.openAttachment(
             makeDescriptor(),
             reason: .initial,
@@ -163,18 +176,15 @@ struct PersistentTerminalProviderRegistryTests {
     }
 }
 
-private func makeProfile(
+private func makeConfiguration(
     providerID: String,
-    configurationVersion: Int = 1
-) -> TerminalBackendProfile {
-    TerminalBackendProfile(
-        id: "profile-1",
-        hostID: "host-1",
+    payloadVersion: Int = 1
+) -> PersistentTerminalConfiguration {
+    PersistentTerminalConfiguration(
         providerID: providerID,
-        providerConfigurationKey: "default",
-        displayName: "Default",
-        configurationVersion: configurationVersion,
-        configurationJSON: "{}"
+        configurationKey: "default",
+        payloadVersion: payloadVersion,
+        providerPayload: Data("{}".utf8)
     )
 }
 
@@ -185,7 +195,7 @@ private func makeDescriptor(
 ) -> PersistentAttachmentDescriptor {
     PersistentAttachmentDescriptor(
         providerID: providerID,
-        profileID: "profile-1",
+        configuration: makeConfiguration(providerID: providerID),
         workspace: RemoteWorkspaceRef(
             workspaceID: "$1",
             instancePayloadVersion: instancePayloadVersion,
@@ -196,7 +206,9 @@ private func makeDescriptor(
     )
 }
 
-private func makeContext(profile: TerminalBackendProfile) async throws -> PersistentTerminalContext {
+private func makeContext(
+    configuration: PersistentTerminalConfiguration
+) async throws -> PersistentTerminalContext {
     let host = Host(
         id: "host-1",
         name: "Test",
@@ -208,7 +220,10 @@ private func makeContext(profile: TerminalBackendProfile) async throws -> Persis
         platformDetector: FixedPlatformDetector(kind: .linux)
     )
     let remoteContext = try await manager.platformContext(for: host)
-    return try PersistentTerminalContext(platformContext: remoteContext, backendProfile: profile)
+    return PersistentTerminalContext(
+        platformContext: remoteContext,
+        backendConfiguration: configuration
+    )
 }
 
 private struct FixedPlatformDetector: RemotePlatformDetecting {
@@ -221,6 +236,7 @@ private struct FixedPlatformDetector: RemotePlatformDetecting {
 
 private final class FakePersistentTerminalProvider: PersistentTerminalProvider, @unchecked Sendable {
     let descriptor: PersistentTerminalProviderDescriptor
+    let defaultConfiguration: PersistentTerminalConfiguration
     private let recorder = OpenReasonRecorder()
     private let probeInstancePayloadVersion: Int
 
@@ -231,6 +247,12 @@ private final class FakePersistentTerminalProvider: PersistentTerminalProvider, 
         probeInstancePayloadVersion: Int = 1
     ) {
         self.probeInstancePayloadVersion = probeInstancePayloadVersion
+        defaultConfiguration = PersistentTerminalConfiguration(
+            providerID: id,
+            configurationKey: "default",
+            payloadVersion: supportedConfigurationVersions.min() ?? 1,
+            providerPayload: Data("{}".utf8)
+        )
         descriptor = PersistentTerminalProviderDescriptor(
             id: id,
             displayName: id,
@@ -260,8 +282,16 @@ private final class FakePersistentTerminalProvider: PersistentTerminalProvider, 
     func createWorkspace(
         _ request: CreateWorkspaceRequest,
         in context: PersistentTerminalContext
-    ) async throws -> RemoteWorkspaceRef {
-        makeDescriptor().workspace
+    ) async throws -> RemoteWorkspaceSummary {
+        RemoteWorkspaceSummary(
+            workspace: makeDescriptor().workspace,
+            name: request.name ?? "generated",
+            occupancy: .init(
+                affectedAttachmentCount: nil,
+                observedAt: .now,
+                freshness: .fresh
+            )
+        )
     }
 
     func renameWorkspace(
@@ -281,7 +311,7 @@ private final class FakePersistentTerminalProvider: PersistentTerminalProvider, 
     ) throws -> PersistentAttachmentDescriptor {
         PersistentAttachmentDescriptor(
             providerID: descriptor.id,
-            profileID: context.backendProfile.id,
+            configuration: context.backendConfiguration,
             workspace: workspace,
             payloadVersion: 1,
             providerPayload: Data("attachment".utf8)

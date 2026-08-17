@@ -546,7 +546,7 @@ private struct SnapshotAssemblerFixture {
                 address: "server.example",
                 username: "root"
             )),
-            profileID: "profile-1",
+            configurationKey: "profile-1",
             instanceToken: token ?? self.token,
             generation: 7
         )

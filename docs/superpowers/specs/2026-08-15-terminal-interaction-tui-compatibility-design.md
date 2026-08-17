@@ -1,5 +1,7 @@
 # Terminal Interaction and TUI Compatibility Design
 
+> **tmux lifecycle clarification (2026-08-16):** Control Mode is now a required tmux attachment component. The interaction facet may still use a bounded one-shot command to capture the pane selected by a ready, pinned Control state, but it never uses one-shot as a fallback when Control Mode is unavailable. Startup/recovery follows the required-component pipeline in [tmux integration design](./2026-08-12-tmux-integration-design.md#11-2026-08-16-必需组件与组合式启动决策).
+
 **Date:** 2026-08-15
 **Status:** Confirmed product direction; ready for implementation planning after review
 **Scope:** iOS terminal scrolling, local text selection, remote mouse interaction, tmux history, and modern full-screen TUI compatibility
@@ -440,8 +442,8 @@ No interaction failure closes a still-usable SSH or tmux data channel.
 - Copy/view mode uses bounded `send-keys -X` scrolling; key-driven modes use the attached client; unknown modes emit no guessed input.
 - History targets the verified active pane and returns one immutable snapshot.
 - Output during capture cannot shift an existing snapshot.
-- Control failure uses the validated one-shot fallback.
-- Both interaction paths failing do not close the data attachment.
+- Control failure invalidates the complete attachment generation and requests bounded rebuild; no quick action or state resolution changes to one-shot transport.
+- A bounded history-capture command failure is reported without guessing another pane; a Control Runtime transport failure closes the old local data attachment before rebuild.
 - Server restart, pane switch, or client identity mismatch rejects the result.
 - Capture output cannot execute OSC, DCS, title, clipboard, or query sequences.
 

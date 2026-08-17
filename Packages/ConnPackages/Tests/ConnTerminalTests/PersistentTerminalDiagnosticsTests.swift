@@ -9,7 +9,7 @@ struct PersistentTerminalDiagnosticsTests {
         let errors: [PersistentTerminalError] = [
             .unsupportedPlatform,
             .executableMissing,
-            .profileUnavailable("tmux-host-1"),
+            .invalidConfiguration,
             .socketPermissionDenied,
             .serverUnavailable,
         ]

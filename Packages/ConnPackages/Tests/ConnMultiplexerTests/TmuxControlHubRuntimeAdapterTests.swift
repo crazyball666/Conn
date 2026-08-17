@@ -6,8 +6,8 @@ import Testing
 
 @Suite("tmux control hub runtime adapter")
 struct TmuxControlHubRuntimeAdapterTests {
-    @Test("an exact ready Control client wins and no one-shot fallback follows its errors")
-    func routesReadyControlWithoutFallback() async throws {
+    @Test("an exact ready Control client owns the route and its errors propagate")
+    func routesReadyControl() async throws {
         let fixture = try RuntimeAdapterFixture()
         let control = RecordingControlExecutor(result: .success(.init(
             scope: fixture.scope,
@@ -15,12 +15,7 @@ struct TmuxControlHubRuntimeAdapterTests {
             output: [Data("control".utf8)]
         )))
         let locator = RecordingControlLocator(executor: control)
-        let oneShot = RecordingOneShotExecutor(result: .success(.init(
-            scope: fixture.scope,
-            operation: fixture.operation,
-            output: Data("one-shot".utf8)
-        )))
-        let adapter = fixture.adapter(locator: locator, oneShot: oneShot)
+        let adapter = fixture.adapter(locator: locator)
 
         let receipt = try await adapter.execute(
             fixture.request,
@@ -31,18 +26,12 @@ struct TmuxControlHubRuntimeAdapterTests {
         #expect(receipt.reconciliationSnapshot == nil)
         #expect(await locator.requestCount == 1)
         #expect(await control.executionCount == 1)
-        #expect(await oneShot.executionCount == 0)
 
         let failingControl = RecordingControlExecutor(
             result: .failure(.controlTransportLost)
         )
         let failingLocator = RecordingControlLocator(executor: failingControl)
-        let fallback = RecordingOneShotExecutor(result: .success(.init(
-            scope: fixture.scope,
-            operation: fixture.operation,
-            output: Data()
-        )))
-        let failingAdapter = fixture.adapter(locator: failingLocator, oneShot: fallback)
+        let failingAdapter = fixture.adapter(locator: failingLocator)
         await #expect(throws: RuntimeAdapterTestError.controlTransportLost) {
             try await failingAdapter.execute(
                 fixture.request,
@@ -51,53 +40,36 @@ struct TmuxControlHubRuntimeAdapterTests {
             )
         }
         #expect(await failingControl.executionCount == 1)
-        #expect(await fallback.executionCount == 0)
     }
 
-    @Test("one-shot success requires and installs one exact post-operation snapshot")
-    func reconcilesOneShotBeforeHubCompletion() async throws {
+    @Test("Control Mode 不可用时拒绝操作，不切换到 one-shot transport")
+    func rejectsOperationWithoutReadyControl() async throws {
         let fixture = try RuntimeAdapterFixture()
         let locator = RecordingControlLocator(executor: nil)
-        let oneShot = RecordingOneShotExecutor(result: .success(.init(
-            scope: fixture.scope,
-            operation: fixture.operation,
-            output: Data("@2\n".utf8)
-        )))
         let snapshots = RecordingRuntimeSnapshotLoader(
             snapshots: [try fixture.snapshot(name: "after-one-shot")]
         )
         let adapter = fixture.adapter(
             locator: locator,
-            oneShot: oneShot,
             snapshots: snapshots
         )
-        let hub = try TmuxControlHub(
-            scope: fixture.scope,
-            initialSnapshot: try fixture.snapshot(name: "before"),
-            adapter: adapter
-        )
 
-        let receipt = try await hub.execute(fixture.request, timeout: .seconds(1))
-
-        #expect(receipt.output == [Data("@2".utf8)])
-        #expect(receipt.reconciliationSnapshot?.sessions[fixture.session]?.name == "after-one-shot")
-        #expect(await hub.currentSnapshot?.sessions[fixture.session]?.name == "after-one-shot")
+        await #expect(throws: TmuxControlHubRuntimeAdapterError.controlClientNotReady) {
+            try await adapter.execute(
+                fixture.request,
+                timeout: .seconds(1),
+                identities: []
+            )
+        }
         #expect(await locator.requestCount == 1)
-        #expect(await oneShot.executionCount == 1)
-        #expect(await snapshots.requestCount == 1)
-        #expect(await snapshots.reasons == [.operationCompleted(fixture.operation)])
+        #expect(await snapshots.requestCount == 0)
     }
 
     @Test("a stale generation is rejected before any runtime route")
     func rejectsStaleGenerationBeforeRouting() async throws {
         let fixture = try RuntimeAdapterFixture()
         let locator = RecordingControlLocator(executor: nil)
-        let oneShot = RecordingOneShotExecutor(result: .success(.init(
-            scope: fixture.scope,
-            operation: fixture.operation,
-            output: Data()
-        )))
-        let adapter = fixture.adapter(locator: locator, oneShot: oneShot)
+        let adapter = fixture.adapter(locator: locator)
         let staleScope = try fixture.scope(generation: 6)
         let staleRequest = TmuxOperationRequest(
             scope: staleScope,
@@ -115,7 +87,6 @@ struct TmuxControlHubRuntimeAdapterTests {
             )
         }
         #expect(await locator.requestCount == 0)
-        #expect(await oneShot.executionCount == 0)
     }
 
     @Test("catalog snapshots preserve reason and verified interactive identities")
@@ -217,9 +188,6 @@ private struct RuntimeAdapterFixture: Sendable {
 
     func adapter(
         locator: any TmuxReadyControlClientLocating = RecordingControlLocator(executor: nil),
-        oneShot: any TmuxOneShotOperationExecuting = RecordingOneShotExecutor(
-            result: .failure(.unexpectedRoute)
-        ),
         snapshots: any TmuxControlHubSnapshotLoading = RecordingRuntimeSnapshotLoader(
             snapshots: []
         ),
@@ -228,7 +196,6 @@ private struct RuntimeAdapterFixture: Sendable {
         TmuxControlHubRuntimeAdapter(
             initialScope: scope,
             controlClients: locator,
-            oneShot: oneShot,
             snapshots: snapshots,
             lifecycle: lifecycle
         )
@@ -280,7 +247,7 @@ private struct RuntimeAdapterFixture: Sendable {
                 address: "server.example",
                 username: "root"
             )),
-            profileID: "profile-1",
+            configurationKey: "profile-1",
             instanceToken: token,
             generation: generation
         )
@@ -289,7 +256,6 @@ private struct RuntimeAdapterFixture: Sendable {
 
 private enum RuntimeAdapterTestError: Error {
     case controlTransportLost
-    case unexpectedRoute
 }
 
 private actor RecordingControlExecutor: TmuxControlOperationExecuting {
@@ -322,23 +288,6 @@ private actor RecordingControlLocator: TmuxReadyControlClientLocating {
     ) async throws -> (any TmuxControlOperationExecuting)? {
         requestCount += 1
         return executor
-    }
-}
-
-private actor RecordingOneShotExecutor: TmuxOneShotOperationExecuting {
-    private let result: Result<TmuxOneShotOperationResult, RuntimeAdapterTestError>
-    private(set) var executionCount = 0
-
-    init(result: Result<TmuxOneShotOperationResult, RuntimeAdapterTestError>) {
-        self.result = result
-    }
-
-    func execute(
-        _ request: TmuxOperationRequest,
-        timeout: Duration
-    ) async throws -> TmuxOneShotOperationResult {
-        executionCount += 1
-        return try result.get()
     }
 }
 

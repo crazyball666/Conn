@@ -105,6 +105,53 @@ struct TmuxInteractionOneShotTests {
         #expect(!request.command.contains(" -J "))
         #expect(!request.command.contains(" -M "))
     }
+
+    @Test("Control Mode 不可用时保留操作入口但拒绝执行，不做 one-shot 降级")
+    func rejectsQuickActionsWhenControlModeIsUnavailable() async throws {
+        let fixture = try OneShotInteractionFixture(nonce: "fallback-op")
+        let snapshotNonce = try TmuxInvocationNonce("fallback-snapshot")
+        let readExecutor = try InteractionSnapshotReadExecutor(
+            scope: fixture.scope,
+            nonce: snapshotNonce
+        )
+        let sessionID = try #require(TmuxSessionID(rawValue: "$1"))
+        let backend = TmuxOneShotInteractionBackend(
+            executor: readExecutor,
+            captureExecutor: UnusedInteractionCaptureExecutor(),
+            scope: fixture.scope,
+            dialect: .init(commandGuardShape: .threeFields, snapshotCodec: .quoted),
+            attachmentID: "attachment-1",
+            attachmentGeneration: 9,
+            requestedSessionID: sessionID,
+            tty: "/dev/ttys001",
+            processID: 501,
+            nonceFactory: { snapshotNonce }
+        )
+        let facet = TmuxInteractionFacet(
+            attachmentGeneration: 9,
+            historyBackend: backend
+        )
+
+        let group = try #require(await facet.quickActionGroup)
+        #expect(group.id == TmuxProvider.providerID)
+        #expect(group.swipeAction(for: .left)?.actionID
+            == TmuxTerminalQuickAction.nextWindow.rawValue)
+
+        await #expect(throws: PersistentTerminalError.controlModeUnavailable) {
+            try await facet.performQuickAction(.init(
+                actionID: TmuxTerminalQuickAction.resizeLeft.rawValue,
+                target: .init(
+                    providerID: TmuxProvider.providerID,
+                    workspaceID: "$1",
+                    targetID: "%1"
+                ),
+                attachmentGeneration: 9,
+                expectedStateRevision: 1
+            ))
+        }
+        #expect(await readExecutor.executionCount == 0)
+        await facet.close()
+    }
 }
 
 private struct OneShotInteractionFixture {
@@ -122,7 +169,7 @@ private struct OneShotInteractionFixture {
                 address: "server.example",
                 username: "root"
             )),
-            profileID: "profile-1",
+            configurationKey: "profile-1",
             instanceToken: try TmuxServerInstanceToken(
                 resolvedSocketPath: "/tmp/tmux/default",
                 serverPID: 100,
@@ -168,6 +215,66 @@ private struct OneShotInteractionFixture {
 
 private enum InteractionTestError: Error {
     case unavailable
+}
+
+private actor InteractionSnapshotReadExecutor: TmuxReadOnlyCommandExecuting {
+    private let scope: TmuxOperationScope
+    private let output: [Data]
+    private(set) var executionCount = 0
+
+    init(scope: TmuxOperationScope, nonce: TmuxInvocationNonce) throws {
+        self.scope = scope
+        let plan = try TmuxSnapshotQueryRenderer().renderPlan(codec: .quoted, nonce: nonce)
+        let step = try #require(plan.steps.first)
+        let records: [TmuxSnapshotSection: [Data]] = [
+            .serverIdentityBefore: [interactionLine(
+                #""/tmp/tmux/default" "100" "200" "3.5a""#
+            )],
+            .sessions: [interactionLine(#""$1" "alpha" """#)],
+            .windowLinks: [interactionLine(#""$1" "@1" "0" "1""#)],
+            .windows: [interactionLine(#""@1" "editor" "layout" "0""#)],
+            .panes: [interactionLine(
+                #""@1" "%1" "0" "editor" "sh" "/repo" "80" "24" "0" "1" "0" "0" "" "0" "120" "2000""#
+            )],
+            .clients: [interactionLine(
+                #""/dev/ttys001" "/dev/ttys001" "501" "1001" "$1" "@1" "%1" "ignore-size" "0""#
+            )],
+            .serverIdentityAfter: [interactionLine(
+                #""/tmp/tmux/default" "100" "200" "3.5a""#
+            )],
+        ]
+        output = step.frames.flatMap { frame in
+            [interactionLine(frame.beginMarker)]
+                + (records[frame.section] ?? [])
+                + [interactionLine(frame.endMarker)]
+        }
+    }
+
+    func execute(
+        _ request: TmuxControlRequest,
+        scope requestedScope: TmuxOperationScope,
+        timeout: Duration
+    ) async throws -> TmuxReadOnlyCommandExecution {
+        executionCount += 1
+        #expect(request.semantics == .readOnly)
+        #expect(requestedScope == scope)
+        return .init(scope: scope, output: output)
+    }
+}
+
+private struct UnusedInteractionCaptureExecutor: TmuxPaneHistoryCaptureExecuting {
+    func capture(
+        paneID: TmuxPaneID,
+        startLine: Int,
+        maximumBytes: Int,
+        timeout: Duration
+    ) async throws -> TmuxPaneCaptureResult {
+        throw InteractionTestError.unavailable
+    }
+}
+
+private func interactionLine(_ value: String) -> Data {
+    Data(value.utf8)
 }
 
 private final class InteractionSSHSession: SSHSession, @unchecked Sendable {

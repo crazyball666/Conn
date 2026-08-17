@@ -513,13 +513,22 @@ package struct TmuxSnapshotQueryRenderer: Sendable {
             commands.append(display(literal: frame.end))
         }
 
+        let completionMarker = "__CONN_TMUX_SNAPSHOT_\(nonce.value)_REQUEST_END__"
+        guard completionMarker.utf8.count <= limits.maximumMarkerBytes else {
+            throw TmuxSnapshotQueryError.markerTooLong(
+                maximumBytes: limits.maximumMarkerBytes
+            )
+        }
+        commands.append(display(literal: completionMarker))
+
         let rendered = TmuxRenderedControlCommand(
             value: commands.joined(separator: " ; ")
         )
         return TmuxSnapshotQueryStep(
             request: try TmuxControlRequest(
                 renderedCommand: rendered,
-                semantics: .readOnly
+                semantics: .readOnly,
+                completionMarker: completionMarker
             ),
             frames: frames,
             decoding: decoding

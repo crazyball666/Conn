@@ -4,6 +4,21 @@ import Testing
 
 @Suite("tmux snapshot codecs")
 struct TmuxSnapshotCodecTests {
+    @Test("workspace catalog framing decodes identity and sessions")
+    func decodesWorkspaceCatalogFraming() throws {
+        let output = Data(
+            ("\"I\" \"/tmp/tmux-1000/default\" \"1234\" \"987654\"\n"
+                + "\"S\" \"$7\" \"ops\" \"\"").utf8
+        )
+        #expect(try TmuxQuotedSnapshotCodec().decode(
+            commandOutputLines: [output],
+            expectedFieldCount: 4
+        ) == [
+            ["I", "/tmp/tmux-1000/default", "1234", "987654"],
+            ["S", "$7", "ops", ""],
+        ])
+    }
+
     @Test("quoted codec decodes empty fields, Unicode, spaces, quotes, backslashes and tabs")
     func decodesQuotedFields() throws {
         let wireString = "\"$1\" \"\" \"开发\\ session\" "

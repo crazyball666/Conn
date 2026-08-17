@@ -121,7 +121,10 @@ package struct TmuxShellInvocationRenderer: Sendable {
     private func renderNested(_ operation: TmuxOperation) -> String {
         switch operation {
         case let .createSession(name):
-            var arguments = ["new-session", "-d", "-P", "-F", encodeTmux("#{session_id}")]
+            var arguments = [
+                "new-session", "-d", "-P", "-F",
+                encodeTmux("#{session_id}\t#{session_name}"),
+            ]
             if let name {
                 arguments += ["-s", encodeTmux(name.value)]
             }
@@ -142,6 +145,14 @@ package struct TmuxShellInvocationRenderer: Sendable {
             return join(
                 "switch-client", "-c", encodeTmux(client.value),
                 "-t", encodeTmux(windowID.rawValue)
+            )
+
+        case let .selectRelativeWindow(sessionID, direction, steps, client):
+            let suffix = direction == .next ? "+" : "-"
+            let offset = suffix + (steps.value == 1 ? "" : String(steps.value))
+            return join(
+                "switch-client", "-c", encodeTmux(client.value),
+                "-t", encodeTmux(sessionID.rawValue + ":" + offset)
             )
 
         case let .createWindow(sessionID, name):
@@ -175,6 +186,21 @@ package struct TmuxShellInvocationRenderer: Sendable {
                 direction, "-t", encodeTmux(paneID.rawValue)
             )
 
+        case let .applyPaneLayout(windowID, layout):
+            return join(
+                "select-layout", "-t", encodeTmux(windowID.rawValue),
+                encodeTmux(layout.rawValue)
+            )
+
+        case let .cyclePaneLayout(windowID):
+            return join("next-layout", "-t", encodeTmux(windowID.rawValue))
+
+        case let .toggleSynchronizePanes(windowID):
+            return join(
+                "set-window-option", "-t", encodeTmux(windowID.rawValue),
+                "synchronize-panes"
+            )
+
         case let .setPaneZoom(paneID, zoomed):
             let condition = zoomed
                 ? "#{==:#{window_zoomed_flag},0}"
@@ -184,6 +210,27 @@ package struct TmuxShellInvocationRenderer: Sendable {
                 "if-shell", "-F", "-t", encodeTmux(paneID.rawValue),
                 encodeTmux(condition), encodeTmux(toggle), encodeTmux("")
             )
+
+        case let .resizePane(paneID, direction, cells):
+            let flag = switch direction {
+            case .left: "-L"
+            case .right: "-R"
+            case .up: "-U"
+            case .down: "-D"
+            }
+            return join(
+                "resize-pane", flag, "-t", encodeTmux(paneID.rawValue),
+                encodeTmux(String(cells.value))
+            )
+
+        case let .swapPane(paneID, direction):
+            return join(
+                "swap-pane", direction == .previous ? "-U" : "-D",
+                "-t", encodeTmux(paneID.rawValue)
+            )
+
+        case let .enterCopyMode(paneID):
+            return join("copy-mode", "-t", encodeTmux(paneID.rawValue))
 
         case let .killPane(paneID):
             return join("kill-pane", "-t", encodeTmux(paneID.rawValue))

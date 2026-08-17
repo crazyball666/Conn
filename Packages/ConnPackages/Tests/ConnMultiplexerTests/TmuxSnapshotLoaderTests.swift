@@ -356,7 +356,7 @@ private struct SnapshotLoaderFixture: Sendable {
                 address: "server.example",
                 username: "root"
             )),
-            profileID: "profile-1",
+            configurationKey: "profile-1",
             instanceToken: token,
             generation: generation
         )

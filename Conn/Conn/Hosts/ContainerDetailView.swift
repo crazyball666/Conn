@@ -105,7 +105,7 @@ struct ContainerDetailView: View {
         .overlay { terminalLaunchProgress }
         .onDisappear { terminalLauncher.cancel() }
         .onChange(of: terminalLauncher.errorMessage) { _, message in
-            toastCenter.show(message)
+            toastCenter.show(message, style: .error)
         }
         .alert(L("Docker 操作"), isPresented: messageBinding) {
             Button(L("好"), role: .cancel) { viewModel.actionMessage = nil }
@@ -180,7 +180,7 @@ struct ContainerDetailView: View {
 
     private func launchConsole() {
         guard let command = viewModel.containers.consoleCommand(for: container) else {
-            toastCenter.show(L("Docker 运行环境尚未探测完成"))
+            toastCenter.show(L("Docker 运行环境尚未探测完成"), style: .warning)
             return
         }
         terminalLauncher.launch(TerminalLaunchRequest(

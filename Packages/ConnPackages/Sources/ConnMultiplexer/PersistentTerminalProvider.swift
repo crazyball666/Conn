@@ -5,7 +5,53 @@ import Foundation
 public enum PersistentAttachmentPresentation: Sendable {
     case byteTerminal(any ShellChannel)
     // A future native renderer is added as another presentation/facet without changing
-    // profiles, registry routing, or the durable descriptor envelope.
+    // configuration routing or the durable descriptor envelope.
+}
+
+/// Stable identity for one required runtime component owned by an attachment.
+/// It deliberately is not an enum so future providers can add components independently.
+public struct PersistentTerminalRuntimeComponentID:
+    RawRepresentable,
+    Hashable,
+    Sendable,
+    ExpressibleByStringLiteral
+{
+    public let rawValue: String
+
+    public init(rawValue: String) {
+        self.rawValue = rawValue
+    }
+
+    public init(stringLiteral value: String) {
+        rawValue = value
+    }
+}
+
+public enum PersistentTerminalAttachmentRecovery: Sendable, Equatable {
+    /// Recreate the complete attachment through the same startup pipeline.
+    case rebuildAttachment
+    /// Preserve the disconnected tab and wait for explicit user action.
+    case manual
+}
+
+public struct PersistentTerminalAttachmentFailure: Sendable, Equatable {
+    public let componentID: PersistentTerminalRuntimeComponentID
+    public let issue: PersistentTerminalError
+    public let recovery: PersistentTerminalAttachmentRecovery
+
+    public init(
+        componentID: PersistentTerminalRuntimeComponentID,
+        issue: PersistentTerminalError,
+        recovery: PersistentTerminalAttachmentRecovery
+    ) {
+        self.componentID = componentID
+        self.issue = issue
+        self.recovery = recovery
+    }
+}
+
+public enum PersistentTerminalAttachmentLifecycleEvent: Sendable, Equatable {
+    case failed(PersistentTerminalAttachmentFailure)
 }
 
 /// Runtime ownership handle for an opened persistent terminal attachment.
@@ -15,7 +61,16 @@ public enum PersistentAttachmentPresentation: Sendable {
 public protocol PersistentTerminalAttachment: AnyObject, Sendable {
     var descriptor: PersistentAttachmentDescriptor { get }
     var presentation: PersistentAttachmentPresentation { get }
+    var lifecycleEvents: AsyncStream<PersistentTerminalAttachmentLifecycleEvent> { get }
     func close() async
+}
+
+public extension PersistentTerminalAttachment {
+    /// Simple providers own only their presentation channel, whose lifecycle is already
+    /// observed by `TerminalSession`. Composite providers override this stream.
+    var lifecycleEvents: AsyncStream<PersistentTerminalAttachmentLifecycleEvent> {
+        AsyncStream { $0.finish() }
+    }
 }
 
 /// Provider-neutral projection of a remote workspace catalog. The provider owns the
@@ -29,7 +84,7 @@ public enum PersistentWorkspaceCatalogFreshness: Sendable, Equatable {
 
 public struct PersistentWorkspaceCatalogSnapshot: Sendable, Equatable {
     public let providerID: String
-    public let profileID: String
+    public let configurationKey: String
     public let instance: PersistentTerminalProviderInstance?
     public let workspaces: [RemoteWorkspaceSummary]
     public let freshness: PersistentWorkspaceCatalogFreshness
@@ -37,19 +92,20 @@ public struct PersistentWorkspaceCatalogSnapshot: Sendable, Equatable {
 
     public init(
         providerID: String,
-        profileID: String,
+        configurationKey: String,
         instance: PersistentTerminalProviderInstance?,
         workspaces: [RemoteWorkspaceSummary],
         freshness: PersistentWorkspaceCatalogFreshness,
         observedAt: Date
     ) {
         self.providerID = providerID
-        self.profileID = profileID
+        self.configurationKey = configurationKey
         self.instance = instance
         self.workspaces = workspaces
         self.freshness = freshness
         self.observedAt = observedAt
     }
+
 }
 
 public protocol PersistentTerminalCatalogAttachment: AnyObject, Sendable {
@@ -86,40 +142,40 @@ public protocol PersistentTerminalCatalogProvider: PersistentTerminalProvider {
     ) async throws -> any PersistentTerminalCatalogAttachment
 }
 
-/// One atomically claimed SSH connection/platform context plus its durable backend profile.
+/// One atomically claimed SSH connection/platform context plus an immutable backend configuration.
 public struct PersistentTerminalContext: Sendable {
     public let connectionIdentity: SSHConnectionIdentity
     public let session: any SSHSession
     public let platformProfile: RemotePlatformProfile
-    public let backendProfile: TerminalBackendProfile
+    public let backendConfiguration: PersistentTerminalConfiguration
 
     /// Deliberately accepts `RemotePlatformContext` as one value so callers cannot stitch a
     /// session, platform profile, and connection identity from different pool generations.
     public init(
         platformContext: RemotePlatformContext,
-        backendProfile: TerminalBackendProfile
-    ) throws {
-        guard platformContext.connectionIdentity.hostID == backendProfile.hostID else {
-            throw PersistentTerminalError.profileUnavailable(backendProfile.id)
-        }
-
+        backendConfiguration: PersistentTerminalConfiguration
+    ) {
         connectionIdentity = platformContext.connectionIdentity
         session = platformContext.session
         platformProfile = platformContext.profile
-        self.backendProfile = backendProfile
+        self.backendConfiguration = backendConfiguration
     }
 }
 
 /// Complete provider-neutral lifecycle for a top-level persistent terminal workspace.
 public protocol PersistentTerminalProvider: Sendable {
     var descriptor: PersistentTerminalProviderDescriptor { get }
+    var defaultConfiguration: PersistentTerminalConfiguration { get }
 
+    /// Read-only diagnostics/capability reporting. Operations below must remain
+    /// independently self-validating; callers are not required to perform a duplicate
+    /// probe immediately before a catalog query, mutation or attachment open.
     func probe(in context: PersistentTerminalContext) async throws -> PersistentTerminalAvailability
     func listWorkspaces(in context: PersistentTerminalContext) async throws -> [RemoteWorkspaceSummary]
     func createWorkspace(
         _ request: CreateWorkspaceRequest,
         in context: PersistentTerminalContext
-    ) async throws -> RemoteWorkspaceRef
+    ) async throws -> RemoteWorkspaceSummary
     func renameWorkspace(
         _ workspace: RemoteWorkspaceRef,
         to newName: String,

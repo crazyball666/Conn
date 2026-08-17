@@ -65,6 +65,87 @@ struct TmuxInteractionTests {
         #expect(stale.modeCapability == .scrollable)
     }
 
+    @Test("tmux quick actions map to typed operations against the verified active topology")
+    func mapsQuickActionsToVerifiedTargets() throws {
+        let fixture = try InteractionFixture()
+        let resolved = try TmuxInteractionStateProjector().resolve(
+            snapshot: fixture.snapshot(freshness: .liveSubscription(observedAt: fixture.now)),
+            identity: fixture.identity,
+            expectedTarget: fixture.target,
+            attachmentGeneration: 9
+        )
+
+        #expect(TmuxTerminalQuickAction.group.title == "tmux")
+        let client = try TmuxClientTarget(fixture.client.targetName)
+        #expect(TmuxTerminalQuickAction.group.sections.count == 5)
+        #expect(TmuxTerminalQuickAction.group.actions.count == 24)
+        #expect(TmuxTerminalQuickAction.group.swipeAction(for: .left)?.actionID
+            == TmuxTerminalQuickAction.nextWindow.rawValue)
+        #expect(TmuxTerminalQuickAction.group.swipeAction(for: .right)?.actionID
+            == TmuxTerminalQuickAction.previousWindow.rawValue)
+        #expect(try TmuxTerminalQuickAction.nextWindow.operation(
+            for: resolved,
+            client: client,
+            repeatCount: 3
+        ) == .selectRelativeWindow(
+            in: fixture.session,
+            direction: .next,
+            steps: TmuxWindowNavigationStepCount(3),
+            for: client
+        ))
+        #expect(try TmuxTerminalQuickAction.previousWindow.operation(
+            for: resolved,
+            client: client,
+            repeatCount: 2
+        ) == .selectRelativeWindow(
+            in: fixture.session,
+            direction: .previous,
+            steps: TmuxWindowNavigationStepCount(2),
+            for: client
+        ))
+        #expect(try TmuxTerminalQuickAction.newWindow.operation(
+            for: resolved,
+            client: client
+        ) == .createWindow(
+            in: fixture.session,
+            name: nil
+        ))
+        #expect(try TmuxTerminalQuickAction.splitVertical.operation(
+            for: resolved,
+            client: client
+        ) == .splitPane(
+            fixture.pane,
+            orientation: .vertical
+        ))
+        #expect(try TmuxTerminalQuickAction.tiledLayout.operation(
+            for: resolved,
+            client: client
+        ) == .applyPaneLayout(
+            fixture.window,
+            layout: .tiled
+        ))
+        #expect(try TmuxTerminalQuickAction.toggleZoom.operation(
+            for: resolved,
+            client: client
+        ) == .setPaneZoom(
+            fixture.pane,
+            zoomed: true
+        ))
+        #expect(try TmuxTerminalQuickAction.renameWindow.operation(
+            for: resolved,
+            client: client,
+            argument: "editor"
+        ) == .renameWindow(fixture.window, to: TmuxName("editor")))
+        #expect(try TmuxTerminalQuickAction.resizeLeft.operation(
+            for: resolved,
+            client: client
+        ) == .resizePane(
+            fixture.pane,
+            direction: .left,
+            cells: TmuxResizeCellCount(5)
+        ))
+    }
+
     @Test("projection rejects a client that no longer owns the requested session or active pane")
     func rejectsIdentityDrift() throws {
         let fixture = try InteractionFixture()

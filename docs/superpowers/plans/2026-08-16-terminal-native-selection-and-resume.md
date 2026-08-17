@@ -2,11 +2,11 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Restore native iOS terminal text selection, remove canvas-floating advanced controls, and preserve healthy PTY/tmux sessions when the app returns from the background.
+**Goal:** Restore ANSI-preserving native iOS terminal selection in SwiftTerm, keep a compact four-way direction pad, make terminal close dismiss immediately, and preserve healthy PTY/tmux sessions when the app returns from the background.
 
-**Architecture:** Add a read-only SSH pool-health value and a pure foreground-recovery planner, then let the existing coordinator reconnect only affirmative candidates with a two-task concurrency bound. Keep provider-neutral reconnect descriptors as the only tmux restoration mechanism. Move advanced interaction actions into `TerminalKeybar`, and make `TerminalReviewTextView` own native edit-menu presentation and selection handles.
+**Architecture:** Add a read-only SSH pool-health value and a pure foreground-recovery planner, then let the existing coordinator reconnect only affirmative candidates with a two-task concurrency bound. Keep provider-neutral reconnect descriptors as the only tmux restoration mechanism. Keep Conn's provider-aware gesture router, but forward selection lifecycle events into SwiftTerm's live renderer and selection service; never cover the terminal with a `UITextView`. Keep one compact four-way direction pad in the single-row keybar.
 
-**Tech Stack:** Swift 6, Swift Testing, SwiftUI, UIKit (`UITextView`, `UIEditMenuInteraction`), ConnSSH, ConnTerminal, SwiftTerm
+**Tech Stack:** Swift 6, Swift Testing, SwiftUI, UIKit gesture recognizers/edit menu, ConnSSH, ConnTerminal, vendored SwiftTerm
 
 ---
 
@@ -15,11 +15,11 @@
 - Create `Packages/ConnPackages/Sources/ConnTerminal/TerminalForegroundRecoveryPolicy.swift`: pure candidate selection and ordering.
 - Modify `Packages/ConnPackages/Sources/ConnSSH/ConnectionManager.swift`: expose non-mutating pooled-session health.
 - Modify `Packages/ConnPackages/Sources/ConnTerminal/TerminalSessionCoordinator.swift`: use policy and bounded recovery.
-- Modify `Packages/ConnPackages/Sources/ConnTerminal/TerminalHostingView.swift`: remove canvas actions, route long press ahead of pointer mode, and pass tools into keybar.
-- Modify `Packages/ConnPackages/Sources/ConnTerminal/TerminalKeybar.swift`: add one advanced-tools menu keycap.
-- Modify `Packages/ConnPackages/Sources/ConnTerminal/TerminalReviewTextView.swift`: native word selection and edit menu; remove floating close button.
-- Create `Packages/ConnPackages/Tests/ConnTerminalTests/TerminalReviewSelectionPolicyTests.swift`: executable Foundation-only selection/action behavior.
-- Modify `Conn/Conn/Terminal/TerminalScreen.swift`: delayed centered reconnect notice.
+- Modify `Packages/Vendor/SwiftTerm/Sources/SwiftTerm/iOS/iOSTerminalView.swift`: expose a narrow host-driven selection-pan forwarding hook around the existing selection algorithm.
+- Modify `Packages/ConnPackages/Sources/ConnTerminal/TerminalHostingView.swift`: forward long press/pan into SwiftTerm, make remote gestures yield to selection, clear selection on tap/input, and remove the review overlay from the long-press selection path.
+- Modify `Packages/ConnPackages/Sources/ConnTerminal/TerminalKeybar.swift`: use one compact horizontal row with a fixed four-way `TerminalDirectionPad`; keep pointer mode in the expanded panel.
+- Keep `TerminalReviewTextView` only for the bounded tmux-history fallback; remove it from long-press selection and make any keybar/system input dismiss that fallback before continuing.
+- Modify `Conn/Conn/Terminal/TerminalScreen.swift`: delayed centered reconnect notice and dismiss-before-cleanup close behavior.
 - Modify package/app tests listed below; do not modify `Conn/Conn/Localizable.xcstrings`.
 
 ### Task 1: Read-only SSH pool health
@@ -165,77 +165,53 @@ Do not call `invalidateAll`, do not write probe bytes, and do not special-case t
 
 Run both filtered suites; expected PASS.
 
-### Task 3: Native review selection and advanced tools placement
+### Task 3: Renderer-native selection and compact four-way keybar
 
 **Files:**
-- Modify: `Packages/ConnPackages/Sources/ConnTerminal/TerminalReviewTextView.swift`
+- Modify: `Packages/Vendor/SwiftTerm/Sources/SwiftTerm/iOS/iOSTerminalView.swift`
 - Modify: `Packages/ConnPackages/Sources/ConnTerminal/TerminalHostingView.swift`
 - Modify: `Packages/ConnPackages/Sources/ConnTerminal/TerminalKeybar.swift`
-- Create: `Packages/ConnPackages/Tests/ConnTerminalTests/TerminalReviewSelectionPolicyTests.swift`
+- Modify: `Packages/ConnPackages/Sources/ConnTerminal/TerminalReviewTextView.swift` only as required for the bounded tmux-history fallback to dismiss cleanly on input.
 - Test: `Conn/ConnTests/TerminalLayoutTests.swift`
 - Test: `Conn/ConnTests/AppWideUIConsistencyTests.swift`
 
-- [ ] **Step 1: Write failing interaction tests**
+- [ ] **Step 1: Write failing renderer-selection and keybar contracts**
 
-First create `TerminalReviewSelectionPolicyTests.swift` with tests for UTF-16 word selection over `hello world`, Select All range, Copy returning only selected text, and Done returning no clipboard effect. These tests must reference the not-yet-created production `TerminalReviewSelectionPolicy`, so the filtered command fails to compile during RED rather than silently matching zero tests.
+Update `TerminalLayoutTests` and `AppWideUIConsistencyTests` to require:
 
-Update `TerminalLayoutTests` to assert:
+- one installed host selection pan in addition to long press;
+- long press still begins when touch pointer mode is active;
+- active selection prevents remote scroll and direct-pointer recognizers from beginning;
+- terminal tap and keybar/system input clear SwiftTerm selection before continuing;
+- the host calls `beginHostSelection`, `extendHostSelection`, `finishHostSelection`, and the vendored selection-pan forwarding hook;
+- the long-press path never captures persistent history or presents `TerminalReviewTextView`, and the keybar has no `allowsHitTesting` review lock;
+- `TerminalKeybar` contains exactly one `TerminalDirectionPad`, excludes individual `.up/.down/.left/.right` compact keycaps, and has compact height no greater than 52.
 
-- selection long press begins even when `shouldBeginDirectPointer` returns true;
-- review contains no close button;
-- review installs one `UIEditMenuInteraction`;
-- displaying `hello world` at an offset inside `hello` selects the complete word;
-- Select All covers all UTF-16 text;
-- no display path invokes an injected clipboard writer before an explicit Copy action;
-- explicit Copy invokes the writer with the selected text and then calls `onClose`;
-- Done calls `onClose` without invoking the writer;
-- a tap outside the selected UTF-16 range calls `onClose`, while a tap inside preserves review.
+- [ ] **Step 2: Verify RED**
 
-Update source-boundary tests to assert `TerminalHostingView` no longer has `terminalActions`, `terminal.pointerMode`, or `terminal.actions`, while `TerminalKeybar` contains `terminal.keybar.tools`.
+Run the focused source contract and generic app test compilation. Expected: failure because the current host still presents `TerminalReviewTextView`, has no host selection pan, and the compact key list still contains four separate arrows.
 
-- [ ] **Step 2: Verify RED with executable package/static contracts, then compile app tests**
+- [ ] **Step 3: Expose the narrow SwiftTerm host hook**
 
-CoreSimulatorService is currently unavailable and project constraints prohibit creating or switching devices. Execute the UIKit-independent selection-range/action-policy tests in `ConnTerminalTests`, then use a one-off source contract as the executable RED check for UIKit wiring:
+Add one public method that forwards a host-installed `UIPanGestureRecognizer` to SwiftTerm's existing `panSelectionHandler`. Do not duplicate pivot choice, endpoint proximity, menu presentation, or auto-scroll in Conn. Keep the fork addition documented as a stable host interaction hook.
 
-Run: `swift test --package-path Packages/ConnPackages --filter TerminalReviewSelectionPolicyTests`
+- [ ] **Step 4: Replace review overlay with live renderer selection**
 
-Expected: compile failure because the pure selection/action policy does not exist.
+At long-press `.began`, deactivate touch pointer mode, clear any stale selection, and call `beginHostSelection(at:granularity: .word)`. At `.changed`, call `extendHostSelection(to:)`. At `.ended`, call `finishHostSelection(showMenu: true)`; cancellation clears selection.
 
-Run:
+Install one host selection pan that begins only while `hasActiveSelection` is true and forwards all states to SwiftTerm. Make native scroll, remote scroll, and touch-pointer gestures yield while selection is active. A regular terminal tap clears selection first. Before system keyboard, keybar key, or paste input is sent, clear the selection and continue the same action instead of blocking it.
 
-```bash
-zsh -c '! rg -Eq "terminalActions|terminal.pointerMode|terminal.actions" Packages/ConnPackages/Sources/ConnTerminal/TerminalHostingView.swift && rg -Fq "terminal.keybar.tools" Packages/ConnPackages/Sources/ConnTerminal/TerminalKeybar.swift'
-```
+- [ ] **Step 5: Remove the invalid overlay from selection**
 
-Expected before implementation: exit 1 because floating actions still exist and keybar tools do not.
+Remove snapshot capture/review presentation from `handleSelectionLongPress`; PTY and tmux both select the currently rendered SwiftTerm buffer. Retain bounded `capturePersistentHistory` only for provider-history scrolling so tmux scrolling does not regress. Remove the keybar hit-testing lock, and make keyboard/keybar input dismiss history review and then continue the requested input in the same action.
 
-Then compile all UIKit tests:
+- [ ] **Step 6: Restore the compact four-way direction pad**
 
-`xcodebuild -workspace Conn.xcworkspace -scheme Conn -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' build-for-testing`
+Set compact height to at most 52. Remove four arrow keys from `compactKeys`; place one 44-point `TerminalDirectionPad` at the trailing edge. Shrink visible keycaps and spacing so more keys appear, while wrapping each action in at least a 44-point effective hit target. Keep low-frequency reconnect, command picker, and pointer mode in the expanded panel.
 
-Expected: compile/test-source failure until the new review/menu API and keybar arguments exist. Do not claim these UIKit tests executed. If CoreSimulatorService later exposes exactly one already-booted device, execute them only on that UDID; otherwise report compilation plus the package/static checks.
+- [ ] **Step 7: Verify GREEN**
 
-- [ ] **Step 3: Implement native review menu**
-
-Add a Foundation-only `TerminalReviewSelectionPolicy` with tested UTF-16 word-range, Select All, Copy-effect, and Done-effect semantics. Make `TerminalReviewTextView` conform to `UIEditMenuInteractionDelegate`. Remove `closeButton`. Install one edit-menu interaction plus one non-cancelling outside-selection tap recognizer. After assigning snapshot text:
-
-1. derive a tokenizer word range from the UTF-16 offset, falling back to one composed character;
-2. make the text view first responder;
-3. present a menu at `firstRect(for:)` on the next main run-loop turn.
-
-Build Copy, Select All, and Done `UIAction`s. Copy extracts the selected text, invokes an injectable writer whose production default writes `UIPasteboard.general.string`, then dismisses review. Select All changes the native selected range and re-presents the menu. Done calls `onClose` without touching the clipboard. A completed single tap outside the current selected text range dismisses review; taps inside and handle drags remain owned by `UITextView`. Do not replace UITextView's selection handles.
-
-- [ ] **Step 4: Make long press win over pointer mode**
-
-Remove the direct-pointer check from `gestureRecognizerShouldBegin` for `selectionLongPress`. At `.began`, deactivate touch pointer mode before capturing a snapshot and synchronize presentation.
-
-- [ ] **Step 5: Move advanced controls into the keybar**
-
-Delete `terminalActions` and its viewport overlay. Extend `TerminalKeybar` with pointer state and callbacks plus clipboard authorization. Add one `Menu` keycap with accessibility ID `terminal.keybar.tools`; include pointer toggle only when available and always include one-time OSC 52 read authorization. Use it in compact and expanded keybar rows.
-
-- [ ] **Step 6: Verify GREEN**
-
-Re-run `TerminalReviewSelectionPolicyTests`, the source-contract command, and generic `build-for-testing`; expected package tests PASS, source contract exit 0, and BUILD SUCCEEDED. UIKit test execution remains explicitly unclaimed while CoreSimulatorService is unavailable.
+Run `TerminalDirectionPadTests`, the focused app source/layout contracts, generic iOS `build-for-testing`, full package tests, and `git diff --check`. UIKit test execution remains explicitly unclaimed if the required already-booted simulator is unavailable.
 
 ### Task 4: Delayed centered reconnect notice
 
@@ -272,7 +248,25 @@ Create a private `TerminalReconnectingNotice` with local `isVisible = false`. In
 
 Re-run the source contract; expected exit 0. Run generic iOS build-for-testing; expected BUILD SUCCEEDED. If and only if CoreSimulatorService exposes exactly one already-booted device, run the focused app tests on that exact UDID; otherwise record that simulator execution was unavailable.
 
-### Task 5: Full verification and handoff
+### Task 5: Immediate terminal close
+
+**Files:**
+- Modify: `Conn/Conn/Terminal/TerminalScreen.swift`
+- Test: `Conn/ConnTests/AppWideUIConsistencyTests.swift`
+
+- [ ] **Step 1: Add a source-boundary regression test**
+
+Assert the top-right close button calls a helper whose body captures the tab ID, invokes `dismiss()` before creating the asynchronous cleanup task, and then calls `terminalSessions.close`. This behavior is provider-neutral and must not mention tmux.
+
+- [ ] **Step 2: Implement dismiss-before-cleanup**
+
+Move the close behavior into `closeTerminalAndDismiss()`. Call `dismiss()` synchronously, then start an unstructured task that closes the local tab. The existing persistent attachment close continues to detach tmux without killing the remote workspace.
+
+- [ ] **Step 3: Verify**
+
+Compile app tests and run the static source contract. Confirm the close helper is provider-neutral and no empty-tab placeholder can become visible before dismissal.
+
+### Task 6: Full verification and handoff
 
 **Files:**
 - Review all files above and `docs/superpowers/specs/2026-08-16-terminal-native-selection-and-resume-design.md`.

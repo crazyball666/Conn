@@ -3,7 +3,7 @@ import Foundation
 
 package enum TmuxControlHubInvalidationReason: Sendable, Equatable {
     case connectionIdentityChanged
-    case profileChanged
+    case configurationChanged
     case serverInstanceChanged
     case closed
 }
@@ -128,7 +128,7 @@ package protocol TmuxControlHubAdapter: Sendable {
 }
 
 /// Coordinates one exact tmux server instance. This actor never opens SSH and never renders a
-/// command string. Every mutation remains bound to one connection/profile/token/generation.
+/// command string. Every mutation remains bound to one connection/configuration/token/generation.
 package actor TmuxControlHub {
     package typealias Clock = @Sendable () -> Date
 
@@ -254,6 +254,12 @@ package actor TmuxControlHub {
             target: target,
             continuation: continuation
         )
+        // The Hub is created from an already validated snapshot. Interaction consumers
+        // need that state immediately; requiring a second remote refresh just to publish
+        // the first value adds latency and creates a startup race with topology events.
+        if let snapshot = reducer.snapshot {
+            continuation.yield(snapshot)
+        }
         continuation.onTermination = { [weak self] _ in
             Task { await self?.releaseLease(lease) }
         }
@@ -278,20 +284,20 @@ package actor TmuxControlHub {
         publishDemand()
     }
 
-    /// Invalidates this exact-instance Hub when host edits or profile replacement make its
+    /// Invalidates this exact-instance Hub when host edits or configuration replacement make its
     /// outer runtime identity obsolete. Display-only host edits leave it untouched.
     @discardableResult
     package func invalidateIfRuntimeChanged(
         connectionIdentity: SSHConnectionIdentity,
-        profileID: String
+        configurationKey: String
     ) -> Bool {
         guard invalidationReason == nil else { return false }
         if connectionIdentity != scope.connectionIdentity {
             invalidate(.connectionIdentityChanged)
             return true
         }
-        if profileID != scope.profileID {
-            invalidate(.profileChanged)
+        if configurationKey != scope.configurationKey {
+            invalidate(.configurationChanged)
             return true
         }
         return false
@@ -355,6 +361,8 @@ package actor TmuxControlHub {
                 return nil
             case .subscriptionChanged:
                 return subscriptionStateEvent(payload: payload, observedAt: observedAt)
+            case .sessionWindowChanged:
+                return sessionWindowStateEvent(payload: payload)
             default:
                 // Most Control Mode topology notifications do not carry enough data to
                 // safely mutate the normalized graph. Reconcile the server snapshot instead
@@ -368,6 +376,21 @@ package actor TmuxControlHub {
         case .exit:
             return nil
         }
+    }
+
+    /// `%session-window-changed $session @window` is complete enough to update the
+    /// normalized graph directly. Window navigation must not launch a full snapshot query
+    /// on the same single-command Control Mode channel after every swipe.
+    private static func sessionWindowStateEvent(payload: Data) -> TmuxStateEvent {
+        guard let text = String(data: payload, encoding: .utf8) else {
+            return .protocolViolation
+        }
+        let fields = text.split(whereSeparator: { $0.isWhitespace })
+        guard fields.count == 2,
+              let sessionID = TmuxSessionID(rawValue: String(fields[0])),
+              let windowID = TmuxWindowID(rawValue: String(fields[1]))
+        else { return .protocolViolation }
+        return .sessionCurrentWindowChanged(sessionID, windowID: windowID)
     }
 
     /// `%subscription-changed name session window index pane ... : value` is the one
@@ -488,7 +511,7 @@ package actor TmuxControlHub {
             if reducer.generation > previousGeneration {
                 scope = try TmuxOperationScope(
                     connectionIdentity: scope.connectionIdentity,
-                    profileID: scope.profileID,
+                    configurationKey: scope.configurationKey,
                     instanceToken: scope.instanceToken,
                     generation: reducer.generation
                 )
@@ -647,6 +670,102 @@ package actor TmuxControlHub {
         )
     }
 
+    /// Executes one provider-owned quick action against the exact Pane state from which its
+    /// button was rendered. Target resolution and operation construction happen inside this
+    /// actor so a topology update cannot retarget the action between validation and dispatch.
+    package func executeQuickAction(
+        lease: TmuxControlHubLease,
+        target: PersistentTerminalInteractionTarget,
+        attachmentGeneration: UInt64,
+        expectedRevision: UInt64,
+        action: TmuxTerminalQuickAction,
+        argument: String?,
+        repeatCount: Int = 1,
+        timeout: Duration
+    ) async throws -> TmuxControlHubOperationReceipt {
+        try validateTimeout(timeout)
+
+        _ = try await acquireOperationSlot()
+        defer { releaseOperationSlot() }
+        try Task.checkCancellation()
+        try requireActive()
+        guard let interactionLease = interactionLeases[lease],
+              let snapshot = reducer.snapshot
+        else {
+            throw TmuxInteractionError.clientUnavailable
+        }
+        let isRelativeWindowNavigation = action == .previousWindow || action == .nextWindow
+        if !isRelativeWindowNavigation {
+            guard snapshot.revision == expectedRevision else {
+                throw TmuxInteractionError.staleState(
+                    expectedRevision: expectedRevision,
+                    actualRevision: snapshot.revision
+                )
+            }
+        }
+        let resolved = try TmuxInteractionStateProjector().resolve(
+            snapshot: snapshot,
+            identity: interactionLease.identity,
+            expectedTarget: isRelativeWindowNavigation ? nil : target,
+            attachmentGeneration: attachmentGeneration
+        )
+        let client = try TmuxClientTarget(interactionLease.identity.clientID.targetName)
+        let operation = try action.operation(
+            for: resolved,
+            client: client,
+            argument: argument,
+            repeatCount: repeatCount
+        )
+        let receipt = try await dispatch(
+            .init(scope: scope, operation: operation),
+            timeout: timeout,
+            identities: activeIdentities
+        )
+        switch action {
+        case .newWindow:
+            guard let windowID = createdWindowID(from: receipt.output) else {
+                throw TmuxInteractionError.createdWindowIdentityUnavailable
+            }
+            return try await dispatch(
+                .init(scope: scope, operation: .selectWindow(windowID, for: client)),
+                timeout: timeout,
+                identities: activeIdentities
+            )
+        case .splitHorizontal, .splitVertical:
+            guard let paneID = createdPaneID(from: receipt.output) else {
+                throw TmuxInteractionError.createdPaneIdentityUnavailable
+            }
+            return try await dispatch(
+                .init(scope: scope, operation: .selectPane(paneID, for: client)),
+                timeout: timeout,
+                identities: activeIdentities
+            )
+        case .renameSession, .previousWindow, .nextWindow, .renameWindow,
+             .previousPane, .nextPane, .toggleZoom, .swapPanePrevious, .swapPaneNext,
+             .resizeLeft, .resizeRight, .resizeUp, .resizeDown,
+             .toggleSynchronizePanes, .copyMode, .cycleLayout, .tiledLayout,
+             .evenHorizontalLayout, .evenVerticalLayout, .mainHorizontalLayout,
+             .mainVerticalLayout:
+            return receipt
+        }
+    }
+
+    private func createdWindowID(from output: [Data]) -> TmuxWindowID? {
+        outputTokens(output).compactMap(TmuxWindowID.init(rawValue:)).first
+    }
+
+    private func createdPaneID(from output: [Data]) -> TmuxPaneID? {
+        outputTokens(output).compactMap(TmuxPaneID.init(rawValue:)).first
+    }
+
+    private func outputTokens(_ output: [Data]) -> [String] {
+        output.flatMap { chunk in
+            String(decoding: chunk, as: UTF8.self)
+                .split(whereSeparator: { $0.isWhitespace })
+                .map(String.init)
+        }
+    }
+
     package func resolveInteraction(
         lease: TmuxControlHubLease,
         attachmentGeneration: UInt64,
@@ -739,6 +858,7 @@ package actor TmuxControlHub {
         switch operation {
         case let .detachClient(client),
              let .selectWindow(_, client),
+             let .selectRelativeWindow(_, _, _, client),
              let .selectPane(_, client):
             target = client
         default:

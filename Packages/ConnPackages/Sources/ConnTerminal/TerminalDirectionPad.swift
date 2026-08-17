@@ -79,7 +79,7 @@ enum TerminalDirectionResolver {
             .accessibilityAction(named: Text(verbatim: "↓")) { onKey(.down) }
             .accessibilityAction(named: Text(verbatim: "←")) { onKey(.left) }
             .accessibilityAction(named: Text(verbatim: "→")) { onKey(.right) }
-            .sensoryFeedback(.impact(weight: .light, intensity: 0.6), trigger: stepCount)
+            .sensoryFeedback(ConnHapticFeedback.highImpact, trigger: stepCount)
             .onDisappear { stopRepeat() }
         }
 
@@ -87,7 +87,7 @@ enum TerminalDirectionResolver {
         private var arrows: some View {
             GeometryReader { geometry in
                 let center = CGPoint(x: geometry.size.width / 2, y: geometry.size.height / 2)
-                let edge: CGFloat = 13
+                let edge = max(9, min(13, min(geometry.size.width, geometry.size.height) * 0.22))
 
                 arrow(.up).position(x: center.x, y: edge)
                 arrow(.down).position(x: center.x, y: geometry.size.height - edge)
@@ -104,9 +104,9 @@ enum TerminalDirectionResolver {
 
         private func arrow(_ key: TerminalKey) -> some View {
             Image(systemName: symbolName(for: key))
-                .font(.system(size: 19, weight: .semibold))
+                .font(.system(size: 15, weight: .semibold))
                 .foregroundStyle(active == key ? Color.connAccent : .connMuted)
-                .frame(width: 28, height: 28)
+                .frame(width: 22, height: 22)
         }
 
         private func symbolName(for key: TerminalKey) -> String {

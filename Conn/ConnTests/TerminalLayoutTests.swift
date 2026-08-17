@@ -98,13 +98,17 @@ struct TerminalLayoutTests {
         let view = KeybarTerminalView(frame: CGRect(x: 0, y: 0, width: 320, height: 480))
         let nativePanDelegate = view.panGestureRecognizer.delegate
         installInteractionHost(on: view)
+        let navigation = try #require(view.installedProviderNavigationGesture)
         let remote = try #require(view.installedRemoteScrollGesture)
         let selection = try #require(view.installedSelectionGesture)
+        let selectionDrag = try #require(view.installedSelectionDragGesture)
 
         installInteractionHost(on: view)
 
+        #expect(view.installedProviderNavigationGesture === navigation)
         #expect(view.installedRemoteScrollGesture === remote)
         #expect(view.installedSelectionGesture === selection)
+        #expect(view.installedSelectionDragGesture === selectionDrag)
         #expect(view.panGestureRecognizer.delegate === nativePanDelegate)
         #expect(view.hostManagesTouchGestures)
     }
@@ -136,6 +140,27 @@ struct TerminalLayoutTests {
         #expect(view.gestureRecognizerShouldBegin(remote))
     }
 
+    @Test("provider 水平导航由能力门控且不会抢占已有选区")
+    func providerNavigationIsCapabilityAndSelectionGated() throws {
+        let view = KeybarTerminalView(frame: CGRect(x: 0, y: 0, width: 320, height: 480))
+        var navigationAvailable = false
+        installInteractionHost(
+            on: view,
+            shouldBeginProviderNavigation: { navigationAvailable }
+        )
+        let navigation = try #require(view.installedProviderNavigationGesture)
+
+        #expect(!view.gestureRecognizerShouldBegin(navigation))
+        navigationAvailable = true
+        #expect(view.gestureRecognizerShouldBegin(navigation))
+
+        view.setSelectionRange(
+            start: Position(col: 0, row: 0),
+            end: Position(col: 1, row: 0)
+        )
+        #expect(!view.gestureRecognizerShouldBegin(navigation))
+    }
+
     @Test("触摸指针开关不阻断硬件鼠标事件")
     func hardwarePointerDoesNotShareTouchPointerGate() throws {
         let view = KeybarTerminalView(frame: CGRect(x: 0, y: 0, width: 320, height: 480))
@@ -151,27 +176,59 @@ struct TerminalLayoutTests {
         #expect(view.gestureRecognizerShouldBegin(indirect))
     }
 
-    @Test("review 使用可滚动、只读且可拖动选择的原生文本视图")
-    func reviewSurfaceUsesNativeSelection() {
-        let review = TerminalReviewTextView(frame: CGRect(x: 0, y: 0, width: 320, height: 480))
+    @Test("长按选词优先于触摸远端指针模式")
+    func selectionLongPressWinsOverTouchPointerMode() throws {
+        let view = KeybarTerminalView(frame: CGRect(x: 0, y: 0, width: 320, height: 480))
+        installInteractionHost(on: view, shouldBeginDirectPointer: { true })
+        let selection = try #require(view.installedSelectionGesture)
 
-        #expect(!review.textView.isEditable)
-        #expect(review.textView.isSelectable)
-        #expect(review.textView.alwaysBounceVertical)
-        #expect(review.textView.textContainer.lineFragmentPadding == 0)
-        #expect(review.closeButton.accessibilityIdentifier == "terminal.review.close")
+        #expect(view.gestureRecognizerShouldBegin(selection))
+    }
+
+    @Test("SwiftTerm 原生选区独占触摸拖动但不替换终端视图")
+    func activeNativeSelectionOwnsTouchDrag() throws {
+        let view = KeybarTerminalView(frame: CGRect(x: 0, y: 0, width: 320, height: 480))
+        installInteractionHost(
+            on: view,
+            shouldBeginRemoteScroll: { true },
+            shouldBeginDirectPointer: { true }
+        )
+        let remote = try #require(view.installedRemoteScrollGesture)
+        let selectionDrag = try #require(view.installedSelectionDragGesture)
+        let directPointer = try #require(view.installedDirectPointerGesture)
+
+        view.setSelectionRange(
+            start: Position(col: 0, row: 0),
+            end: Position(col: 1, row: 0)
+        )
+
+        #expect(view.hasActiveSelection)
+        #expect(!view.gestureRecognizerShouldBegin(remote))
+        #expect(view.gestureRecognizerShouldBegin(selectionDrag))
+        #expect(!view.gestureRecognizerShouldBegin(directPointer))
+    }
+
+    @Test("快捷键栏使用单行紧凑高度并为四合一方向盘留足触控高度")
+    func keybarUsesCompactSingleRowMetrics() {
+        #expect(TerminalKeybarMetrics.compactHeight <= 52)
+        #expect(TerminalKeybarMetrics.compactHeight >= 44)
+        #expect(TerminalKeybarMetrics.expandedHeight <= 180)
     }
 
     private func installInteractionHost(
         on view: KeybarTerminalView,
+        shouldBeginProviderNavigation: @escaping () -> Bool = { false },
         shouldBeginRemoteScroll: @escaping () -> Bool = { false },
         shouldBeginDirectPointer: @escaping () -> Bool = { false },
         shouldBeginIndirectPointer: @escaping () -> Bool = { false }
     ) {
         view.installInteractionHost(
+            shouldBeginProviderNavigation: { _ in shouldBeginProviderNavigation() },
+            onProviderNavigation: { _ in },
             shouldBeginRemoteScroll: { _ in shouldBeginRemoteScroll() },
             onRemoteScroll: { _ in },
             onSelectionLongPress: { _ in },
+            onSelectionPan: { _ in },
             shouldBeginDirectPointer: shouldBeginDirectPointer,
             shouldBeginIndirectPointer: shouldBeginIndirectPointer,
             onDirectPointer: { _ in },

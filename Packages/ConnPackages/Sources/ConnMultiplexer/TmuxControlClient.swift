@@ -79,6 +79,11 @@ package actor TmuxControlClient {
         var deadlineTask: Task<Void, Never>?
     }
 
+    private struct ReadyWaiter {
+        let continuation: CheckedContinuation<Void, Error>
+        let deadlineTask: Task<Void, Never>
+    }
+
     private let channel: any RemoteProcessChannel
     private let limits: TmuxControlClientLimits
     private let eventHandler: EventHandler
@@ -90,7 +95,7 @@ package actor TmuxControlClient {
     private var didReportDiagnosticTruncation = false
     private var started = false
     private var terminalized = false
-    private var readyWaiters: [CheckedContinuation<Void, Error>] = []
+    private var readyWaiters: [UUID: ReadyWaiter] = [:]
     private var waitExitHandshakeTimeout: Duration?
     private var waitExitAcknowledged = false
     private var waitExitDeadlineTask: Task<Void, Never>?
@@ -136,32 +141,39 @@ package actor TmuxControlClient {
     /// readiness from `tmux -V`; the parser/machine handshake is the authority.
     package func waitUntilReady(timeout: Duration) async throws {
         guard timeout > .zero else { throw TmuxControlClientError.invalidTimeout }
-        try await withThrowingTaskGroup(of: Void.self) { group in
-            group.addTask { try await self.waitUntilReadyWithoutTimeout() }
-            group.addTask {
-                try await Task.sleep(for: timeout)
-                throw TmuxControlClientError.startupTimeout
-            }
-            let result: Void = try await group.next()!
-            group.cancelAll()
-            return result
-        }
-    }
-
-    private func waitUntilReadyWithoutTimeout() async throws {
         guard started else { throw TmuxControlClientError.notStarted }
         if terminalized {
             throw TmuxControlClientError.closed
         }
         if machine.isReady { return }
-        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, any Error>) in
-            if terminalized {
-                continuation.resume(throwing: TmuxControlClientError.closed)
-            } else if machine.isReady {
-                continuation.resume()
-            } else {
-                readyWaiters.append(continuation)
+
+        let waiterID = UUID()
+        try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation {
+                (continuation: CheckedContinuation<Void, any Error>) in
+                if Task.isCancelled {
+                    continuation.resume(throwing: CancellationError())
+                } else if terminalized {
+                    continuation.resume(throwing: TmuxControlClientError.closed)
+                } else if machine.isReady {
+                    continuation.resume()
+                } else {
+                    let deadlineTask = Task { [weak self] in
+                        do {
+                            try await Task.sleep(for: timeout)
+                        } catch {
+                            return
+                        }
+                        await self?.readyDeadlineReached(waiterID)
+                    }
+                    readyWaiters[waiterID] = ReadyWaiter(
+                        continuation: continuation,
+                        deadlineTask: deadlineTask
+                    )
+                }
             }
+        } onCancel: {
+            Task { await self.cancelReadyWaiter(waiterID) }
         }
     }
 
@@ -345,6 +357,17 @@ package actor TmuxControlClient {
         }
     }
 
+    private func readyDeadlineReached(_ waiterID: UUID) {
+        guard let waiter = readyWaiters.removeValue(forKey: waiterID) else { return }
+        waiter.continuation.resume(throwing: TmuxControlClientError.startupTimeout)
+    }
+
+    private func cancelReadyWaiter(_ waiterID: UUID) {
+        guard let waiter = readyWaiters.removeValue(forKey: waiterID) else { return }
+        waiter.deadlineTask.cancel()
+        waiter.continuation.resume(throwing: CancellationError())
+    }
+
     private func deadlineReached(
         commandID: TmuxControlCommandID,
         generation: UInt64
@@ -436,10 +459,11 @@ package actor TmuxControlClient {
         waitExitDeadlineTask?.cancel()
         waitExitDeadlineTask = nil
 
-        let waiters = readyWaiters
+        let waiters = readyWaiters.values
         readyWaiters.removeAll()
         for waiter in waiters {
-            waiter.resume(throwing: TmuxControlClientError.closed)
+            waiter.deadlineTask.cancel()
+            waiter.continuation.resume(throwing: TmuxControlClientError.closed)
         }
 
         let action = try? machine.channelLost(generation: machine.generation)
@@ -470,8 +494,11 @@ package actor TmuxControlClient {
     }
 
     private func resumeReadyWaiters() {
-        let waiters = readyWaiters
+        let waiters = readyWaiters.values
         readyWaiters.removeAll()
-        for waiter in waiters { waiter.resume() }
+        for waiter in waiters {
+            waiter.deadlineTask.cancel()
+            waiter.continuation.resume()
+        }
     }
 }

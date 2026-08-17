@@ -4,6 +4,11 @@ import Foundation
 ///
 /// 与 UI 无关的纯数据，host 可测。SwiftTerm 桥接层把它转成 `Color`/`SwiftTerm.Color`。
 public struct TerminalTheme: Sendable, Equatable, Identifiable {
+    public enum Appearance: String, Sendable, Equatable, CaseIterable {
+        case dark
+        case light
+    }
+
     public struct RGB: Sendable, Equatable {
         public let r: UInt8
         public let g: UInt8
@@ -26,15 +31,25 @@ public struct TerminalTheme: Sendable, Equatable, Identifiable {
 
     public let id: String
     public let name: String
+    public let appearance: Appearance
     public let background: RGB
     public let foreground: RGB
     public let cursor: RGB
     /// ANSI 16 色（0–7 标准，8–15 亮色）。
     public let ansi: [RGB]
 
-    public init(id: String, name: String, background: RGB, foreground: RGB, cursor: RGB, ansi: [RGB]) {
+    public init(
+        id: String,
+        name: String,
+        appearance: Appearance,
+        background: RGB,
+        foreground: RGB,
+        cursor: RGB,
+        ansi: [RGB]
+    ) {
         self.id = id
         self.name = name
+        self.appearance = appearance
         self.background = background
         self.foreground = foreground
         self.cursor = cursor
@@ -53,6 +68,11 @@ public extension TerminalTheme {
         gruvboxDark,
         tokyoNight,
         catppuccinMocha,
+        connLight,
+        solarizedLight,
+        gruvboxLight,
+        oneLight,
+        catppuccinLatte,
     ]
 
     /// 按持久化 id 查找主题；旧值或异常值统一安全回退到 Conn。
@@ -62,7 +82,7 @@ public extension TerminalTheme {
 
     /// Conn 品牌终端主题：深空底 + 电光蓝紫光标（设计规范 connTermBg/connAccent）。
     static let conn = TerminalTheme(
-        id: "conn", name: "Conn",
+        id: "conn", name: "Conn", appearance: .dark,
         background: RGB(hex: "07090F"),
         foreground: RGB(hex: "C6CCE0"),
         cursor: RGB(hex: "8B93FF"),
@@ -75,7 +95,7 @@ public extension TerminalTheme {
     )
 
     static let dracula = TerminalTheme(
-        id: "dracula", name: "Dracula",
+        id: "dracula", name: "Dracula", appearance: .dark,
         background: RGB(hex: "282A36"),
         foreground: RGB(hex: "F8F8F2"),
         cursor: RGB(hex: "BD93F9"),
@@ -88,7 +108,7 @@ public extension TerminalTheme {
     )
 
     static let solarizedDark = TerminalTheme(
-        id: "solarized-dark", name: "Solarized Dark",
+        id: "solarized-dark", name: "Solarized Dark", appearance: .dark,
         background: RGB(hex: "002B36"),
         foreground: RGB(hex: "839496"),
         cursor: RGB(hex: "93A1A1"),
@@ -101,7 +121,7 @@ public extension TerminalTheme {
     )
 
     static let oneDark = TerminalTheme(
-        id: "one-dark", name: "One Dark",
+        id: "one-dark", name: "One Dark", appearance: .dark,
         background: RGB(hex: "282C34"),
         foreground: RGB(hex: "ABB2BF"),
         cursor: RGB(hex: "528BFF"),
@@ -114,7 +134,7 @@ public extension TerminalTheme {
     )
 
     static let nord = TerminalTheme(
-        id: "nord", name: "Nord",
+        id: "nord", name: "Nord", appearance: .dark,
         background: RGB(hex: "2E3440"),
         foreground: RGB(hex: "D8DEE9"),
         cursor: RGB(hex: "88C0D0"),
@@ -127,7 +147,7 @@ public extension TerminalTheme {
     )
 
     static let gruvboxDark = TerminalTheme(
-        id: "gruvbox-dark", name: "Gruvbox Dark",
+        id: "gruvbox-dark", name: "Gruvbox Dark", appearance: .dark,
         background: RGB(hex: "282828"),
         foreground: RGB(hex: "EBDBB2"),
         cursor: RGB(hex: "FE8019"),
@@ -140,7 +160,7 @@ public extension TerminalTheme {
     )
 
     static let tokyoNight = TerminalTheme(
-        id: "tokyo-night", name: "Tokyo Night",
+        id: "tokyo-night", name: "Tokyo Night", appearance: .dark,
         background: RGB(hex: "1A1B26"),
         foreground: RGB(hex: "C0CAF5"),
         cursor: RGB(hex: "C0CAF5"),
@@ -153,7 +173,7 @@ public extension TerminalTheme {
     )
 
     static let catppuccinMocha = TerminalTheme(
-        id: "catppuccin-mocha", name: "Catppuccin Mocha",
+        id: "catppuccin-mocha", name: "Catppuccin Mocha", appearance: .dark,
         background: RGB(hex: "1E1E2E"),
         foreground: RGB(hex: "CDD6F4"),
         cursor: RGB(hex: "F5E0DC"),
@@ -162,6 +182,71 @@ public extension TerminalTheme {
             RGB(hex: "89B4FA"), RGB(hex: "F5C2E7"), RGB(hex: "94E2D5"), RGB(hex: "BAC2DE"),
             RGB(hex: "585B70"), RGB(hex: "F38BA8"), RGB(hex: "A6E3A1"), RGB(hex: "F9E2AF"),
             RGB(hex: "89B4FA"), RGB(hex: "F5C2E7"), RGB(hex: "94E2D5"), RGB(hex: "A6ADC8")
+        ]
+    )
+
+    static let connLight = TerminalTheme(
+        id: "conn-light", name: "Conn Light", appearance: .light,
+        background: RGB(hex: "F7F8FC"),
+        foreground: RGB(hex: "25283A"),
+        cursor: RGB(hex: "6C63FF"),
+        ansi: [
+            RGB(hex: "25283A"), RGB(hex: "D92D4F"), RGB(hex: "16835D"), RGB(hex: "9A6700"),
+            RGB(hex: "3451D1"), RGB(hex: "7C3AED"), RGB(hex: "087E8B"), RGB(hex: "D9DDEA"),
+            RGB(hex: "667085"), RGB(hex: "E5484D"), RGB(hex: "219B69"), RGB(hex: "B7791F"),
+            RGB(hex: "4F67E8"), RGB(hex: "9355E8"), RGB(hex: "1696A7"), RGB(hex: "FFFFFF")
+        ]
+    )
+
+    static let solarizedLight = TerminalTheme(
+        id: "solarized-light", name: "Solarized Light", appearance: .light,
+        background: RGB(hex: "FDF6E3"),
+        foreground: RGB(hex: "586E75"),
+        cursor: RGB(hex: "657B83"),
+        ansi: [
+            RGB(hex: "073642"), RGB(hex: "DC322F"), RGB(hex: "859900"), RGB(hex: "B58900"),
+            RGB(hex: "268BD2"), RGB(hex: "D33682"), RGB(hex: "2AA198"), RGB(hex: "EEE8D5"),
+            RGB(hex: "002B36"), RGB(hex: "CB4B16"), RGB(hex: "586E75"), RGB(hex: "657B83"),
+            RGB(hex: "839496"), RGB(hex: "6C71C4"), RGB(hex: "93A1A1"), RGB(hex: "FDF6E3")
+        ]
+    )
+
+    static let gruvboxLight = TerminalTheme(
+        id: "gruvbox-light", name: "Gruvbox Light", appearance: .light,
+        background: RGB(hex: "FBF1C7"),
+        foreground: RGB(hex: "3C3836"),
+        cursor: RGB(hex: "D65D0E"),
+        ansi: [
+            RGB(hex: "3C3836"), RGB(hex: "CC241D"), RGB(hex: "98971A"), RGB(hex: "D79921"),
+            RGB(hex: "458588"), RGB(hex: "B16286"), RGB(hex: "689D6A"), RGB(hex: "7C6F64"),
+            RGB(hex: "928374"), RGB(hex: "9D0006"), RGB(hex: "79740E"), RGB(hex: "B57614"),
+            RGB(hex: "076678"), RGB(hex: "8F3F71"), RGB(hex: "427B58"), RGB(hex: "F9F5D7")
+        ]
+    )
+
+    static let oneLight = TerminalTheme(
+        id: "one-light", name: "One Light", appearance: .light,
+        background: RGB(hex: "FAFAFA"),
+        foreground: RGB(hex: "383A42"),
+        cursor: RGB(hex: "526FFF"),
+        ansi: [
+            RGB(hex: "383A42"), RGB(hex: "E45649"), RGB(hex: "50A14F"), RGB(hex: "C18401"),
+            RGB(hex: "4078F2"), RGB(hex: "A626A4"), RGB(hex: "0184BC"), RGB(hex: "A0A1A7"),
+            RGB(hex: "696C77"), RGB(hex: "CA1243"), RGB(hex: "3F953A"), RGB(hex: "B76B01"),
+            RGB(hex: "2F6FDB"), RGB(hex: "8E2A8C"), RGB(hex: "007FAD"), RGB(hex: "FFFFFF")
+        ]
+    )
+
+    static let catppuccinLatte = TerminalTheme(
+        id: "catppuccin-latte", name: "Catppuccin Latte", appearance: .light,
+        background: RGB(hex: "EFF1F5"),
+        foreground: RGB(hex: "4C4F69"),
+        cursor: RGB(hex: "8839EF"),
+        ansi: [
+            RGB(hex: "5C5F77"), RGB(hex: "D20F39"), RGB(hex: "40A02B"), RGB(hex: "DF8E1D"),
+            RGB(hex: "1E66F5"), RGB(hex: "EA76CB"), RGB(hex: "179299"), RGB(hex: "ACB0BE"),
+            RGB(hex: "6C6F85"), RGB(hex: "D20F39"), RGB(hex: "40A02B"), RGB(hex: "DF8E1D"),
+            RGB(hex: "1E66F5"), RGB(hex: "EA76CB"), RGB(hex: "179299"), RGB(hex: "BCC0CC")
         ]
     )
 }

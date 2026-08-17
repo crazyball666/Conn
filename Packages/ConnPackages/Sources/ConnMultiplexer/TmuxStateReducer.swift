@@ -138,9 +138,26 @@ package struct TmuxStateReducer: Sendable {
                 groupName: session.groupName,
                 currentWindowID: windowID
             )
+            var clients = current.clients
+            let activePaneID = current.windows[windowID]?.activePaneID
+            for (clientID, client) in current.clients where client.sessionID == sessionID {
+                clients[clientID] = TmuxClientSnapshot(
+                    id: client.id,
+                    sessionID: client.sessionID,
+                    currentWindowID: windowID,
+                    activePaneID: activePaneID,
+                    flags: client.flags,
+                    role: client.role,
+                    kind: client.kind,
+                    sizeParticipation: client.sizeParticipation,
+                    observedAt: envelope.observedAt,
+                    tty: client.tty
+                )
+            }
             return try commit(
                 current,
                 sessions: sessions,
+                clients: clients,
                 observedAt: envelope.observedAt,
                 impactsOperations: false
             )
@@ -320,6 +337,7 @@ package struct TmuxStateReducer: Sendable {
         sessions: [TmuxSessionID: TmuxSessionSnapshot]? = nil,
         windows: [TmuxWindowID: TmuxWindowSnapshot]? = nil,
         panes: [TmuxPaneID: TmuxPaneSnapshot]? = nil,
+        clients: [TmuxClientID: TmuxClientSnapshot]? = nil,
         observedAt: Date,
         impactsOperations: Bool
     ) throws -> TmuxStateReduction {
@@ -338,7 +356,7 @@ package struct TmuxStateReducer: Sendable {
             windows: windows ?? current.windows,
             panes: panes ?? current.panes,
             windowLinks: current.windowLinks,
-            clients: current.clients,
+            clients: clients ?? current.clients,
             observedAt: observedAt,
             revision: nextRevision,
             impactRevision: nextImpactRevision
