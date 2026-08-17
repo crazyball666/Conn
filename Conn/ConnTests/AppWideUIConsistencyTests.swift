@@ -75,6 +75,20 @@ struct AppWideUIConsistencyTests {
         #expect(view.contains("viewModel.capabilityMessage"))
     }
 
+    @Test("主机详情趋势图在首采前保持图表容器")
+    func hostOverviewChartsStayVisibleBeforeFirstSample() throws {
+        let view = try appSource("Hosts/HostOverviewView.swift")
+        let chart = try appSource("Hosts/MetricTrendChart.swift")
+
+        #expect(view.contains("private func trendChart("))
+        #expect(view.contains("return MetricTrendChart("))
+        #expect(!view.contains("chartOrPlaceholder"))
+        #expect(!view.contains("Text(L(\"采集中…\"))"))
+        #expect(chart.contains("private var dataValues: [[Double]]"))
+        #expect(chart.contains(".animation(chartAnimation, value: dataValues)"))
+        #expect(chart.contains("reduceMotion ? nil : ConnMotion.chartUpdate"))
+    }
+
     @Test("管理分组页自己承载分组弹窗并居中空状态")
     func snippetGroupsOwnPresentationAndCenteredEmptyState() throws {
         let source = try appSource("Commands/SnippetsView.swift")

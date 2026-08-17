@@ -127,7 +127,7 @@ struct HostOverviewView<Header: View>: View {
                 latest?.mem,
                 detail: MetricFormat.pair(used: latest?.memUsedBytes, total: latest?.memTotalBytes)
             )
-            chartOrPlaceholder(memSeries, domain: 0 ... 100, yFormat: { "\(Int($0))" }, stacked: true)
+            trendChart(memSeries, domain: 0 ... 100, yFormat: { "\(Int($0))" }, stacked: true)
             HStack(spacing: 0) {
                 breakdownColumn(L("已用"), MetricFormat.bytes(latest?.memUsedBytes), HostChartPalette.memoryUsed)
                 breakdownColumn(L("缓存"), MetricFormat.bytes(latest?.memBuffersCache), HostChartPalette.memoryCache)
@@ -209,7 +209,7 @@ struct HostOverviewView<Header: View>: View {
                 legend: [(L("读"), HostChartPalette.diskRead), (L("写"), HostChartPalette.diskWrite)],
                 totals: "\(L("读")) \(MetricFormat.bytes(latest?.ioReadBytes))  \(L("写")) \(MetricFormat.bytes(latest?.ioWriteBytes))"
             )
-            chartOrPlaceholder(rateSeries(
+            trendChart(rateSeries(
                 down: viewModel.ioReadHistory, downColor: HostChartPalette.diskRead,
                 up: viewModel.ioWriteHistory, upColor: HostChartPalette.diskWrite
             ))
@@ -224,7 +224,7 @@ struct HostOverviewView<Header: View>: View {
                 legend: [(L("下行"), HostChartPalette.networkDown), (L("上行"), HostChartPalette.networkUp)],
                 totals: "↓ \(MetricFormat.bytes(latest?.netRx))  ↑ \(MetricFormat.bytes(latest?.netTx))"
             )
-            chartOrPlaceholder(rateSeries(
+            trendChart(rateSeries(
                 down: viewModel.netRxHistory, downColor: HostChartPalette.networkDown,
                 up: viewModel.netTxHistory, upColor: HostChartPalette.networkUp
             ))
@@ -294,7 +294,7 @@ struct HostOverviewView<Header: View>: View {
         }
     }
 
-    private func chartOrPlaceholder(
+    private func trendChart(
         _ series: [TrendSeries],
         domain: ClosedRange<Double>? = nil,
         yFormat: @escaping (Double) -> String = { MetricFormat.compactBytes($0) + "/s" },
@@ -302,24 +302,15 @@ struct HostOverviewView<Header: View>: View {
         fillsSingleSeries: Bool = true,
         height: CGFloat = 132
     ) -> some View {
-        let hasData = series.contains { $0.values.count >= 2 }
         let resolved = domain ?? autoDomain(series)
-        return Group {
-            if hasData {
-                MetricTrendChart(
-                    series: series,
-                    yDomain: resolved,
-                    yFormat: yFormat,
-                    stacked: stacked,
-                    fillsSingleSeries: fillsSingleSeries,
-                    height: height
-                )
-            } else {
-                Text(L("采集中…"))
-                    .font(.connFootnote).foregroundStyle(.connMuted)
-                    .frame(maxWidth: .infinity).frame(height: height)
-            }
-        }
+        return MetricTrendChart(
+            series: series,
+            yDomain: resolved,
+            yFormat: yFormat,
+            stacked: stacked,
+            fillsSingleSeries: fillsSingleSeries,
+            height: height
+        )
     }
 
     private func autoDomain(_ series: [TrendSeries]) -> ClosedRange<Double> {
@@ -421,7 +412,7 @@ private extension HostOverviewView {
                     .frame(height: 132)
                     .accessibilityIdentifier("cpu.chart.empty")
             } else {
-                chartOrPlaceholder(
+                trendChart(
                     series,
                     domain: 0 ... 100,
                     yFormat: { "\(Int($0))%" },

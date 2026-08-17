@@ -29,6 +29,8 @@ public enum ConnMotion {
     /// 「白名单里的这条动效有多快」有唯一出处，而不是散落在视图里的字面量。
     /// 1 秒是匀速转圈的常规速度：再快显得焦躁，再慢会被误认为卡住。
     public static let spinPeriod: Double = 1
+    /// 指标图表数据点变化时的短过渡。只用于数值更新，不用于整块页面进场。
+    public static let chartUpdate: Animation = .easeInOut(duration: 0.28)
 }
 
 /// 全局按压反馈样式：`scale(0.97)`，约 130ms ease-out。

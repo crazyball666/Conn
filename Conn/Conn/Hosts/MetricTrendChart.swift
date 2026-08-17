@@ -25,8 +25,14 @@ struct MetricTrendChart: View {
     var fillsSingleSeries: Bool = true
     /// 图表需要有足够的垂直空间来读趋势，避免压缩成只有一条细线的装饰。
     var height: CGFloat = 132
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var isSingle: Bool { series.count == 1 }
+    /// 只用数值数组作为动画触发值，避免颜色、图例切换或视图重建导致整张图无意义地重播。
+    private var dataValues: [[Double]] { series.map(\.values) }
+    private var chartAnimation: Animation? {
+        reduceMotion ? nil : ConnMotion.chartUpdate
+    }
 
     var body: some View {
         Chart {
@@ -55,6 +61,7 @@ struct MetricTrendChart: View {
                 }
             }
         }
+        .animation(chartAnimation, value: dataValues)
         .chartForegroundStyleScale(domain: series.map(\.id), range: series.map { $0.color.opacity(0.82) })
         .chartLegend(.hidden)
         .chartYScale(domain: yDomain)
