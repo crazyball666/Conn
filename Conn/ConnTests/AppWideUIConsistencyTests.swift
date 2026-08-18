@@ -447,6 +447,15 @@ struct AppWideUIConsistencyTests {
         #expect(source.contains("Button(L(\"关闭\")"))
     }
 
+    @Test("新建终端 Loading 继承 Sheet 背景而不铺不透明页面底色")
+    func newTerminalLoadingMatchesSelectionSheetBackground() throws {
+        let source = try appSource("Terminal/NewTerminalSheet.swift")
+
+        #expect(source.contains("private func loadingState(_ title: String)"))
+        #expect(source.contains(".frame(maxWidth: .infinity, maxHeight: .infinity)"))
+        #expect(!source.contains(".background(Color.connBg)"))
+    }
+
     @Test("非固定主机的新建流程可以返回重新选择主机")
     func newTerminalSheetCanReturnToHostSelection() throws {
         let source = try appSource("Terminal/NewTerminalSheet.swift")
@@ -455,12 +464,20 @@ struct AppWideUIConsistencyTests {
         #expect(source.contains("await model.back()"))
     }
 
-    @Test("终端中心的打开与关闭是同级操作而不是嵌套按钮")
-    func terminalCenterRowsDoNotNestButtons() throws {
+    @Test("终端列表使用系统左滑删除而不是行内关闭按钮")
+    func terminalListsUseNativeSwipeToDelete() throws {
         let source = try appSource("Terminal/TerminalSessionCenterView.swift")
+        let sheet = try appSource("Terminal/TerminalSessionListSheet.swift")
 
-        #expect(source.contains("Button { open(tab) } label: {\n                terminalRowContent(tab)"))
+        #expect(source.contains("List {"))
+        #expect(source.contains("Button { open(tab) } label: {\n            terminalRowContent(tab)"))
         #expect(source.contains("private func terminalRowContent(_ tab: TerminalTab)"))
+        #expect(source.contains(".swipeActions(edge: .trailing, allowsFullSwipe: true)"))
+        #expect(source.contains("Label(L(\"删除\"), systemImage: \"trash\")"))
+        #expect(!source.contains("Image(systemName: \"xmark.circle\")"))
+        #expect(sheet.contains(".swipeActions(edge: .trailing, allowsFullSwipe: true)"))
+        #expect(sheet.contains("Label(L(\"删除\"), systemImage: \"trash\")"))
+        #expect(!sheet.contains("Label(L(\"关闭会话\"), systemImage: \"xmark.circle\")"))
     }
 
     @Test("Docker 与脚本入口先创建本地 Tab 再打开 existing TerminalScreen")

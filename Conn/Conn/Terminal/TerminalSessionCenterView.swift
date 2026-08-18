@@ -22,15 +22,16 @@ struct TerminalSessionCenterView: View {
                 if sessions.hostGroups.isEmpty {
                     emptyState
                 } else {
-                    ScrollView {
-                        LazyVStack(spacing: ConnSpacing.md) {
-                            ForEach(sessions.hostGroups) { group in
+                    List {
+                        ForEach(sessions.hostGroups) { group in
+                            Section {
                                 hostCard(group)
                             }
                         }
-                        .padding(.horizontal, ConnSpacing.page)
-                        .padding(.vertical, ConnSpacing.md)
                     }
+                    .listStyle(.insetGrouped)
+                    .listSectionSpacing(ConnSpacing.md)
+                    .scrollContentBackground(.hidden)
                     .scrollIndicators(.hidden)
                 }
             }
@@ -93,13 +94,9 @@ struct TerminalSessionCenterView: View {
                 }
             )
         ) {
-            VStack(spacing: 0) {
-                ForEach(group.tabs) { tab in
-                    terminalRow(tab)
-                    if tab.id != group.tabs.last?.id { Divider().opacity(0.4) }
-                }
+            ForEach(group.tabs) { tab in
+                terminalRow(tab)
             }
-            .padding(.top, ConnSpacing.sm)
         } label: {
             HStack(spacing: ConnSpacing.sm) {
                 Image(systemName: "server.rack")
@@ -115,29 +112,29 @@ struct TerminalSessionCenterView: View {
                 Spacer()
             }
             .contentShape(Rectangle())
+            .padding(.vertical, ConnSpacing.xs)
         }
         .tint(.connMuted)
-        .padding(ConnSpacing.md)
-        .background(Color.connSurface, in: RoundedRectangle(cornerRadius: ConnRadius.card))
+        .listRowBackground(Color.connSurface)
     }
 
     private func terminalRow(_ tab: TerminalTab) -> some View {
-        HStack(spacing: ConnSpacing.sm) {
-            Button { open(tab) } label: {
-                terminalRowContent(tab)
-            }
-            .buttonStyle(.plain)
-
-            Button(role: .destructive) {
-                Task { await dependencies.terminalSessions.close(tab.id) }
-            } label: {
-                Image(systemName: "xmark.circle")
-                    .foregroundStyle(.connMuted)
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel(L("关闭终端"))
+        Button { open(tab) } label: {
+            terminalRowContent(tab)
         }
-        .padding(.vertical, ConnSpacing.sm)
+        .buttonStyle(.plain)
+        .padding(.vertical, ConnSpacing.xs)
+        .listRowBackground(Color.connSurface)
+        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+            Button(role: .destructive) {
+                close(tab.id)
+            } label: {
+                Label(L("删除"), systemImage: "trash")
+            }
+        }
+        .accessibilityAction(named: Text(L("删除"))) {
+            close(tab.id)
+        }
     }
 
     private func terminalRowContent(_ tab: TerminalTab) -> some View {
@@ -173,6 +170,10 @@ struct TerminalSessionCenterView: View {
         } catch {
             toastCenter.show(error.localizedDescription, style: .error)
         }
+    }
+
+    private func close(_ tabID: String) {
+        Task { await dependencies.terminalSessions.close(tabID) }
     }
 
     private func openPendingCompletion() {

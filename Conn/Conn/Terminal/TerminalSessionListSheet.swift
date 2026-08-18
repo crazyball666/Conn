@@ -37,14 +37,18 @@ struct TerminalSessionListSheet: View {
                             } label: {
                                 Label(L("设置别名"), systemImage: "pencil")
                             }
+                        }
+                        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
                             Button(role: .destructive) { onClose(tab.id) } label: {
-                                Label(L("关闭会话"), systemImage: "xmark.circle")
+                                Label(L("删除"), systemImage: "trash")
                             }
                         }
-                        .accessibilityHint(L("双击切换；长按可设置别名或关闭"))
                         .accessibilityAction(named: Text(L("设置别名"))) {
                             renameTarget = tab
                             alias = tab.alias ?? tab.automaticAlias
+                        }
+                        .accessibilityAction(named: Text(L("删除"))) {
+                            onClose(tab.id)
                         }
                     }
                 } header: {

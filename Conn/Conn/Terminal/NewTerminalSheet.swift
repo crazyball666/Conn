@@ -243,7 +243,6 @@ struct NewTerminalSheet: View {
                 .foregroundStyle(.connMuted)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color.connBg)
     }
 
     private func errorSection(_ message: String) -> some View {
