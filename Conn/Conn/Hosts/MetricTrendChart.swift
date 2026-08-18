@@ -93,6 +93,35 @@ struct MetricTrendChart: View {
         return Array(0 ... 4).map { domain.lowerBound + span * Double($0) / 4 }
     }
 
+    /// 为未指定固定量程的图表计算 Y 轴范围。
+    ///
+    /// 累计面积必须按同一采样序号求和；只取单条序列峰值会低估网络上下行、
+    /// 磁盘读写的实际堆积高度，并在绘图区顶部被裁掉。独立面积和折线则保持
+    /// 单系列峰值语义，避免把不同指标错误相加。
+    static func automaticYDomain(
+        for series: [TrendSeries],
+        stacking: TrendAreaStacking
+    ) -> ClosedRange<Double> {
+        let peak: Double
+        switch stacking {
+        case .cumulative:
+            var totalsBySequence: [Int: Double] = [:]
+            for line in series {
+                for sample in line.samples where sample.value.isFinite && sample.value > 0 {
+                    totalsBySequence[sample.sequence, default: 0] += sample.value
+                }
+            }
+            peak = totalsBySequence.values.max() ?? 0
+        case .independent:
+            peak = series
+                .flatMap(\.samples)
+                .map(\.value)
+                .filter { $0.isFinite && $0 > 0 }
+                .max() ?? 0
+        }
+        return 0 ... max(peak * 1.25, 1024)
+    }
+
     var body: some View {
         Chart {
             // 面积层始终按输入顺序稳定绘制，不再随每轮峰值变化重排图层。

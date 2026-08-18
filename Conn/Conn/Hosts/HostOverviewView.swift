@@ -313,7 +313,10 @@ struct HostOverviewView<Header: View>: View {
         fillsSingleSeries: Bool = true,
         height: CGFloat = 132
     ) -> some View {
-        let resolved = domain ?? autoDomain(series)
+        let resolved = domain ?? MetricTrendChart.automaticYDomain(
+            for: series,
+            stacking: stacked ? areaStacking : .independent
+        )
         return MetricTrendChart(
             series: series,
             yDomain: resolved,
@@ -323,11 +326,6 @@ struct HostOverviewView<Header: View>: View {
             fillsSingleSeries: fillsSingleSeries,
             height: height
         )
-    }
-
-    private func autoDomain(_ series: [TrendSeries]) -> ClosedRange<Double> {
-        let peak = series.flatMap { $0.samples }.map(\.value).max() ?? 0
-        return 0 ... max(peak * 1.25, 1024)
     }
 
     // MARK: - 派生 / 绑定

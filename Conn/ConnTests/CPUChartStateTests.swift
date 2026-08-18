@@ -1,4 +1,5 @@
 import ConnMonitor
+import SwiftUI
 import Testing
 @testable import Conn
 
@@ -32,6 +33,41 @@ struct CPUChartStateTests {
     func chartHasFiveExactYAxisValues() {
         #expect(MetricTrendChart.axisValues(in: 0 ... 100) == [0, 25, 50, 75, 100])
         #expect(MetricTrendChart.axisValues(in: 0 ... 1024) == [0, 256, 512, 768, 1024])
+    }
+
+    @Test("累计面积图按同一采样点的堆积总值计算 Y 轴")
+    func cumulativeChartDomainUsesStackedPeak() {
+        let series = [
+            TrendSeries(id: "down", color: .blue, samples: [
+                TrendSample(sequence: 10, value: 4_000),
+                TrendSample(sequence: 11, value: 1_000),
+            ]),
+            TrendSeries(id: "up", color: .green, samples: [
+                TrendSample(sequence: 10, value: 3_000),
+                TrendSample(sequence: 11, value: 5_000),
+            ]),
+        ]
+
+        let domain = MetricTrendChart.automaticYDomain(for: series, stacking: .cumulative)
+
+        #expect(domain == 0 ... 8_750)
+    }
+
+    @Test("独立面积图只按单系列峰值计算 Y 轴")
+    func independentChartDomainUsesIndividualPeak() {
+        let series = [
+            TrendSeries(id: "first", color: .blue, samples: [
+                TrendSample(sequence: 10, value: 4_000),
+            ]),
+            TrendSeries(id: "second", color: .green, samples: [
+                TrendSample(sequence: 10, value: 3_000),
+                TrendSample(sequence: 11, value: 5_000),
+            ]),
+        ]
+
+        let domain = MetricTrendChart.automaticYDomain(for: series, stacking: .independent)
+
+        #expect(domain == 0 ... 6_250)
     }
 
     @Test("趋势图保留一个屏外样本再平滑移出可视窗口")
