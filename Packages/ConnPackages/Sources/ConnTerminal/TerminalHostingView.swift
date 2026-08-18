@@ -117,10 +117,17 @@
                         onTogglePointer: controller.togglePointer,
                         providerQuickActionGroup: controller.providerQuickActionGroup,
                         performingProviderQuickActionID: controller.performingProviderQuickActionID,
-                        onProviderQuickAction: controller.performQuickAction,
-                        onDismissKeyboard: {
+                        onProviderQuickAction: { actionID, argument, confirmed in
+                            controller.performQuickAction(
+                                actionID,
+                                argument: argument,
+                                confirmsDestructiveAction: confirmed
+                            )
+                        },
+                        keyboardVisible: controller.isTerminalFocused,
+                        onToggleKeyboard: {
                             keepsKeybarVisible = true
-                            controller.dismissKeyboard()
+                            controller.toggleKeyboard()
                         },
                         onExpansionChange: { isKeybarExpanded = $0 }
                     )
@@ -525,8 +532,13 @@
             }
         }
 
-        func dismissKeyboard() {
-            _ = terminalView?.resignFirstResponder()
+        func toggleKeyboard() {
+            guard let terminalView else { return }
+            if terminalView.isFirstResponder {
+                _ = terminalView.resignFirstResponder()
+            } else {
+                _ = terminalView.becomeFirstResponder()
+            }
         }
 
         func togglePointer() {
@@ -583,13 +595,23 @@
             }
         }
 
-        func performQuickAction(_ actionID: String, argument: String?) {
-            executeQuickAction(actionID, argument: argument, successNoticeKey: nil)
+        func performQuickAction(
+            _ actionID: String,
+            argument: String?,
+            confirmsDestructiveAction: Bool = false
+        ) {
+            executeQuickAction(
+                actionID,
+                argument: argument,
+                confirmsDestructiveAction: confirmsDestructiveAction,
+                successNoticeKey: nil
+            )
         }
 
         private func executeQuickAction(
             _ actionID: String,
             argument: String?,
+            confirmsDestructiveAction: Bool = false,
             successNoticeKey: String?
         ) {
             guard quickActionExecutionTask == nil,
@@ -605,7 +627,8 @@
                 attachmentGeneration: state.attachmentGeneration,
                 expectedStateRevision: state.revision,
                 argument: argument,
-                repeatCount: 1
+                repeatCount: 1,
+                confirmsDestructiveAction: confirmsDestructiveAction
             )
             performingProviderQuickActionID = actionID
             quickActionExecutionTask = Task { @MainActor [weak self] in

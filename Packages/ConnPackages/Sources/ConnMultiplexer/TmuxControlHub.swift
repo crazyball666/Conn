@@ -681,6 +681,7 @@ package actor TmuxControlHub {
         action: TmuxTerminalQuickAction,
         argument: String?,
         repeatCount: Int = 1,
+        destructiveActionConfirmed: Bool = false,
         timeout: Duration
     ) async throws -> TmuxControlHubOperationReceipt {
         try validateTimeout(timeout)
@@ -716,6 +717,9 @@ package actor TmuxControlHub {
             argument: argument,
             repeatCount: repeatCount
         )
+        guard !operation.isDestructive || destructiveActionConfirmed else {
+            throw TmuxControlHubError.destructiveConfirmationRequired
+        }
         let receipt = try await dispatch(
             .init(scope: scope, operation: operation),
             timeout: timeout,
@@ -740,10 +744,10 @@ package actor TmuxControlHub {
                 timeout: timeout,
                 identities: activeIdentities
             )
-        case .renameSession, .previousWindow, .nextWindow, .renameWindow,
+        case .renameSession, .previousWindow, .nextWindow, .renameWindow, .closeWindow,
              .previousPane, .nextPane, .toggleZoom, .swapPanePrevious, .swapPaneNext,
              .resizeLeft, .resizeRight, .resizeUp, .resizeDown,
-             .toggleSynchronizePanes, .copyMode, .cycleLayout, .tiledLayout,
+             .toggleSynchronizePanes, .copyMode, .closePane, .cycleLayout, .tiledLayout,
              .evenHorizontalLayout, .evenVerticalLayout, .mainHorizontalLayout,
              .mainVerticalLayout:
             return receipt

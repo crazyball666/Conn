@@ -543,6 +543,76 @@ struct TmuxControlHubTests {
         #expect(await adapter.snapshotRequestCount == 1)
     }
 
+    @Test("破坏性终端快捷动作必须由展示层明确确认")
+    func destructiveQuickActionRequiresConfirmation() async throws {
+        let fixture = try ControlHubFixture()
+        let adapter = ScriptedControlHubAdapter()
+        let attachmentID = "attachment-close-pane"
+        let clientID = TmuxClientID(
+            targetName: "/dev/pts/8",
+            processID: 8,
+            createdAt: 8
+        )
+        let client = TmuxClientSnapshot(
+            id: clientID,
+            sessionID: fixture.session,
+            currentWindowID: fixture.window,
+            activePaneID: fixture.pane,
+            flags: [],
+            role: .connInteractive(attachmentID: attachmentID),
+            kind: .interactiveTerminal,
+            sizeParticipation: .participating,
+            observedAt: fixture.now
+        )
+        let hub = try TmuxControlHub(
+            scope: try fixture.scope(),
+            initialSnapshot: try fixture.snapshot(clients: [clientID: client]),
+            adapter: adapter,
+            clock: { fixture.now }
+        )
+        let observation = try await hub.acquireInteractionLease(
+            identity: .init(
+                attachmentID: attachmentID,
+                clientID: clientID,
+                requestedSessionID: fixture.session
+            ),
+            target: .session(fixture.session)
+        )
+        let target = PersistentTerminalInteractionTarget(
+            providerID: TmuxProvider.providerID,
+            workspaceID: fixture.session.rawValue,
+            targetID: fixture.pane.rawValue
+        )
+
+        await #expect(throws: TmuxControlHubError.destructiveConfirmationRequired) {
+            try await hub.executeQuickAction(
+                lease: observation.lease,
+                target: target,
+                attachmentGeneration: 3,
+                expectedRevision: 0,
+                action: .closePane,
+                argument: nil,
+                destructiveActionConfirmed: false,
+                timeout: .seconds(1)
+            )
+        }
+        #expect(await adapter.executionCount == 0)
+
+        _ = try await hub.executeQuickAction(
+            lease: observation.lease,
+            target: target,
+            attachmentGeneration: 3,
+            expectedRevision: 0,
+            action: .closePane,
+            argument: nil,
+            destructiveActionConfirmed: true,
+            timeout: .seconds(1)
+        )
+
+        #expect(await adapter.executedRequests.map(\.operation) == [.killPane(fixture.pane)])
+        await hub.releaseLease(observation.lease)
+    }
+
     @Test("高频 Window 导航忽略显示 revision 漂移并合并为一次相对命令")
     func burstWindowNavigationDoesNotDependOnSnapshotRefresh() async throws {
         let fixture = try ControlHubFixture()

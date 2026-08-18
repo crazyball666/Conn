@@ -95,12 +95,18 @@ final class ConnUITests: XCTestCase {
         let dismissKeyboard = app.buttons["terminal.keybar.dismissKeyboard"]
         XCTAssertTrue(keybar.waitForExistence(timeout: 10))
         XCTAssertTrue(dismissKeyboard.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 5))
 
         dismissKeyboard.tap()
 
         XCTAssertTrue(keybar.waitForExistence(timeout: 5))
         XCTAssertTrue(dismissKeyboard.exists)
         XCTAssertTrue(app.buttons["Esc"].exists)
+        XCTAssertTrue(app.keyboards.firstMatch.waitForNonExistence(timeout: 5))
+
+        dismissKeyboard.tap()
+
+        XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 5))
     }
 
     /// 使用模拟器里用户已经配置好的真实主机做 opt-in 验收。默认跳过，避免 CI 依赖
@@ -177,8 +183,8 @@ final class ConnUITests: XCTestCase {
         XCTAssertTrue(keybar.waitForExistence(timeout: 10))
         XCTAssertTrue(expand.waitForExistence(timeout: 10))
         XCTAssertTrue(app.buttons["terminal.keybar.dismissKeyboard"].exists)
-        XCTAssertTrue(app.buttons["terminal.keybar.reconnect"].exists)
         XCTAssertTrue(app.buttons["terminal.keybar.commands"].exists)
+        XCTAssertTrue(app.buttons["terminal.keybar.reconnect"].exists)
         let compactViewport = terminal.frame
         XCTAssertLessThanOrEqual(terminal.frame.maxY, keybar.frame.minY + 1)
 

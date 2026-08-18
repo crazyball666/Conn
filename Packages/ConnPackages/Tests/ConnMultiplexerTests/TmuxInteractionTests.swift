@@ -78,7 +78,7 @@ struct TmuxInteractionTests {
         #expect(TmuxTerminalQuickAction.group.title == "tmux")
         let client = try TmuxClientTarget(fixture.client.targetName)
         #expect(TmuxTerminalQuickAction.group.sections.count == 5)
-        #expect(TmuxTerminalQuickAction.group.actions.count == 24)
+        #expect(TmuxTerminalQuickAction.group.actions.count == 26)
         #expect(TmuxTerminalQuickAction.group.swipeAction(for: .left)?.actionID
             == TmuxTerminalQuickAction.nextWindow.rawValue)
         #expect(TmuxTerminalQuickAction.group.swipeAction(for: .right)?.actionID
@@ -110,6 +110,13 @@ struct TmuxInteractionTests {
             in: fixture.session,
             name: nil
         ))
+        #expect(TmuxTerminalQuickAction.group.actions.first {
+            $0.id == TmuxTerminalQuickAction.closeWindow.rawValue
+        }?.confirmation != nil)
+        #expect(try TmuxTerminalQuickAction.closeWindow.operation(
+            for: resolved,
+            client: client
+        ) == .killWindow(fixture.window))
         #expect(try TmuxTerminalQuickAction.splitVertical.operation(
             for: resolved,
             client: client
@@ -117,6 +124,13 @@ struct TmuxInteractionTests {
             fixture.pane,
             orientation: .vertical
         ))
+        #expect(TmuxTerminalQuickAction.group.actions.first {
+            $0.id == TmuxTerminalQuickAction.closePane.rawValue
+        }?.confirmation != nil)
+        #expect(try TmuxTerminalQuickAction.closePane.operation(
+            for: resolved,
+            client: client
+        ) == .killPane(fixture.pane))
         #expect(try TmuxTerminalQuickAction.tiledLayout.operation(
             for: resolved,
             client: client

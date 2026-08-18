@@ -2069,6 +2069,46 @@
           }
         }
       }
+    },
+    "关闭 Pane" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Close Pane" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "Pane を閉じる" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "Pane 닫기" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "關閉 Pane" } }
+      }
+    },
+    "关闭 Window" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Close Window" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "Window を閉じる" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "Window 닫기" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "關閉 Window" } }
+      }
+    },
+    "关闭当前 Pane？" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Close the current Pane?" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "現在の Pane を閉じますか？" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "현재 Pane을 닫을까요?" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "關閉目前 Pane？" } }
+      }
+    },
+    "关闭当前 Window？" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Close the current Window?" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "現在の Window を閉じますか？" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "현재 Window를 닫을까요?" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "關閉目前 Window？" } }
+      }
+    },
+    "显示键盘" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Show keyboard" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "キーボードを表示" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "키보드 표시" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "顯示鍵盤" } }
+      }
     }
   },
   "version" : "1.0"

@@ -117,8 +117,14 @@ public enum TerminalKey: String, CaseIterable, Identifiable, Sendable {
 /// 移动端快捷栏只保留系统键盘缺失或需要多步组合的控制键。
 /// 普通字符（如 `/`、`|`、`~`）由系统键盘输入，不重复占用有限空间。
 enum TerminalKeybarLayout {
+    /// 紧凑态横向滚动区。固定的键盘、展开、命令列表和方向盘不占用这里的位置。
+    static let compactKeys: [TerminalKey] = [
+        .esc, .tab, .ctrl, .ctrlC, .ctrlD, .ctrlZ,
+        .clearLine, .clearScreen, .deleteWord, .lineStart, .lineEnd, .reverseSearch
+    ]
+
     static let compactRows: [[TerminalKey]] = [
-        [.esc, .tab, .ctrl, .ctrlC, .clearLine]
+        compactKeys
     ]
 
     /// 展开态按「导航编辑 → shell 控制 → 功能键」排列，普通可打印字符不重复出现。

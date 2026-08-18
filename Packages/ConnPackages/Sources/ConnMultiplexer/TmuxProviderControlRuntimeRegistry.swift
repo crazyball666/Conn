@@ -452,6 +452,7 @@ actor TmuxProviderControlRuntimeRegistry {
             action: action,
             argument: request.argument,
             repeatCount: request.repeatCount,
+            destructiveActionConfirmed: request.confirmsDestructiveAction,
             timeout: .seconds(30)
         )
     }

@@ -53,6 +53,7 @@ package enum TmuxTerminalQuickAction: String, CaseIterable, Sendable {
     case previousWindow = "tmux.window.previous"
     case nextWindow = "tmux.window.next"
     case renameWindow = "tmux.window.rename"
+    case closeWindow = "tmux.window.close"
     case splitHorizontal = "tmux.pane.split-horizontal"
     case splitVertical = "tmux.pane.split-vertical"
     case previousPane = "tmux.pane.previous"
@@ -66,6 +67,7 @@ package enum TmuxTerminalQuickAction: String, CaseIterable, Sendable {
     case resizeDown = "tmux.pane.resize-down"
     case toggleSynchronizePanes = "tmux.pane.toggle-synchronize"
     case copyMode = "tmux.mode.copy"
+    case closePane = "tmux.pane.close"
     case cycleLayout = "tmux.layout.next"
     case tiledLayout = "tmux.layout.tiled"
     case evenHorizontalLayout = "tmux.layout.even-horizontal"
@@ -95,6 +97,12 @@ package enum TmuxTerminalQuickAction: String, CaseIterable, Sendable {
                     "pencil",
                     textInput: .init(titleKey: "重命名 Window", placeholderKey: "Window 名称")
                 ),
+                descriptor(
+                    .closeWindow,
+                    "关闭 Window",
+                    "xmark.rectangle",
+                    confirmation: .init(titleKey: "关闭当前 Window？")
+                ),
             ]),
             .init(id: "pane", titleKey: "Pane", actions: [
                 descriptor(.splitHorizontal, "左右分屏", "rectangle.split.2x1"),
@@ -112,6 +120,12 @@ package enum TmuxTerminalQuickAction: String, CaseIterable, Sendable {
                     .toggleSynchronizePanes,
                     "切换同步输入",
                     "arrow.triangle.2.circlepath"
+                ),
+                descriptor(
+                    .closePane,
+                    "关闭 Pane",
+                    "xmark.square",
+                    confirmation: .init(titleKey: "关闭当前 Pane？")
                 ),
             ]),
             .init(id: "mode", titleKey: "模式", actions: [
@@ -171,6 +185,8 @@ package enum TmuxTerminalQuickAction: String, CaseIterable, Sendable {
             )
         case .renameWindow:
             .renameWindow(state.windowID, to: try TmuxName(argument ?? ""))
+        case .closeWindow:
+            .killWindow(state.windowID)
         case .splitHorizontal:
             .splitPane(state.paneID, orientation: .horizontal)
         case .splitVertical:
@@ -197,6 +213,8 @@ package enum TmuxTerminalQuickAction: String, CaseIterable, Sendable {
             .toggleSynchronizePanes(state.windowID)
         case .copyMode:
             .enterCopyMode(state.paneID)
+        case .closePane:
+            .killPane(state.paneID)
         case .cycleLayout:
             .cyclePaneLayout(state.windowID)
         case .tiledLayout:
@@ -216,13 +234,15 @@ package enum TmuxTerminalQuickAction: String, CaseIterable, Sendable {
         _ action: Self,
         _ titleKey: String,
         _ systemImageName: String,
-        textInput: PersistentTerminalQuickActionTextInput? = nil
+        textInput: PersistentTerminalQuickActionTextInput? = nil,
+        confirmation: PersistentTerminalActionConfirmation? = nil
     ) -> PersistentTerminalQuickActionDescriptor {
         .init(
             id: action.rawValue,
             titleKey: titleKey,
             systemImageName: systemImageName,
-            textInput: textInput
+            textInput: textInput,
+            confirmation: confirmation
         )
     }
 

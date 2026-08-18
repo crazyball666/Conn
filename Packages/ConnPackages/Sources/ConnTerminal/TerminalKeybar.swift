@@ -5,8 +5,8 @@
     import UIKit
 
     public enum TerminalKeybarMetrics {
-        public static let compactHeight: CGFloat = 50
-        public static let expandedHeight: CGFloat = 176
+        public static let compactHeight: CGFloat = 46
+        public static let expandedHeight: CGFloat = 168
     }
 
     /// 终端加速键条（原型 S4 / 技术方案 §4.2）。
@@ -25,8 +25,9 @@
         let onTogglePointer: () -> Void
         let providerQuickActionGroup: PersistentTerminalQuickActionGroup?
         let performingProviderQuickActionID: String?
-        let onProviderQuickAction: (String, String?) -> Void
-        let onDismissKeyboard: () -> Void
+        let onProviderQuickAction: (String, String?, Bool) -> Void
+        let keyboardVisible: Bool
+        let onToggleKeyboard: () -> Void
         let onExpansionChange: (Bool) -> Void
 
         /// 触感的触发源。每次按键自增一次，`sensoryFeedback` 只认「值变了」。
@@ -35,6 +36,7 @@
         @State private var pressCount = 0
         @State private var expandedSection: ExpandedSection = .common
         @State private var pendingTextInputAction: PersistentTerminalQuickActionDescriptor?
+        @State private var pendingConfirmationAction: PersistentTerminalQuickActionDescriptor?
         @State private var quickActionText = ""
 
         private enum ExpandedSection: String {
@@ -42,13 +44,10 @@
             case provider
         }
 
-        private static let hitTargetHeight: CGFloat = 44
-        private static let capVisualHeight: CGFloat = 38
-        private static let compactCapWidth: CGFloat = 44
-        private static let compactPadSide: CGFloat = 44
-        private static let compactKeys: [TerminalKey] = [
-            .esc, .ctrl, .tab, .ctrlC,
-        ]
+        private static let hitTargetHeight: CGFloat = 40
+        private static let capVisualHeight: CGFloat = 32
+        private static let compactCapWidth: CGFloat = 38
+        private static let compactPadSide: CGFloat = 40
 
         var body: some View {
             Group {
@@ -70,6 +69,7 @@
                 if groupID == nil {
                     expandedSection = .common
                     pendingTextInputAction = nil
+                    pendingConfirmationAction = nil
                 }
             }
             .alert(
@@ -91,9 +91,27 @@
                     guard let action = pendingTextInputAction else { return }
                     let value = quickActionText.trimmingCharacters(in: .whitespacesAndNewlines)
                     pendingTextInputAction = nil
-                    onProviderQuickAction(action.id, value)
+                    onProviderQuickAction(action.id, value, false)
                 }
                 .disabled(quickActionText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            }
+            .confirmationDialog(
+                pendingConfirmationAction?.confirmation.map { L($0.titleKey) } ?? "",
+                isPresented: Binding(
+                    get: { pendingConfirmationAction != nil },
+                    set: { if !$0 { pendingConfirmationAction = nil } }
+                ),
+                titleVisibility: .visible
+            ) {
+                if let action = pendingConfirmationAction {
+                    Button(L(action.titleKey), role: .destructive) {
+                        pendingConfirmationAction = nil
+                        onProviderQuickAction(action.id, nil, true)
+                    }
+                }
+                Button(L("取消"), role: .cancel) {
+                    pendingConfirmationAction = nil
+                }
             }
         }
 
@@ -103,28 +121,17 @@
             HStack(spacing: 4) {
                 ScrollView(.horizontal) {
                     LazyHStack(spacing: 4) {
-                        ForEach(Self.compactKeys) { key in
+                        ForEach(TerminalKeybarLayout.compactKeys) { key in
                             keyCap(key, width: Self.compactCapWidth)
                         }
                         pasteCap(width: Self.compactCapWidth)
-                        actionCap(
-                            systemName: "chevron.up",
-                            accessibilityLabel: L("展开快捷键"),
-                            identifier: "terminal.keybar.expand",
-                            width: Self.compactCapWidth
-                        ) {
-                            onExpansionChange(true)
-                        }
-                        actionCap(
-                            systemName: "keyboard.chevron.compact.down",
-                            accessibilityLabel: L("收起键盘"),
-                            identifier: "terminal.keybar.dismissKeyboard",
-                            width: Self.compactCapWidth,
-                            action: onDismissKeyboard
-                        )
                     }
                 }
                 .scrollIndicators(.hidden)
+
+                fixedCommandCap
+                expansionCap(expanded: false)
+                keyboardCap
 
                 TerminalDirectionPad(onKey: onKey)
                     .frame(width: Self.compactPadSide, height: Self.compactPadSide)
@@ -136,14 +143,7 @@
         private var expandedPanel: some View {
             VStack(spacing: 6) {
                 HStack(spacing: 6) {
-                    actionCap(
-                        systemName: "chevron.down",
-                        accessibilityLabel: L("收起快捷键"),
-                        identifier: "terminal.keybar.collapse",
-                        width: Self.compactCapWidth
-                    ) {
-                        onExpansionChange(false)
-                    }
+                    expansionCap(expanded: true)
 
                     expandedTab(
                         title: L("常用"),
@@ -159,13 +159,8 @@
                     }
 
                     Spacer(minLength: 0)
-                    actionCap(
-                        systemName: "keyboard.chevron.compact.down",
-                        accessibilityLabel: L("收起键盘"),
-                        identifier: "terminal.keybar.dismissKeyboard",
-                        width: Self.compactCapWidth,
-                        action: onDismissKeyboard
-                    )
+                    fixedCommandCap
+                    keyboardCap
                 }
 
                 if expandedSection == .provider, let providerQuickActionGroup {
@@ -183,12 +178,6 @@
                     spacing: 6
                 ) {
                     pasteCap()
-                    actionCap(
-                        systemName: "command",
-                        accessibilityLabel: L("选择本地脚本"),
-                        identifier: "terminal.keybar.commands",
-                        action: onChooseCommand
-                    )
                     actionCap(
                         systemName: "arrow.clockwise",
                         accessibilityLabel: L("重新打开终端"),
@@ -219,7 +208,7 @@
                         LazyVGrid(
                             columns: Array(
                                 repeating: GridItem(.flexible(), spacing: 6),
-                                count: 4
+                                count: 5
                             ),
                             spacing: 6
                         ) {
@@ -271,11 +260,13 @@
             let isPerforming = performingProviderQuickActionID == action.id
             return Button {
                 pressCount &+= 1
-                if action.textInput != nil {
+                if action.confirmation != nil {
+                    pendingConfirmationAction = action
+                } else if action.textInput != nil {
                     quickActionText = ""
                     pendingTextInputAction = action
                 } else {
-                    onProviderQuickAction(action.id, nil)
+                    onProviderQuickAction(action.id, nil, false)
                 }
             } label: {
                 VStack(spacing: 2) {
@@ -409,6 +400,37 @@
             .accessibilityLabel(Text(accessibilityLabel))
             .accessibilityIdentifier(identifier)
             .frame(width: width, height: Self.hitTargetHeight)
+        }
+
+        private var fixedCommandCap: some View {
+            actionCap(
+                systemName: "command",
+                accessibilityLabel: L("选择本地脚本"),
+                identifier: "terminal.keybar.commands",
+                width: Self.compactCapWidth,
+                action: onChooseCommand
+            )
+        }
+
+        private func expansionCap(expanded: Bool) -> some View {
+            actionCap(
+                systemName: expanded ? "chevron.down" : "chevron.up",
+                accessibilityLabel: expanded ? L("收起快捷键") : L("展开快捷键"),
+                identifier: expanded ? "terminal.keybar.collapse" : "terminal.keybar.expand",
+                width: Self.compactCapWidth
+            ) {
+                onExpansionChange(!expanded)
+            }
+        }
+
+        private var keyboardCap: some View {
+            actionCap(
+                systemName: keyboardVisible ? "keyboard.chevron.compact.down" : "keyboard",
+                accessibilityLabel: keyboardVisible ? L("收起键盘") : L("显示键盘"),
+                identifier: "terminal.keybar.dismissKeyboard",
+                width: Self.compactCapWidth,
+                action: onToggleKeyboard
+            )
         }
     }
 #endif

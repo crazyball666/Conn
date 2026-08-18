@@ -76,8 +76,12 @@ struct TerminalKeyTests {
     @Test("快捷栏只保留手机难以输入的控制键")
     func mobileControlKeyLayout() {
         #expect(TerminalKeybarLayout.compactRows == [
-            [.esc, .tab, .ctrl, .ctrlC, .clearLine]
+            [
+                .esc, .tab, .ctrl, .ctrlC, .ctrlD, .ctrlZ,
+                .clearLine, .clearScreen, .deleteWord, .lineStart, .lineEnd, .reverseSearch
+            ]
         ])
+        #expect(TerminalKeybarLayout.compactKeys.count == 12)
         #expect(TerminalKeybarLayout.expandedKeys.contains(.backTab))
         #expect(TerminalKeybarLayout.expandedKeys.contains(.pageUp))
         #expect(TerminalKeybarLayout.expandedKeys.contains(.pageDown))

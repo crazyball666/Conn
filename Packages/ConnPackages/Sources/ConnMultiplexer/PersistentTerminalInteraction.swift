@@ -188,17 +188,30 @@ public struct PersistentTerminalQuickActionDescriptor: Sendable, Equatable, Iden
     public let titleKey: String
     public let systemImageName: String
     public let textInput: PersistentTerminalQuickActionTextInput?
+    public let confirmation: PersistentTerminalActionConfirmation?
 
     public init(
         id: String,
         titleKey: String,
         systemImageName: String,
-        textInput: PersistentTerminalQuickActionTextInput? = nil
+        textInput: PersistentTerminalQuickActionTextInput? = nil,
+        confirmation: PersistentTerminalActionConfirmation? = nil
     ) {
         self.id = id
         self.titleKey = titleKey
         self.systemImageName = systemImageName
         self.textInput = textInput
+        self.confirmation = confirmation
+    }
+}
+
+/// Provider-neutral destructive-action prompt metadata. The presentation layer owns the
+/// confirmation UI while the provider still validates the acknowledgement before dispatch.
+public struct PersistentTerminalActionConfirmation: Sendable, Equatable {
+    public let titleKey: String
+
+    public init(titleKey: String) {
+        self.titleKey = titleKey
     }
 }
 
@@ -298,6 +311,8 @@ public struct PersistentTerminalQuickActionRequest: Sendable, Equatable {
     public let argument: String?
     /// 连续同类高频动作的合并次数。普通按钮保持 1；provider 决定哪些动作允许大于 1。
     public let repeatCount: Int
+    /// 仅由展示层在用户确认破坏性操作后置真；provider 必须再次校验动作语义。
+    public let confirmsDestructiveAction: Bool
 
     public init(
         actionID: String,
@@ -305,7 +320,8 @@ public struct PersistentTerminalQuickActionRequest: Sendable, Equatable {
         attachmentGeneration: UInt64,
         expectedStateRevision: UInt64,
         argument: String? = nil,
-        repeatCount: Int = 1
+        repeatCount: Int = 1,
+        confirmsDestructiveAction: Bool = false
     ) {
         self.actionID = actionID
         self.target = target
@@ -313,6 +329,7 @@ public struct PersistentTerminalQuickActionRequest: Sendable, Equatable {
         self.expectedStateRevision = expectedStateRevision
         self.argument = argument
         self.repeatCount = repeatCount
+        self.confirmsDestructiveAction = confirmsDestructiveAction
     }
 }
 
