@@ -54,4 +54,32 @@ struct TerminalDirectionPadTests {
         // 同一个落点，在小控件里是 down，在大控件里还在死区
         #expect(TerminalDirectionResolver.direction(for: CGPoint(x: 100, y: 105), in: big) == nil)
     }
+
+    @Test("紧凑方向盘的对向箭头保持可辨识间距")
+    func compactPadArrowsDoNotOverlap() {
+        let contentSide = TerminalKeybarMetrics.compactPadSide
+            - TerminalDirectionPadMetrics.contentInset * 2
+        let edge = TerminalDirectionPadMetrics.edgeOffset(for: contentSide)
+        let gap = contentSide - edge * 2 - TerminalDirectionPadMetrics.glyphFrame
+
+        #expect(gap >= 4)
+    }
+
+    @Test("展开面板与 provider 按钮使用独立的内容和触控尺寸")
+    func expandedProviderActionMetricsPreventClipping() {
+        #expect(TerminalKeybarMetrics.expandedHeight == 216)
+        #expect(TerminalKeybarMetrics.compactPadSide == 40)
+        #expect(TerminalKeybarMetrics.providerIconSize == 12)
+        #expect(TerminalKeybarMetrics.providerLabelSize == 10)
+        #expect(TerminalKeybarMetrics.providerContentHorizontalPadding == 4)
+        #expect(TerminalKeybarMetrics.providerContentVerticalPadding == 2)
+        #expect(
+            TerminalKeybarMetrics.providerIconSize
+                + TerminalKeybarMetrics.providerLabelSize
+                + TerminalKeybarMetrics.providerContentSpacing
+                + TerminalKeybarMetrics.providerContentVerticalPadding * 2
+                <= TerminalKeybarMetrics.capVisualHeight
+        )
+        #expect(TerminalKeybarMetrics.hitTargetHeight == 44)
+    }
 }

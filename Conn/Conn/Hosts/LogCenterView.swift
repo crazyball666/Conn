@@ -73,7 +73,7 @@ final class LogCenterViewModel {
         case .degraded:
             return L("部分日志来源不可用")
         case let .unavailable(issue):
-            return issue.code == .permissionDenied ? L("没有权限读取日志") : L("日志采集暂不可用")
+            return issue.code == .permissionDenied ? L("权限不足，无法读取日志") : L("日志采集暂不可用")
         case .unsupported:
             return L("当前主机平台暂不支持日志采集")
         }
@@ -128,7 +128,7 @@ struct LogCenterView: View {
                         .padding(.horizontal, ConnSpacing.cardPadding)
                 }
                 if viewModel.sources.isEmpty {
-                    Text(L("未发现常见日志源。\n可在终端里直接查看自定义路径。"))
+                    Text(L("未发现常用日志源。\n可在终端中查看自定义路径。"))
                         .font(.connSubheadline).foregroundStyle(.connMuted).multilineTextAlignment(.center)
                         .padding(.vertical, ConnSpacing.xl)
                 } else {

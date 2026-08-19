@@ -6,20 +6,21 @@ import Testing
 @Suite("Snippet capability presentation")
 struct SnippetCapabilityPresentationTests {
     private static let messageKeys = [
-        "当前主机平台不支持执行此片段。",
-        "远程主机缺少执行此片段所需的命令。",
-        "当前用户没有执行此片段所需的权限。",
-        "执行此片段所需的服务未运行。",
-        "远程主机未提供执行此片段所需的完整数据。",
-        "无法确认远程主机是否满足片段要求。",
-        "远程主机暂时无法满足片段要求。",
-        "当前主机平台仅支持此片段的部分能力，仍可继续执行。",
-        "远程主机缺少部分可选命令，片段仍可继续执行。",
-        "部分片段能力受权限限制，仍可继续执行。",
-        "部分片段能力依赖的服务未运行，仍可继续执行。",
-        "部分远程能力数据不可用，片段仍可继续执行。",
-        "部分片段要求无法确认，仍可继续执行。",
-        "部分片段能力状态未知，仍可继续执行。",
+        "当前主机暂不支持所选 Shell 执行方式。",
+        "远程主机缺少执行此脚本所需的命令。",
+        "当前用户缺少执行此脚本所需的权限。",
+        "执行此脚本所需的服务未运行。",
+        "远程主机未提供执行此脚本所需的完整数据。",
+        "无法确认远程主机是否满足脚本要求。",
+        "远程主机暂时无法满足脚本要求。",
+        "当前主机平台仅支持此脚本的部分能力，仍可继续执行。",
+        "远程主机缺少部分可选命令，脚本仍可继续执行。",
+        "部分脚本能力受权限限制，仍可继续执行。",
+        "部分脚本能力依赖的服务未运行，仍可继续执行。",
+        "部分远程能力数据不可用，脚本仍可继续执行。",
+        "部分脚本要求无法确认，仍可继续执行。",
+        "部分脚本能力状态未知，仍可继续执行。",
+        "无法准备远程脚本执行环境。",
     ]
 
     @Test("script execution blocker has priority over capability blockers")
@@ -31,19 +32,19 @@ struct SnippetCapabilityPresentationTests {
 
         let presentation = SnippetCapabilityPresentation(report: report)
 
-        #expect(presentation.blockerMessage == L("无法确认远程主机是否满足片段要求。"))
+        #expect(presentation.blockerMessage == L("无法确认远程主机是否满足脚本要求。"))
     }
 
     @Test("blocker reason codes have stable messages")
     func mapsBlockerReasons() {
         let cases: [(CapabilityReasonCode, String)] = [
-            (.unsupportedPlatform, "当前主机平台不支持执行此片段。"),
-            (.executableMissing, "远程主机缺少执行此片段所需的命令。"),
-            (.permissionDenied, "当前用户没有执行此片段所需的权限。"),
-            (.daemonNotRunning, "执行此片段所需的服务未运行。"),
-            (.partialData, "远程主机未提供执行此片段所需的完整数据。"),
-            (.queryFailed, "无法确认远程主机是否满足片段要求。"),
-            (.unknown, "远程主机暂时无法满足片段要求。"),
+            (.unsupportedPlatform, "当前主机暂不支持所选 Shell 执行方式。"),
+            (.executableMissing, "远程主机缺少执行此脚本所需的命令。"),
+            (.permissionDenied, "当前用户缺少执行此脚本所需的权限。"),
+            (.daemonNotRunning, "执行此脚本所需的服务未运行。"),
+            (.partialData, "远程主机未提供执行此脚本所需的完整数据。"),
+            (.queryFailed, "无法确认远程主机是否满足脚本要求。"),
+            (.unknown, "远程主机暂时无法满足脚本要求。"),
         ]
 
         for (reason, message) in cases {
@@ -57,7 +58,7 @@ struct SnippetCapabilityPresentationTests {
 
     @Test("capability ordering is deterministic regardless of dictionary construction")
     func deterministicCapabilityOrdering() {
-        let expected = L("远程主机缺少执行此片段所需的命令。")
+        let expected = L("远程主机缺少执行此脚本所需的命令。")
         let first = SnippetCapabilityPresentation(report: RemoteCapabilityReport(states: [
             .logs: unavailable(.permissionDenied),
             .docker: unavailable(.executableMissing),
@@ -81,7 +82,7 @@ struct SnippetCapabilityPresentationTests {
         #expect(presentation.blockerMessage == nil)
         #expect(
             presentation.degradedMessage
-                == L("部分远程能力数据不可用，片段仍可继续执行。")
+                == L("部分远程能力数据不可用，脚本仍可继续执行。")
         )
     }
 
@@ -139,107 +140,6 @@ struct SnippetCapabilityPresentationTests {
 
     private func source(named relativePath: String) throws -> String {
         return try String(contentsOf: projectURL.appending(path: relativePath), encoding: .utf8)
-    }
-}
-
-@Suite("Snippet compatibility result acceptance")
-struct SnippetCompatibilityAcceptanceTests {
-    @Test("accepts only a selected host with the current generation")
-    func acceptsCurrentSelectedHost() {
-        let accepted = SnippetCompatibilityAcceptance.accept(
-            hostID: "host",
-            value: "preparation",
-            selectedHostIDs: ["host"],
-            capturedGeneration: 7,
-            currentGeneration: 7
-        )
-
-        #expect(accepted?.hostID == "host")
-        #expect(accepted?.value == "preparation")
-    }
-
-    @Test("rejects a result after host deselection")
-    func rejectsDeselectedHost() {
-        #expect(SnippetCompatibilityAcceptance.accept(
-            hostID: "host",
-            value: "preparation",
-            selectedHostIDs: [],
-            capturedGeneration: 7,
-            currentGeneration: 7
-        ) == nil)
-    }
-
-    @Test("rejects a stale generation for a still-selected host")
-    func rejectsStaleGeneration() {
-        #expect(SnippetCompatibilityAcceptance.accept(
-            hostID: "host",
-            value: "preparation",
-            selectedHostIDs: ["host"],
-            capturedGeneration: 6,
-            currentGeneration: 7
-        ) == nil)
-    }
-
-    @Test("out-of-order preparations remain keyed by their originating host")
-    func preservesOriginatingHostForOutOfOrderPreparations() async {
-        let completions = ControlledPreparationCompletions()
-        let selectedHostIDs: Set<String> = ["host-a", "host-b"]
-        let generations = ["host-a": UInt64(1), "host-b": UInt64(1)]
-        var preparationsByHostID: [String: String] = [:]
-
-        await withTaskGroup(
-            of: SnippetCompatibilityAcceptance.Accepted<String>?.self
-        ) { group in
-            for hostID in ["host-a", "host-b"] {
-                group.addTask {
-                    let preparation = await completions.preparation(for: hostID)
-                    return SnippetCompatibilityAcceptance.accept(
-                        hostID: hostID,
-                        value: preparation,
-                        selectedHostIDs: selectedHostIDs,
-                        capturedGeneration: 1,
-                        currentGeneration: generations[hostID]
-                    )
-                }
-            }
-
-            await completions.complete(hostID: "host-b", value: "preparation-b")
-            if let accepted = await group.next() ?? nil {
-                preparationsByHostID[accepted.hostID] = accepted.value
-            }
-
-            await completions.complete(hostID: "host-a", value: "preparation-a")
-            if let accepted = await group.next() ?? nil {
-                preparationsByHostID[accepted.hostID] = accepted.value
-            }
-        }
-
-        #expect(preparationsByHostID == [
-            "host-a": "preparation-a",
-            "host-b": "preparation-b",
-        ])
-    }
-}
-
-private actor ControlledPreparationCompletions {
-    private var completedValues: [String: String] = [:]
-    private var waiters: [String: CheckedContinuation<String, Never>] = [:]
-
-    func preparation(for hostID: String) async -> String {
-        if let value = completedValues.removeValue(forKey: hostID) {
-            return value
-        }
-        return await withCheckedContinuation { continuation in
-            waiters[hostID] = continuation
-        }
-    }
-
-    func complete(hostID: String, value: String) {
-        if let waiter = waiters.removeValue(forKey: hostID) {
-            waiter.resume(returning: value)
-        } else {
-            completedValues[hostID] = value
-        }
     }
 }
 

@@ -683,7 +683,7 @@ package actor TmuxControlHub {
         repeatCount: Int = 1,
         destructiveActionConfirmed: Bool = false,
         timeout: Duration
-    ) async throws -> TmuxControlHubOperationReceipt {
+    ) async throws -> PersistentTerminalQuickActionOutcome {
         try validateTimeout(timeout)
 
         _ = try await acquireOperationSlot()
@@ -695,8 +695,7 @@ package actor TmuxControlHub {
         else {
             throw TmuxInteractionError.clientUnavailable
         }
-        let isRelativeWindowNavigation = action == .previousWindow || action == .nextWindow
-        if !isRelativeWindowNavigation {
+        if !action.toleratesStateRevisionDrift {
             guard snapshot.revision == expectedRevision else {
                 throw TmuxInteractionError.staleState(
                     expectedRevision: expectedRevision,
@@ -707,7 +706,7 @@ package actor TmuxControlHub {
         let resolved = try TmuxInteractionStateProjector().resolve(
             snapshot: snapshot,
             identity: interactionLease.identity,
-            expectedTarget: isRelativeWindowNavigation ? nil : target,
+            expectedTarget: action == .previousWindow || action == .nextWindow ? nil : target,
             attachmentGeneration: attachmentGeneration
         )
         let client = try TmuxClientTarget(interactionLease.identity.clientID.targetName)
@@ -720,6 +719,10 @@ package actor TmuxControlHub {
         guard !operation.isDestructive || destructiveActionConfirmed else {
             throw TmuxControlHubError.destructiveConfirmationRequired
         }
+        if (action == .previousWindow || action == .nextWindow),
+           resolved.windowIDs.count < 2 {
+            return .unavailable
+        }
         let receipt = try await dispatch(
             .init(scope: scope, operation: operation),
             timeout: timeout,
@@ -730,7 +733,7 @@ package actor TmuxControlHub {
             guard let windowID = createdWindowID(from: receipt.output) else {
                 throw TmuxInteractionError.createdWindowIdentityUnavailable
             }
-            return try await dispatch(
+            _ = try await dispatch(
                 .init(scope: scope, operation: .selectWindow(windowID, for: client)),
                 timeout: timeout,
                 identities: activeIdentities
@@ -739,7 +742,7 @@ package actor TmuxControlHub {
             guard let paneID = createdPaneID(from: receipt.output) else {
                 throw TmuxInteractionError.createdPaneIdentityUnavailable
             }
-            return try await dispatch(
+            _ = try await dispatch(
                 .init(scope: scope, operation: .selectPane(paneID, for: client)),
                 timeout: timeout,
                 identities: activeIdentities
@@ -750,8 +753,9 @@ package actor TmuxControlHub {
              .toggleSynchronizePanes, .copyMode, .closePane, .cycleLayout, .tiledLayout,
              .evenHorizontalLayout, .evenVerticalLayout, .mainHorizontalLayout,
              .mainVerticalLayout:
-            return receipt
+            break
         }
+        return .performed
     }
 
     private func createdWindowID(from output: [Data]) -> TmuxWindowID? {

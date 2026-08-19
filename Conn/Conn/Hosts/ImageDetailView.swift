@@ -96,7 +96,7 @@ struct ImageDetailView: View {
     private var usersSection: some View {
         DockerDetail.section(L("引用容器")) {
             if users.isEmpty {
-                DockerDetail.unusedNotice(L("没有容器使用此镜像"))
+                DockerDetail.unusedNotice(L("暂无容器使用此镜像"))
             } else {
                 VStack(alignment: .leading, spacing: 0) {
                     ForEach(Array(users.enumerated()), id: \.offset) { index, container in

@@ -1,5 +1,6 @@
-import Foundation
+import ConnOps
 import ConnSSH
+import Foundation
 import Testing
 @testable import Conn
 
@@ -66,6 +67,30 @@ struct DockerLocalizationTests {
         #expect(failedPull.stderr.contains("denied"))
         #expect(interruptedPull.streamFailure == .channelClosed)
 
+        let discovery = try #require(DemoOps.response(
+            command: "conn_docker_path=$(command -v docker 2>/dev/null || true); true",
+            endpoint: endpoint
+        ))
+        #expect(discovery.stdout.contains("/usr/bin/docker"))
+        #expect(discovery.stdout.contains("__CONN_COMPOSE_V1__/usr/bin/docker-compose"))
+
+        let discoveredRuntime = DockerRuntimeContext(
+            executable: "/usr/bin/docker",
+            sudo: false,
+            composeV1Executable: "/usr/bin/docker-compose"
+        )
+        let discoveredRuntimeCommands = [
+            DockerCommand.availabilityProbe(runtime: discoveredRuntime),
+            DockerCommand.images(runtime: discoveredRuntime),
+            DockerCommand.composeVersion(.v2, runtime: discoveredRuntime),
+            DockerCommand.composeProjects(runtime: discoveredRuntime),
+        ]
+        for command in discoveredRuntimeCommands {
+            let response = try #require(DemoOps.response(command: command, endpoint: endpoint))
+            #expect(response.exitCode == 0, "绝对路径运行时也应命中演示响应：\(command)")
+            #expect(!response.stdout.isEmpty, "绝对路径运行时应返回可解析输出：\(command)")
+        }
+
         let writeCommands = [
             "docker run --detach 'nginx:1.27'",
             "docker volume create --driver 'local' 'demo-volume'",
@@ -79,6 +104,20 @@ struct DockerLocalizationTests {
             #expect(response.exitCode == 0, "\(command) 应返回已知成功终态")
             #expect(!response.stdout.isEmpty, "\(command) 应返回可读演示输出")
         }
+    }
+
+    @Test("Docker 演示环境响应生产平台探测协议")
+    func demoBehaviorSupportsRemotePlatformProbe() throws {
+        let endpoint = SSHEndpoint(host: DemoData.faultHostAddress, port: 22)
+        let responder = try #require(DemoData.behavior().dynamicResponder)
+        let response = try #require(responder(RemotePlatformDetector.posixCommand, endpoint))
+
+        #expect(response.exitCode == 0)
+        #expect(response.stdout.contains("__CONN_UNAME__\nLinux"))
+        #expect(response.stdout.contains("__CONN_RELEASE__\n6.8.0-demo"))
+        #expect(response.stdout.contains("__CONN_ARCH__\narm64"))
+        #expect(response.stdout.contains("__CONN_SHELL__\n/bin/bash"))
+        #expect(response.stdout.contains("__CONN_END__"))
     }
 
     private let locales = ["en", "ja", "ko", "zh-Hant"]
@@ -103,6 +142,7 @@ struct DockerLocalizationTests {
         "Docker 删除镜像",
         "Docker 启动容器",
         "Docker 当前不可用",
+        "Docker 运行环境尚未探测完成",
         "当前平台尚不支持 Docker 管理。",
         "Docker 拉取镜像",
         "Docker 清理悬空镜像",
@@ -129,6 +169,7 @@ struct DockerLocalizationTests {
         "创建网络",
         "删除",
         "删除卷",
+        "删除容器",
         "删除网络",
         "删除镜像",
         "包含未使用卷",
@@ -179,6 +220,7 @@ struct DockerLocalizationTests {
         "确认 Docker 操作",
         "确认词",
         "确认词不匹配，未执行 Docker 操作",
+        "此操作不可撤销。",
         "移除所有未使用镜像",
         "端口",
         "等待远端输出…",
@@ -237,6 +279,7 @@ struct DockerLocalizationTests {
         "当前用户无权访问 Docker。\n将用户加入 docker 组：\nsudo usermod -aG docker $USER\n然后重新登录后重试。",
         "当前用户无权访问 Docker。请检查 Docker Desktop 或 Docker socket 的访问权限。",
         "执行历史",
+        "正在打开控制台…",
         "挂载点",
         "接入容器",
         "控制台",
@@ -336,7 +379,28 @@ struct DockerLocalizationTests {
         "读取执行历史失败：%@",
         "这是生产环境主机。该操作会影响正在运行的服务，请核对目标后再继续。",
         "移除",
-        "移除手动项目？"
+        "移除手动项目？",
+        "Docker 守护进程未运行。\n请在远程主机上启动：\nsudo systemctl start docker",
+        "仅从当前会话的项目列表中移除，不会停止或删除远程主机上的 Docker 资源。",
+        "容器操作和脚本执行记录将显示在此处",
+        "暂无 Compose 项目",
+        "暂无卷",
+        "暂无容器使用此镜像",
+        "暂无容器引用此卷",
+        "暂无容器接入此网络",
+        "暂无执行记录",
+        "暂无网络",
+        "暂无镜像",
+        "未找到匹配的 Compose 项目",
+        "未找到匹配的卷",
+        "未找到匹配的容器",
+        "未找到匹配的网络",
+        "未找到匹配的镜像",
+        "每行填写一个 Docker 参数，格式为 --flag=value。空行及以 # 开头的行将被忽略；%@、%@、%@ 和 %@ 也可在此配置。",
+        "等待远程输出…",
+        "该主机暂无容器",
+        "该项目暂无服务",
+        "配置文件必须使用远程主机上的绝对路径。"
     ]
 
     private let phase2DockerSourceFiles = [
@@ -415,12 +479,22 @@ extension DockerLocalizationTests {
         let runForm = try source(named: "Conn/Hosts/DockerRunFormView.swift")
         let composeViews = try source(named: "Conn/Hosts/DockerComposeViews.swift")
         let detailBuilding = try source(named: "Conn/Hosts/DockerDetailBuilding.swift")
+        let destructiveConfirmation = try source(
+            named: "Conn/Hosts/DockerDestructiveConfirmationView.swift"
+        )
 
         #expect(dockerView.components(separatedBy: "DockerDetail.listHeader").count - 1 == 4)
         #expect(composeViews.components(separatedBy: "DockerDetail.listHeader").count - 1 == 1)
         #expect(!routing.contains("operationToolbar"))
         #expect(dockerView.contains("private var resourceOperationMenu"))
         #expect(dockerView.contains(".toolbar { resourceNavigationToolbar }"))
+        #expect(dockerView.contains("isEnabled: route == nil"))
+        #expect(
+            dockerView.components(separatedBy: ".dockerDestructiveConfirmationAlert").count - 1 == 2,
+            "根列表和当前详情页都必须安装统一 Alert，且由 route 保证只有可见层响应"
+        )
+        #expect(destructiveConfirmation.contains("DockerDestructiveConfirmationAlertModifier"))
+        #expect(destructiveConfirmation.contains("confirmPendingAlertAction()"))
         #expect(dockerView.contains("L(\"共 %d 个容器\")"))
         #expect(!dockerView.contains("L(\"%@容器\")"))
         #expect(dockerView.contains("operationSheet = .runContainer"))

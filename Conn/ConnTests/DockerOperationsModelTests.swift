@@ -52,7 +52,7 @@ struct DockerOperationsModelTests {
         let image = ImageInfo(imageID: "i1", repository: "registry/app", tag: "1", size: "1MB", created: "now")
 
         operations.requestDestructiveAction(.removeImage(image))
-        let confirmed = await operations.confirmPendingAction(confirmation: image.displayName)
+        let confirmed = await operations.confirmPendingAlertAction()
 
         #expect(confirmed)
         #expect(refreshes == [.images])
@@ -121,7 +121,7 @@ struct DockerOperationsModelTests {
         let image = ImageInfo(imageID: "i1", repository: "app", tag: "1", size: "1MB", created: "now")
 
         operations.requestDestructiveAction(.removeImage(image))
-        let confirmed = await operations.confirmPendingAction(confirmation: image.displayName)
+        let confirmed = await operations.confirmPendingAlertAction()
 
         #expect(confirmed)
         #expect(refreshes.isEmpty)
@@ -167,17 +167,39 @@ struct DockerOperationsModelTests {
         #expect(entry?.outputHead == nil)
     }
 
-    @Test("破坏性待确认动作要求精确确认词")
-    func destructivePendingActionRequiresConfirmationWord() {
+    @Test("删除与清理动作统一使用 Alert 且不再生成输入确认词")
+    func deleteAndCleanupActionsUseAlertsWithoutTypedConfirmation() {
         let container = ContainerInfo(
             id: "c1", name: "web", image: "nginx", state: .running, status: "Up", ports: ""
         )
-        let action = DockerPendingAction.removeContainer(container)
+        let image = ImageInfo(
+            imageID: "i1", repository: "nginx", tag: "latest", size: "1MB", created: "now"
+        )
+        let volume = VolumeInfo(name: "cache", driver: "local", scope: "local", mountpoint: "/cache")
+        let network = NetworkInfo(id: "n1", name: "app-net", driver: "bridge", scope: "local")
+        let project = DockerComposeProject(
+            name: "web", state: .running,
+            configFiles: ["/srv/web/compose.yml"], projectDirectory: "/srv/web",
+            source: .automatic
+        )
+        let actions: [DockerPendingAction] = [
+            .container(action: .remove, container: container),
+            .removeContainer(container),
+            .removeImage(image),
+            .removeVolume(volume),
+            .removeNetwork(network),
+            .pruneImages,
+            .systemPrune(DockerSystemPruneOptions(allUnusedImages: true, includeVolumes: true)),
+            .composeDown(project: project, dialect: .v2)
+        ]
 
-        #expect(action.confirmationWord == container.name)
-        #expect(!action.accepts(confirmation: "DELETE"))
-        #expect(action.accepts(confirmation: container.name))
-        #expect(DockerPendingAction.pruneImages.confirmationWord == "PRUNE")
+        for action in actions {
+            #expect(action.confirmationStyle == .alert)
+            #expect(action.typedConfirmationWord == nil)
+            #expect(!action.alertTitle.isEmpty)
+            #expect(!action.alertMessage.isEmpty)
+            #expect(!action.acceptsTypedConfirmation("PRUNE"))
+        }
     }
 
     @Test("生产环境停止容器必须输入容器名后执行")
@@ -256,8 +278,8 @@ struct DockerOperationsModelTests {
         )
     }
 
-    @Test("Compose down 必须输入项目名并经共享操作模型执行")
-    func composeDownRequiresExactProjectNameAndUsesSharedOperations() async {
+    @Test("Compose down 通过 Alert 确认并经共享操作模型执行")
+    func composeDownUsesAlertConfirmationAndSharedOperations() async {
         let session = OperationSession()
         let history = RecordingHistory()
         var refreshes: [DockerRefreshScope] = []
@@ -272,11 +294,10 @@ struct DockerOperationsModelTests {
         )
 
         operations.requestDestructiveAction(.composeDown(project: project, dialect: .v2))
-        let wrong = await operations.confirmPendingAction(confirmation: "DOWN")
-        #expect(!wrong)
+        #expect(operations.pendingDestructiveAction?.confirmationStyle == .alert)
         #expect(session.executionCount == 0)
 
-        let confirmed = await operations.confirmPendingAction(confirmation: "web")
+        let confirmed = await operations.confirmPendingAlertAction()
 
         #expect(confirmed)
         #expect(
@@ -377,8 +398,8 @@ struct DockerOperationsModelTests {
         #expect(!session.didStart)
     }
 
-    @Test("镜像删除拒绝错误确认，并只在资源名精确匹配时执行一次")
-    func imageRemovalRequiresExactResourceConfirmation() async {
+    @Test("镜像删除拒绝输入式入口，并只在 Alert 确认后执行一次")
+    func imageRemovalUsesAlertConfirmationOnly() async {
         let session = OperationSession()
         let history = RecordingHistory()
         let context = makeContext(session: { session })
@@ -387,21 +408,21 @@ struct DockerOperationsModelTests {
         let image = ImageInfo(imageID: "i1", repository: "registry/app", tag: "1", size: "1MB", created: "now")
 
         images.requestRemoval(image)
-        let wrong = await operations.confirmPendingAction(confirmation: "registry/app")
+        let typedAttempt = await operations.confirmPendingAction(confirmation: image.displayName)
 
-        #expect(!wrong)
+        #expect(!typedAttempt)
         #expect(session.executionCount == 0)
         #expect(operations.pendingDestructiveAction == .removeImage(image))
 
-        let exact = await operations.confirmPendingAction(confirmation: image.displayName)
+        let confirmed = await operations.confirmPendingAlertAction()
 
-        #expect(exact)
+        #expect(confirmed)
         #expect(session.executionCount == 1)
         #expect(operations.pendingDestructiveAction == nil)
     }
 
-    @Test("容器删除入口在空确认时不执行，并仅在名称精确匹配后执行")
-    func containerRemovalStagesUntilExactResourceConfirmation() async {
+    @Test("容器删除只暂存，并在 Alert 确认后执行")
+    func containerRemovalStagesUntilAlertConfirmation() async {
         let session = OperationSession()
         let history = RecordingHistory()
         let context = makeContext(session: { session })
@@ -415,17 +436,14 @@ struct DockerOperationsModelTests {
 
         #expect(operations.pendingDestructiveAction == .removeContainer(container))
         #expect(session.executionCount == 0)
-        let empty = await operations.confirmPendingAction(confirmation: "")
-        #expect(!empty)
-        #expect(session.executionCount == 0)
 
-        let exact = await operations.confirmPendingAction(confirmation: container.name)
-        #expect(exact)
+        let confirmed = await operations.confirmPendingAlertAction()
+        #expect(confirmed)
         #expect(session.executionCount == 1)
     }
 
-    @Test("镜像清理只暂存，PRUNE 确认后才执行一次")
-    func imagePruneStagesUntilPRUNEConfirmation() async {
+    @Test("镜像清理只暂存，Alert 确认后才执行一次")
+    func imagePruneStagesUntilAlertConfirmation() async {
         let session = OperationSession()
         let history = RecordingHistory()
         let context = makeContext(session: { session })
@@ -436,17 +454,14 @@ struct DockerOperationsModelTests {
 
         #expect(operations.pendingDestructiveAction == .pruneImages)
         #expect(session.executionCount == 0)
-        let wrong = await operations.confirmPendingAction(confirmation: "prune")
-        #expect(!wrong)
-        #expect(session.executionCount == 0)
 
-        let confirmed = await operations.confirmPendingAction(confirmation: "PRUNE")
+        let confirmed = await operations.confirmPendingAlertAction()
         #expect(confirmed)
         #expect(session.executionCount == 1)
     }
 
-    @Test("修改系统清理选项会替换待确认动作和确认词状态")
-    func changingPruneOptionsReplacesPendingConfirmation() {
+    @Test("系统清理选项进入 Alert 文案且不生成确认词")
+    func systemPruneOptionsFlowIntoAlertMessage() {
         let session = OperationSession()
         let operations = DockerOperationsModel(
             context: makeContext(session: { session }), hostUUID: "host-1", runHistory: RecordingHistory()
@@ -460,7 +475,10 @@ struct DockerOperationsModelTests {
 
         #expect(first == .systemPrune(initial))
         #expect(operations.pendingDestructiveAction == .systemPrune(changed))
-        #expect(operations.pendingDestructiveAction?.confirmationWord == "PRUNE")
+        #expect(operations.pendingDestructiveAction?.confirmationStyle == .alert)
+        #expect(operations.pendingDestructiveAction?.typedConfirmationWord == nil)
+        #expect(operations.pendingDestructiveAction?.alertMessage.contains(L("移除所有未使用镜像")) == true)
+        #expect(operations.pendingDestructiveAction?.alertMessage.contains(L("包含未使用卷")) == true)
     }
 
     @Test("创建容器表单保留重复字段与 token 的输入顺序")

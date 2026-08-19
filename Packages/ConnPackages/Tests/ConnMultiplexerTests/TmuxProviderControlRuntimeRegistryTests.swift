@@ -96,7 +96,7 @@ struct TmuxProviderControlRuntimeRegistryTests {
             ),
         ])
 
-        try await registry.performQuickAction(
+        _ = try await registry.performQuickAction(
             attachmentLease,
             request: .init(
                 actionID: TmuxTerminalQuickAction.splitHorizontal.rawValue,
@@ -105,7 +105,7 @@ struct TmuxProviderControlRuntimeRegistryTests {
                 expectedStateRevision: state.revision
             )
         )
-        try await registry.performQuickAction(
+        _ = try await registry.performQuickAction(
             attachmentLease,
             request: .init(
                 actionID: TmuxTerminalQuickAction.tiledLayout.rawValue,
@@ -114,7 +114,7 @@ struct TmuxProviderControlRuntimeRegistryTests {
                 expectedStateRevision: state.revision
             )
         )
-        try await registry.performQuickAction(
+        _ = try await registry.performQuickAction(
             attachmentLease,
             request: .init(
                 actionID: TmuxTerminalQuickAction.newWindow.rawValue,
@@ -147,7 +147,7 @@ struct TmuxProviderControlRuntimeRegistryTests {
                 )
             )
         }
-        try await registry.performQuickAction(
+        _ = try await registry.performQuickAction(
             attachmentLease,
             request: .init(
                 actionID: TmuxTerminalQuickAction.nextWindow.rawValue,
@@ -294,6 +294,7 @@ private struct RegistryFixture: Sendable {
         role: TmuxClientRole
     ) throws -> TmuxServerSnapshot {
         let observedAt = Date(timeIntervalSince1970: 100)
+        let alternateWindow = try #require(TmuxWindowID(rawValue: "@9"))
         return try TmuxServerSnapshot(
             instance: .init(token: token, version: "tmux 3.5a"),
             sessions: [session: .init(
@@ -303,13 +304,22 @@ private struct RegistryFixture: Sendable {
                 currentWindowID: window
             )],
             sessionGroups: [:],
-            windows: [window: .init(
-                id: window,
-                name: "window",
-                layout: nil,
-                isZoomed: false,
-                activePaneID: pane
-            )],
+            windows: [
+                window: .init(
+                    id: window,
+                    name: "window",
+                    layout: nil,
+                    isZoomed: false,
+                    activePaneID: pane
+                ),
+                alternateWindow: .init(
+                    id: alternateWindow,
+                    name: "alternate",
+                    layout: nil,
+                    isZoomed: false,
+                    activePaneID: nil
+                ),
+            ],
             panes: [pane: .init(
                 id: pane,
                 windowID: window,
@@ -346,7 +356,10 @@ private struct RegistryFixture: Sendable {
                 size: .init(cols: 80, rows: 24),
                 isDead: false
             )],
-            windowLinks: [.init(sessionID: session, windowID: window, index: 0)],
+            windowLinks: [
+                .init(sessionID: session, windowID: window, index: 0),
+                .init(sessionID: session, windowID: alternateWindow, index: 1),
+            ],
             clients: [dataClient: .init(
                 id: dataClient,
                 sessionID: session,

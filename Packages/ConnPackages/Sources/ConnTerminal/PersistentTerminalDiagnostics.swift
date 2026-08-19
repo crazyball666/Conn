@@ -20,16 +20,16 @@ public extension PersistentTerminalError {
         case let .providerNotRegistered(providerID):
             String(format: L("持久终端 Provider 未注册：%@"), providerID)
         case .executableMissing:
-            L("远端未安装所需的持久终端程序")
+            L("远程主机未安装所需的持久终端程序")
         case let .unsupportedConfigurationVersion(providerID, version):
             String(format: L("%@ 配置版本不受支持：%d"), providerID, version)
         case let .incompatibleVersion(version):
-            version.map { String(format: L("远端持久终端版本不兼容：%@"), $0) }
-                ?? L("远端持久终端版本不兼容")
+            version.map { String(format: L("远程持久终端版本不兼容：%@"), $0) }
+                ?? L("远程持久终端版本不兼容")
         case .serverUnavailable:
-            L("远端持久终端服务当前不可用")
+            L("远程持久终端服务暂不可用")
         case .socketPermissionDenied:
-            L("没有权限访问远端持久终端 Socket")
+            L("权限不足，无法访问远程持久终端 Socket")
         case .invalidConfiguration:
             L("持久终端配置无效")
         case let .unsupportedDescriptorVersion(providerID, component, version):
@@ -42,27 +42,27 @@ public extension PersistentTerminalError {
         case let .unsupportedFeature(providerID, feature):
             String(format: L("%@ 不支持功能：%@"), providerID, feature)
         case .controlModeUnavailable:
-            L("远端 Control Mode 当前不可用")
+            L("远程 Control Mode 当前不可用")
         case .protocolViolation:
-            L("远端持久终端返回了无法识别的协议数据")
+            L("远程持久终端返回无法识别的协议数据")
         case .serverInstanceChanged:
-            L("远端持久终端服务已重启，请刷新后重试")
+            L("远程持久终端服务已重启，请刷新后重试")
         case .bootstrapPreconditionChanged:
-            L("远端 Session 状态已变化，请刷新后重试")
+            L("远程 Session 状态已变化，请刷新后重试")
         case .staleConfirmation:
             L("操作确认已过期，请重新确认")
         case .staleTarget:
             L("操作目标已变化，请刷新后重试")
         case .remoteObjectMissing:
-            L("远端 Session 已不存在，请刷新列表")
+            L("远程 Session 不存在，请刷新列表")
         case let .commandRejected(message):
             message.isEmpty
-                ? L("远端持久终端拒绝了操作")
-                : String(format: L("远端持久终端拒绝了操作：%@"), message)
+                ? L("远程持久终端拒绝执行该操作")
+                : String(format: L("远程持久终端拒绝执行该操作：%@"), message)
         case .operationOutcomeUnknown:
-            L("操作结果未知，请刷新远端 Session 后确认")
+            L("操作结果未知，请刷新 Session 状态后确认")
         case .transportClosed:
-            L("持久终端连接已关闭，请重试")
+            L("持久终端连接已断开，请重试")
         }
     }
 }
@@ -71,7 +71,7 @@ public extension TmuxProviderError {
     var userFacingDiagnosis: String {
         switch self {
         case .malformedProbeOutput:
-            L("无法解析远端 tmux 探测结果")
+            L("无法解析远程 tmux 检测结果")
         case let .unsupportedAttachmentMode(mode):
             String(format: L("不支持 tmux 终端连接模式：%@"), mode.rawValue)
         case .attachmentHandshakeFailed:

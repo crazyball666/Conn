@@ -7,6 +7,31 @@ import Testing
 @Suite("Snippet execution request builder")
 @MainActor
 struct SnippetExecutionRequestBuilderTests {
+    @Test("execution preparation starts on demand and builds every selected host plan")
+    func preparesSelectedHostsOnDemand() async throws {
+        let hosts = [host("host-a"), host("host-b")]
+        let planner = makePlanner(provider: FixtureExecutionProvider())
+        let snippet = Snippet(title: "Fixture", script: "echo ready")
+
+        let result = try await SnippetExecutionRequestBuilder.prepare(
+            mode: .silent,
+            hosts: hosts,
+            snippet: snippet,
+            renderedScript: snippet.script,
+            planner: planner
+        )
+        guard case let .ready(request) = result else {
+            Issue.record("Expected execution preparation to succeed")
+            return
+        }
+
+        #expect(request.hosts.map(\.id) == hosts.map(\.id))
+        #expect(Set(request.plansByHostID.keys) == Set(hosts.map(\.id)))
+        #expect(request.plansByHostID.values.allSatisfy {
+            $0.preparedCommand == "prepared<echo ready>"
+        })
+    }
+
     @Test("dangerous batch requires exact RUN while a single host keeps simple confirmation")
     func dangerousBatchUsesTypedConfirmation() {
         #expect(!SnippetDangerConfirmationPolicy.requiresTypedConfirmation(hostCount: 1))
@@ -131,13 +156,33 @@ struct SnippetExecutionRequestBuilderTests {
         #expect(terminalRoute.preparedCommand == silentCommand)
     }
 
-    @Test("a new valid planning attempt clears a stale error")
-    func validAttemptClearsStaleError() {
+    @Test("a new execution attempt immediately clears every previous presentation")
+    func newAttemptClearsPreviousPresentation() {
         var errorText: String? = "previous failure"
+        var outcome: RunOutcome? = RunOutcome(
+            script: "old",
+            interpreter: .sh,
+            exitCode: 0,
+            stdout: "old output",
+            stderr: ""
+        )
+        var batchResults = [
+            ScriptBatchResult(
+                hostID: "old-host",
+                hostName: "old-host",
+                outcome: outcome
+            )
+        ]
 
-        SnippetExecutionAttemptFeedback.begin(errorText: &errorText)
+        SnippetExecutionAttemptFeedback.begin(
+            errorText: &errorText,
+            outcome: &outcome,
+            batchResults: &batchResults
+        )
 
         #expect(errorText == nil)
+        #expect(outcome == nil)
+        #expect(batchResults.isEmpty)
     }
 
     private func host(_ id: String) -> Host {

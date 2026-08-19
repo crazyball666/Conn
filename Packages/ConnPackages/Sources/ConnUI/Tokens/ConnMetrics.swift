@@ -30,6 +30,8 @@ public enum ConnSpacing {
 /// 圆角令牌。**一律使用连续曲率**（`.continuous`，squircle 观感）——
 /// 圆角是本设计语言的显性特征（设计规范 §4）。
 public enum ConnRadius {
+    /// 脚本、终端会话中心等首页列表卡片。
+    public static let listCard: CGFloat = 20
     /// 卡片、指标环容器、ActionTile。
     public static let card: CGFloat = 16
     /// 列表行。

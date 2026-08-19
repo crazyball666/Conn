@@ -64,13 +64,16 @@ struct AppWideUIConsistencyTests {
         #expect(dock.contains("case .commands: \"脚本\""))
         #expect(!runView.contains("if selectedHostIDs.isEmpty, let first = hosts.first"))
         #expect(runView.contains("ConnButton(L(\"执行脚本\"), kind: .primary)"))
-        #expect(runView.contains("ConnButton(L(\"进终端\"), kind: .primary)"))
-        #expect(runView.contains(".disabled(selectedHosts.isEmpty || isRunning || hasCompatibilityBlocker)"))
-        #expect(runView.contains(".disabled(selectedHosts.count != 1 || isRunning || hasCompatibilityBlocker)"))
-        #expect(runView.contains("script: preparedScript(for: host)"))
-        #expect(runView.contains("scriptsByHostID: scriptsByHostID"))
-        #expect(runView.contains("compatibilityGenerationByHostID"))
-        #expect(runView.contains("guard isCompatibilityCurrent"))
+        #expect(runView.contains("ConnButton(L(\"在终端中执行\"), kind: .primary)"))
+        #expect(runView.contains(".disabled(selectedHosts.isEmpty || isRunning)"))
+        #expect(runView.contains(".disabled(selectedHosts.count != 1 || isRunning)"))
+        #expect(runView.contains("SnippetExecutionRequestBuilder.prepare("))
+        #expect(runView.contains(".frame(maxWidth: .infinity, alignment: .center)"))
+        #expect(runView.contains(".padding(.top, ConnSpacing.sm)"))
+        #expect(runView.contains("if isRunning {\n                        executionProgress\n                    } else"))
+        #expect(!runView.contains("正在检查脚本兼容性"))
+        #expect(!runView.contains("scheduleCompatibilityCheck"))
+        #expect(!runView.contains("compatibilityByHostID"))
         #expect(button.contains("@Environment(\\.isEnabled)"))
     }
 
@@ -162,7 +165,8 @@ struct AppWideUIConsistencyTests {
         let healthCard = try packageSource("Sources/ConnUI/Components/HealthCard.swift")
 
         #expect(!servers.contains("isInitialHealthWarmup"))
-        #expect(servers.contains("connectionPhase: connectionPhase(metrics: metrics, error: error, phase: phase)"))
+        #expect(servers.contains("let connectionPhase = connectionPhase(metrics: metrics, error: error, phase: phase)"))
+        #expect(servers.contains("connectionPhase: connectionPhase,"))
         #expect(servers.contains("collectPhase: collectPhase(phase)"))
         #expect(scheduler.contains("isCPUBaselinePending"))
         #expect(scheduler.contains("hasEstablishedHealth"))
@@ -197,13 +201,15 @@ struct AppWideUIConsistencyTests {
         }
     }
 
-    @Test("命令与分组列表项使用长按操作和更高卡片行")
-    func snippetRowsUseLongPressActionsAndTallerCards() throws {
+    @Test("命令列表项使用长按操作和紧凑大圆角卡片")
+    func snippetRowsUseLongPressActionsAndCompactCards() throws {
         let source = try appSource("Commands/SnippetsView.swift")
 
         #expect(!source.contains("ConnMoreActionsIcon()"))
         #expect(source.components(separatedBy: ".contextMenu").count >= 3)
-        #expect(source.components(separatedBy: ".padding(.vertical, ConnSpacing.md)").count >= 3)
+        #expect(source.contains(".connSurface(cornerRadius: ConnRadius.listCard)"))
+        #expect(source.contains("static let iconSize: CGFloat = 30"))
+        #expect(source.contains(".padding(.vertical, ConnSpacing.xs)"))
     }
 
     @Test("命令与分组列表项长按整行空白区域也能触发操作")
@@ -232,7 +238,7 @@ struct AppWideUIConsistencyTests {
 
         #expect(screen.contains("await terminalSessions.rename(id, to: alias)"))
         #expect(!screen.contains("terminalSessions.store.updateAlias(id, to: alias)"))
-        #expect(sheet.contains("修改持久终端别名会同时重命名远端会话"))
+        #expect(sheet.contains("修改持久终端别名会同步重命名远程会话"))
     }
 
     @Test("新建终端主机列表整行可点击")
@@ -317,6 +323,7 @@ struct AppWideUIConsistencyTests {
         let screen = try appSource("Terminal/TerminalScreen.swift")
         let host = try packageSource("Sources/ConnTerminal/TerminalHostingView.swift")
         let keybar = try packageSource("Sources/ConnTerminal/TerminalKeybar.swift")
+        let keys = try packageSource("Sources/ConnTerminal/TerminalKey.swift")
         let swiftTerm = try vendorSource("SwiftTerm/Sources/SwiftTerm/iOS/iOSTerminalView.swift")
 
         #expect(screen.contains("as? any PersistentTerminalInteractiveAttachment"))
@@ -334,11 +341,10 @@ struct AppWideUIConsistencyTests {
         #expect(host.contains("historyCaptureTask?.cancel()"))
         #expect(host.contains("guard !Task.isCancelled,"))
         #expect(!host.contains("terminalView.clearSelection()\n                return"))
-        #expect(swiftTerm.contains(
-            "public func extendHostSelection(to point: CGPoint) {\n        selection.dragExtend(bufferPosition:"
-        ))
+        #expect(swiftTerm.contains("public func extendHostSelection(to point: CGPoint)"))
+        #expect(swiftTerm.contains("selection.dragExtend(bufferPosition:"))
         #expect(!host.contains("capturePersistentHistory(selectionHit:"))
-        #expect(host.contains("self.presentReview(snapshot, selectionOffset: nil)"))
+        #expect(host.contains("presentReview(snapshot, selectionOffset: nil)"))
         #expect(!host.contains(".allowsHitTesting(!controller.isReviewActive)"))
         #expect(!host.contains("terminalActions"))
         #expect(!host.contains("terminal.pointerMode"))
@@ -348,8 +354,13 @@ struct AppWideUIConsistencyTests {
         #expect(!keybar.contains("允许读取剪贴板一次"))
         #expect(!host.contains("allowClipboardReadOnce"))
         #expect(keybar.components(separatedBy: "TerminalDirectionPad(").count == 2)
-        #expect(keybar.contains("private static let compactKeys: [TerminalKey] = [\n            .esc, .ctrl, .tab, .ctrlC,"))
-        #expect(!keybar.contains(".esc, .ctrl, .tab, .up, .down, .left, .right"))
+        #expect(keys.contains("static let compactKeys: [TerminalKey] = ["))
+        #expect(keys.contains(".esc, .tab, .ctrl, .ctrlC, .ctrlD, .ctrlZ"))
+        #expect(!keys.contains(".esc, .ctrl, .tab, .up, .down, .left, .right"))
+        #expect(!screen.contains(".ignoresSafeArea(.container, edges: .bottom)"))
+        #expect(keybar.contains(".background(Color.connBar.ignoresSafeArea(edges: .bottom))"))
+        #expect(host.contains("Button(L(\"保存\"))"))
+        #expect(!keybar.contains("Button(L(\"执行\"))"))
     }
 
     @Test("终端关闭先退出页面再异步释放会话")
@@ -475,6 +486,13 @@ struct AppWideUIConsistencyTests {
         #expect(source.contains(".swipeActions(edge: .trailing, allowsFullSwipe: true)"))
         #expect(source.contains("Label(L(\"删除\"), systemImage: \"trash\")"))
         #expect(!source.contains("Image(systemName: \"xmark.circle\")"))
+        #expect(source.contains("private static let compactRowInsets = EdgeInsets("))
+        #expect(source.contains("top: ConnSpacing.xs"))
+        #expect(source.contains(".connSurface(cornerRadius: ConnRadius.listCard)"))
+        #expect(source.contains(".listRowInsets(Self.cardListInsets)"))
+        #expect(source.contains(".listRowBackground(Color.clear)"))
+        #expect(source.contains(".environment(\\.defaultMinListRowHeight, ConnSize.minTouchTarget)"))
+        #expect(source.components(separatedBy: ".listRowInsets(Self.compactRowInsets)").count == 2)
         #expect(sheet.contains(".swipeActions(edge: .trailing, allowsFullSwipe: true)"))
         #expect(sheet.contains("Label(L(\"删除\"), systemImage: \"trash\")"))
         #expect(!sheet.contains("Label(L(\"关闭会话\"), systemImage: \"xmark.circle\")"))
@@ -572,7 +590,7 @@ struct AppWideUIConsistencyTests {
         }
         #expect(runForm.contains("try onSave(title, command)"))
         #expect(resourceForms.contains("try onSave(title, previewCommand)"))
-        #expect(viewModel.contains("platforms: [.linux, .macOS]"))
+        #expect(!viewModel.contains("platforms:"))
         #expect(viewModel.contains("requiredCapabilities: [.docker]"))
         #expect(viewModel.contains("$0.builtinKey == \"docker\""))
     }

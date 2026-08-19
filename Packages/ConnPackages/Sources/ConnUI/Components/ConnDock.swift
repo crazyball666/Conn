@@ -14,7 +14,7 @@ public struct ConnDock: View {
 
         public var title: String {
             switch self {
-            case .servers: "服务器"
+            case .servers: "主机"
             case .terminal: "终端"
             case .commands: "脚本"
             case .me: "设置"
@@ -97,7 +97,7 @@ public struct ConnDock: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .accessibilityLabel(tab.title)
+        .accessibilityLabel(L(tab.title))
         .accessibilityAddTraits(selection == tab ? [.isButton, .isSelected] : .isButton)
     }
 }

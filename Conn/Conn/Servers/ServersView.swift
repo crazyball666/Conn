@@ -51,7 +51,7 @@ struct ServersView: View {
     var body: some View {
         hostsContent
             .background(Color.connBg.ignoresSafeArea())
-            .navigationTitle(L("服务器"))
+            .navigationTitle(L("主机"))
         .searchable(text: $viewModel.searchText, prompt: L("搜索主机名或地址"))
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
@@ -59,7 +59,7 @@ struct ServersView: View {
                     Button {
                         startAdding()
                     } label: {
-                        Label(L("新增服务器"), systemImage: "server.rack")
+                        Label(L("新增主机"), systemImage: "server.rack")
                     }
                     Button {
                         groupNameInput = ""
@@ -103,7 +103,7 @@ struct ServersView: View {
             }
             Button(L("取消"), role: .cancel) { pendingDelete = nil }
         } message: { host in
-            Text(String(format: L("「%@」将被永久删除，不影响服务器本身。"), host.name))
+            Text(String(format: L("“%@”将从本地列表中永久删除，但不会影响远程主机。"), host.name))
         }
         .navigationDestination(item: $selectedHost) { host in
             HostDetailView(host: host, dependencies: dependencies)
@@ -133,7 +133,7 @@ struct ServersView: View {
             deleteRequest: $groupDeleteRequest,
             nameInput: $groupNameInput,
             actions: GroupAlertActions(
-                deleteMessage: L("删除分组不会删除其中的服务器。"),
+                deleteMessage: L("删除分组不会删除其中的主机。"),
                 onAdd: { viewModel.addGroup($0) },
                 onRename: { viewModel.renameGroup(id: $0, to: $1) },
                 onDelete: { viewModel.deleteGroup(id: $0) }
@@ -234,9 +234,9 @@ struct ServersView: View {
     private var emptyState: some View {
         EmptyState(
             systemName: "server.rack",
-            title: L("还没有主机"),
-            message: L("添加你的第一台服务器，开始监控与管理"),
-            primary: .init(L("添加我的服务器")) { startAdding() }
+            title: L("暂无主机"),
+            message: L("添加第一台主机以开始监控和管理"),
+            primary: .init(L("添加主机")) { startAdding() }
         )
     }
 

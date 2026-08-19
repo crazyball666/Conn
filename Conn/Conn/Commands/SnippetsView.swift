@@ -8,6 +8,11 @@ private struct SnippetFormRequest: Identifiable {
     let snippet: Snippet?
 }
 
+private enum SnippetRowMetrics {
+    static let iconSize: CGFloat = 30
+    static let iconGlyphSize: CGFloat = 15
+}
+
 /// Shell 脚本库（脚本 Tab，Phase 9）。
 struct SnippetsView: View {
     @State private var viewModel: SnippetsViewModel
@@ -198,13 +203,13 @@ struct SnippetsView: View {
 
     private func commandRow(_ snippet: Snippet) -> some View {
         Button { runTarget = snippet } label: {
-            HStack(spacing: ConnSpacing.md) {
+            HStack(spacing: ConnSpacing.sm) {
                 Image(systemName: "command")
-                    .font(.system(size: 18, weight: .semibold))
+                    .font(.system(size: SnippetRowMetrics.iconGlyphSize, weight: .semibold))
                     .foregroundStyle(.connAccent)
-                    .frame(width: 36, height: 36)
-                    .background(Color.connAccent.opacity(0.12), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-                VStack(alignment: .leading, spacing: ConnSpacing.xs) {
+                    .frame(width: SnippetRowMetrics.iconSize, height: SnippetRowMetrics.iconSize)
+                    .background(Color.connAccent.opacity(0.12), in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+                VStack(alignment: .leading, spacing: ConnSpacing.xxs) {
                     HStack(spacing: ConnSpacing.xs) {
                         Text(snippet.title)
                             .font(.connBody)
@@ -224,11 +229,6 @@ struct SnippetsView: View {
                         Text(snippet.interpreter.displayName)
                             .font(.connData(.caption2))
                             .foregroundStyle(.connMuted)
-                        if let platformLabel = platformLabel(for: snippet) {
-                            Text(platformLabel)
-                                .font(.connData(.caption2))
-                                .foregroundStyle(.connAccent)
-                        }
                     }
                     Text(snippet.script)
                         .font(.system(size: 11.5, design: .monospaced))
@@ -237,11 +237,12 @@ struct SnippetsView: View {
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .padding(.vertical, ConnSpacing.md)
+            .padding(.vertical, ConnSpacing.xs)
             .padding(.horizontal, ConnSpacing.cardPadding)
             .frame(maxWidth: .infinity, alignment: .leading)
             .contentShape(Rectangle())
         }
+        .accessibilityIdentifier("snippet.row.\(snippet.id)")
         .buttonStyle(ConnPressStyle())
         .contextMenu {
             Button { formRequest = SnippetFormRequest(snippet: snippet) } label: {
@@ -255,22 +256,7 @@ struct SnippetsView: View {
                 Label(L("删除"), systemImage: "trash")
             }
         }
-        .connSurface(cornerRadius: ConnRadius.card)
-    }
-
-    private func platformLabel(for snippet: Snippet) -> String? {
-        guard !snippet.platforms.isEmpty else { return nil }
-        return snippet.platforms
-            .map { platform in
-                switch platform {
-                case .linux: "Linux"
-                case .macOS: "macOS"
-                case .windows: "Windows"
-                case .unknown: L("未知")
-                }
-            }
-            .sorted()
-            .joined(separator: " / ")
+        .connSurface(cornerRadius: ConnRadius.listCard)
     }
 
     @ViewBuilder
@@ -278,8 +264,8 @@ struct SnippetsView: View {
         if viewModel.groups.isEmpty {
             EmptyState(
                 systemName: "folder",
-                title: L("还没有分组"),
-                message: L("点击右上角 + 新增分组"),
+                title: L("暂无分组"),
+                message: L("使用右上角“+”创建分组"),
                 primary: .init(L("新增分组")) {
                     groupsNameInput = ""
                     isGroupsNewGroupPresented = true
@@ -288,7 +274,7 @@ struct SnippetsView: View {
         } else if filteredGroups.isEmpty {
             EmptyState(
                 systemName: "magnifyingglass",
-                title: L("没有匹配的分组"),
+                title: L("未找到匹配的分组"),
                 message: L("换个关键词试试")
             )
         } else {
@@ -350,7 +336,7 @@ struct SnippetsView: View {
     private var commandEmpty: some View {
         EmptyState(
             systemName: "command",
-            title: viewModel.searchText.isEmpty ? L("还没有脚本") : L("没有匹配的脚本"),
+            title: viewModel.searchText.isEmpty ? L("暂无脚本") : L("未找到匹配的脚本"),
             message: viewModel.searchText.isEmpty ? L("新增一条，或切换其他筛选") : L("换个关键词试试"),
             primary: viewModel.searchText.isEmpty ? .init(L("新增脚本")) {
                 formRequest = SnippetFormRequest(snippet: nil)

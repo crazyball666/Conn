@@ -90,6 +90,8 @@ public final class MockSSHTransport: SSHTransport {
         public var processResponses: [String: ProcessResponse]
         /// Optional full process factory for stateful protocol/provider tests.
         public var processFactory: ProcessFactory?
+        /// `exec` 的人工延迟。默认关闭，仅供需要观察中间 UI 状态的集成测试使用。
+        public var execCommandDelay: Duration
         /// 每块流式输出之间的延迟（execStream 用；测试通常设 0）。
         public var streamChunkDelay: Duration
 
@@ -99,11 +101,28 @@ public final class MockSSHTransport: SSHTransport {
             dynamicResponder: (@Sendable (String, SSHEndpoint) -> CommandResponse?)? = nil,
             streamChunkDelay: Duration = .zero
         ) {
+            self.init(
+                failConnect: failConnect,
+                commandResponses: commandResponses,
+                dynamicResponder: dynamicResponder,
+                execCommandDelay: .zero,
+                streamChunkDelay: streamChunkDelay
+            )
+        }
+
+        public init(
+            failConnect: SSHError? = nil,
+            commandResponses: [String: CommandResponse] = [:],
+            dynamicResponder: (@Sendable (String, SSHEndpoint) -> CommandResponse?)? = nil,
+            execCommandDelay: Duration,
+            streamChunkDelay: Duration = .zero
+        ) {
             self.failConnect = failConnect
             self.commandResponses = commandResponses
             self.dynamicResponder = dynamicResponder
             processResponses = [:]
             processFactory = nil
+            self.execCommandDelay = execCommandDelay
             self.streamChunkDelay = streamChunkDelay
         }
 
@@ -115,11 +134,32 @@ public final class MockSSHTransport: SSHTransport {
             dynamicResponder: (@Sendable (String, SSHEndpoint) -> CommandResponse?)? = nil,
             streamChunkDelay: Duration = .zero
         ) {
+            self.init(
+                processResponses: processResponses,
+                processFactory: processFactory,
+                failConnect: failConnect,
+                commandResponses: commandResponses,
+                dynamicResponder: dynamicResponder,
+                execCommandDelay: .zero,
+                streamChunkDelay: streamChunkDelay
+            )
+        }
+
+        public init(
+            processResponses: [String: ProcessResponse],
+            processFactory: ProcessFactory? = nil,
+            failConnect: SSHError? = nil,
+            commandResponses: [String: CommandResponse] = [:],
+            dynamicResponder: (@Sendable (String, SSHEndpoint) -> CommandResponse?)? = nil,
+            execCommandDelay: Duration,
+            streamChunkDelay: Duration = .zero
+        ) {
             self.failConnect = failConnect
             self.commandResponses = commandResponses
             self.dynamicResponder = dynamicResponder
             self.processResponses = processResponses
             self.processFactory = processFactory
+            self.execCommandDelay = execCommandDelay
             self.streamChunkDelay = streamChunkDelay
         }
     }
@@ -188,6 +228,9 @@ final class MockSSHSession: SSHSession, @unchecked Sendable {
 
     func exec(_ command: String, timeout: Duration) async throws -> ExecResult {
         _ = timeout
+        if behavior.execCommandDelay > .zero {
+            try await Task.sleep(for: behavior.execCommandDelay)
+        }
         let response = resolve(command)
         return ExecResult(
             exitCode: response.exitCode,

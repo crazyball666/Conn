@@ -46,13 +46,13 @@ private final class StubBuiltinGroupRepository: SnippetGroupRepository, @uncheck
 }
 
 struct BuiltinSnippetsTests {
-    @Test("内置库同时提供 Linux 与 macOS 等价命令")
+    @Test("内置库提供不同系统工具的等价命令但不声明目标平台")
     func loadsLibrary() {
         let snippets = BuiltinSnippets.load()
         #expect(snippets.count > 10)
-        #expect(snippets.contains { $0.platforms == [.linux] && $0.script.contains("systemctl") })
-        #expect(snippets.contains { $0.platforms == [.macOS] && $0.script.contains("sysctl") })
-        #expect(snippets.contains { $0.platforms == [.macOS] && $0.script.contains("log show") })
+        #expect(snippets.contains { $0.builtinKey == "service-status-linux" && $0.script.contains("systemctl") })
+        #expect(snippets.contains { $0.builtinKey == "system-overview-macos" && $0.script.contains("sysctl") })
+        #expect(snippets.contains { $0.builtinKey == "system-log-macos" && $0.script.contains("log show") })
     }
 
     @Test("每条内置命令都有唯一稳定 key")
@@ -64,22 +64,21 @@ struct BuiltinSnippetsTests {
         #expect(BuiltinSnippets.catalogVersion > 0)
     }
 
-    @Test("Docker 片段要求 Docker 能力且只在已适配的 POSIX 平台执行")
+    @Test("Docker 片段只声明运行时 Docker 能力")
     func dockerEntriesRequireCapability() {
         let docker = BuiltinSnippets.load().filter { $0.script.hasPrefix("docker ") }
 
         #expect(!docker.isEmpty)
-        #expect(docker.allSatisfy { $0.platforms == [.linux, .macOS] })
         #expect(docker.allSatisfy { $0.requiredCapabilities == [.docker] })
     }
 
-    @Test("通用 POSIX 片段不会误标为 Windows 兼容")
-    func posixEntriesExcludeWindows() throws {
+    @Test("通用片段不携带平台声明")
+    func commonEntriesHaveNoPlatformDeclaration() throws {
         let disk = try #require(BuiltinSnippets.load().first { $0.builtinKey == "disk-usage" })
         let ping = try #require(BuiltinSnippets.load().first { $0.builtinKey == "connectivity-test" })
 
-        #expect(disk.platforms == [.linux, .macOS])
-        #expect(ping.platforms == [.linux, .macOS])
+        #expect(!disk.script.isEmpty)
+        #expect(!ping.script.isEmpty)
     }
 
     @Test("内置 JSON 同时声明有序分组")
@@ -190,7 +189,7 @@ struct BuiltinSnippetsTests {
         try BuiltinSnippets.adoptLegacyImport(in: store)
         try BuiltinSnippets.importIfNeeded(into: store, groups: groups)
 
-        #expect(store.snippets.allSatisfy { $0.platforms == [.macOS] })
+        #expect(store.snippets.allSatisfy { $0.builtinKey?.hasSuffix("-macos") == true })
         #expect(store.snippets.contains { $0.builtinKey == "system-overview-macos" })
         #expect(store.snippets.allSatisfy { $0.builtinKey != "system-overview-linux" })
     }

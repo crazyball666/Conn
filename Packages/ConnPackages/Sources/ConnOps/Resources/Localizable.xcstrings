@@ -1,6 +1,8 @@
 {
   "sourceLanguage" : "zh-Hans",
   "strings" : {
+    "macOS Unified Logging" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "macOS Unified Logging" } }, "ja" : { "stringUnit" : { "state" : "translated", "value" : "macOS 統合ログ" } }, "ko" : { "stringUnit" : { "state" : "translated", "value" : "macOS 통합 로그" } }, "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "macOS 統一日誌" } } } },
+    "系统日志文件" : { "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "System Log Files" } }, "ja" : { "stringUnit" : { "state" : "translated", "value" : "システムログファイル" } }, "ko" : { "stringUnit" : { "state" : "translated", "value" : "시스템 로그 파일" } }, "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "系統日誌檔案" } } } },
     "Docker 命令失败（退出码 %d）" : {
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Docker command failed (exit code %d)" } },

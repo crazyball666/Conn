@@ -617,12 +617,145 @@ struct TmuxControlHubTests {
     func burstWindowNavigationDoesNotDependOnSnapshotRefresh() async throws {
         let fixture = try ControlHubFixture()
         let adapter = ScriptedControlHubAdapter()
+        let nextWindow = try #require(TmuxWindowID(rawValue: "@2"))
         let clientID = TmuxClientID(
             targetName: "/dev/pts/9",
             processID: 9,
             createdAt: 9
         )
         let attachmentID = "attachment-window-nav"
+        let client = TmuxClientSnapshot(
+            id: clientID,
+            sessionID: fixture.session,
+            currentWindowID: fixture.window,
+            activePaneID: fixture.pane,
+            flags: [],
+            role: .connInteractive(attachmentID: attachmentID),
+            kind: .interactiveTerminal,
+            sizeParticipation: .participating,
+            observedAt: fixture.now
+        )
+        let hub = try TmuxControlHub(
+            scope: try fixture.scope(),
+            initialSnapshot: try fixture.snapshot(
+                clients: [clientID: client],
+                additionalWindow: nextWindow
+            ),
+            adapter: adapter,
+            clock: { fixture.later }
+        )
+        let observation = try await hub.acquireInteractionLease(
+            identity: .init(
+                attachmentID: attachmentID,
+                clientID: clientID,
+                requestedSessionID: fixture.session
+            ),
+            target: .session(fixture.session)
+        )
+        _ = try await hub.apply(fixture.envelope(
+            event: .paneMetadataChanged(
+                fixture.pane,
+                field: .title,
+                value: .init(value: "changed", freshness: .snapshot(observedAt: fixture.later))
+            )
+        ))
+
+        let outcome = try await hub.executeQuickAction(
+            lease: observation.lease,
+            target: .init(
+                providerID: TmuxProvider.providerID,
+                workspaceID: fixture.session.rawValue,
+                targetID: fixture.pane.rawValue
+            ),
+            attachmentGeneration: 3,
+            expectedRevision: 0,
+            action: .nextWindow,
+            argument: nil,
+            repeatCount: 3,
+            timeout: .seconds(1)
+        )
+
+        #expect(outcome == .performed)
+        let steps = try TmuxWindowNavigationStepCount(3)
+        let clientTarget = try TmuxClientTarget(clientID.targetName)
+        #expect(await adapter.executedRequests.map(\.operation) == [
+            .selectRelativeWindow(
+                in: fixture.session,
+                direction: .next,
+                steps: steps,
+                for: clientTarget
+            ),
+        ])
+        #expect(await adapter.snapshotRequestCount == 0)
+        await hub.releaseLease(observation.lease)
+    }
+
+    @Test("单 Window 导航返回不可用且不发送远端命令")
+    func singleWindowNavigationIsUnavailableWithoutDispatch() async throws {
+        let fixture = try ControlHubFixture()
+        let adapter = ScriptedControlHubAdapter()
+        let clientID = TmuxClientID(
+            targetName: "/dev/pts/11",
+            processID: 11,
+            createdAt: 11
+        )
+        let attachmentID = "attachment-single-window-nav"
+        let client = TmuxClientSnapshot(
+            id: clientID,
+            sessionID: fixture.session,
+            currentWindowID: fixture.window,
+            activePaneID: fixture.pane,
+            flags: [],
+            role: .connInteractive(attachmentID: attachmentID),
+            kind: .interactiveTerminal,
+            sizeParticipation: .participating,
+            observedAt: fixture.now
+        )
+        let hub = try TmuxControlHub(
+            scope: try fixture.scope(),
+            initialSnapshot: try fixture.snapshot(clients: [clientID: client]),
+            adapter: adapter,
+            clock: { fixture.now }
+        )
+        let observation = try await hub.acquireInteractionLease(
+            identity: .init(
+                attachmentID: attachmentID,
+                clientID: clientID,
+                requestedSessionID: fixture.session
+            ),
+            target: .session(fixture.session)
+        )
+
+        let outcome = try await hub.executeQuickAction(
+            lease: observation.lease,
+            target: .init(
+                providerID: TmuxProvider.providerID,
+                workspaceID: fixture.session.rawValue,
+                targetID: fixture.pane.rawValue
+            ),
+            attachmentGeneration: 3,
+            expectedRevision: 0,
+            action: .nextWindow,
+            argument: nil,
+            repeatCount: 1,
+            timeout: .seconds(1)
+        )
+
+        #expect(outcome == .unavailable)
+        #expect(await adapter.executionCount == 0)
+        await hub.releaseLease(observation.lease)
+    }
+
+    @Test("重命名容忍键盘布局引起的 revision 漂移但仍锁定原 Session")
+    func renameIgnoresUnrelatedRevisionDrift() async throws {
+        let fixture = try ControlHubFixture()
+        let adapter = ScriptedControlHubAdapter()
+        let clientID = TmuxClientID(
+            targetName: "/dev/pts/10",
+            processID: 10,
+            createdAt: 10
+        )
+        let attachmentID = "attachment-session-rename"
         let client = TmuxClientSnapshot(
             id: clientID,
             sessionID: fixture.session,
@@ -652,7 +785,9 @@ struct TmuxControlHubTests {
             event: .paneMetadataChanged(
                 fixture.pane,
                 field: .title,
-                value: .init(value: "changed", freshness: .snapshot(observedAt: fixture.later))
+                value: .init(value: "keyboard-layout-change", freshness: .snapshot(
+                    observedAt: fixture.later
+                ))
             )
         ))
 
@@ -665,23 +800,14 @@ struct TmuxControlHubTests {
             ),
             attachmentGeneration: 3,
             expectedRevision: 0,
-            action: .nextWindow,
-            argument: nil,
-            repeatCount: 3,
+            action: .renameSession,
+            argument: "renamed",
             timeout: .seconds(1)
         )
 
-        let steps = try TmuxWindowNavigationStepCount(3)
-        let clientTarget = try TmuxClientTarget(clientID.targetName)
         #expect(await adapter.executedRequests.map(\.operation) == [
-            .selectRelativeWindow(
-                in: fixture.session,
-                direction: .next,
-                steps: steps,
-                for: clientTarget
-            ),
+            .renameSession(fixture.session, to: try TmuxName("renamed")),
         ])
-        #expect(await adapter.snapshotRequestCount == 0)
         await hub.releaseLease(observation.lease)
     }
 }

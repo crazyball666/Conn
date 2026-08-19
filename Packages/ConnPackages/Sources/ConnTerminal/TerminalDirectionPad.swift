@@ -1,5 +1,19 @@
 import CoreGraphics
 
+enum TerminalDirectionPadMetrics {
+    static let contentInset: CGFloat = 4
+    static let glyphFrame: CGFloat = 14
+    static let glyphSize: CGFloat = 11
+    static let centerDot: CGFloat = 3
+
+    /// 箭头中心相对边缘的距离。按比例定位，并至少给 glyph 留出完整边界。
+    static func edgeOffset(for side: CGFloat) -> CGFloat {
+        let minimum = glyphFrame / 2 + 1
+        let maximum = side / 2 - glyphFrame / 2 - 2
+        return min(max(minimum, side * 0.22), maximum)
+    }
+}
+
 /// 摇杆的落点 → 方向判定。
 ///
 /// **刻意放在平台守卫之外**：摇杆视图本身依赖 UIKit，而 `swift test` 跑在 macOS 上，
@@ -75,6 +89,7 @@ enum TerminalDirectionResolver {
             // 念成「向上箭头」等，无需给 ConnTerminal 另建一套字符串目录。
             .accessibilityElement()
             .accessibilityLabel(Text(verbatim: "↑ ↓ ← →"))
+            .accessibilityIdentifier("terminal.keybar.directionPad")
             .accessibilityAction(named: Text(verbatim: "↑")) { onKey(.up) }
             .accessibilityAction(named: Text(verbatim: "↓")) { onKey(.down) }
             .accessibilityAction(named: Text(verbatim: "←")) { onKey(.left) }
@@ -87,7 +102,9 @@ enum TerminalDirectionResolver {
         private var arrows: some View {
             GeometryReader { geometry in
                 let center = CGPoint(x: geometry.size.width / 2, y: geometry.size.height / 2)
-                let edge = max(9, min(13, min(geometry.size.width, geometry.size.height) * 0.22))
+                let edge = TerminalDirectionPadMetrics.edgeOffset(
+                    for: min(geometry.size.width, geometry.size.height)
+                )
 
                 arrow(.up).position(x: center.x, y: edge)
                 arrow(.down).position(x: center.x, y: geometry.size.height - edge)
@@ -96,17 +113,23 @@ enum TerminalDirectionResolver {
 
                 Circle()
                     .fill(Color.connLine)
-                    .frame(width: 5, height: 5)
+                    .frame(
+                        width: TerminalDirectionPadMetrics.centerDot,
+                        height: TerminalDirectionPadMetrics.centerDot
+                    )
                     .position(center)
             }
-            .padding(5)
+            .padding(TerminalDirectionPadMetrics.contentInset)
         }
 
         private func arrow(_ key: TerminalKey) -> some View {
             Image(systemName: symbolName(for: key))
-                .font(.system(size: 15, weight: .semibold))
+                .font(.system(size: TerminalDirectionPadMetrics.glyphSize, weight: .semibold))
                 .foregroundStyle(active == key ? Color.connAccent : .connMuted)
-                .frame(width: 22, height: 22)
+                .frame(
+                    width: TerminalDirectionPadMetrics.glyphFrame,
+                    height: TerminalDirectionPadMetrics.glyphFrame
+                )
         }
 
         private func symbolName(for key: TerminalKey) -> String {

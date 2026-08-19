@@ -3,7 +3,6 @@ import Foundation
 import GRDB
 
 public enum SSHKeyStoreError: Error, Equatable {
-    case inUse(hostCount: Int)
     case unknownKind(rawValue: String)
 }
 
@@ -37,17 +36,20 @@ public struct SSHKeyStore: SSHKeyRepository {
         try database.writer.write { try SSHKeyRecord(updated).save($0) }
     }
 
-    /// 删除（真 DELETE）。删除前重新检查引用，避免误删导致主机失去认证。
+    /// 删除（真 DELETE）。仍引用该密钥的主机在同一事务中解除关联，但保留
+    /// `auth_kind = key`，使连接明确报“缺少私钥”，并让主机表单要求用户重新
+    /// 选择密钥或认证方式。这样既不会把主机误改成空密码认证，也不会因外键
+    /// `RESTRICT` 导致用户永远删不掉正在使用的密钥。
     public func delete(id: String) throws {
         try database.writer.write { db in
-            let hostCount = try Int.fetchOne(
-                db,
-                sql: "SELECT COUNT(*) FROM host WHERE key_uuid = ?",
-                arguments: [id]
-            ) ?? 0
-            guard hostCount == 0 else {
-                throw SSHKeyStoreError.inUse(hostCount: hostCount)
-            }
+            try db.execute(
+                sql: """
+                UPDATE host
+                SET key_uuid = NULL, updated_at = ?, sync_dirty = 1
+                WHERE key_uuid = ?
+                """,
+                arguments: [Timestamp.now(), id]
+            )
             try db.execute(sql: "DELETE FROM ssh_key WHERE uuid = ?", arguments: [id])
         }
     }

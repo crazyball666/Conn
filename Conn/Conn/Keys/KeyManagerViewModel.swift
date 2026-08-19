@@ -27,7 +27,7 @@ final class KeyManagerViewModel {
 
     /// 正在使用该密钥的主机台数。
     ///
-    /// 删除前提示用。数据库也会在删除事务中再次检查引用。
+    /// 删除前提示用；真正删除时数据层会在事务内解除这些主机的密钥引用。
     func hostCount(using key: SSHKey) -> Int {
         ((try? hostStore.allHosts()) ?? []).count { $0.keyUUID == key.id }
     }
@@ -194,7 +194,8 @@ final class KeyManagerViewModel {
         }
     }
 
-    func delete(_ key: SSHKey) {
+    @discardableResult
+    func delete(_ key: SSHKey) -> Bool {
         var privateMaterial: String?
         var privateMaterialRemoved = false
         var metadataRemoved = false
@@ -231,6 +232,7 @@ final class KeyManagerViewModel {
         if deleteSucceeded {
             load()
         }
+        return deleteSucceeded
     }
 
     /// 修改密钥显示名称。SQLite 缓存与 Keychain 元数据索引同时更新，

@@ -41,7 +41,8 @@ struct TerminalProviderNavigationQueueTests {
         .init(
             direction: direction,
             actionID: actionID,
-            successNoticeKey: "Switched"
+            successNoticeKey: "Switched",
+            unavailableNoticeKey: nil
         )
     }
 }

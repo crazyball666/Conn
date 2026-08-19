@@ -198,7 +198,7 @@ public final class NewTerminalFlowModel {
             selectedOption = nil
             workspaces = []
             phase = .providerSelection
-            errorMessage = L("没有可用的持久终端")
+            errorMessage = L("暂无可用的持久终端")
             return
         }
 

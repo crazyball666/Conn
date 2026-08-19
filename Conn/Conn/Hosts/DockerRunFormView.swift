@@ -506,7 +506,7 @@ struct DockerRunFormView: View {
         } header: {
             Text(L("高级选项"))
         } footer: {
-            Text(String(format: L("一行一项 docker flag，可写 --flag=value 形式。空行与 # 开头行忽略；%@、%@、%@和%@也可在这里填写。"), L("主机名"), L("用户"), L("工作目录"), L("只读根文件系统")))
+            Text(String(format: L("每行填写一个 Docker 参数，格式为 --flag=value。空行及以 # 开头的行将被忽略；%@、%@、%@ 和 %@ 也可在此配置。"), L("主机名"), L("用户"), L("工作目录"), L("只读根文件系统")))
         }
         .listRowBackground(Color.connSurface)
     }

@@ -4,9 +4,9 @@ import GRDB
 import Testing
 @testable import ConnStore
 
-@Suite("GRDB Schema v2 — 平台片段目录")
+@Suite("GRDB Schema v2 — 片段目录")
 struct SchemaV2Tests {
-    @Test("v1 旧片段迁移后默认适用于全部平台")
+    @Test("v1 旧片段迁移后没有额外能力要求")
     func migratesLegacySnippetMetadata() throws {
         let queue = try DatabaseQueue()
         var v1 = DatabaseMigrator()
@@ -40,7 +40,6 @@ struct SchemaV2Tests {
         let loaded = try store.snippet(id: "legacy")
         let snippet = try #require(loaded)
 
-        #expect(snippet.platforms.isEmpty)
         #expect(snippet.requiredCapabilities.isEmpty)
         #expect(snippet.builtinKey == nil)
 
@@ -61,7 +60,6 @@ struct SchemaV2Tests {
         let snippet = Snippet(
             title: "系统概览",
             script: "uname -a",
-            platforms: [.linux],
             builtinKey: "system-overview-linux"
         )
         try store.save(snippet)

@@ -22,11 +22,27 @@ enum DemoData {
     static func behavior() -> MockSSHTransport.Behavior {
         let shouldFailConnection =
             ProcessInfo.processInfo.environment["CONN_SMOKE_PROCESS_FAILURE"] != nil
+        let smokeExecDelay = Int(
+            ProcessInfo.processInfo.environment["CONN_SMOKE_EXEC_DELAY_MS"] ?? "0"
+        ) ?? 0
         return MockSSHTransport.Behavior(
             failConnect: shouldFailConnection
                 ? .connectionRefused(endpoint: SSHEndpoint(host: faultHostAddress))
                 : nil,
             dynamicResponder: { command, endpoint in
+                if command == RemotePlatformDetector.posixCommand {
+                    return .init(stdout: platformProfileOutput)
+                }
+                switch command.trimmingCharacters(in: .whitespacesAndNewlines) {
+                case "command -v sh":
+                    return .init(stdout: "/bin/sh\n")
+                case "command -v bash":
+                    return .init(stdout: "/bin/bash\n")
+                case "command -v zsh":
+                    return .init(stdout: "/bin/zsh\n")
+                default:
+                    break
+                }
                 if command.contains("/proc/stat") {
                     // 与生产一致：基础指标与进程使用两条独立命令。
                     return .init(stdout: metrics.metricOutput(
@@ -39,9 +55,25 @@ enum DemoData {
                 }
                 return DemoOps.response(command: command, endpoint: endpoint)
             },
+            execCommandDelay: .milliseconds(smokeExecDelay),
             streamChunkDelay: .milliseconds(30)
         )
     }
+
+    /// 与 `RemotePlatformDetector.posixCommand` 的分段协议保持一致。Demo 环境也必须
+    /// 走完整的平台探测流程，否则探测器会把缺少 uname 标记的输出当成未知平台，
+    /// 继而回退到 PowerShell，导致 Docker 等平台能力在 UI 冒烟测试中被错误禁用。
+    nonisolated private static let platformProfileOutput = """
+    __CONN_UNAME__
+    Linux
+    __CONN_RELEASE__
+    6.8.0-demo
+    __CONN_ARCH__
+    arm64
+    __CONN_SHELL__
+    /bin/bash
+    __CONN_END__
+    """
 
     /// 写入演示主机与分组（含一台故障机，覆盖生产/测试/家用三组与多分组归属）。
     ///

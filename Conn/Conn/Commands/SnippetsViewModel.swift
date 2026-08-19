@@ -34,7 +34,7 @@ final class SnippetsViewModel {
             groups = try groupStore.allGroups()
             errorMessage = nil
         } catch {
-            errorMessage = L("读取片段失败，请重试")
+            errorMessage = L("读取脚本失败，请重试")
             snippets = []
             groups = []
         }

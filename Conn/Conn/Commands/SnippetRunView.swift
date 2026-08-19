@@ -11,25 +11,9 @@ struct SnippetRunView: View {
     let dependencies: AppDependencies
     @Environment(\.dismiss) private var dismiss
 
-    private enum HostCompatibilityState: Equatable {
-        case checking
-        case compatible(warning: String?)
-        case incompatible(String)
-
-        var allowsExecution: Bool {
-            if case .compatible = self { return true }
-            return false
-        }
-    }
-
     @State private var hosts: [Host] = []
     @State private var hostGroups: [HostGroup] = []
     @State private var selectedHostIDs: Set<String> = []
-    @State private var compatibilityByHostID: [String: HostCompatibilityState] = [:]
-    @State private var preparationByHostID: [String: SnippetHostPreparation] = [:]
-    /// 选择状态变化后使旧异步探测结果失效，避免取消选择后被迟到任务写回。
-    @State private var compatibilityGenerationByHostID: [String: UInt64] = [:]
-    @State private var compatibilityTasks = SnippetCompatibilityTaskRegistry()
     @State private var isHostPickerExpanded = false
     @State private var expandedHostGroupIDs: Set<String> = []
     @State private var values: [String: String] = [:]
@@ -57,12 +41,11 @@ struct SnippetRunView: View {
                     if !snippet.variables.isEmpty { variableFields }
                     actionButtons
                     if isRunning {
-                        ProgressView(L("执行中…"))
-                            .font(.connFootnote)
-                            .foregroundStyle(.connMuted)
+                        executionProgress
+                    } else {
+                        if let outcome { resultCard(outcome) }
+                        if !batchResults.isEmpty { batchResultCards }
                     }
-                    if let outcome { resultCard(outcome) }
-                    if !batchResults.isEmpty { batchResultCards }
                     if let errorText { ConnBanner(errorText, systemImage: "exclamationmark.triangle") }
                 }
                 .padding(ConnSpacing.page)
@@ -73,7 +56,6 @@ struct SnippetRunView: View {
             .toolbar { ToolbarItem(placement: .topBarTrailing) { Button(L("完成")) { dismiss() } } }
             .task { loadHosts() }
             .onDisappear {
-                compatibilityTasks.cancelAll()
                 terminalLauncher.cancel()
             }
             .fullScreenCover(item: $terminalLauncher.route) { route in
@@ -155,7 +137,7 @@ struct SnippetRunView: View {
                 .foregroundStyle(.connMuted)
                 .connEyebrowTracking()
             if hosts.isEmpty {
-                Text(L("还没有主机，请先在「主机」里添加。"))
+                Text(L("暂无可用主机，请先在“主机”页面添加主机。"))
                     .font(.connFootnote)
                     .foregroundStyle(.connMuted)
             } else {
@@ -247,10 +229,6 @@ struct SnippetRunView: View {
                     Text(host.displayAddress)
                         .font(.connData(.caption2))
                         .foregroundStyle(.connMuted)
-                    if selectedHostIDs.contains(host.id),
-                       let state = compatibilityByHostID[host.id] {
-                        compatibilityLabel(for: state)
-                    }
                 }
                 Spacer()
                 Image(systemName: selectedHostIDs.contains(host.id)
@@ -284,25 +262,25 @@ struct SnippetRunView: View {
         VStack(alignment: .leading, spacing: ConnSpacing.xs) {
             HStack(spacing: ConnSpacing.sm) {
                 ConnButton(L("执行脚本"), kind: .primary) { attempt(.silent) }
-                    .disabled(selectedHosts.isEmpty || isRunning || hasCompatibilityBlocker)
-                ConnButton(L("进终端"), kind: .primary) { attempt(.terminal) }
-                    .disabled(selectedHosts.count != 1 || isRunning || hasCompatibilityBlocker)
+                    .disabled(selectedHosts.isEmpty || isRunning)
+                ConnButton(L("在终端中执行"), kind: .primary) { attempt(.terminal) }
+                    .disabled(selectedHosts.count != 1 || isRunning)
             }
             if selectedHosts.count > 1 {
                 Text(L("已选择多台主机，批量执行仅支持静默执行。"))
                     .font(.connFootnote)
                     .foregroundStyle(.connMuted)
             }
-            if let message = compatibilityBlockerMessage {
-                Text(message)
-                    .font(.connFootnote)
-                    .foregroundStyle(.connCrit)
-            } else if let message = compatibilityWarningMessage {
-                Text(message)
-                    .font(.connFootnote)
-                    .foregroundStyle(.connWarn)
-            }
         }
+    }
+
+    private var executionProgress: some View {
+        ProgressView(L("执行中…"))
+            .font(.connFootnote)
+            .foregroundStyle(.connMuted)
+            .frame(maxWidth: .infinity, alignment: .center)
+            .padding(.top, ConnSpacing.sm)
+            .accessibilityIdentifier("snippet.executionProgress")
     }
 
     private func resultCard(_ outcome: RunOutcome) -> some View {
@@ -361,32 +339,6 @@ struct SnippetRunView: View {
         hosts.filter { selectedHostIDs.contains($0.id) }
     }
 
-    private var hasCompatibilityBlocker: Bool {
-        selectedHosts.contains { compatibilityByHostID[$0.id]?.allowsExecution != true }
-    }
-
-    private var compatibilityBlockerMessage: String? {
-        for host in selectedHosts {
-            if case let .incompatible(message)? = compatibilityByHostID[host.id] {
-                return "\(host.name)：\(message)"
-            }
-        }
-        if selectedHosts.contains(where: { compatibilityByHostID[$0.id] == .checking }) {
-            return L("正在检查脚本兼容性…")
-        }
-        return nil
-    }
-
-    private var compatibilityWarningMessage: String? {
-        for host in selectedHosts {
-            if case let .compatible(warning)? = compatibilityByHostID[host.id],
-               let warning {
-                return "\(host.name)：\(warning)"
-            }
-        }
-        return nil
-    }
-
     private var ungroupedHosts: [Host] {
         let knownGroupIDs = Set(hostGroups.map(\.id))
         return hosts.filter { host in
@@ -418,10 +370,8 @@ struct SnippetRunView: View {
     private func toggleHost(_ host: Host) {
         if selectedHostIDs.contains(host.id) {
             selectedHostIDs.remove(host.id)
-            invalidateCompatibility(for: host.id)
         } else {
             selectedHostIDs.insert(host.id)
-            scheduleCompatibilityCheck(for: host)
         }
     }
 
@@ -429,150 +379,62 @@ struct SnippetRunView: View {
         let ids = Set(members.map(\.id))
         if ids.isSubset(of: selectedHostIDs) {
             selectedHostIDs.subtract(ids)
-            for id in ids {
-                invalidateCompatibility(for: id)
-            }
         } else {
-            let added = members.filter { !selectedHostIDs.contains($0.id) }
             selectedHostIDs.formUnion(ids)
-            for host in added { scheduleCompatibilityCheck(for: host) }
         }
-    }
-
-    @ViewBuilder
-    private func compatibilityLabel(for state: HostCompatibilityState) -> some View {
-        switch state {
-        case .checking:
-            Text(L("正在检查脚本兼容性…"))
-                .font(.connData(.caption2))
-                .foregroundStyle(.connMuted)
-        case let .compatible(warning):
-            if let warning {
-                Text(warning)
-                    .font(.connData(.caption2))
-                    .foregroundStyle(.connWarn)
-            }
-        case let .incompatible(message):
-            Text(message)
-                .font(.connData(.caption2))
-                .foregroundStyle(.connCrit)
-        }
-    }
-
-    private func scheduleCompatibilityCheck(for host: Host) {
-        let generation = nextCompatibilityGeneration(for: host.id)
-        preparationByHostID[host.id] = nil
-        compatibilityByHostID[host.id] = .checking
-        compatibilityTasks.replace(hostID: host.id) { claim in
-            await resolveCompatibility(
-                for: host,
-                generation: generation,
-                claim: claim
-            )
-        }
-    }
-
-    private func resolveCompatibility(
-        for host: Host,
-        generation: UInt64,
-        claim: SnippetCompatibilityTaskRegistry.Claim
-    ) async {
-        do {
-            let result = try await dependencies.snippetExecutionPlanner.prepare(
-                snippet: snippet,
-                on: host
-            )
-            guard let claimed = compatibilityTasks.accept(result, for: claim) else {
-                return
-            }
-            guard let accepted = acceptCompatibilityResult(
-                claimed.value,
-                from: claimed.hostID,
-                generation: generation
-            ) else { return }
-            switch accepted.value {
-            case let .ready(preparation):
-                let presentation = SnippetCapabilityPresentation(
-                    report: preparation.capabilityReport
-                )
-                preparationByHostID[accepted.hostID] = preparation
-                compatibilityByHostID[accepted.hostID] = .compatible(
-                    warning: presentation.degradedMessage
-                )
-            case let .blocked(report):
-                let presentation = SnippetCapabilityPresentation(report: report)
-                preparationByHostID[accepted.hostID] = nil
-                compatibilityByHostID[accepted.hostID] = .incompatible(
-                    presentation.blockerMessage
-                        ?? L("无法确认远程主机是否满足片段要求。")
-                )
-            }
-        } catch {
-            guard let claimed = compatibilityTasks.accept(
-                error.friendlyDiagnosis,
-                for: claim
-            ) else {
-                return
-            }
-            guard let accepted = acceptCompatibilityResult(
-                claimed.value,
-                from: claimed.hostID,
-                generation: generation
-            ) else { return }
-            preparationByHostID[accepted.hostID] = nil
-            compatibilityByHostID[accepted.hostID] = .incompatible(
-                String(format: L("检查脚本兼容性失败：%@"), accepted.value)
-            )
-        }
-    }
-
-    private func nextCompatibilityGeneration(for hostID: String) -> UInt64 {
-        let generation = (compatibilityGenerationByHostID[hostID] ?? 0) &+ 1
-        compatibilityGenerationByHostID[hostID] = generation
-        return generation
-    }
-
-    private func invalidateCompatibility(for hostID: String) {
-        compatibilityTasks.cancel(hostID: hostID)
-        _ = nextCompatibilityGeneration(for: hostID)
-        compatibilityByHostID[hostID] = nil
-        preparationByHostID[hostID] = nil
-    }
-
-    private func acceptCompatibilityResult<Value: Sendable>(
-        _ value: Value,
-        from hostID: String,
-        generation: UInt64
-    ) -> SnippetCompatibilityAcceptance.Accepted<Value>? {
-        SnippetCompatibilityAcceptance.accept(
-            hostID: hostID,
-            value: value,
-            selectedHostIDs: selectedHostIDs,
-            capturedGeneration: generation,
-            currentGeneration: compatibilityGenerationByHostID[hostID]
-        )
     }
 
     /// 任意一台生产主机命中风险，就要求整批二次确认。
     private func attempt(_ mode: SnippetExecutionMode) {
-        guard !selectedHosts.isEmpty, !hasCompatibilityBlocker else { return }
-        SnippetExecutionAttemptFeedback.begin(errorText: &errorText)
+        guard !selectedHosts.isEmpty, !isRunning else { return }
+        SnippetExecutionAttemptFeedback.begin(
+            errorText: &errorText,
+            outcome: &outcome,
+            batchResults: &batchResults
+        )
         let hosts = selectedHosts
         let userScript = snippet.render(values: values)
-        let request: SnippetExecutionRequest
+        isRunning = true
+        Task {
+            await prepareAndAttempt(mode, hosts: hosts, userScript: userScript)
+        }
+    }
+
+    private func prepareAndAttempt(
+        _ mode: SnippetExecutionMode,
+        hosts: [Host],
+        userScript: String
+    ) async {
         do {
-            request = try SnippetExecutionRequestBuilder.build(
+            let result = try await SnippetExecutionRequestBuilder.prepare(
                 mode: mode,
                 hosts: hosts,
-                preparationByHostID: preparationByHostID,
+                snippet: snippet,
                 renderedScript: userScript,
                 planner: dependencies.snippetExecutionPlanner
             )
+            switch result {
+            case let .ready(request):
+                isRunning = false
+                continueAttempt(request, hosts: hosts, userScript: userScript)
+            case let .blocked(hostName, report):
+                isRunning = false
+                let presentation = SnippetCapabilityPresentation(report: report)
+                let message = presentation.blockerMessage
+                    ?? L("无法准备远程脚本执行环境。")
+                errorText = "\(hostName)：\(message)"
+            }
         } catch {
+            isRunning = false
             errorText = error.friendlyDiagnosis
-            return
         }
+    }
 
+    private func continueAttempt(
+        _ request: SnippetExecutionRequest,
+        hosts: [Host],
+        userScript: String
+    ) {
         let production = hosts.contains { $0.isProduction }
         let verdict = DangerCommandRules.evaluate(userScript, isProduction: production)
         if snippet.danger || verdict.needsConfirmation {

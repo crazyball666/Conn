@@ -211,8 +211,35 @@ struct TerminalLayoutTests {
     @Test("快捷键栏使用单行紧凑高度并为四合一方向盘留足触控高度")
     func keybarUsesCompactSingleRowMetrics() {
         #expect(TerminalKeybarMetrics.compactHeight <= 52)
-        #expect(TerminalKeybarMetrics.compactHeight >= 44)
-        #expect(TerminalKeybarMetrics.expandedHeight <= 180)
+        #expect(TerminalKeybarMetrics.compactHeight >= TerminalKeybarMetrics.hitTargetHeight)
+        #expect(TerminalKeybarMetrics.compactHeight == TerminalKeybarMetrics.hitTargetHeight + 2)
+        #expect(TerminalKeybarMetrics.hitTargetHeight == 44)
+        #expect(TerminalKeybarMetrics.capVisualHeight < TerminalKeybarMetrics.hitTargetHeight)
+        #expect(TerminalKeybarMetrics.compactPadSide == 40)
+        #expect(TerminalKeybarMetrics.commonColumnCount >= 7)
+        #expect(TerminalKeybarMetrics.providerColumnCount >= 6)
+        #expect(TerminalKeybarMetrics.gridSpacing <= 4)
+    }
+
+    @Test("展开面板多展示一行并保持紧凑操作按钮的完整内边距")
+    func expandedKeybarFitsMoreProviderActionsWithoutClipping() {
+        #expect(TerminalKeybarMetrics.expandedHeight >= 212)
+        #expect(TerminalKeybarMetrics.expandedHeight <= 220)
+        #expect(
+            TerminalKeybarMetrics.expandedHeight - 168
+                >= TerminalKeybarMetrics.hitTargetHeight
+        )
+        #expect(TerminalKeybarMetrics.providerIconSize <= 12)
+        #expect(TerminalKeybarMetrics.providerLabelSize <= 10)
+        #expect(TerminalKeybarMetrics.providerContentHorizontalPadding >= 4)
+        #expect(TerminalKeybarMetrics.providerContentVerticalPadding >= 2)
+        #expect(
+            TerminalKeybarMetrics.providerIconSize
+                + TerminalKeybarMetrics.providerLabelSize
+                + TerminalKeybarMetrics.providerContentSpacing
+                + TerminalKeybarMetrics.providerContentVerticalPadding * 2
+                <= TerminalKeybarMetrics.capVisualHeight
+        )
     }
 
     private func installInteractionHost(

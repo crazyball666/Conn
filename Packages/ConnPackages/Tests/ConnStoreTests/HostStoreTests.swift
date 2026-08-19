@@ -116,8 +116,8 @@ struct HostStoreTests {
         #expect(result.1 == false)
     }
 
-    @Test("删除被主机引用的 SSH 密钥会被拒绝")
-    func deletingReferencedKeyIsRejected() throws {
+    @Test("删除被主机引用的 SSH 密钥会原子解除主机引用")
+    func deletingReferencedKeyDetachesHosts() throws {
         let database = try AppDatabase.inMemory()
         let hosts = HostStore(database: database)
         let keys = SSHKeyStore(database: database)
@@ -129,10 +129,13 @@ struct HostStoreTests {
         )
         try hosts.save(host)
 
-        #expect(throws: SSHKeyStoreError.inUse(hostCount: 1)) {
-            try keys.delete(id: key.id)
-        }
-        #expect(try hosts.host(id: host.id)?.keyUUID == key.id)
+        try keys.delete(id: key.id)
+
+        #expect(try keys.key(id: key.id) == nil)
+        let detachedHost = try #require(try hosts.host(id: host.id))
+        #expect(detachedHost.authKind == .key)
+        #expect(detachedHost.keyUUID == nil)
+        #expect(detachedHost.syncDirty)
     }
 
     @Test("未知认证方式返回可处理错误，不应直接崩溃")

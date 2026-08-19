@@ -28,6 +28,9 @@ final class KeyboardDismisser: NSObject, UIGestureRecognizerDelegate {
     }
 
     @objc private func handleTap() {
+        // `shouldReceive` 发生在触摸开始阶段；同一次触摸可能随后弹出 Alert。
+        // 执行动作时必须再次检查，避免迟到的全局手势关闭 Alert 输入键盘。
+        guard !Self.containsSystemAlert(in: window?.rootViewController) else { return }
         window?.endEditing(true)
     }
 
@@ -49,7 +52,10 @@ final class KeyboardDismisser: NSObject, UIGestureRecognizerDelegate {
             return Self.shouldDismissKeyboard(
                 for: touch.view,
                 activeInputView: activeInputView,
-                touchLocationInActiveInput: activeInputView.map { touch.location(in: $0) }
+                touchLocationInActiveInput: activeInputView.map { touch.location(in: $0) },
+                systemAlertPresented: Self.containsSystemAlert(
+                    in: window?.rootViewController
+                )
             )
         }
     }
@@ -61,8 +67,15 @@ final class KeyboardDismisser: NSObject, UIGestureRecognizerDelegate {
     static func shouldDismissKeyboard(
         for touchedView: UIView?,
         activeInputView: UIView? = nil,
-        touchLocationInActiveInput: CGPoint? = nil
+        touchLocationInActiveInput: CGPoint? = nil,
+        systemAlertPresented: Bool = false
     ) -> Bool {
+        // SwiftUI Alert 的按钮在不同系统版本上不一定暴露为 UIControl。
+        // Alert 存在时完全停用全局收键盘，让系统自己管理输入框与 action 点击。
+        if systemAlertPresented {
+            return false
+        }
+
         // SwiftUI/UIKit 的覆盖视图有时会成为 `touch.view`，它不一定挂在真正的
         // 输入控件下面。因此先用当前第一响应者的真实坐标判断：点仍在终端内容
         // 范围内时，不允许全局手势触发 `endEditing(true)`。
@@ -88,7 +101,14 @@ final class KeyboardDismisser: NSObject, UIGestureRecognizerDelegate {
 
         var view = touchedView
         while let node = view {
-            if node is any UIKeyInput { return false }
+            if node is any UIKeyInput {
+                return false
+            }
+            // 按钮、开关以及系统 Alert action 都是 UIControl。全局收键盘手势若与
+            // 它们同时调用 endEditing，会让 Alert 的第一次点击只收键盘而不提交。
+            if node is UIControl {
+                return false
+            }
             // 终端快捷键栏是终端视口下面的独立 SwiftUI 区域，不属于 UIKeyInput。
             // 它的按钮必须保持当前终端为第一响应者，否则全局空白点击手势会先
             // 收起键盘，再让展开/方向/Ctrl 等快捷操作失效。
@@ -98,6 +118,17 @@ final class KeyboardDismisser: NSObject, UIGestureRecognizerDelegate {
             view = node.superview
         }
         return true
+    }
+
+    static func containsSystemAlert(in viewController: UIViewController?) -> Bool {
+        guard let viewController else { return false }
+        if viewController is UIAlertController {
+            return true
+        }
+        if containsSystemAlert(in: viewController.presentedViewController) {
+            return true
+        }
+        return viewController.children.contains(where: { containsSystemAlert(in: $0) })
     }
 
     private static func firstInputResponder(in view: UIView) -> UIView? {

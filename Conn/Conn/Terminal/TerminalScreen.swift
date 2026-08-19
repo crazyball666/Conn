@@ -60,6 +60,7 @@ struct TerminalScreen: View {
                         }
                         .frame(maxWidth: 220)
                         .accessibilityElement(children: .combine)
+                        .accessibilityIdentifier("terminal.header")
                     }
                     terminalToolbar
                 }
@@ -173,9 +174,11 @@ struct TerminalScreen: View {
                     terminalGeneration: tab.generation,
                     configuration: configuration,
                     onChooseCommand: showCommandPicker,
-                    onReconnect: { Task { await reconnect(tab.id) } }
+                    onReconnect: { Task { await reconnect(tab.id) } },
+                    onPersistentWorkspaceRenamed: { name in
+                        terminalSessions.store.updatePersistentWorkspaceName(tab.id, to: name)
+                    }
                 )
-                .ignoresSafeArea(.container, edges: .bottom)
                 .overlay {
                     if case let .disconnected(message) = tab.status {
                         reconnectNotice(message)
@@ -189,7 +192,7 @@ struct TerminalScreen: View {
                 ContentUnavailableView(
                     L("终端会话不存在"),
                     systemImage: "terminal",
-                    description: Text(L("该终端可能已经关闭。"))
+                    description: Text(L("该终端会话可能已关闭。"))
                 )
                 .foregroundStyle(.connMuted)
             }

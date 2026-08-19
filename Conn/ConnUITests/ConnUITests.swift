@@ -291,9 +291,9 @@ final class ConnUITests: XCTestCase {
         app.launchEnvironment["CONN_DEMO"] = "1"
         app.launch()
 
-        XCTAssertTrue(app.navigationBars["服务器"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.navigationBars["主机"].waitForExistence(timeout: 10))
         app.buttons["新增"].tap()
-        let addServer = app.buttons["新增服务器"]
+        let addServer = app.buttons["新增主机"]
         XCTAssertTrue(addServer.waitForExistence(timeout: 5))
         addServer.tap()
 
@@ -315,7 +315,7 @@ final class ConnUITests: XCTestCase {
         XCTAssertTrue(save.isEnabled)
         save.tap()
 
-        XCTAssertTrue(app.navigationBars["服务器"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.navigationBars["主机"].waitForExistence(timeout: 10))
         XCTAssertEqual(app.state, .runningForeground)
         XCTAssertTrue(app.buttons.matching(
             NSPredicate(format: "label CONTAINS %@", "203.0.113.10")
@@ -328,7 +328,7 @@ final class ConnUITests: XCTestCase {
         app.launchEnvironment["CONN_DEMO"] = "1"
         app.launch()
 
-        XCTAssertTrue(app.navigationBars["服务器"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.navigationBars["主机"].waitForExistence(timeout: 10))
         let hostCard = app.buttons.matching(
             NSPredicate(format: "label CONTAINS %@", "web-01")
         ).firstMatch
@@ -342,7 +342,7 @@ final class ConnUITests: XCTestCase {
         XCTAssertTrue(navigationBar.waitForExistence(timeout: 5))
         navigationBar.buttons["保存"].tap()
 
-        XCTAssertTrue(app.navigationBars["服务器"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.navigationBars["主机"].waitForExistence(timeout: 10))
         XCTAssertEqual(app.state, .runningForeground)
         XCTAssertTrue(app.buttons.matching(
             NSPredicate(format: "label CONTAINS %@", "web-01")
@@ -354,9 +354,9 @@ final class ConnUITests: XCTestCase {
         let app = XCUIApplication()
         app.launch()
 
-        XCTAssertTrue(app.navigationBars["服务器"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.navigationBars["主机"].waitForExistence(timeout: 10))
         app.buttons["新增"].tap()
-        let addServer = app.buttons["新增服务器"]
+        let addServer = app.buttons["新增主机"]
         XCTAssertTrue(addServer.waitForExistence(timeout: 5))
         addServer.tap()
 
@@ -382,7 +382,7 @@ final class ConnUITests: XCTestCase {
         username.typeText("root")
         app.navigationBars["添加主机"].buttons["保存"].tap()
 
-        XCTAssertTrue(app.navigationBars["服务器"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.navigationBars["主机"].waitForExistence(timeout: 10))
         XCTAssertEqual(app.state, .runningForeground)
         let hostCard = app.buttons.matching(
             NSPredicate(format: "label CONTAINS %@", marker)
@@ -395,7 +395,7 @@ final class ConnUITests: XCTestCase {
         XCTAssertTrue(app.navigationBars["编辑主机"].waitForExistence(timeout: 5))
         app.navigationBars["编辑主机"].buttons["保存"].tap()
 
-        XCTAssertTrue(app.navigationBars["服务器"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.navigationBars["主机"].waitForExistence(timeout: 10))
         XCTAssertEqual(app.state, .runningForeground)
         XCTAssertTrue(hostCard.waitForExistence(timeout: 5))
 

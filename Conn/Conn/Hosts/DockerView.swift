@@ -13,6 +13,9 @@ struct DockerView: View {
     @State var tab: Tab
     @State private var route: Route?
     @State var operationSheet: OperationSheet?
+    /// system prune 的范围表单必须完全退场后再弹 Alert，避免 SwiftUI 同时 present
+    /// 两层模态视图导致确认框丢失。
+    @State var stagedSystemPruneOptions: DockerSystemPruneOptions?
     /// 控制台单独拆出来走 `.fullScreenCover`——`route` 剩下的几个目的地
     /// （容器/卷/网络/镜像详情）仍是 push，两种呈现方式不能共用同一个 optional。
     @State private var consoleContainer: ContainerInfo?
@@ -34,7 +37,15 @@ struct DockerView: View {
         content
             .task { await loadForSmokeRoute() }
             .task { await autoRefreshLoop() }
-            .sheet(item: operationSheetBinding, content: operationSheetView)
+            .sheet(
+                item: operationSheetBinding,
+                onDismiss: operationSheetDidDismiss,
+                content: operationSheetView
+            )
+            .dockerDestructiveConfirmationAlert(
+                operations: viewModel.operations,
+                isEnabled: route == nil
+            )
             .alert(L("Docker 操作"), isPresented: messageBinding) {
                 Button(L("好"), role: .cancel) { viewModel.actionMessage = nil }
             } message: {
@@ -96,51 +107,67 @@ struct DockerView: View {
     // 所以这里绝不能再接回调闭包。
     @ViewBuilder
     private func destination(_ target: Route) -> some View {
-        switch target {
-        case let .detail(container):
-            ContainerDetailView(host: host, dependencies: dependencies, container: container, viewModel: viewModel)
-        case let .logs(container):
-            if let runtime = viewModel.runtime {
-                LogStreamView(
-                    host: host, dependencies: dependencies,
-                    source: LogSource(
-                        id: "container-\(container.id)", title: container.name,
-                        subtitle: container.image,
-                        kind: .container(
-                            id: container.id,
-                            name: container.name,
-                            runtime: runtime
-                        )
-                    ),
-                    sudo: viewModel.usesSudo
+        Group {
+            switch target {
+            case let .detail(container):
+                ContainerDetailView(
+                    host: host,
+                    dependencies: dependencies,
+                    container: container,
+                    viewModel: viewModel
                 )
-            } else {
-                Text(L("Docker 运行环境尚未探测完成"))
+            case let .logs(container):
+                if let runtime = viewModel.runtime {
+                    LogStreamView(
+                        host: host, dependencies: dependencies,
+                        source: LogSource(
+                            id: "container-\(container.id)", title: container.name,
+                            subtitle: container.image,
+                            kind: .container(
+                                id: container.id,
+                                name: container.name,
+                                runtime: runtime
+                            )
+                        ),
+                        sudo: viewModel.usesSudo
+                    )
+                } else {
+                    Text(L("Docker 运行环境尚未探测完成"))
+                }
+            case let .volumeDetail(volume):
+                // 磁盘占用来自 `viewModel.diskUsage`（Task 7 接入）；查不到时为 nil，
+                // 页面按设计显示「—」——它本就是「查不到就退化」的锦上添花字段。
+                VolumeDetailView(
+                    volume: volume,
+                    viewModel: viewModel,
+                    size: viewModel.diskUsage?.volumeSize(volume.name),
+                    host: host,
+                    dependencies: dependencies
+                )
+            case let .networkDetail(network):
+                NetworkDetailView(
+                    network: network,
+                    viewModel: viewModel,
+                    host: host,
+                    dependencies: dependencies
+                )
+            case let .imageDetail(image):
+                ImageDetailView(
+                    image: image, viewModel: viewModel,
+                    users: ImageUsage.containersUsing(image, in: viewModel.containers.items),
+                    diskSize: viewModel.diskUsage?.imageSize(image.imageID),
+                    host: host, dependencies: dependencies
+                )
+            case let .composeDetail(project):
+                DockerComposeProjectDetailView(
+                    initialProject: project,
+                    viewModel: viewModel,
+                    host: host,
+                    dependencies: dependencies
+                )
             }
-        case let .volumeDetail(volume):
-            // 磁盘占用来自 `viewModel.diskUsage`（Task 7 接入）；查不到时为 nil，
-            // 页面按设计显示「—」——它本就是「查不到就退化」的锦上添花字段。
-            VolumeDetailView(
-                volume: volume, viewModel: viewModel, size: viewModel.diskUsage?.volumeSize(volume.name),
-                host: host, dependencies: dependencies
-            )
-        case let .networkDetail(network):
-            NetworkDetailView(network: network, viewModel: viewModel, host: host, dependencies: dependencies)
-        case let .imageDetail(image):
-            ImageDetailView(
-                image: image, viewModel: viewModel,
-                users: ImageUsage.containersUsing(image, in: viewModel.containers.items),
-                diskSize: viewModel.diskUsage?.imageSize(image.imageID),
-                host: host, dependencies: dependencies
-            )
-        case let .composeDetail(project):
-            DockerComposeProjectDetailView(
-                initialProject: project,
-                viewModel: viewModel,
-                host: host,
-                dependencies: dependencies
-            )
         }
+        .dockerDestructiveConfirmationAlert(operations: viewModel.operations)
     }
 
     @ViewBuilder
@@ -318,9 +345,7 @@ struct DockerView: View {
                 Label(L("清理悬空镜像"), systemImage: "trash")
             }
             Button(role: .destructive) {
-                viewModel.operations.requestDestructiveAction(
-                    .systemPrune(DockerSystemPruneOptions())
-                )
+                operationSheet = .systemPruneOptions
             } label: {
                 Label(L("清理 Docker 资源"), systemImage: "trash.slash")
             }
@@ -364,7 +389,7 @@ extension DockerView {
             if sortedContainers.isEmpty {
                 // 搜索词非空但无匹配时不能说「没有容器」——主机上可能明明有 20 个，
                 // 只是用户搜错了一个字母，那是对服务器状态的事实性错误陈述。
-                Text(search.isEmpty ? L("该主机上没有容器") : L("没有匹配的容器"))
+                Text(search.isEmpty ? L("该主机暂无容器") : L("未找到匹配的容器"))
                     .font(.connSubheadline).foregroundStyle(.connMuted)
                     .padding(.vertical, ConnSpacing.xl)
             } else {
@@ -539,7 +564,7 @@ extension DockerView {
             if viewModel.platformKind == .macOS {
                 L("Docker Desktop 未运行。请在这台 Mac 上启动 Docker Desktop 后重试。")
             } else if viewModel.platformKind == .linux {
-                L("Docker 守护进程未运行。\n请在服务器上启动：\nsudo systemctl start docker")
+                L("Docker 守护进程未运行。\n请在远程主机上启动：\nsudo systemctl start docker")
             } else {
                 L("Docker 服务未运行。请在目标主机上启动 Docker 后重试。")
             }
@@ -664,21 +689,21 @@ extension DockerView {
     private var imagesListState: DockerDetail.ListState {
         .init(
             error: viewModel.images.error, loaded: viewModel.images.loaded, loadingText: L("读取镜像…"),
-            emptyText: search.isEmpty ? L("没有镜像") : L("没有匹配的镜像")
+            emptyText: search.isEmpty ? L("暂无镜像") : L("未找到匹配的镜像")
         )
     }
 
     private var volumesListState: DockerDetail.ListState {
         .init(
             error: viewModel.volumes.error, loaded: viewModel.volumes.loaded, loadingText: L("读取卷…"),
-            emptyText: search.isEmpty ? L("没有卷") : L("没有匹配的卷")
+            emptyText: search.isEmpty ? L("暂无卷") : L("未找到匹配的卷")
         )
     }
 
     private var networksListState: DockerDetail.ListState {
         .init(
             error: viewModel.networks.error, loaded: viewModel.networks.loaded,
-            loadingText: L("读取网络…"), emptyText: search.isEmpty ? L("没有网络") : L("没有匹配的网络")
+            loadingText: L("读取网络…"), emptyText: search.isEmpty ? L("暂无网络") : L("未找到匹配的网络")
         )
     }
 }

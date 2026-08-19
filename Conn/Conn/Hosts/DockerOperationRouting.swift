@@ -29,7 +29,8 @@ extension DockerView {
         case createVolume
         case createNetwork
         case addComposeProject
-        case destructive(DockerPendingAction)
+        case systemPruneOptions
+        case typedConfirmation(DockerPendingAction)
 
         var id: String {
             switch self {
@@ -38,7 +39,8 @@ extension DockerView {
             case .createVolume: "create-volume"
             case .createNetwork: "create-network"
             case .addComposeProject: "add-compose-project"
-            case let .destructive(action): "destructive-\(action.confirmationWord)"
+            case .systemPruneOptions: "system-prune-options"
+            case .typedConfirmation: "typed-confirmation"
             }
         }
     }
@@ -46,8 +48,9 @@ extension DockerView {
     var operationSheetBinding: Binding<OperationSheet?> {
         Binding(
             get: {
-                if let action = viewModel.operations.pendingDestructiveAction {
-                    return .destructive(action)
+                if let action = viewModel.operations.pendingDestructiveAction,
+                   action.confirmationStyle == .typedEntry {
+                    return .typedConfirmation(action)
                 }
                 return operationSheet
             },
@@ -57,7 +60,9 @@ extension DockerView {
                     return
                 }
                 operationSheet = nil
-                viewModel.operations.cancelPendingAction()
+                if viewModel.operations.pendingDestructiveAction?.confirmationStyle == .typedEntry {
+                    viewModel.operations.cancelPendingAction()
+                }
             }
         )
     }
@@ -106,9 +111,19 @@ extension DockerView {
             )
         case .addComposeProject:
             DockerComposeManualFormView(model: viewModel.compose)
-        case .destructive:
-            DockerDestructiveConfirmationView(operations: viewModel.operations)
+        case .systemPruneOptions:
+            DockerSystemPruneOptionsView { options in
+                stagedSystemPruneOptions = options
+            }
+        case .typedConfirmation:
+            DockerTypedConfirmationView(operations: viewModel.operations)
         }
+    }
+
+    func operationSheetDidDismiss() {
+        guard let options = stagedSystemPruneOptions else { return }
+        stagedSystemPruneOptions = nil
+        viewModel.operations.requestDestructiveAction(.systemPrune(options))
     }
 
 }

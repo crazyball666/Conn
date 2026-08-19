@@ -22,7 +22,7 @@ struct DockerPullProgressView: View {
             ScrollView {
                 Text(operations.pullPresentation?.logs.isEmpty == false
                     ? operations.pullPresentation?.logs ?? ""
-                    : L("等待远端输出…"))
+                    : L("等待远程输出…"))
                     .font(.system(.footnote, design: .monospaced))
                     .foregroundStyle(.connInk)
                     .frame(maxWidth: .infinity, alignment: .leading)

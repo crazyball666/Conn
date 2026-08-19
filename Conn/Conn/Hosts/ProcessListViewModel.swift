@@ -31,7 +31,7 @@ final class ProcessListViewModel {
         case .degraded:
             return L("部分进程详情不可用")
         case let .unavailable(issue):
-            return issue.code == .permissionDenied ? L("没有权限读取完整进程信息") : L("进程采集暂不可用")
+            return issue.code == .permissionDenied ? L("权限不足，无法读取完整进程信息") : L("进程采集暂不可用")
         case .unsupported:
             return L("当前主机平台暂不支持进程采集")
         }

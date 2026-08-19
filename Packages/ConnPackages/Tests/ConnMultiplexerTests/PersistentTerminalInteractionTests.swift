@@ -107,7 +107,8 @@ struct PersistentTerminalInteractionTests {
                 .init(
                     direction: .left,
                     actionID: "provider.next",
-                    successNoticeKey: "Switched"
+                    successNoticeKey: "Switched",
+                    unavailableNoticeKey: "Nothing to switch"
                 ),
             ]
         )
@@ -115,6 +116,7 @@ struct PersistentTerminalInteractionTests {
         #expect(group.swipeAction(for: .left)?.actionID == "provider.next")
         #expect(group.swipeAction(for: .right) == nil)
         #expect(group.swipeAction(for: .left)?.successNoticeKey == "Switched")
+        #expect(group.swipeAction(for: .left)?.unavailableNoticeKey == "Nothing to switch")
     }
 
     private var target: PersistentTerminalInteractionTarget {

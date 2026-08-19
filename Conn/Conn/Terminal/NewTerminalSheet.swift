@@ -60,7 +60,7 @@ struct NewTerminalSheet: View {
         case .terminalTypeSelection:
             terminalTypeSelection
         case .providerLoading:
-            loadingState(L("正在探测 tmux…"))
+            loadingState(L("正在检测 tmux…"))
         case .providerSelection:
             providerSelection
         case .workspaceSelection:
@@ -80,7 +80,7 @@ struct NewTerminalSheet: View {
             }
             Section(L("选择主机")) {
                 if model.hosts.isEmpty, model.errorMessage == nil {
-                    Text(L("还没有可用主机"))
+                    Text(L("暂无可用主机"))
                         .foregroundStyle(.connMuted)
                 }
                 ForEach(model.hosts) { host in
@@ -121,14 +121,14 @@ struct NewTerminalSheet: View {
                 Button { Task { await model.selectPlainPTY() } } label: {
                     launchChoice(
                         title: L("普通终端"),
-                        subtitle: L("启动独立的远端 Shell"),
+                        subtitle: L("启动独立远程 Shell"),
                         systemImage: "terminal"
                     )
                 }
                 Button { Task { await model.selectPersistent() } } label: {
                     launchChoice(
                         title: "tmux",
-                        subtitle: L("进入或新建可恢复的远端 Session"),
+                        subtitle: L("连接或创建可恢复的远程 Session"),
                         systemImage: "rectangle.connected.to.line.below"
                     )
                 }
@@ -143,12 +143,12 @@ struct NewTerminalSheet: View {
             }
             if model.options.isEmpty {
                 Section(L("tmux 不可用")) {
-                    Text(L("当前版本没有可用的持久终端 provider"))
+                    Text(L("当前版本未配置可用的持久终端 Provider"))
                         .foregroundStyle(.connMuted)
                 }
                 Section {
                     Button { Task { await model.selectPersistent() } } label: {
-                        Label(L("重新加载"), systemImage: "arrow.clockwise")
+                        Label(L("重试"), systemImage: "arrow.clockwise")
                     }
                 }
             } else {
@@ -179,7 +179,7 @@ struct NewTerminalSheet: View {
             Section {
                 Button { Task { await model.refresh() } } label: {
                     HStack {
-                        Label(L("刷新远端 Session"), systemImage: "arrow.clockwise")
+                        Label(L("刷新 Session 列表"), systemImage: "arrow.clockwise")
                         Spacer()
                         if model.isRefreshing { ProgressView().controlSize(.small) }
                     }
@@ -187,15 +187,15 @@ struct NewTerminalSheet: View {
                 .disabled(model.isLoading || model.isRefreshing || model.isCreating)
             }
 
-            Section(L("已有 Session")) {
+            Section(L("连接现有 Session")) {
                 if model.isLoading {
                     HStack(spacing: ConnSpacing.sm) {
                         ProgressView().controlSize(.small)
-                        Text(L("正在读取远端 Session…"))
+                        Text(L("正在加载 Session 列表…"))
                             .foregroundStyle(.connMuted)
                     }
                 } else if model.workspaces.isEmpty {
-                    Text(L("当前没有已存在的 Session"))
+                    Text(L("暂无可用 Session"))
                         .foregroundStyle(.connMuted)
                 } else {
                     ForEach(model.workspaces, id: \.workspace.workspaceID) { workspace in
@@ -220,14 +220,14 @@ struct NewTerminalSheet: View {
                 }
             }
 
-            Section(L("新建 Session")) {
+            Section(L("创建 Session")) {
                 TextField(L("Session 名称（可选）"), text: $newWorkspaceName)
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
                 Button {
                     Task { await model.createWorkspace(name: newWorkspaceName) }
                 } label: {
-                    Label(L("新建并进入"), systemImage: "plus.rectangle")
+                    Label(L("创建并连接"), systemImage: "plus.rectangle")
                 }
                 .disabled(model.isLoading || model.isRefreshing || model.isCreating)
             }

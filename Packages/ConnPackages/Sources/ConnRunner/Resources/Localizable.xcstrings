@@ -30,6 +30,35 @@
         }
       }
     },
+    "Docker" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Docker"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Docker"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Docker"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Docker"
+          }
+        }
+      }
+    },
     "inode 使用" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -55,6 +84,34 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "inode 使用量"
+          }
+        }
+      }
+    },
+    "主机连接配置已变化，请重新检查后执行" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The host connection configuration has changed. Review it before running again."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ホストの接続設定が変更されました。確認してから再実行してください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "호스트 연결 구성이 변경되었습니다. 다시 확인한 후 실행하세요."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "主機連線設定已變更，請重新檢查後再執行。"
           }
         }
       }
@@ -287,6 +344,62 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "容器資源佔用"
+          }
+        }
+      }
+    },
+    "执行失败" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Execution failed"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "実行に失敗しました"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "실행 실패"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "執行失敗"
+          }
+        }
+      }
+    },
+    "无法保存执行记录，未执行脚本" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unable to record the execution; the script was not run"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "実行記録を保存できないため、スクリプトは実行されませんでした"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "실행 기록을 저장할 수 없어 스크립트를 실행하지 않았습니다"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法儲存執行記錄，未執行指令碼"
           }
         }
       }
@@ -697,6 +810,34 @@
         }
       }
     },
+    "脚本已执行，但执行记录保存失败" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Script executed, but the execution record could not be saved"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "スクリプトは実行されましたが、実行記録を保存できませんでした"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "스크립트를 실행했지만 실행 기록을 저장하지 못했습니다"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "指令碼已執行，但無法儲存執行記錄"
+          }
+        }
+      }
+    },
     "连接统计" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -782,50 +923,6 @@
             "value" : "重啟服務"
           }
         }
-      }
-    },
-    "执行失败" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Execution failed"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "実行に失敗しました"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "실행 실패"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "執行失敗"
-          }
-        }
-      }
-    },
-    "无法保存执行记录，未执行脚本" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Unable to record the execution; the script was not run" } },
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "実行記録を保存できないため、スクリプトは実行されませんでした" } },
-        "ko" : { "stringUnit" : { "state" : "translated", "value" : "실행 기록을 저장할 수 없어 스크립트를 실행하지 않았습니다" } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "無法儲存執行記錄，未執行指令碼" } }
-      }
-    },
-    "脚本已执行，但执行记录保存失败" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Script executed, but the execution record could not be saved" } },
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "スクリプトは実行されましたが、実行記録を保存できませんでした" } },
-        "ko" : { "stringUnit" : { "state" : "translated", "value" : "스크립트를 실행했지만 실행 기록을 저장하지 못했습니다" } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "指令碼已執行，但無法儲存執行記錄" } }
       }
     }
   },

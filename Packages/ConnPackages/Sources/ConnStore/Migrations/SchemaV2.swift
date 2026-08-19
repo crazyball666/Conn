@@ -3,7 +3,7 @@ import GRDB
 enum SchemaV2 {
     static func register(in migrator: inout DatabaseMigrator) {
         migrator.registerMigration("v2_platform_snippet_catalog") { db in
-            try db.execute(sql: "ALTER TABLE snippet ADD COLUMN platforms_json TEXT")
+            // 迁移名称为兼容已创建的开发数据库保留；脚本本身不声明目标平台。
             try db.execute(sql: "ALTER TABLE snippet ADD COLUMN required_capabilities_json TEXT")
             try db.execute(sql: "ALTER TABLE snippet ADD COLUMN builtin_key TEXT")
             try db.execute(sql: """

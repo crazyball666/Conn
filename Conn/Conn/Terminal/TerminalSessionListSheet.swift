@@ -54,7 +54,7 @@ struct TerminalSessionListSheet: View {
                 } header: {
                     Text(host.displayAddress)
                 } footer: {
-                    Text(L("返回不会关闭会话；仅“退出终端”或在这里关闭才会结束该 PTY。"))
+                    Text(L("返回不会关闭会话。仅“退出终端”或在会话列表中关闭时，才会终止该 PTY。"))
                 }
             }
             .scrollContentBackground(.hidden)
@@ -92,9 +92,9 @@ struct TerminalSessionListSheet: View {
 
     private var renameMessage: String {
         if let renameTarget, case .persistent = renameTarget.source {
-            return L("修改持久终端别名会同时重命名远端会话；留空会恢复当前会话名称。")
+            return L("修改持久终端别名会同步重命名远程会话；留空将恢复当前会话名称。")
         }
-        return L("留空会恢复自动名称。")
+        return L("留空将恢复自动生成的名称。")
     }
 
     private func sessionRow(_ tab: TerminalTab) -> some View {

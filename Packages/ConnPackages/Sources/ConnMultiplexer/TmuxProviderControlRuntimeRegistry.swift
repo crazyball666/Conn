@@ -421,7 +421,7 @@ actor TmuxProviderControlRuntimeRegistry {
     func performQuickAction(
         _ lease: TmuxProviderControlInteractionLease,
         request: PersistentTerminalQuickActionRequest
-    ) async throws {
+    ) async throws -> PersistentTerminalQuickActionOutcome {
         guard let registration = attachmentRegistrations[lease.scope]?[lease.registrationID]
         else {
             throw TmuxInteractionError.closed
@@ -444,7 +444,7 @@ actor TmuxProviderControlRuntimeRegistry {
         else {
             throw TmuxInteractionError.closed
         }
-        _ = try await hub.executeQuickAction(
+        return try await hub.executeQuickAction(
             lease: hubLease,
             target: request.target,
             attachmentGeneration: registration.attachmentGeneration,

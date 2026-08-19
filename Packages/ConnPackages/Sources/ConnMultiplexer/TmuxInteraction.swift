@@ -75,6 +75,16 @@ package enum TmuxTerminalQuickAction: String, CaseIterable, Sendable {
     case mainHorizontalLayout = "tmux.layout.main-horizontal"
     case mainVerticalLayout = "tmux.layout.main-vertical"
 
+    /// Rename input is collected by an Alert. Keyboard/layout changes can advance the
+    /// topology revision without changing the verified Session/Pane target, so identity
+    /// validation—not byte-for-byte revision equality—is the safe execution boundary.
+    package var toleratesStateRevisionDrift: Bool {
+        self == .previousWindow
+            || self == .nextWindow
+            || self == .renameSession
+            || self == .renameWindow
+    }
+
     package static let group = PersistentTerminalQuickActionGroup(
         id: TmuxProvider.providerID,
         title: "tmux",
@@ -84,7 +94,8 @@ package enum TmuxTerminalQuickAction: String, CaseIterable, Sendable {
                     .renameSession,
                     "重命名 Session",
                     "pencil",
-                    textInput: .init(titleKey: "重命名 Session", placeholderKey: "Session 名称")
+                    textInput: .init(titleKey: "重命名 Session", placeholderKey: "Session 名称"),
+                    completionEffect: .workspaceRenamed
                 ),
             ]),
             .init(id: "window", titleKey: "Window", actions: [
@@ -145,12 +156,14 @@ package enum TmuxTerminalQuickAction: String, CaseIterable, Sendable {
             .init(
                 direction: .left,
                 actionID: nextWindow.rawValue,
-                successNoticeKey: "已切换到下一个 Window"
+                successNoticeKey: "已切换到下一个 Window",
+                unavailableNoticeKey: "没有可切换的 Window"
             ),
             .init(
                 direction: .right,
                 actionID: previousWindow.rawValue,
-                successNoticeKey: "已切换到上一个 Window"
+                successNoticeKey: "已切换到上一个 Window",
+                unavailableNoticeKey: "没有可切换的 Window"
             ),
         ]
     )
@@ -235,14 +248,16 @@ package enum TmuxTerminalQuickAction: String, CaseIterable, Sendable {
         _ titleKey: String,
         _ systemImageName: String,
         textInput: PersistentTerminalQuickActionTextInput? = nil,
-        confirmation: PersistentTerminalActionConfirmation? = nil
+        confirmation: PersistentTerminalActionConfirmation? = nil,
+        completionEffect: PersistentTerminalActionEffect? = nil
     ) -> PersistentTerminalQuickActionDescriptor {
         .init(
             id: action.rawValue,
             titleKey: titleKey,
             systemImageName: systemImageName,
             textInput: textInput,
-            confirmation: confirmation
+            confirmation: confirmation,
+            completionEffect: completionEffect
         )
     }
 
@@ -1036,7 +1051,7 @@ package actor TmuxInteractionFacet: PersistentTerminalInteractionFacet {
 
     public func performQuickAction(
         _ request: PersistentTerminalQuickActionRequest
-    ) async throws {
+    ) async throws -> PersistentTerminalQuickActionOutcome {
         guard !closed else { throw TmuxInteractionError.closed }
         guard request.attachmentGeneration == attachmentGeneration else {
             throw PersistentTerminalInteractionError.staleAttachmentGeneration
@@ -1046,7 +1061,7 @@ package actor TmuxInteractionFacet: PersistentTerminalInteractionFacet {
         else {
             throw PersistentTerminalError.controlModeUnavailable
         }
-        try await controlLease.registry.performQuickAction(
+        return try await controlLease.registry.performQuickAction(
             controlLease,
             request: request
         )

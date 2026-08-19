@@ -26,7 +26,7 @@ struct DockerComposeListView: View {
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, ConnSpacing.xl)
             } else if filteredProjects.isEmpty {
-                Text(search.isEmpty ? L("没有 Compose 项目") : L("没有匹配的 Compose 项目"))
+                Text(search.isEmpty ? L("暂无 Compose 项目") : L("未找到匹配的 Compose 项目"))
                     .font(.connSubheadline)
                     .foregroundStyle(.connMuted)
                     .padding(.vertical, ConnSpacing.xl)
@@ -156,7 +156,7 @@ struct DockerComposeProjectDetailView: View {
                 dismiss()
             }
         } message: {
-            Text(L("只会从当前会话的项目列表移除，不会停止或删除服务器上的 Docker 资源。"))
+                Text(L("仅从当前会话的项目列表中移除，不会停止或删除远程主机上的 Docker 资源。"))
         }
     }
 
@@ -253,7 +253,7 @@ struct DockerComposeProjectDetailView: View {
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, ConnSpacing.lg)
             } else if services.isEmpty {
-                Text(L("该项目没有服务"))
+                Text(L("该项目暂无服务"))
                     .font(.connSubheadline)
                     .foregroundStyle(.connMuted)
             } else {

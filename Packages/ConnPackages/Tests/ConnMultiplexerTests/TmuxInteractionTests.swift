@@ -79,10 +79,17 @@ struct TmuxInteractionTests {
         let client = try TmuxClientTarget(fixture.client.targetName)
         #expect(TmuxTerminalQuickAction.group.sections.count == 5)
         #expect(TmuxTerminalQuickAction.group.actions.count == 26)
+        #expect(TmuxTerminalQuickAction.group.actions.first {
+            $0.id == TmuxTerminalQuickAction.renameSession.rawValue
+        }?.completionEffect == .workspaceRenamed)
         #expect(TmuxTerminalQuickAction.group.swipeAction(for: .left)?.actionID
             == TmuxTerminalQuickAction.nextWindow.rawValue)
+        #expect(TmuxTerminalQuickAction.group.swipeAction(for: .left)?.unavailableNoticeKey
+            == "没有可切换的 Window")
         #expect(TmuxTerminalQuickAction.group.swipeAction(for: .right)?.actionID
             == TmuxTerminalQuickAction.previousWindow.rawValue)
+        #expect(TmuxTerminalQuickAction.group.swipeAction(for: .right)?.unavailableNoticeKey
+            == "没有可切换的 Window")
         #expect(try TmuxTerminalQuickAction.nextWindow.operation(
             for: resolved,
             client: client,

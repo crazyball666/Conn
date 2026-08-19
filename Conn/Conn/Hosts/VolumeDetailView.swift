@@ -96,7 +96,7 @@ struct VolumeDetailView: View {
     private var usersSection: some View {
         DockerDetail.section(L("引用容器")) {
             if users.isEmpty {
-                DockerDetail.unusedNotice(L("没有容器引用此卷"))
+                DockerDetail.unusedNotice(L("暂无容器引用此卷"))
             } else {
                 VStack(alignment: .leading, spacing: 0) {
                     ForEach(Array(users.enumerated()), id: \.offset) { index, container in

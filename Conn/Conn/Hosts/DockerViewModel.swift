@@ -237,7 +237,6 @@ final class DockerViewModel {
             groupIDs: dockerSnippetGroupID().map { [$0] } ?? [],
             pinned: false,
             danger: true,
-            platforms: [.linux, .macOS],
             requiredCapabilities: [.docker]
         )
         try snippetRepository.save(snippet)

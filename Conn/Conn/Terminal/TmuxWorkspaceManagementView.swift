@@ -102,7 +102,7 @@ struct TmuxWorkspaceManagementView: View {
                     pendingClientSelection = nil
                 }
             } message: {
-                Text(L("同一 Session 有多个 Conn 终端，请明确选择要切换 Window 或 Pane 的终端。"))
+                Text(L("同一 Session 关联多个 Conn 终端，请选择需要操作的终端。"))
             }
             .confirmationDialog(
                 destructiveTitle,
@@ -151,9 +151,9 @@ struct TmuxWorkspaceManagementView: View {
             }
             if snapshot.sessions.isEmpty {
                 ContentUnavailableView(
-                    L("没有 tmux Session"),
+                    L("暂无 tmux Session"),
                     systemImage: "rectangle.stack.badge.minus",
-                    description: Text(L("可以返回终端启动流程新建 Session。"))
+                    description: Text(L("可返回终端创建流程并新建 Session。"))
                 )
                 .listRowBackground(Color.clear)
             } else {
@@ -356,12 +356,12 @@ struct TmuxWorkspaceManagementView: View {
     }
 
     private var destructiveTitle: String {
-        guard let pendingDestructive else { return L("确认远端操作") }
+        guard let pendingDestructive else { return L("确认远程操作") }
         switch pendingDestructive.impact.target {
         case .session: return L("确认终止 Session")
         case .window: return L("确认关闭 Window")
         case .pane: return L("确认关闭 Pane")
-        default: return L("确认远端操作")
+        default: return L("确认远程操作")
         }
     }
 
@@ -468,7 +468,7 @@ struct TmuxWorkspaceManagementView: View {
             if case .unavailable = $0 { return true }
             return false
         }) {
-            return L("部分 Pane 标题、命令或路径不可用或已过期，请刷新目录后再依赖这些信息。")
+            return L("部分 Pane 标题、命令或路径不可用或已过期，请刷新拓扑后再使用这些信息。")
         }
         return L("Pane 标题、命令或路径来自最近快照；订阅首次更新后会切换为实时状态。")
     }
@@ -523,7 +523,7 @@ struct TmuxWorkspaceManagementView: View {
 
     private func saveRename(_ target: RenameTarget) {
         guard let name = try? TmuxName(renameText) else {
-            issue = L("名称不能为空，且不能包含控制字符")
+            issue = L("名称不能为空或包含控制字符")
             return
         }
         renameTarget = nil

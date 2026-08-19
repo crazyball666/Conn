@@ -90,7 +90,7 @@ struct SnippetsViewModelTests {
 
         viewModel.load()
 
-        #expect(viewModel.errorMessage == L("读取片段失败，请重试"))
+        #expect(viewModel.errorMessage == L("读取脚本失败，请重试"))
     }
 
     @Test("新增分组后刷新选择列表")

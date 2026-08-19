@@ -6,8 +6,8 @@ import Testing
 
 @Suite("SnippetExecutionPlanner")
 struct SnippetExecutionPlannerTests {
-    @Test("空平台限制仍探测脚本执行能力")
-    func emptyPlatformsStillProbeScriptReadiness() async throws {
+    @Test("执行准备探测脚本解释器")
+    func preparationProbesScriptInterpreter() async throws {
         let commands = StringRecorder()
         let provider = FixtureScriptExecutionProvider(identifier: "linux")
         let planner = makePlanner(
@@ -17,7 +17,7 @@ struct SnippetExecutionPlannerTests {
         )
 
         let result = try await planner.prepare(
-            snippet: snippet(platforms: []),
+            snippet: snippet(),
             on: host()
         )
         let preparation = try #require(readyPreparation(from: result))
@@ -55,44 +55,6 @@ struct SnippetExecutionPlannerTests {
             #expect(commands.values.isEmpty)
             #expect(adapterCalls.values.isEmpty)
         }
-    }
-
-    @Test("作者平台不匹配时在 provider 选择前阻断并省略未探测 requirement")
-    func authorPlatformMismatchBlocksBeforeProviderSelection() async throws {
-        let commands = StringRecorder()
-        let providerSelections = StringRecorder()
-        let adapterCalls = StringRecorder()
-        let provider = FixtureScriptExecutionProvider(
-            identifier: "must-not-select",
-            selectionRecorder: providerSelections
-        )
-        let adapter = FixtureRequirementAdapter(
-            capability: .docker,
-            resolution: .init(state: .supported, scriptPrelude: "docker-prelude"),
-            recorder: adapterCalls
-        )
-        let planner = makePlanner(
-            profile: .init(kind: .linux),
-            providers: [provider],
-            adapters: [adapter],
-            commandRecorder: commands
-        )
-
-        let result = try await planner.prepare(
-            snippet: snippet(
-                platforms: [.macOS],
-                requiredCapabilities: [.docker]
-            ),
-            on: host()
-        )
-        let report = try #require(blockedReport(from: result))
-
-        #expect(report.states == [
-            .scriptExecution: unsupported(.unsupportedPlatform),
-        ])
-        #expect(providerSelections.values.isEmpty)
-        #expect(commands.values.isEmpty)
-        #expect(adapterCalls.values.isEmpty)
     }
 
     @Test("解释器探测非零报告 executableMissing 且不运行 adapters")
@@ -201,7 +163,7 @@ struct SnippetExecutionPlannerTests {
         )
 
         let result = try await planner.prepare(
-            snippet: snippet(interpreter: .bash, platforms: [.macOS]),
+            snippet: snippet(interpreter: .bash),
             on: host()
         )
         let preparation = try #require(readyPreparation(from: result))
@@ -646,7 +608,6 @@ private func makePlanner(
 
 private func snippet(
     interpreter: ShellInterpreter = .sh,
-    platforms: Set<RemotePlatformKind> = [],
     requiredCapabilities: Set<RemoteCapability> = []
 ) -> Snippet {
     Snippet(
@@ -654,7 +615,6 @@ private func snippet(
         title: "Fixture",
         script: "echo fixture",
         interpreter: interpreter,
-        platforms: platforms,
         requiredCapabilities: requiredCapabilities,
         createdAt: 1
     )

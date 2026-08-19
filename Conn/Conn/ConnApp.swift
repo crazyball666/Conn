@@ -102,6 +102,8 @@ struct ConnApp: App {
                     ),
                     initialCommand: smokeTerminalCommand()
                 )
+            } else if ProcessInfo.processInfo.environment["CONN_SMOKE_TERMINAL_CENTER"] != nil {
+                TerminalSessionCenterSmokeView(dependencies: dependencies)
             } else if ProcessInfo.processInfo.environment["CONN_SMOKE_DETAIL"] != nil,
                       let host = smokeDetailHost(dependencies: dependencies) {
                 NavigationStack {
@@ -220,7 +222,7 @@ private struct DatabaseInitializationFailureView: View {
                 VStack(spacing: 8) {
                     Text(L("无法打开本地数据"))
                         .font(.title2.weight(.semibold))
-                    Text(L("应用暂时无法读取本地配置，请重试。你的数据不会上传。"))
+                    Text(L("无法读取本地配置，请重试。本地数据不会上传。"))
                         .font(.body)
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)

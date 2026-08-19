@@ -193,8 +193,15 @@ struct DockerPullPresentation: Identifiable, Equatable {
     }
 }
 
-/// 需要用户输入确认词的破坏性或生产环境敏感动作。确认页只持有这个强类型值，
-/// 不能把任意字符串再解释成命令。
+/// Docker 写操作的确认展示方式。删除 / 清理统一使用系统 Alert；只有生产环境下
+/// 非删除类的高风险操作继续要求输入目标名称，避免这次交互调整降低生产保护等级。
+enum DockerPendingConfirmationStyle: Sendable, Equatable {
+    case alert
+    case typedEntry
+}
+
+/// 破坏性或生产环境敏感动作。确认 UI 只持有这个强类型值，不能把任何展示文本
+/// 再解释成命令；最终执行仍由 `DockerOperationsModel` 的共享写闸门负责。
 enum DockerPendingAction: Sendable, Equatable {
     case container(action: ContainerAction, container: ContainerInfo)
     case removeContainer(ContainerInfo)
@@ -211,20 +218,29 @@ enum DockerPendingAction: Sendable, Equatable {
         dialect: DockerComposeDialect
     )
 
-    /// 删除必须逐字输入资源名；清理类操作固定输入 PRUNE。资源名而非通用 DELETE
-    /// 让用户在确认时再看一眼目标，且不同 prune 选项替换 pending action 时 UI 会重置输入。
-    var confirmationWord: String {
+    var confirmationStyle: DockerPendingConfirmationStyle {
         switch self {
-        case let .container(_, container): container.name
-        case let .removeContainer(container): container.name
-        case let .removeImage(image): image.displayName
-        case let .removeVolume(volume): volume.name
-        case let .removeNetwork(network): network.name
-        case .pruneImages, .systemPrune: "PRUNE"
+        case let .container(action, _):
+            action.isDestructive ? .alert : .typedEntry
+        case .removeContainer, .removeImage, .removeVolume, .removeNetwork,
+             .pruneImages, .systemPrune, .composeDown:
+            .alert
+        case .composeUp, .composeRestart:
+            .typedEntry
+        }
+    }
+
+    /// 仅生产环境的非删除高风险操作需要输入目标名称。删除与清理动作必须返回 nil，
+    /// 从领域层保证 UI 不会重新退回“手动输入 DELETE/PRUNE”的旧交互。
+    var typedConfirmationWord: String? {
+        switch self {
+        case let .container(action, container): action.isDestructive ? nil : container.name
         case let .composeUp(project, _): project.name
-        case let .composeDown(project, _): project.name
         case let .composeRestart(project, service, _):
             service.map { "\(project.name)/\($0)" } ?? project.name
+        case .removeContainer, .removeImage, .removeVolume, .removeNetwork,
+             .pruneImages, .systemPrune, .composeDown:
+            nil
         }
     }
 
@@ -250,11 +266,65 @@ enum DockerPendingAction: Sendable, Equatable {
         }
     }
 
-    var confirmationMessage: String {
-        String(format: L("请输入 %@ 以继续。"), confirmationWord)
+    var typedConfirmationMessage: String {
+        guard let typedConfirmationWord else { return "" }
+        return String(format: L("请输入 %@ 以继续。"), typedConfirmationWord)
     }
 
-    func accepts(confirmation: String) -> Bool {
-        confirmation == confirmationWord
+    func acceptsTypedConfirmation(_ confirmation: String) -> Bool {
+        guard confirmationStyle == .typedEntry, let typedConfirmationWord else { return false }
+        return confirmation == typedConfirmationWord
+    }
+
+    var alertTitle: String {
+        switch self {
+        case let .container(action, _):
+            action.isDestructive ? L("删除容器") : L("确认 Docker 操作")
+        case .removeContainer: L("删除容器")
+        case .removeImage: L("删除镜像")
+        case .removeVolume: L("删除卷")
+        case .removeNetwork: L("删除网络")
+        case .pruneImages: L("清理悬空镜像")
+        case .systemPrune: L("清理 Docker 资源")
+        case .composeDown: L("停止并移除 Compose 项目")
+        case .composeUp, .composeRestart: L("确认 Docker 操作")
+        }
+    }
+
+    var alertMessage: String {
+        switch self {
+        case let .container(action, container):
+            action.isDestructive
+                ? destructiveResourceMessage(container.name)
+                : typedConfirmationMessage
+        case let .removeContainer(container):
+            destructiveResourceMessage(container.name)
+        case let .removeImage(image):
+            destructiveResourceMessage(image.displayName)
+        case let .removeVolume(volume):
+            destructiveResourceMessage(volume.name)
+        case let .removeNetwork(network):
+            destructiveResourceMessage(network.name)
+        case .pruneImages:
+            L("此操作不可撤销。")
+        case let .systemPrune(options):
+            systemPruneMessage(options)
+        case let .composeDown(project, _):
+            [project.name, impactMessage].compactMap { $0 }.joined(separator: "\n\n")
+        case .composeUp, .composeRestart:
+            typedConfirmationMessage
+        }
+    }
+
+    private func destructiveResourceMessage(_ name: String) -> String {
+        [name, L("此操作不可撤销。")].joined(separator: "\n\n")
+    }
+
+    private func systemPruneMessage(_ options: DockerSystemPruneOptions) -> String {
+        var lines = [L("默认将移除已停止容器、未使用网络、悬空镜像和构建缓存。")]
+        if options.allUnusedImages { lines.append(L("移除所有未使用镜像")) }
+        if options.includeVolumes { lines.append(L("包含未使用卷")) }
+        lines.append(L("此操作不可撤销。"))
+        return lines.joined(separator: "\n")
     }
 }

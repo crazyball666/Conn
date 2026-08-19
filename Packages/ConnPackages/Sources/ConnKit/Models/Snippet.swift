@@ -1,11 +1,5 @@
 import Foundation
 
-public enum SnippetCompatibility: Sendable, Equatable {
-    case compatible
-    case unsupportedPlatform(RemotePlatformKind)
-    case missingCapabilities(Set<RemoteCapability>)
-}
-
 /// 可复用的 Shell 脚本片段。
 ///
 /// 脚本中可含变量占位符 `{{name}}` 或 `{{name:默认值}}`，执行前由 UI 收集实参。
@@ -33,8 +27,6 @@ public struct Snippet: Identifiable, Codable, Sendable, Equatable {
     /// 标记为危险片段。执行前强制二次确认；批量执行时需输入 `RUN`；
     /// App Intents 场景直接拒绝（技术实现方案 §4.6）。
     public var danger: Bool
-    /// 空集合表示适用于全部平台；非空时只允许列出的远端平台。
-    public var platforms: Set<RemotePlatformKind>
     /// 执行前必须动态可用的能力，例如 Docker。空集合表示没有额外能力要求。
     public var requiredCapabilities: Set<RemoteCapability>
     /// 内置目录的稳定键。用户片段与 v1 遗留内置片段均为 nil。
@@ -52,7 +44,6 @@ public struct Snippet: Identifiable, Codable, Sendable, Equatable {
         groupIDs: [String] = [],
         pinned: Bool = false,
         danger: Bool = false,
-        platforms: Set<RemotePlatformKind> = [],
         requiredCapabilities: Set<RemoteCapability> = [],
         builtinKey: String? = nil,
         sortOrder: Int = 0,
@@ -67,7 +58,6 @@ public struct Snippet: Identifiable, Codable, Sendable, Equatable {
         self.groupIDs = groupIDs
         self.pinned = pinned
         self.danger = danger
-        self.platforms = platforms
         self.requiredCapabilities = requiredCapabilities
         self.builtinKey = builtinKey
         self.sortOrder = sortOrder
@@ -76,31 +66,9 @@ public struct Snippet: Identifiable, Codable, Sendable, Equatable {
         self.syncDirty = syncDirty
     }
 
-    /// 当前平台和已确认的动态能力是否满足执行要求。
-    public func isCompatible(
-        with platform: RemotePlatformKind,
-        availableCapabilities: Set<RemoteCapability>
-    ) -> Bool {
-        compatibility(
-            with: platform,
-            availableCapabilities: availableCapabilities
-        ) == .compatible
-    }
-
-    public func compatibility(
-        with platform: RemotePlatformKind,
-        availableCapabilities: Set<RemoteCapability>
-    ) -> SnippetCompatibility {
-        guard platforms.isEmpty || platforms.contains(platform) else {
-            return .unsupportedPlatform(platform)
-        }
-        let missing = requiredCapabilities.subtracting(availableCapabilities)
-        return missing.isEmpty ? .compatible : .missingCapabilities(missing)
-    }
-
     private enum CodingKeys: String, CodingKey {
         case id, title, script, interpreter, groupIDs, pinned, danger
-        case platforms, requiredCapabilities, builtinKey
+        case requiredCapabilities, builtinKey
         case sortOrder, createdAt, updatedAt, syncDirty
     }
 
@@ -113,7 +81,6 @@ public struct Snippet: Identifiable, Codable, Sendable, Equatable {
         groupIDs = try values.decode([String].self, forKey: .groupIDs)
         pinned = try values.decode(Bool.self, forKey: .pinned)
         danger = try values.decode(Bool.self, forKey: .danger)
-        platforms = try values.decodeIfPresent(Set<RemotePlatformKind>.self, forKey: .platforms) ?? []
         requiredCapabilities = try values.decodeIfPresent(
             Set<RemoteCapability>.self,
             forKey: .requiredCapabilities
@@ -134,7 +101,6 @@ public struct Snippet: Identifiable, Codable, Sendable, Equatable {
         try values.encode(groupIDs, forKey: .groupIDs)
         try values.encode(pinned, forKey: .pinned)
         try values.encode(danger, forKey: .danger)
-        try values.encode(platforms, forKey: .platforms)
         try values.encode(requiredCapabilities, forKey: .requiredCapabilities)
         try values.encodeIfPresent(builtinKey, forKey: .builtinKey)
         try values.encode(sortOrder, forKey: .sortOrder)

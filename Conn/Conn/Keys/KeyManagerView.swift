@@ -45,7 +45,7 @@ struct KeyManagerView: View {
             .scrollBounceBehavior(.basedOnSize)
         }
         .background(Color.connBg.ignoresSafeArea())
-        .navigationTitle(L("密钥管家"))
+        .navigationTitle(L("密钥管理"))
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
@@ -92,21 +92,12 @@ struct KeyManagerView: View {
             presenting: pendingDelete
         ) { key in
             Button(L("删除"), role: .destructive) {
-                viewModel.delete(key)
+                _ = viewModel.delete(key)
                 pendingDelete = nil
             }
             Button(L("取消"), role: .cancel) { pendingDelete = nil }
         } message: { key in
-            // 数据库会阻止删除仍被主机引用的密钥，先把影响范围告知用户。
-            let count = viewModel.hostCount(using: key)
-            if count > 0 {
-                Text(String(
-                    format: L("%d 台主机正在使用此密钥，删除后这些主机需要重新选择认证方式。"),
-                    count
-                ))
-            } else {
-                Text(L("密钥将被永久删除，无法恢复。"))
-            }
+            KeyDeletionMessage(hostCount: viewModel.hostCount(using: key))
         }
     }
 
@@ -144,8 +135,8 @@ struct KeyManagerView: View {
     private var emptyState: some View {
         EmptyState(
             systemName: "key",
-            title: L("还没有密钥"),
-            message: L("生成一把 Ed25519 密钥，部署到主机后即可免密登录"),
+            title: L("暂无密钥"),
+            message: L("生成 Ed25519 密钥并部署到主机，即可使用密钥认证。"),
             primary: .init(L("生成密钥")) { showGenerate = true }
         )
     }
@@ -227,9 +218,12 @@ struct KeyManagerView: View {
 private struct KeyDetailView: View {
     let key: SSHKey
     let viewModel: KeyManagerViewModel
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.connToastCenter) private var toastCenter
     @State private var displayName: String
     @State private var renameName = ""
     @State private var isRenamePresented = false
+    @State private var isDeletePresented = false
     @State private var privateMaterial: String?
 
     init(key: SSHKey, viewModel: KeyManagerViewModel) {
@@ -297,7 +291,7 @@ private struct KeyDetailView: View {
         .navigationTitle(displayName)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
+            ToolbarItemGroup(placement: .topBarTrailing) {
                 Button {
                     renameName = displayName
                     isRenamePresented = true
@@ -305,20 +299,56 @@ private struct KeyDetailView: View {
                     Image(systemName: "pencil")
                 }
                 .accessibilityLabel(L("重命名"))
-            }
-        }
-        .alert(L("重命名"), isPresented: $isRenamePresented) {
-            TextField(L("密钥名称"), text: $renameName)
-                .textInputAutocapitalization(.never)
-                .autocorrectionDisabled()
-            Button(L("保存")) {
-                let trimmed = renameName.trimmingCharacters(in: .whitespacesAndNewlines)
-                if viewModel.rename(key, to: trimmed) {
-                    displayName = trimmed
+                .alert(L("重命名"), isPresented: $isRenamePresented) {
+                    TextField(L("密钥名称"), text: $renameName)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                    Button(L("保存")) {
+                        let trimmed = renameName.trimmingCharacters(in: .whitespacesAndNewlines)
+                        if viewModel.rename(key, to: trimmed) {
+                            displayName = trimmed
+                        }
+                    }
+                    .disabled(renameName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    Button(L("取消"), role: .cancel) {}
+                }
+
+                Button(role: .destructive) {
+                    isDeletePresented = true
+                } label: {
+                    Image(systemName: "trash")
+                }
+                .accessibilityLabel(L("删除密钥"))
+                .accessibilityIdentifier("key.delete")
+                .alert(L("删除密钥"), isPresented: $isDeletePresented) {
+                    Button(L("删除"), role: .destructive) {
+                        if viewModel.delete(key) {
+                            dismiss()
+                        } else {
+                            toastCenter.show(viewModel.lastError, style: .error)
+                            viewModel.lastError = nil
+                        }
+                    }
+                    Button(L("取消"), role: .cancel) {}
+                } message: {
+                    KeyDeletionMessage(hostCount: viewModel.hostCount(using: key))
                 }
             }
-            .disabled(renameName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-            Button(L("取消"), role: .cancel) {}
+        }
+    }
+}
+
+private struct KeyDeletionMessage: View {
+    let hostCount: Int
+
+    var body: some View {
+        if hostCount > 0 {
+            Text(String(
+                format: L("%d 台主机正在使用此密钥，删除后这些主机需要重新选择认证方式。"),
+                hostCount
+            ))
+        } else {
+            Text(L("密钥将被永久删除，无法恢复。"))
         }
     }
 }

@@ -28,13 +28,12 @@ struct SnippetStoreTests {
         #expect(try store.count() == 2)
     }
 
-    @Test("平台、能力与内置 key 持久化往返")
-    func platformMetadataRoundTrips() throws {
+    @Test("能力与内置 key 持久化往返")
+    func capabilityMetadataRoundTrips() throws {
         let store = try makeStore()
         let snippet = Snippet(
             title: "Mac 日志",
             script: "log show --last 1h",
-            platforms: [.macOS],
             requiredCapabilities: [.logs],
             builtinKey: "system-log-macos"
         )
@@ -43,7 +42,6 @@ struct SnippetStoreTests {
         let stored = try store.snippet(id: snippet.id)
         let loaded = try #require(stored)
 
-        #expect(loaded.platforms == [.macOS])
         #expect(loaded.requiredCapabilities == [.logs])
         #expect(loaded.builtinKey == "system-log-macos")
     }

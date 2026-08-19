@@ -20,7 +20,6 @@ public enum BuiltinSnippets {
         let title: String
         let script: String
         let groups: [String]
-        let platforms: Set<RemotePlatformKind>?
         let requiredCapabilities: Set<RemoteCapability>?
         let interpreter: ShellInterpreter?
         let pinned: Bool?
@@ -56,7 +55,6 @@ public enum BuiltinSnippets {
                 interpreter: dto.interpreter ?? .sh,
                 pinned: dto.pinned ?? false,
                 danger: dto.danger ?? false,
-                platforms: dto.platforms ?? [],
                 requiredCapabilities: dto.requiredCapabilities ?? [],
                 builtinKey: dto.key,
                 sortOrder: index
@@ -134,7 +132,6 @@ public enum BuiltinSnippets {
                 groupIDs: dto.groups.compactMap { idByKey[$0] },
                 pinned: dto.pinned ?? false,
                 danger: dto.danger ?? false,
-                platforms: dto.platforms ?? [],
                 requiredCapabilities: dto.requiredCapabilities ?? [],
                 builtinKey: dto.key,
                 sortOrder: index

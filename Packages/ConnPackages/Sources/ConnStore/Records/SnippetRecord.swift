@@ -12,7 +12,6 @@ struct SnippetRecord: Codable, FetchableRecord, PersistableRecord, Sendable {
     var interpreter: ShellInterpreter
     var pinned: Bool
     var danger: Bool
-    var platformsJSON: String?
     var requiredCapabilitiesJSON: String?
     var builtinKey: String?
     var sortOrder: Int
@@ -22,7 +21,6 @@ struct SnippetRecord: Codable, FetchableRecord, PersistableRecord, Sendable {
 
     enum CodingKeys: String, CodingKey {
         case uuid, title, script, interpreter, pinned, danger
-        case platformsJSON = "platforms_json"
         case requiredCapabilitiesJSON = "required_capabilities_json"
         case builtinKey = "builtin_key"
         case sortOrder = "sort_order"
@@ -40,7 +38,6 @@ extension SnippetRecord {
         interpreter = snippet.interpreter
         pinned = snippet.pinned
         danger = snippet.danger
-        platformsJSON = Self.encodeRawValues(snippet.platforms)
         requiredCapabilitiesJSON = Self.encodeRawValues(snippet.requiredCapabilities)
         builtinKey = snippet.builtinKey
         sortOrder = snippet.sortOrder
@@ -58,7 +55,6 @@ extension SnippetRecord {
             groupIDs: groupIDs,
             pinned: pinned,
             danger: danger,
-            platforms: Self.decodeRawValues(platformsJSON),
             requiredCapabilities: Self.decodeRawValues(requiredCapabilitiesJSON),
             builtinKey: builtinKey,
             sortOrder: sortOrder,

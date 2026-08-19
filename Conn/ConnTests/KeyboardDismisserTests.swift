@@ -43,6 +43,36 @@ struct KeyboardDismisserTests {
         #expect(KeyboardDismisser.shouldDismissKeyboard(for: UIView()))
     }
 
+    @Test("点击 Alert 保存按钮等 UIControl 不触发全局收键盘")
+    func controlTapDoesNotDismissKeyboard() {
+        let button = UIButton(type: .system)
+        let label = UILabel()
+        button.addSubview(label)
+
+        #expect(!KeyboardDismisser.shouldDismissKeyboard(for: button))
+        #expect(!KeyboardDismisser.shouldDismissKeyboard(for: label))
+    }
+
+    @Test("系统 Alert 显示期间普通 SwiftUI 渲染视图也不能触发收键盘")
+    func systemAlertBlocksGlobalKeyboardDismissal() {
+        #expect(!KeyboardDismisser.shouldDismissKeyboard(
+            for: UIView(),
+            systemAlertPresented: true
+        ))
+    }
+
+    @Test("可以从控制器层级识别系统 Alert")
+    func detectsSystemAlertController() {
+        let alert = UIAlertController(
+            title: "重命名 Session",
+            message: nil,
+            preferredStyle: .alert
+        )
+
+        #expect(KeyboardDismisser.containsSystemAlert(in: alert))
+        #expect(!KeyboardDismisser.containsSystemAlert(in: UIViewController()))
+    }
+
     @Test("点击文本输入控件的子视图也不触发全局收键盘")
     func textInputDescendantDoesNotDismissKeyboard() {
         let textField = UITextField()

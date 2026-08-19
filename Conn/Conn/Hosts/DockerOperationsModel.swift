@@ -312,16 +312,33 @@ final class DockerOperationsModel {
     }
 
     func canConfirmPendingAction(input: String) -> Bool {
-        pendingDestructiveAction?.accepts(confirmation: input) == true
+        pendingDestructiveAction?.acceptsTypedConfirmation(input) == true
     }
 
     @discardableResult
     func confirmPendingAction(confirmation: String) async -> Bool { // swiftlint:disable:this cyclomatic_complexity
         guard let action = pendingDestructiveAction else { return false }
-        guard action.accepts(confirmation: confirmation) else {
+        guard action.confirmationStyle == .typedEntry,
+              action.acceptsTypedConfirmation(confirmation)
+        else {
             context.report(L("确认词不匹配，未执行 Docker 操作"))
             return false
         }
+        return await performPendingAction(action)
+    }
+
+    /// 系统 Alert 的确认入口不接受任何文本，并拒绝执行仍要求输入目标名称的生产操作。
+    /// 这样视图层无法用空字符串绕过生产环境强确认。
+    @discardableResult
+    func confirmPendingAlertAction() async -> Bool {
+        guard let action = pendingDestructiveAction,
+              action.confirmationStyle == .alert
+        else { return false }
+        return await performPendingAction(action)
+    }
+
+    private func performPendingAction(_ action: DockerPendingAction) async -> Bool { // swiftlint:disable:this cyclomatic_complexity
+        guard pendingDestructiveAction == action else { return false }
         pendingDestructiveAction = nil
         switch action {
         case let .container(action, container):

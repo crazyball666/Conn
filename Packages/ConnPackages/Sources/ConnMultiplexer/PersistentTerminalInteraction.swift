@@ -189,20 +189,29 @@ public struct PersistentTerminalQuickActionDescriptor: Sendable, Equatable, Iden
     public let systemImageName: String
     public let textInput: PersistentTerminalQuickActionTextInput?
     public let confirmation: PersistentTerminalActionConfirmation?
+    public let completionEffect: PersistentTerminalActionEffect?
 
     public init(
         id: String,
         titleKey: String,
         systemImageName: String,
         textInput: PersistentTerminalQuickActionTextInput? = nil,
-        confirmation: PersistentTerminalActionConfirmation? = nil
+        confirmation: PersistentTerminalActionConfirmation? = nil,
+        completionEffect: PersistentTerminalActionEffect? = nil
     ) {
         self.id = id
         self.titleKey = titleKey
         self.systemImageName = systemImageName
         self.textInput = textInput
         self.confirmation = confirmation
+        self.completionEffect = completionEffect
     }
+}
+
+/// Provider-neutral local metadata update that follows a successful remote action.
+/// The provider declares the meaning; the terminal UI never branches on tmux action IDs.
+public enum PersistentTerminalActionEffect: Sendable, Equatable {
+    case workspaceRenamed
 }
 
 /// Provider-neutral destructive-action prompt metadata. The presentation layer owns the
@@ -257,16 +266,29 @@ public struct PersistentTerminalSwipeActionDescriptor: Sendable, Equatable, Iden
     public let direction: PersistentTerminalHorizontalSwipeDirection
     public let actionID: String
     public let successNoticeKey: String
+    /// Shown when the provider accepted the action but its current topology has no valid
+    /// destination, such as navigating a tmux Session that contains only one Window.
+    public let unavailableNoticeKey: String?
 
     public init(
         direction: PersistentTerminalHorizontalSwipeDirection,
         actionID: String,
-        successNoticeKey: String
+        successNoticeKey: String,
+        unavailableNoticeKey: String? = nil
     ) {
         self.direction = direction
         self.actionID = actionID
         self.successNoticeKey = successNoticeKey
+        self.unavailableNoticeKey = unavailableNoticeKey
     }
+}
+
+/// Provider-owned completion semantics for a quick action. A successful command transport
+/// does not necessarily mean the requested topology change happened; providers report that
+/// distinction so the host never presents a false success state.
+public enum PersistentTerminalQuickActionOutcome: Sendable, Equatable {
+    case performed
+    case unavailable
 }
 
 public struct PersistentTerminalQuickActionGroup: Sendable, Equatable, Identifiable {
@@ -345,7 +367,9 @@ public protocol PersistentTerminalInteractionFacet: AnyObject, Sendable {
         _ request: PersistentTerminalHistoryRequest
     ) async throws -> PersistentTerminalHistorySnapshot
     func scrollProviderMode(_ request: PersistentTerminalModeScrollRequest) async throws
-    func performQuickAction(_ request: PersistentTerminalQuickActionRequest) async throws
+    func performQuickAction(
+        _ request: PersistentTerminalQuickActionRequest
+    ) async throws -> PersistentTerminalQuickActionOutcome
 }
 
 /// Interaction facets are independently optional. A provider can support state/history while
@@ -353,7 +377,9 @@ public protocol PersistentTerminalInteractionFacet: AnyObject, Sendable {
 public extension PersistentTerminalInteractionFacet {
     var quickActionGroup: PersistentTerminalQuickActionGroup? { get async { nil } }
 
-    func performQuickAction(_ request: PersistentTerminalQuickActionRequest) async throws {
+    func performQuickAction(
+        _ request: PersistentTerminalQuickActionRequest
+    ) async throws -> PersistentTerminalQuickActionOutcome {
         throw PersistentTerminalInteractionError.unsupportedQuickAction(request.actionID)
     }
 }

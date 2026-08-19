@@ -29,6 +29,122 @@
         }
       }
     },
+    "%@ 不可用，已改用普通终端" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ is unavailable. Switched to a standard terminal."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ を利用できないため、通常のターミナルに切り替えました。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@을(를) 사용할 수 없어 일반 터미널로 전환했습니다."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 無法使用，已切換為一般終端。"
+          }
+        }
+      }
+    },
+    "%@ 不支持 %@ 描述版本 %d" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ does not support %@ descriptor version %d."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ は %@ 記述子バージョン %d に対応していません。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@은(는) %@ 설명자 버전 %d을(를) 지원하지 않습니다."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 不支援 %@ 描述版本 %d。"
+          }
+        }
+      }
+    },
+    "%@ 不支持功能：%@" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ does not support this capability: %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ は次の機能に対応していません：%@"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@에서 지원하지 않는 기능: %@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 不支援此功能：%@"
+          }
+        }
+      }
+    },
+    "%@ 配置版本不受支持：%d" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unsupported %@ configuration version: %d"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ の設定バージョン %d には対応していません。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "지원되지 않는 %@ 구성 버전: %d"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不支援的 %@ 設定版本：%d"
+          }
+        }
+      }
+    },
     "%d 核" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -114,6 +230,35 @@
         }
       }
     },
+    "Pane" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pane"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ペイン"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pane"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pane"
+          }
+        }
+      }
+    },
     "Pane Zoom" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -172,6 +317,35 @@
         }
       }
     },
+    "Session" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Session"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "セッション"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Session"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Session"
+          }
+        }
+      }
+    },
     "Session 名称" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -197,6 +371,64 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Session 名稱"
+          }
+        }
+      }
+    },
+    "tmux 终端握手失败，请重试" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The tmux terminal handshake failed. Try again."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "tmux ターミナルのハンドシェイクに失敗しました。再試行してください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "tmux 터미널 핸드셰이크에 실패했습니다. 다시 시도하세요."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "tmux 終端交握失敗，請再試。"
+          }
+        }
+      }
+    },
+    "Window" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Window"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ウィンドウ"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Window"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Window"
           }
         }
       }
@@ -375,6 +607,35 @@
         }
       }
     },
+    "不支持 tmux 终端连接模式：%@" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unsupported tmux terminal connection mode: %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "対応していない tmux ターミナル接続モードです：%@"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "지원되지 않는 tmux 터미널 연결 모드: %@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不支援的 tmux 終端連線模式：%@"
+          }
+        }
+      }
+    },
     "主区域居上" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -516,6 +777,209 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "儀表板"
+          }
+        }
+      }
+    },
+    "保存" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Save"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "保存"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "저장"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "儲存"
+          }
+        }
+      }
+    },
+    "全选" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Select All"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "すべてを選択"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "모두 선택"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "全選"
+          }
+        }
+      }
+    },
+    "关闭 Pane" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Close Pane"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pane を閉じる"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pane 닫기"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "關閉 Pane"
+          }
+        }
+      }
+    },
+    "关闭 Window" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Close Window"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Window を閉じる"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Window 닫기"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "關閉 Window"
+          }
+        }
+      }
+    },
+    "关闭当前 Pane？" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Close the current Pane?"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "現在の Pane を閉じますか？"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "현재 Pane을 닫을까요?"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "關閉目前 Pane？"
+          }
+        }
+      }
+    },
+    "关闭当前 Window？" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Close the current Window?"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "現在の Window を閉じますか？"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "현재 Window를 닫을까요?"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "關閉目前 Window？"
+          }
+        }
+      }
+    },
+    "关闭远程指针模式" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Disable Remote Pointer Mode"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "リモートポインタモードをオフ"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "원격 포인터 모드 끄기"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "關閉遠端指標模式"
           }
         }
       }
@@ -866,6 +1330,35 @@
         }
       }
     },
+    "复制" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copy"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "コピー"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "복사"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "複製"
+          }
+        }
+      }
+    },
     "复制模式" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -891,6 +1384,35 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "複製模式"
+          }
+        }
+      }
+    },
+    "完成" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Done"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "完了"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "완료"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "完成"
           }
         }
       }
@@ -953,6 +1475,35 @@
         }
       }
     },
+    "已保存" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Saved"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "保存しました"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "저장됨"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已儲存"
+          }
+        }
+      }
+    },
     "已切换到上一个 Window" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -1007,6 +1558,35 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "已切換到下一個 Window"
+          }
+        }
+      }
+    },
+    "已复制" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copied"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "コピーしました"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "복사됨"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已複製"
           }
         }
       }
@@ -1098,6 +1678,93 @@
         }
       }
     },
+    "开启远程指针模式" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enable Remote Pointer Mode"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "リモートポインタモードをオン"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "원격 포인터 모드 켜기"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "開啟遠端指標模式"
+          }
+        }
+      }
+    },
+    "当前主机平台不支持持久终端" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Persistent terminals are not supported on the current host platform."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "現在のホストプラットフォームでは永続ターミナルに対応していません。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "현재 호스트 플랫폼에서는 지속 터미널을 지원하지 않습니다."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "目前主機平台不支援持久終端。"
+          }
+        }
+      }
+    },
+    "当前远程模式不支持滚动" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Scrolling is not supported in the current remote mode."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "現在のリモートモードではスクロールに対応していません。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "현재 원격 모드에서는 스크롤을 지원하지 않습니다."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "目前遠端模式不支援捲動。"
+          }
+        }
+      }
+    },
     "我的" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -1156,6 +1823,35 @@
         }
       }
     },
+    "持久终端 Provider 未注册：%@" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Persistent terminal Provider is not registered: %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "永続ターミナル Provider が登録されていません：%@"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "지속 터미널 Provider가 등록되지 않았습니다: %@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "持久終端 Provider 尚未註冊：%@"
+          }
+        }
+      }
+    },
     "持久终端操作失败，请重试" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -1181,6 +1877,151 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "持久終端操作失敗，請重試"
+          }
+        }
+      }
+    },
+    "持久终端连接已断开，请重试" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The persistent terminal connection was interrupted. Try again."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "永続ターミナルの接続が切断されました。再試行してください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "지속 터미널 연결이 끊어졌습니다. 다시 시도하세요."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "持久終端連線已中斷，請再試。"
+          }
+        }
+      }
+    },
+    "持久终端配置无效" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The persistent terminal configuration is invalid."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "永続ターミナルの設定が無効です。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "지속 터미널 구성이 유효하지 않습니다."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "持久終端設定無效。"
+          }
+        }
+      }
+    },
+    "操作目标已变化，请刷新后重试" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The operation target has changed. Refresh and try again."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "操作対象が変更されました。更新してから再試行してください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "작업 대상이 변경되었습니다. 새로 고친 후 다시 시도하세요."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "操作目標已變更，請重新整理後再試。"
+          }
+        }
+      }
+    },
+    "操作确认已过期，请重新确认" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The operation confirmation has expired. Confirm again."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "操作の確認期限が切れました。もう一度確認してください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "작업 확인이 만료되었습니다. 다시 확인하세요."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "操作確認已過期，請重新確認。"
+          }
+        }
+      }
+    },
+    "操作结果未知，请刷新 Session 状态后确认" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The operation result is unknown. Refresh the Session status to verify it."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "操作結果を確認できません。セッションの状態を更新して確認してください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "작업 결과를 알 수 없습니다. Session 상태를 새로 고쳐 확인하세요."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "操作結果未知，請重新整理 Session 狀態後確認。"
           }
         }
       }
@@ -1329,7 +2170,95 @@
         }
       }
     },
+    "无法解析远程 tmux 检测结果" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unable to parse the remote tmux detection result."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "リモート tmux の検出結果を解析できません。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "원격 tmux 감지 결과를 분석할 수 없습니다."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法解析遠端 tmux 偵測結果。"
+          }
+        }
+      }
+    },
+    "显示键盘" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Show keyboard"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "キーボードを表示"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "키보드 표시"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "顯示鍵盤"
+          }
+        }
+      }
+    },
+    "暂无可用的持久终端" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No Persistent Terminals Available"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "利用可能な永続ターミナルなし"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "사용 가능한 지속 터미널 없음"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "暫無可用的持久終端"
+          }
+        }
+      }
+    },
     "服务器" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -1381,6 +2310,35 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "未知"
+          }
+        }
+      }
+    },
+    "权限不足，无法访问远程持久终端 Socket" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Insufficient permission to access the remote persistent terminal Socket."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "権限がないため、リモートの永続ターミナル Socket にアクセスできません。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "권한이 부족하여 원격 지속 터미널 Socket에 접근할 수 없습니다."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "權限不足，無法存取遠端持久終端 Socket。"
           }
         }
       }
@@ -1438,6 +2396,35 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "正常"
+          }
+        }
+      }
+    },
+    "没有可切换的 Window" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No other Window to switch to"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "切り替え可能な Window がありません"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "전환할 다른 Window가 없습니다"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "沒有可切換的 Window"
           }
         }
       }
@@ -1813,6 +2800,34 @@
         }
       }
     },
+    "设置" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Settings"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "設定"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "설정"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "設定"
+          }
+        }
+      }
+    },
     "警告" : {
       "localizations" : {
         "en" : {
@@ -1837,6 +2852,383 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "警告"
+          }
+        }
+      }
+    },
+    "远程 Control Mode 当前不可用" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Remote Control Mode is currently unavailable."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "リモート Control Mode は現在利用できません。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "원격 Control Mode를 현재 사용할 수 없습니다."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "遠端 Control Mode 目前無法使用。"
+          }
+        }
+      }
+    },
+    "远程 Session 不存在，请刷新列表" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The remote Session does not exist. Refresh the list."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "リモートセッションが存在しません。一覧を更新してください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "원격 Session이 없습니다. 목록을 새로 고치세요."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "遠端 Session 不存在，請重新整理列表。"
+          }
+        }
+      }
+    },
+    "远程 Session 状态已变化，请刷新后重试" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The remote Session state has changed. Refresh and try again."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "リモートセッションの状態が変更されました。更新してから再試行してください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "원격 Session 상태가 변경되었습니다. 새로 고친 후 다시 시도하세요."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "遠端 Session 狀態已變更，請重新整理後再試。"
+          }
+        }
+      }
+    },
+    "远程主机未安装所需的持久终端程序" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The required persistent terminal program is not installed on the remote host."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "必要な永続ターミナルプログラムがリモートホストにインストールされていません。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "원격 호스트에 필요한 지속 터미널 프로그램이 설치되어 있지 않습니다."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "遠端主機尚未安裝所需的持久終端程式。"
+          }
+        }
+      }
+    },
+    "远程历史记录暂不可用，请重试" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Remote history is temporarily unavailable. Try again."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "リモート履歴は一時的に利用できません。再試行してください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "원격 기록을 일시적으로 사용할 수 없습니다. 다시 시도하세요."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "遠端歷史記錄暫時無法使用，請再試。"
+          }
+        }
+      }
+    },
+    "远程持久终端拒绝执行该操作" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The remote persistent terminal rejected the operation."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "リモートの永続ターミナルが操作を拒否しました。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "원격 지속 터미널에서 작업을 거부했습니다."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "遠端持久終端拒絕執行此操作。"
+          }
+        }
+      }
+    },
+    "远程持久终端拒绝执行该操作：%@" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The remote persistent terminal rejected the operation: %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "リモートの永続ターミナルが操作を拒否しました：%@"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "원격 지속 터미널에서 작업을 거부했습니다: %@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "遠端持久終端拒絕執行此操作：%@"
+          }
+        }
+      }
+    },
+    "远程持久终端服务已重启，请刷新后重试" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The remote persistent terminal service restarted. Refresh and try again."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "リモートの永続ターミナルサービスが再起動しました。更新してから再試行してください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "원격 지속 터미널 서비스가 다시 시작되었습니다. 새로 고친 후 다시 시도하세요."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "遠端持久終端服務已重新啟動，請重新整理後再試。"
+          }
+        }
+      }
+    },
+    "远程持久终端服务暂不可用" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The remote persistent terminal service is temporarily unavailable."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "リモートの永続ターミナルサービスは一時的に利用できません。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "원격 지속 터미널 서비스를 일시적으로 사용할 수 없습니다."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "遠端持久終端服務暫時無法使用。"
+          }
+        }
+      }
+    },
+    "远程持久终端版本不兼容" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The remote persistent terminal version is incompatible."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "リモートの永続ターミナルのバージョンに互換性がありません。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "원격 지속 터미널 버전이 호환되지 않습니다."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "遠端持久終端版本不相容。"
+          }
+        }
+      }
+    },
+    "远程持久终端版本不兼容：%@" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The remote persistent terminal version is incompatible: %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "リモートの永続ターミナルのバージョンに互換性がありません：%@"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "원격 지속 터미널 버전이 호환되지 않습니다: %@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "遠端持久終端版本不相容：%@"
+          }
+        }
+      }
+    },
+    "远程持久终端返回无法识别的协议数据" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The remote persistent terminal returned unrecognized protocol data."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "リモートの永続ターミナルから認識できないプロトコルデータが返されました。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "원격 지속 터미널에서 인식할 수 없는 프로토콜 데이터를 반환했습니다."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "遠端持久終端傳回無法辨識的協定資料。"
+          }
+        }
+      }
+    },
+    "远程终端状态暂不可用，请重试" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Remote terminal state is temporarily unavailable. Try again."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "リモートターミナルの状態は一時的に利用できません。再試行してください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "원격 터미널 상태를 일시적으로 사용할 수 없습니다. 다시 시도하세요."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "遠端終端狀態暫時無法使用，請再試。"
           }
         }
       }
@@ -2068,46 +3460,6 @@
             "value" : "重新連線中"
           }
         }
-      }
-    },
-    "关闭 Pane" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Close Pane" } },
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "Pane を閉じる" } },
-        "ko" : { "stringUnit" : { "state" : "translated", "value" : "Pane 닫기" } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "關閉 Pane" } }
-      }
-    },
-    "关闭 Window" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Close Window" } },
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "Window を閉じる" } },
-        "ko" : { "stringUnit" : { "state" : "translated", "value" : "Window 닫기" } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "關閉 Window" } }
-      }
-    },
-    "关闭当前 Pane？" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Close the current Pane?" } },
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "現在の Pane を閉じますか？" } },
-        "ko" : { "stringUnit" : { "state" : "translated", "value" : "현재 Pane을 닫을까요?" } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "關閉目前 Pane？" } }
-      }
-    },
-    "关闭当前 Window？" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Close the current Window?" } },
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "現在の Window を閉じますか？" } },
-        "ko" : { "stringUnit" : { "state" : "translated", "value" : "현재 Window를 닫을까요?" } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "關閉目前 Window？" } }
-      }
-    },
-    "显示键盘" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Show keyboard" } },
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "キーボードを表示" } },
-        "ko" : { "stringUnit" : { "state" : "translated", "value" : "키보드 표시" } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "顯示鍵盤" } }
       }
     }
   },

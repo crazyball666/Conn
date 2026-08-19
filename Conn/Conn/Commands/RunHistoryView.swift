@@ -19,8 +19,8 @@ struct RunHistoryView: View {
             if entries.isEmpty {
                 EmptyState(
                     systemName: "clock.arrow.circlepath",
-                    title: L("还没有执行记录"),
-                    message: L("容器操作与片段执行会记录在这里")
+                    title: L("暂无执行记录"),
+                    message: L("容器操作和脚本执行记录将显示在此处")
                 )
                 .padding(.top, ConnSpacing.xxl)
             } else {

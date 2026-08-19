@@ -114,7 +114,7 @@ struct HostFormView: View {
             textRow(L("名称"), field: .name, text: $viewModel.draft.name, placeholder: L("便于记忆，选填"))
                 .listRowBackground(Color.connSurface)
         } footer: {
-            Text(L("留空则用地址显示。"))
+            Text(L("留空时将显示主机地址。"))
         }
     }
 
@@ -167,7 +167,7 @@ struct HostFormView: View {
                 Text(error).font(.connFootnote).foregroundStyle(.connCrit)
             }
             if viewModel.availableKeys.isEmpty {
-                hint(L("还没有密钥，请先在密钥管家中生成或导入"))
+                hint(L("暂无密钥，请先在“密钥管理”中生成或导入密钥。"))
             }
         }
     }
@@ -177,7 +177,7 @@ struct HostFormView: View {
         Section {
             DisclosureGroup(isExpanded: $isGroupExpanded) {
                 if viewModel.availableGroups.isEmpty {
-                    Text(L("还没有分组，先用右上角「+」新建。"))
+                    Text(L("暂无分组，请使用右上角“+”创建分组。"))
                         .font(.connFootnote)
                         .foregroundStyle(.connMuted)
                 } else {

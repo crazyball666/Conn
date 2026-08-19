@@ -108,9 +108,9 @@ struct TerminalCommandPickerView: View {
         } else if snippets.isEmpty {
             EmptyState(
                 systemName: viewModel.searchText.isEmpty ? "command" : "magnifyingglass",
-                title: viewModel.searchText.isEmpty ? L("还没有脚本") : L("没有匹配的脚本"),
+                title: viewModel.searchText.isEmpty ? L("暂无脚本") : L("未找到匹配的脚本"),
                 message: viewModel.searchText.isEmpty
-                    ? L("先在「脚本」页面添加常用脚本")
+                    ? L("请先在“脚本”页面添加常用脚本")
                     : L("换个关键词试试")
             )
             .padding(.horizontal, ConnSpacing.lg)
@@ -159,7 +159,7 @@ private struct TerminalCommandVariablesView: View {
                 } header: {
                     Text(L("变量"))
                 } footer: {
-                    Text(L("脚本只会填入终端，不会自动执行。"))
+                    Text(L("脚本仅填入终端，不会自动执行。"))
                 }
             }
             .navigationTitle(snippet.title)

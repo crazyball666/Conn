@@ -3,19 +3,19 @@ import ConnRunner
 import ConnSSH
 import Foundation
 
-enum SnippetExecutionMode: Equatable {
+enum SnippetExecutionMode: Equatable, Sendable {
     case silent
     case terminal
 }
 
-struct SnippetTerminalRoute: Hashable, Identifiable {
+struct SnippetTerminalRoute: Hashable, Identifiable, Sendable {
     let host: Host
     let preparedCommand: String
 
     var id: String { "\(host.id)#\(preparedCommand)" }
 }
 
-struct SnippetExecutionRequest {
+struct SnippetExecutionRequest: Sendable {
     let mode: SnippetExecutionMode
     let hosts: [Host]
     let plansByHostID: [String: SnippetExecutionPlan]
@@ -34,6 +34,11 @@ struct SnippetExecutionRequest {
     }
 }
 
+enum SnippetExecutionPreparationResult: Sendable {
+    case ready(SnippetExecutionRequest)
+    case blocked(hostName: String, report: RemoteCapabilityReport)
+}
+
 enum SnippetExecutionPlanningError: LocalizedError {
     case missingPreparation(hostName: String)
     case preparationTargetMismatch(hostName: String)
@@ -49,6 +54,52 @@ enum SnippetExecutionPlanningError: LocalizedError {
 }
 
 enum SnippetExecutionRequestBuilder {
+    /// 用户点击执行后才连接主机并准备实际运行环境。主机选择本身只修改本地选择，
+    /// 不发起平台兼容性探测或远端命令。
+    static func prepare(
+        mode: SnippetExecutionMode,
+        hosts: [Host],
+        snippet: Snippet,
+        renderedScript: String,
+        planner: SnippetExecutionPlanner
+    ) async throws -> SnippetExecutionPreparationResult {
+        var resultsByHostID: [String: SnippetHostPreparationResult] = [:]
+        try await withThrowingTaskGroup(
+            of: (String, SnippetHostPreparationResult).self
+        ) { group in
+            for host in hosts {
+                group.addTask {
+                    let result = try await planner.prepare(snippet: snippet, on: host)
+                    return (host.id, result)
+                }
+            }
+            for try await (hostID, result) in group {
+                resultsByHostID[hostID] = result
+            }
+        }
+
+        var preparations: [String: SnippetHostPreparation] = [:]
+        for host in hosts {
+            guard let result = resultsByHostID[host.id] else {
+                throw SnippetExecutionPlanningError.missingPreparation(hostName: host.name)
+            }
+            switch result {
+            case let .ready(preparation):
+                preparations[host.id] = preparation
+            case let .blocked(report):
+                return .blocked(hostName: host.name, report: report)
+            }
+        }
+
+        return .ready(try build(
+            mode: mode,
+            hosts: hosts,
+            preparationByHostID: preparations,
+            renderedScript: renderedScript,
+            planner: planner
+        ))
+    }
+
     static func build(
         mode: SnippetExecutionMode,
         hosts: [Host],
@@ -82,7 +133,15 @@ enum SnippetExecutionRequestBuilder {
 }
 
 enum SnippetExecutionAttemptFeedback {
-    static func begin(errorText: inout String?) {
+    /// 新一轮执行从用户点击按钮的当下开始。连接和运行环境准备也属于本轮执行，
+    /// 因此必须同步清掉上一轮展示，不能让旧结果在准备阶段继续冒充当前结果。
+    static func begin(
+        errorText: inout String?,
+        outcome: inout RunOutcome?,
+        batchResults: inout [ScriptBatchResult]
+    ) {
         errorText = nil
+        outcome = nil
+        batchResults = []
     }
 }

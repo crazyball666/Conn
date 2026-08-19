@@ -141,10 +141,6 @@ public struct SnippetExecutionPlanner: Sendable {
         let session = platformContext.session
         let profile = platformContext.profile
 
-        guard snippet.platforms.isEmpty || snippet.platforms.contains(profile.kind) else {
-            return blockedScriptExecution(reason: .unsupportedPlatform)
-        }
-
         guard let executionProvider = executionProviderRegistry.provider(
             for: profile.kind,
             interpreter: snippet.interpreter

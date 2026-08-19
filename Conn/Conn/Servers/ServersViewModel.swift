@@ -188,7 +188,7 @@ final class ServersViewModel {
         } else if let error, !error.isEmpty {
             loadState = .failed(error)
         } else if error != nil {
-            loadState = .failed(L("连接失败，下拉重试"))
+            loadState = .failed(L("连接失败，请下拉刷新重试"))
         } else {
             loadState = .loading
         }

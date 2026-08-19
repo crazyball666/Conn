@@ -177,46 +177,46 @@ public enum SSHError: Error, Sendable, Equatable {
     public var diagnosis: String {
         switch self {
         case let .connectionRefused(endpoint):
-            String(format: L("无法连接 %@:%d：连接被拒绝。\n下一步：确认 sshd 正在运行、端口正确、未被防火墙拦截。"),
+            String(format: L("无法连接 %@:%d：连接被拒绝。\n请确认 sshd 正在运行、端口配置正确且未被防火墙拦截。"),
                    endpoint.host, endpoint.port)
         case let .dnsFailed(host):
-            String(format: L("无法解析主机 %@。\n下一步：检查地址拼写，或确认 DNS 可用。"), host)
+            String(format: L("无法解析主机 %@。\n请检查主机地址或 DNS 配置。"), host)
         case let .timeout(endpoint):
-            String(format: L("连接 %@:%d 超时。\n下一步：检查网络连通性与防火墙规则。"),
+            String(format: L("连接 %@:%d 超时。\n请检查网络连通性和防火墙规则。"),
                    endpoint.host, endpoint.port)
         case let .commandTimeout(endpoint, seconds):
-            String(format: L("命令在 %@:%d 上执行超过 %d 秒未返回，已停止等待。\n注意：命令可能仍在服务器上继续运行——超时只停止本地等待，不会终止远端进程。\n下一步：耗时较长的命令建议改在终端里执行。"),
+            String(format: L("命令在 %@:%d 上执行超过 %d 秒未返回，已停止等待。\n注意：命令可能仍在远程主机上运行；超时仅停止本地等待，不会终止远程进程。\n建议在终端中执行耗时较长的命令。"),
                    endpoint.host, endpoint.port, seconds)
         case let .authFailed(reason):
             switch reason {
             case .badCredentials:
-                L("认证失败：密码或密钥不被接受。\n下一步：核对用户名、密码或所选密钥。")
+                L("认证失败：密码或密钥未被接受。\n请核对用户名、密码和所选密钥。")
             case .rsaSha2Unsupported:
-                L("认证失败：该服务器不接受当前 RSA 密钥的签名算法。\n原因：现代 OpenSSH（8.8+）已禁用 ssh-rsa(SHA-1)。\n下一步：建议改用 ed25519 密钥——它在所有现代与旧版服务器上都可用。")
+                L("认证失败：远程主机不接受当前 RSA 密钥签名算法。\nOpenSSH 8.8 及以上版本默认禁用 ssh-rsa (SHA-1)。建议改用 Ed25519 密钥。")
             case .noAcceptedMethods:
-                L("认证失败：服务器不接受所提供的任何认证方式。\n下一步：确认服务器允许密钥或密码登录。")
+                L("认证失败：远程主机不接受所提供的认证方式。\n请确认远程主机允许密钥或密码登录。")
             }
         case .missingPrivateKey:
-            L("密钥认证不可用：未找到对应的私钥材料。\n下一步：在密钥管家中重新导入或生成密钥，然后重新选择该密钥。")
+            L("密钥认证不可用：找不到对应的私钥材料。\n请在“密钥管理”中重新导入或生成密钥，然后重新选择。")
         case let .hostKeyMismatch(expected, actual):
-            String(format: L("主机指纹已变更，连接已阻断。\n原因：服务器密钥与首次记录不符（可能是重装系统，也可能是中间人攻击）。\n记录：%@\n当前：%@\n下一步：确认变更来源后再手动信任。"),
+            String(format: L("主机指纹已变更，连接已阻止。\n远程主机密钥与首次记录不一致，可能源于系统重装或中间人攻击。\n已记录：%@\n当前：%@\n请确认变更来源后再手动信任。"),
                    expected, actual)
         case .hostKeyStoreUnavailable:
-            L("无法读取服务器指纹，连接已阻断。\n下一步：检查本地数据库状态后重试。")
+            L("无法读取主机指纹，连接已阻止。\n请检查本地数据库状态后重试。")
         case .jumpChainUnsupported:
-            L("当前连接引擎不支持跳板机链路。\n下一步：请更新连接引擎，或移除该主机的跳板机配置。")
+            L("当前连接引擎不支持跳板机链路。\n请更新连接引擎或移除该主机的跳板机配置。")
         case let .unsupportedByEngine(feature):
             switch feature {
             case .keyboardInteractive:
-                L("该服务器需要交互式认证（keyboard-interactive，常见于 2FA / 堡垒机）。\n下一步：当前版本暂不支持此方式，请使用密钥或密码登录。")
+                L("远程主机要求交互式认证（keyboard-interactive，常用于 2FA 或堡垒机）。\n当前版本暂不支持此方式，请改用密钥或密码登录。")
             case .agentForwarding:
                 L("该连接需要 SSH Agent 转发，当前版本暂不支持。")
             }
         case let .jumpChainFailed(hopIndex, hopHost):
-            String(format: L("跳板链在第 %d 级（%@）连接失败。\n下一步：单独测试该级跳板机的连通性与凭据。"),
+            String(format: L("跳板链第 %d 级（%@）连接失败。\n请单独检查该级跳板机的连通性和凭据。"),
                    hopIndex + 1, hopHost)
         case .channelClosed:
-            L("连接通道已关闭。\n下一步：下拉重连，或检查服务器端会话是否被终止。")
+            L("连接通道已关闭。\n请重新连接或检查远程会话是否已终止。")
         case let .sftpError(_, message):
             // 服务器消息按它自己的语言展示，不在客户端做翻译（边界划分）。
             message

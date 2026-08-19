@@ -98,7 +98,7 @@ struct DiagnosticsView: View {
     @ViewBuilder
     private var resultBanner: some View {
         if tester.succeeded {
-            ConnBanner(L("连接成功，主机可达"), systemImage: "checkmark.circle", kind: .info)
+            ConnBanner(L("连接成功"), systemImage: "checkmark.circle", kind: .info)
         } else {
             ConnBanner(L("连接未通过，请按上方提示排查"), systemImage: "exclamationmark.triangle", kind: .warn)
         }

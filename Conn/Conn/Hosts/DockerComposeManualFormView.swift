@@ -29,7 +29,7 @@ struct DockerComposeManualFormView: View {
                     if let project = draft.project {
                         Text(String(format: L("将使用项目名称：%@"), project.name))
                     } else {
-                        Text(L("配置文件必须使用服务器上的绝对路径。"))
+                        Text(L("配置文件必须使用远程主机上的绝对路径。"))
                     }
                 }
                 .listRowBackground(Color.connSurface)

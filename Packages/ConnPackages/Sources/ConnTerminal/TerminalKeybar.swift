@@ -4,11 +4,6 @@
     import SwiftUI
     import UIKit
 
-    public enum TerminalKeybarMetrics {
-        public static let compactHeight: CGFloat = 46
-        public static let expandedHeight: CGFloat = 168
-    }
-
     /// 终端加速键条（原型 S4 / 技术方案 §4.2）。
     ///
     /// 与终端视口同层、排列在其下方，系统键盘再排列在快捷键栏下方。
@@ -25,7 +20,7 @@
         let onTogglePointer: () -> Void
         let providerQuickActionGroup: PersistentTerminalQuickActionGroup?
         let performingProviderQuickActionID: String?
-        let onProviderQuickAction: (String, String?, Bool) -> Void
+        let onProviderQuickAction: (PersistentTerminalQuickActionDescriptor) -> Void
         let keyboardVisible: Bool
         let onToggleKeyboard: () -> Void
         let onExpansionChange: (Bool) -> Void
@@ -35,19 +30,11 @@
         /// 用计数器而不是「最后按下的键」：连按同一个键时后者的值不变，触感就不会响。
         @State private var pressCount = 0
         @State private var expandedSection: ExpandedSection = .common
-        @State private var pendingTextInputAction: PersistentTerminalQuickActionDescriptor?
-        @State private var pendingConfirmationAction: PersistentTerminalQuickActionDescriptor?
-        @State private var quickActionText = ""
 
         private enum ExpandedSection: String {
             case common
             case provider
         }
-
-        private static let hitTargetHeight: CGFloat = 40
-        private static let capVisualHeight: CGFloat = 32
-        private static let compactCapWidth: CGFloat = 38
-        private static let compactPadSide: CGFloat = 40
 
         var body: some View {
             Group {
@@ -58,9 +45,9 @@
                 }
             }
             .padding(.horizontal, 6)
-            .padding(.vertical, 3)
+            .padding(.vertical, 1)
             .frame(maxWidth: .infinity)
-            .background(Color.connBar)
+            .background(Color.connBar.ignoresSafeArea(edges: .bottom))
             .overlay(alignment: .top) {
                 Rectangle().fill(Color.connLine).frame(height: 1)
             }
@@ -68,49 +55,6 @@
             .onChange(of: providerQuickActionGroup?.id) { _, groupID in
                 if groupID == nil {
                     expandedSection = .common
-                    pendingTextInputAction = nil
-                    pendingConfirmationAction = nil
-                }
-            }
-            .alert(
-                pendingTextInputAction.map { L($0.textInput?.titleKey ?? $0.titleKey) } ?? "",
-                isPresented: Binding(
-                    get: { pendingTextInputAction != nil },
-                    set: { if !$0 { pendingTextInputAction = nil } }
-                )
-            ) {
-                if let input = pendingTextInputAction?.textInput {
-                    TextField(L(input.placeholderKey), text: $quickActionText)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
-                }
-                Button(L("取消"), role: .cancel) {
-                    pendingTextInputAction = nil
-                }
-                Button(L("执行")) {
-                    guard let action = pendingTextInputAction else { return }
-                    let value = quickActionText.trimmingCharacters(in: .whitespacesAndNewlines)
-                    pendingTextInputAction = nil
-                    onProviderQuickAction(action.id, value, false)
-                }
-                .disabled(quickActionText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-            }
-            .confirmationDialog(
-                pendingConfirmationAction?.confirmation.map { L($0.titleKey) } ?? "",
-                isPresented: Binding(
-                    get: { pendingConfirmationAction != nil },
-                    set: { if !$0 { pendingConfirmationAction = nil } }
-                ),
-                titleVisibility: .visible
-            ) {
-                if let action = pendingConfirmationAction {
-                    Button(L(action.titleKey), role: .destructive) {
-                        pendingConfirmationAction = nil
-                        onProviderQuickAction(action.id, nil, true)
-                    }
-                }
-                Button(L("取消"), role: .cancel) {
-                    pendingConfirmationAction = nil
                 }
             }
         }
@@ -122,9 +66,9 @@
                 ScrollView(.horizontal) {
                     LazyHStack(spacing: 4) {
                         ForEach(TerminalKeybarLayout.compactKeys) { key in
-                            keyCap(key, width: Self.compactCapWidth)
+                            keyCap(key, width: TerminalKeybarMetrics.compactCapWidth)
                         }
-                        pasteCap(width: Self.compactCapWidth)
+                        pasteCap(width: TerminalKeybarMetrics.compactCapWidth)
                     }
                 }
                 .scrollIndicators(.hidden)
@@ -134,15 +78,18 @@
                 keyboardCap
 
                 TerminalDirectionPad(onKey: onKey)
-                    .frame(width: Self.compactPadSide, height: Self.compactPadSide)
+                    .frame(
+                        width: TerminalKeybarMetrics.compactPadSide,
+                        height: TerminalKeybarMetrics.compactPadSide
+                    )
             }
         }
 
         /// 完整面板使用固定高度，按键区内部滚动，所以 F1-F12 等低频键再多也不会
         /// 无限挤压终端视口。
         private var expandedPanel: some View {
-            VStack(spacing: 6) {
-                HStack(spacing: 6) {
+            VStack(spacing: TerminalKeybarMetrics.gridSpacing) {
+                HStack(spacing: TerminalKeybarMetrics.gridSpacing) {
                     expansionCap(expanded: true)
 
                     expandedTab(
@@ -174,8 +121,11 @@
         private var commonPanel: some View {
             ScrollView(.vertical) {
                 LazyVGrid(
-                    columns: Array(repeating: GridItem(.flexible(), spacing: 6), count: 6),
-                    spacing: 6
+                    columns: Array(
+                        repeating: GridItem(.flexible(), spacing: TerminalKeybarMetrics.gridSpacing),
+                        count: TerminalKeybarMetrics.commonColumnCount
+                    ),
+                    spacing: TerminalKeybarMetrics.gridSpacing
                 ) {
                     pasteCap()
                     actionCap(
@@ -199,7 +149,7 @@
             _ group: PersistentTerminalQuickActionGroup
         ) -> some View {
             ScrollView(.vertical) {
-                LazyVStack(alignment: .leading, spacing: 6) {
+                LazyVStack(alignment: .leading, spacing: TerminalKeybarMetrics.gridSpacing) {
                     ForEach(group.sections) { section in
                         Text(L(section.titleKey))
                             .font(.connData(.caption2))
@@ -207,10 +157,13 @@
                             .padding(.leading, 2)
                         LazyVGrid(
                             columns: Array(
-                                repeating: GridItem(.flexible(), spacing: 6),
-                                count: 5
+                                repeating: GridItem(
+                                    .flexible(),
+                                    spacing: TerminalKeybarMetrics.gridSpacing
+                                ),
+                                count: TerminalKeybarMetrics.providerColumnCount
                             ),
-                            spacing: 6
+                            spacing: TerminalKeybarMetrics.gridSpacing
                         ) {
                             ForEach(section.actions) { action in
                                 providerActionCap(action, groupID: group.id)
@@ -236,8 +189,8 @@
                     .font(.connData(.caption))
                     .foregroundStyle(isSelected ? Color.connAccent : Color.connMuted)
                     .lineLimit(1)
-                    .padding(.horizontal, 12)
-                    .frame(height: 32)
+                    .padding(.horizontal, 10)
+                    .frame(height: TerminalKeybarMetrics.capVisualHeight)
                     .background(
                         isSelected ? Color.connAccentFill : Color.clear,
                         in: Capsule()
@@ -251,6 +204,7 @@
             }
             .buttonStyle(.plain)
             .accessibilityIdentifier(identifier)
+            .frame(height: TerminalKeybarMetrics.hitTargetHeight)
         }
 
         private func providerActionCap(
@@ -260,30 +214,43 @@
             let isPerforming = performingProviderQuickActionID == action.id
             return Button {
                 pressCount &+= 1
-                if action.confirmation != nil {
-                    pendingConfirmationAction = action
-                } else if action.textInput != nil {
-                    quickActionText = ""
-                    pendingTextInputAction = action
-                } else {
-                    onProviderQuickAction(action.id, nil, false)
-                }
+                onProviderQuickAction(action)
             } label: {
-                VStack(spacing: 2) {
+                VStack(spacing: TerminalKeybarMetrics.providerContentSpacing) {
                     if isPerforming {
-                        ProgressView().controlSize(.mini)
+                        ProgressView()
+                            .controlSize(.mini)
+                            .frame(
+                                width: TerminalKeybarMetrics.providerIconSize,
+                                height: TerminalKeybarMetrics.providerIconSize
+                            )
                     } else {
                         Image(systemName: action.systemImageName)
-                            .font(.system(size: 14, weight: .medium))
+                            .font(
+                                .system(
+                                    size: TerminalKeybarMetrics.providerIconSize,
+                                    weight: .medium
+                                )
+                            )
+                            .frame(height: TerminalKeybarMetrics.providerIconSize)
                     }
                     Text(L(action.titleKey))
-                        .font(.connData(.caption2))
+                        .font(
+                            .system(
+                                size: TerminalKeybarMetrics.providerLabelSize,
+                                weight: .regular,
+                                design: .monospaced
+                            )
+                        )
                         .lineLimit(1)
-                        .minimumScaleFactor(0.72)
+                        .minimumScaleFactor(0.65)
+                        .allowsTightening(true)
                 }
                 .foregroundStyle(Color.connInk)
+                .padding(.horizontal, TerminalKeybarMetrics.providerContentHorizontalPadding)
+                .padding(.vertical, TerminalKeybarMetrics.providerContentVerticalPadding)
                 .frame(maxWidth: .infinity)
-                .frame(height: Self.capVisualHeight)
+                .frame(height: TerminalKeybarMetrics.capVisualHeight)
                 .background(Color.connKey, in: .rect(cornerRadius: ConnRadius.key, style: .continuous))
                 .overlay(
                     RoundedRectangle(cornerRadius: ConnRadius.key, style: .continuous)
@@ -294,7 +261,7 @@
             .disabled(performingProviderQuickActionID != nil)
             .accessibilityLabel(Text(L(action.titleKey)))
             .accessibilityIdentifier("terminal.keybar.\(groupID).\(action.id)")
-            .frame(height: Self.hitTargetHeight)
+            .frame(height: TerminalKeybarMetrics.hitTargetHeight)
         }
 
         private func keyCap(_ key: TerminalKey, width: CGFloat? = nil) -> some View {
@@ -307,7 +274,7 @@
                     .font(.connData(.footnote))
                     .foregroundStyle(isLit ? Color.connAccent : .connInk)
                     .frame(maxWidth: .infinity)
-                    .frame(height: Self.capVisualHeight)
+                    .frame(height: TerminalKeybarMetrics.capVisualHeight)
                     .background(
                         isLit ? Color.connAccentFill : Color.connKey,
                         in: .rect(cornerRadius: ConnRadius.key, style: .continuous)
@@ -319,7 +286,7 @@
             }
             .buttonStyle(.plain)
             .accessibilityLabel(key.label)
-            .frame(width: width, height: Self.hitTargetHeight)
+            .frame(width: width, height: TerminalKeybarMetrics.hitTargetHeight)
         }
 
         /// 粘贴使用完整的普通按钮命中区；`PasteButton` 的透明覆盖层在终端键盘中
@@ -333,19 +300,19 @@
                 Image(systemName: "doc.on.clipboard")
                     .font(.system(size: 15, weight: .medium))
                     .foregroundStyle(Color.connInk)
-                .frame(maxWidth: .infinity)
-                .frame(height: Self.capVisualHeight)
-                .background(Color.connKey, in: .rect(cornerRadius: ConnRadius.key, style: .continuous))
-                .overlay(
-                    RoundedRectangle(cornerRadius: ConnRadius.key, style: .continuous)
-                        .strokeBorder(Color.connKeyline, lineWidth: 1)
-                )
+                    .frame(maxWidth: .infinity)
+                    .frame(height: TerminalKeybarMetrics.capVisualHeight)
+                    .background(Color.connKey, in: .rect(cornerRadius: ConnRadius.key, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: ConnRadius.key, style: .continuous)
+                            .strokeBorder(Color.connKeyline, lineWidth: 1)
+                    )
             }
             .buttonStyle(.plain)
             .accessibilityLabel(Text(L("粘贴")))
             .accessibilityIdentifier("terminal.keybar.paste")
             .frame(maxWidth: .infinity)
-            .frame(width: width, height: Self.hitTargetHeight)
+            .frame(width: width, height: TerminalKeybarMetrics.hitTargetHeight)
         }
 
         private var pointerCap: some View {
@@ -357,7 +324,7 @@
                     .font(.system(size: 15, weight: .medium))
                     .foregroundStyle(pointerActive ? Color.connAccent : Color.connInk)
                     .frame(maxWidth: .infinity)
-                    .frame(height: Self.capVisualHeight)
+                    .frame(height: TerminalKeybarMetrics.capVisualHeight)
                     .background(
                         pointerActive ? Color.connAccentFill : Color.connKey,
                         in: .rect(cornerRadius: ConnRadius.key, style: .continuous)
@@ -368,10 +335,10 @@
                     )
             }
             .buttonStyle(.plain)
-            .accessibilityLabel(Text(pointerActive ? L("关闭远端指针模式") : L("开启远端指针模式")))
+            .accessibilityLabel(Text(pointerActive ? L("关闭远程指针模式") : L("开启远程指针模式")))
             .accessibilityIdentifier("terminal.keybar.pointer")
             .frame(maxWidth: .infinity)
-            .frame(height: Self.hitTargetHeight)
+            .frame(height: TerminalKeybarMetrics.hitTargetHeight)
         }
 
         private func actionCap(
@@ -389,7 +356,7 @@
                     .font(.system(size: 15, weight: .medium))
                     .foregroundStyle(Color.connInk)
                     .frame(maxWidth: .infinity)
-                    .frame(height: Self.capVisualHeight)
+                    .frame(height: TerminalKeybarMetrics.capVisualHeight)
                     .background(Color.connKey, in: .rect(cornerRadius: ConnRadius.key, style: .continuous))
                     .overlay(
                         RoundedRectangle(cornerRadius: ConnRadius.key, style: .continuous)
@@ -399,7 +366,7 @@
             .buttonStyle(.plain)
             .accessibilityLabel(Text(accessibilityLabel))
             .accessibilityIdentifier(identifier)
-            .frame(width: width, height: Self.hitTargetHeight)
+            .frame(width: width, height: TerminalKeybarMetrics.hitTargetHeight)
         }
 
         private var fixedCommandCap: some View {
@@ -407,7 +374,7 @@
                 systemName: "command",
                 accessibilityLabel: L("选择本地脚本"),
                 identifier: "terminal.keybar.commands",
-                width: Self.compactCapWidth,
+                width: TerminalKeybarMetrics.compactCapWidth,
                 action: onChooseCommand
             )
         }
@@ -417,7 +384,7 @@
                 systemName: expanded ? "chevron.down" : "chevron.up",
                 accessibilityLabel: expanded ? L("收起快捷键") : L("展开快捷键"),
                 identifier: expanded ? "terminal.keybar.collapse" : "terminal.keybar.expand",
-                width: Self.compactCapWidth
+                width: TerminalKeybarMetrics.compactCapWidth
             ) {
                 onExpansionChange(!expanded)
             }
@@ -428,7 +395,7 @@
                 systemName: keyboardVisible ? "keyboard.chevron.compact.down" : "keyboard",
                 accessibilityLabel: keyboardVisible ? L("收起键盘") : L("显示键盘"),
                 identifier: "terminal.keybar.dismissKeyboard",
-                width: Self.compactCapWidth,
+                width: TerminalKeybarMetrics.compactCapWidth,
                 action: onToggleKeyboard
             )
         }

@@ -44,7 +44,7 @@ struct SnippetFormView: View {
                 } header: {
                     Text(L("Shell 脚本"))
                 } footer: {
-                    Text(L("支持单行或多行 Shell 脚本；变量用 {{名称}} 或 {{名称:默认值}}，执行前会让你填参。"))
+                    Text(L("支持单行或多行 Shell 脚本。变量格式为 {{名称}} 或 {{名称:默认值}}，执行前需填写变量值。"))
                 }
                 Section(L("Shell 类型")) {
                     Picker(L("解释器"), selection: $interpreter) {
@@ -56,7 +56,7 @@ struct SnippetFormView: View {
                 Section {
                     DisclosureGroup(isExpanded: $isGroupsExpanded) {
                         if availableGroups.isEmpty {
-                            Text(L("还没有分组，先到分组管理中创建。"))
+                            Text(L("暂无分组，请先在“分组管理”中创建分组。"))
                                 .font(.connFootnote)
                                 .foregroundStyle(.connMuted)
                         } else {

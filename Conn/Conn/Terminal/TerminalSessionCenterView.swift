@@ -8,6 +8,15 @@ import SwiftUI
 struct TerminalSessionCenterView: View {
     let dependencies: AppDependencies
 
+    /// 与脚本列表使用相同的上下留白；List 仍通过 `defaultMinListRowHeight` 保证触控区。
+    private static let compactRowInsets = EdgeInsets(
+        top: ConnSpacing.xs,
+        leading: ConnSpacing.sm,
+        bottom: ConnSpacing.xs,
+        trailing: ConnSpacing.sm
+    )
+    private static let cardListInsets = EdgeInsets()
+
     @State private var expandedHostIDs: Set<String> = []
     @State private var isNewTerminalPresented = false
     @State private var pendingCompletion: NewTerminalFlowCompletion?
@@ -31,6 +40,7 @@ struct TerminalSessionCenterView: View {
                     }
                     .listStyle(.insetGrouped)
                     .listSectionSpacing(ConnSpacing.md)
+                    .environment(\.defaultMinListRowHeight, ConnSize.minTouchTarget)
                     .scrollContentBackground(.hidden)
                     .scrollIndicators(.hidden)
                 }
@@ -72,12 +82,7 @@ struct TerminalSessionCenterView: View {
 
     private var emptyState: some View {
         ContentUnavailableView {
-            Label(L("还没有终端"), systemImage: "terminal")
-        } description: {
-            Text(L("新建普通终端或 tmux 终端后，会显示在这里。"))
-        } actions: {
-            Button(L("新建终端")) { isNewTerminalPresented = true }
-                .buttonStyle(.borderedProminent)
+            Label(L("暂无终端"), systemImage: "terminal")
         }
     }
 
@@ -112,10 +117,14 @@ struct TerminalSessionCenterView: View {
                 Spacer()
             }
             .contentShape(Rectangle())
-            .padding(.vertical, ConnSpacing.xs)
         }
         .tint(.connMuted)
-        .listRowBackground(Color.connSurface)
+        .padding(.vertical, ConnSpacing.xs)
+        .padding(.horizontal, ConnSpacing.sm)
+        .connSurface(cornerRadius: ConnRadius.listCard)
+        .accessibilityIdentifier("terminal.host.\(group.hostID)")
+        .listRowInsets(Self.cardListInsets)
+        .listRowBackground(Color.clear)
     }
 
     private func terminalRow(_ tab: TerminalTab) -> some View {
@@ -123,7 +132,7 @@ struct TerminalSessionCenterView: View {
             terminalRowContent(tab)
         }
         .buttonStyle(.plain)
-        .padding(.vertical, ConnSpacing.xs)
+        .listRowInsets(Self.compactRowInsets)
         .listRowBackground(Color.connSurface)
         .swipeActions(edge: .trailing, allowsFullSwipe: true) {
             Button(role: .destructive) {
@@ -144,6 +153,8 @@ struct TerminalSessionCenterView: View {
                 .frame(width: 24)
             VStack(alignment: .leading, spacing: 2) {
                 Text(tab.displayName)
+                    .font(.connSubheadline)
+                    .fontWeight(.semibold)
                     .foregroundStyle(.connInk)
                 HStack(spacing: ConnSpacing.xs) {
                     Text(sourceLabel(tab.source))
@@ -162,7 +173,7 @@ struct TerminalSessionCenterView: View {
     private func open(_ tab: TerminalTab) {
         do {
             guard let host = try dependencies.hostRepository.host(id: tab.hostID) else {
-                toastCenter.show(L("主机已被删除"), style: .warning)
+                toastCenter.show(L("主机不存在或已被删除"), style: .warning)
                 return
             }
             sessions.select(tab.id)

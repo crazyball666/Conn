@@ -66,7 +66,7 @@ struct MeView: View {
                 NavigationLink {
                     KeyManagerView(dependencies: dependencies)
                 } label: {
-                    settingsLabel(L("密钥管家"), systemImage: "key.fill")
+                    settingsLabel(L("密钥管理"), systemImage: "key.fill")
                 }
             }
 
