@@ -15,7 +15,6 @@ struct TerminalSessionCenterView: View {
         bottom: ConnSpacing.xs,
         trailing: ConnSpacing.sm
     )
-    private static let cardListInsets = EdgeInsets()
 
     @State private var expandedHostIDs: Set<String> = []
     @State private var isNewTerminalPresented = false
@@ -34,7 +33,12 @@ struct TerminalSessionCenterView: View {
                     List {
                         ForEach(sessions.hostGroups) { group in
                             Section {
-                                hostCard(group)
+                                hostRow(group)
+                                if expandedHostIDs.contains(group.hostID) {
+                                    ForEach(group.tabs) { tab in
+                                        terminalRow(tab)
+                                    }
+                                }
                             }
                         }
                     }
@@ -86,21 +90,14 @@ struct TerminalSessionCenterView: View {
         }
     }
 
-    private func hostCard(_ group: TerminalHostSessionGroup) -> some View {
-        DisclosureGroup(
-            isExpanded: Binding(
-                get: { expandedHostIDs.contains(group.hostID) },
-                set: { expanded in
-                    if expanded {
-                        expandedHostIDs.insert(group.hostID)
-                    } else {
-                        expandedHostIDs.remove(group.hostID)
-                    }
+    private func hostRow(_ group: TerminalHostSessionGroup) -> some View {
+        Button {
+            withAnimation(.easeInOut(duration: 0.2)) {
+                if expandedHostIDs.contains(group.hostID) {
+                    expandedHostIDs.remove(group.hostID)
+                } else {
+                    expandedHostIDs.insert(group.hostID)
                 }
-            )
-        ) {
-            ForEach(group.tabs) { tab in
-                terminalRow(tab)
             }
         } label: {
             HStack(spacing: ConnSpacing.sm) {
@@ -115,16 +112,19 @@ struct TerminalSessionCenterView: View {
                         .foregroundStyle(.connMuted)
                 }
                 Spacer()
+                Image(systemName: "chevron.down")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.connMuted)
+                    .rotationEffect(.degrees(expandedHostIDs.contains(group.hostID) ? 180 : 0))
             }
+            .frame(minHeight: ConnSize.minTouchTarget)
+            .frame(maxWidth: .infinity, alignment: .leading)
             .contentShape(Rectangle())
         }
-        .tint(.connMuted)
-        .padding(.vertical, ConnSpacing.xs)
-        .padding(.horizontal, ConnSpacing.sm)
-        .connSurface(cornerRadius: ConnRadius.listCard)
+        .buttonStyle(.plain)
         .accessibilityIdentifier("terminal.host.\(group.hostID)")
-        .listRowInsets(Self.cardListInsets)
-        .listRowBackground(Color.clear)
+        .listRowInsets(Self.compactRowInsets)
+        .listRowBackground(Color.connSurface)
     }
 
     private func terminalRow(_ tab: TerminalTab) -> some View {
@@ -132,6 +132,7 @@ struct TerminalSessionCenterView: View {
             terminalRowContent(tab)
         }
         .buttonStyle(.plain)
+        .accessibilityIdentifier("terminal.session.\(tab.id)")
         .listRowInsets(Self.compactRowInsets)
         .listRowBackground(Color.connSurface)
         .swipeActions(edge: .trailing, allowsFullSwipe: true) {

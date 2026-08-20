@@ -25,6 +25,7 @@ final class TerminalEmptyStateUITests: XCTestCase {
         let app = XCUIApplication()
         app.launchEnvironment["CONN_DEMO"] = "1"
         app.launchEnvironment["CONN_SMOKE_TERMINAL_CENTER"] = "1"
+        app.launchArguments += ["-conn.settings.appearance", "light"]
         app.launch()
 
         let hostCard = app.descendants(matching: .any).matching(
@@ -34,7 +35,22 @@ final class TerminalEmptyStateUITests: XCTestCase {
         XCTAssertGreaterThanOrEqual(hostCard.frame.height, 52)
 
         hostCard.tap()
-        let terminalRow = app.staticTexts["普通终端"]
+        let terminalRow = app.buttons.matching(
+            NSPredicate(format: "identifier BEGINSWITH %@", "terminal.session.")
+        ).firstMatch
         XCTAssertTrue(terminalRow.waitForExistence(timeout: 5))
+        XCTAssertEqual(hostCard.frame.minX, terminalRow.frame.minX, accuracy: 1)
+        XCTAssertEqual(hostCard.frame.width, terminalRow.frame.width, accuracy: 1)
+        // 两行共享同一个 Section 背景；这里只允许标准行内留白，不能再嵌套独立卡片。
+        XCTAssertLessThanOrEqual(terminalRow.frame.minY - hostCard.frame.maxY, 17)
+        XCTAssertGreaterThanOrEqual(terminalRow.frame.height, 44)
+
+        let screenshot = XCTAttachment(screenshot: app.screenshot())
+        screenshot.name = "Terminal center expanded card"
+        screenshot.lifetime = .keepAlways
+        add(screenshot)
+
+        terminalRow.swipeLeft()
+        XCTAssertTrue(app.buttons["删除"].waitForExistence(timeout: 3))
     }
 }

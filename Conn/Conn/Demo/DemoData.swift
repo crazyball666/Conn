@@ -22,6 +22,8 @@ enum DemoData {
     static func behavior() -> MockSSHTransport.Behavior {
         let shouldFailConnection =
             ProcessInfo.processInfo.environment["CONN_SMOKE_PROCESS_FAILURE"] != nil
+        let usesDarwinMetrics =
+            ProcessInfo.processInfo.environment["CONN_SMOKE_DARWIN_METRICS"] != nil
         let smokeExecDelay = Int(
             ProcessInfo.processInfo.environment["CONN_SMOKE_EXEC_DELAY_MS"] ?? "0"
         ) ?? 0
@@ -31,7 +33,9 @@ enum DemoData {
                 : nil,
             dynamicResponder: { command, endpoint in
                 if command == RemotePlatformDetector.posixCommand {
-                    return .init(stdout: platformProfileOutput)
+                    return .init(stdout: usesDarwinMetrics
+                        ? darwinPlatformProfileOutput
+                        : platformProfileOutput)
                 }
                 switch command.trimmingCharacters(in: .whitespacesAndNewlines) {
                 case "command -v sh":
@@ -42,6 +46,9 @@ enum DemoData {
                     return .init(stdout: "/bin/zsh\n")
                 default:
                     break
+                }
+                if usesDarwinMetrics, command.contains("__CONN_DARWIN_TOP__") {
+                    return .init(stdout: darwinMetricOutput)
                 }
                 if command.contains("/proc/stat") {
                     // 与生产一致：基础指标与进程使用两条独立命令。
@@ -73,6 +80,74 @@ enum DemoData {
     __CONN_SHELL__
     /bin/bash
     __CONN_END__
+    """
+
+    /// Darwin 指标 UI 冒烟画像；用于验证 macOS provider 的归一化结果确实进入详情页。
+    nonisolated private static let darwinPlatformProfileOutput = """
+    __CONN_UNAME__
+    Darwin
+    __CONN_RELEASE__
+    25.0.0
+    __CONN_ARCH__
+    arm64
+    __CONN_SHELL__
+    /bin/zsh
+    __CONN_END__
+    """
+
+    /// 包含 APFS 系统/数据卷、VPN 虚拟接口和 ioreg 父子重复节点的真实形态夹具。
+    nonisolated private static let darwinMetricOutput = """
+    __CONN_DARWIN_TOP__
+    CPU usage: 12.5% user, 8.0% sys, 79.5% idle
+    __CONN_DARWIN_CORES__
+    10
+    __CONN_DARWIN_MEMSIZE__
+    17179869184
+    __CONN_DARWIN_VMSTAT__
+    Mach Virtual Memory Statistics: (page size of 16384 bytes)
+    Pages free: 10000.
+    Pages active: 450000.
+    Pages inactive: 200000.
+    Pages speculative: 10000.
+    Pages wired down: 180000.
+    Pages purgeable: 5000.
+    Pages occupied by compressor: 150000.
+    __CONN_DARWIN_SWAP__
+    total = 4096.00M  used = 512.00M  free = 3584.00M
+    __CONN_DARWIN_LOAD__
+    12:00  up 10 days, 2 users, load averages: 1.25 1.10 0.95
+    __CONN_DARWIN_DISK__
+    Filesystem 1024-blocks Used Available Capacity Mounted on
+    /dev/disk3s1s1 500000000 12000000 450000000 11% /
+    /dev/disk3s5 500000000 350000000 100000000 78% /System/Volumes/Data
+    __CONN_DARWIN_NET__
+    Name Mtu Network Address Ipkts Ierrs Ibytes Opkts Oerrs Obytes Coll
+    en1 1500 <Link#18> 20:a5:cb:ce:f9:6c 1000 0 5000000 900 0 3000000 0
+    utun0 1380 <Link#20> aa:bb:cc:dd:ee:00 1000 0 9000000 900 0 7000000 0
+    lo0 16384 <Link#1> 00:00:00:00:00:00 100 0 100000 100 0 100000 0
+    __CONN_DARWIN_PRIMARY_INTERFACE__
+    en1
+    __CONN_DARWIN_IOREG__
+      |   "Statistics" = {"Bytes (Read)"=104857600,"Bytes (Write)"=52428800}
+          | |   "Statistics" = {"Bytes (Read)"=104857600,"Bytes (Write)"=52428800}
+    __CONN_DARWIN_UPTIME__
+    864000
+    __CONN_DARWIN_IFCONFIG__
+    en1: flags=8863<UP,BROADCAST,SMART,RUNNING,SIMPLEX,MULTICAST> mtu 1500
+        inet 192.168.8.188 netmask 0xfffffc00 broadcast 192.168.11.255
+    __CONN_DARWIN_TCP__
+        120 connection requests
+        80 connection accepts
+        5 bad connection attempts
+        1000 packets sent
+        20 data packets (24000 bytes) retransmitted
+    __CONN_DARWIN_OS__
+    ProductName: macOS
+    ProductVersion: 26.0
+    BuildVersion: 25A123
+    __CONN_DARWIN_CPUINFO__
+    Apple M2 Pro
+    __CONN_DARWIN_END__
     """
 
     /// 写入演示主机与分组（含一台故障机，覆盖生产/测试/家用三组与多分组归属）。

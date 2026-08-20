@@ -21,6 +21,7 @@ struct MetricsProviderTests {
         #expect(provider?.platform == .macOS)
         #expect(command?.contains("top -l 1") == true)
         #expect(command?.contains("vm_stat") == true)
+        #expect(command?.contains("route -n get default") == true)
         #expect(command?.contains("/proc/") == false)
     }
 

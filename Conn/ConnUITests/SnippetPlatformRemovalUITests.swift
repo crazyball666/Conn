@@ -47,6 +47,9 @@ final class SnippetPlatformRemovalUITests: XCTestCase {
         let firstRow = rows.firstMatch
         XCTAssertTrue(firstRow.waitForExistence(timeout: 5))
         XCTAssertLessThanOrEqual(firstRow.frame.height, 58)
+        let firstTitle = app.staticTexts["系统概览"].firstMatch
+        XCTAssertTrue(firstTitle.waitForExistence(timeout: 5))
+        XCTAssertLessThan(firstTitle.frame.height, 20)
         XCTAssertEqual(app.state, .runningForeground)
     }
 

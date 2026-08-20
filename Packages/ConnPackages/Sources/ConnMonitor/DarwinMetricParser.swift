@@ -14,9 +14,12 @@ public enum DarwinMetricParser {
         )
         let swap = parseSwap(section(DarwinCollectionScript.Sentinel.swap))
         let load = parseLoad(section(DarwinCollectionScript.Sentinel.load))
-        let disk = ProcParsers.parseDisk(section(DarwinCollectionScript.Sentinel.disk))
+        let disk = parseDisk(section(DarwinCollectionScript.Sentinel.disk))
         let interfaces = parseInterfaces(section(DarwinCollectionScript.Sentinel.net))
-        let totals = interfaceTotals(interfaces)
+        let totals = interfaceTotals(
+            interfaces,
+            primaryName: firstNonemptyLine(section(DarwinCollectionScript.Sentinel.primaryInterface))
+        )
         let io = parseIORegistry(section(DarwinCollectionScript.Sentinel.ioreg))
 
         var missing: [String] = []
@@ -24,7 +27,6 @@ public enum DarwinMetricParser {
         if memory == nil { missing.append("memory") }
         if disk == nil { missing.append("disk") }
         if totals == nil { missing.append("network") }
-        missing.append("cpuPerCore")
         let state: CapabilityState = missing.isEmpty ? .supported : .degraded(issues: [
             CapabilityIssue(
                 code: .partialData,
@@ -53,6 +55,7 @@ public enum DarwinMetricParser {
             diskTotalBytes: disk?.total,
             netRxBytes: totals?.rx,
             netTxBytes: totals?.tx,
+            netCounterIdentity: totals?.name,
             netInterfaces: interfaces,
             interfaceIPs: parseIPs(section(DarwinCollectionScript.Sentinel.ifconfig)),
             tcp: parseTCP(section(DarwinCollectionScript.Sentinel.tcp)),
@@ -121,9 +124,10 @@ public enum DarwinMetricParser {
               let pageSize = number(after: "page size of", in: vmstat) else { return nil }
         let pages = vmStatValues(vmstat)
         let freePages = pages["Pages free"] ?? 0
+        // purgeable 是 VM 对象属性，可能与 active/inactive 列表重叠，不能再次相加。
+        // 将 inactive + speculative 作为可回收缓存，与 Linux 的 available 口径接近。
         let cachePages = (pages["Pages inactive"] ?? 0)
             + (pages["Pages speculative"] ?? 0)
-            + (pages["Pages purgeable"] ?? 0)
         let availableBytes = min(totalBytes, (freePages + cachePages) * pageSize)
         let usedBytes = max(0, totalBytes - availableBytes)
         return DarwinMemory(
@@ -202,10 +206,61 @@ public enum DarwinMetricParser {
         }
     }
 
-    private static func interfaceTotals(_ interfaces: [RawInterface]) -> (rx: Int64, tx: Int64)? {
-        let physical = interfaces.filter { !$0.name.hasPrefix("lo") }
-        guard !physical.isEmpty else { return nil }
-        return (physical.reduce(0) { $0 + $1.rx }, physical.reduce(0) { $0 + $1.tx })
+    /// macOS 同一批流量可能同时经过 en/utun/awdl 等接口。总量取默认路由接口，避免
+    /// VPN 隧道与物理网卡重复累计；路由探测不可用时退回流量最大的非 loopback 接口。
+    private struct InterfaceTotal {
+        let name: String
+        let rx: Int64
+        let tx: Int64
+    }
+
+    private static func interfaceTotals(
+        _ interfaces: [RawInterface],
+        primaryName: String?
+    ) -> InterfaceTotal? {
+        if let primaryName,
+           let primary = interfaces.first(where: { $0.name == primaryName }) {
+            return InterfaceTotal(name: primary.name, rx: primary.rx, tx: primary.tx)
+        }
+        guard let fallback = interfaces
+            .filter({ !$0.name.hasPrefix("lo") })
+            .max(by: { $0.rx + $0.tx < $1.rx + $1.tx })
+        else { return nil }
+        return InterfaceTotal(name: fallback.name, rx: fallback.rx, tx: fallback.tx)
+    }
+
+    /// APFS 将系统卷 `/` 与数据卷 `/System/Volumes/Data` 放在共享容器中。根卷的
+    /// `Used` 只包含只读系统快照，不能代表整机占用；容器占用应为 Total - Available。
+    private static func parseDisk(_ section: String) -> (used: Double, total: Double)? {
+        struct Entry {
+            let mount: String
+            let used: Double
+            let total: Double
+        }
+
+        var entries: [Entry] = []
+        for line in section.split(separator: "\n").dropFirst() {
+            let columns = line.split(whereSeparator: { $0 == " " || $0 == "\t" })
+            guard columns.count >= 6,
+                  let blocks = Double(columns[columns.count - 5]),
+                  let available = Double(columns[columns.count - 3]),
+                  blocks > 0
+            else { continue }
+            entries.append(Entry(
+                mount: String(columns[columns.count - 1]),
+                used: max(0, blocks - available) * 1024,
+                total: blocks * 1024
+            ))
+        }
+
+        if let data = entries.first(where: { $0.mount == "/System/Volumes/Data" }) {
+            return (data.used, data.total)
+        }
+        if let root = entries.first(where: { $0.mount == "/" }) {
+            return (root.used, root.total)
+        }
+        guard let largest = entries.max(by: { $0.total < $1.total }) else { return nil }
+        return (largest.used, largest.total)
     }
 
     private static func parseIPs(_ section: String) -> [String: String] {
@@ -252,20 +307,27 @@ public enum DarwinMetricParser {
     }
 
     private static func parseIORegistry(_ section: String) -> (read: Int64, write: Int64)? {
-        var read: Int64 = 0
-        var write: Int64 = 0
-        var matched = false
-        for line in section.split(separator: "\n") {
-            if let value = integer(after: "\"Bytes (Read)\"", in: String(line)) {
-                read += value
-                matched = true
-            }
-            if let value = integer(after: "\"Bytes (Write)\"", in: String(line)) {
-                write += value
-                matched = true
-            }
+        struct Statistics {
+            let depth: Int
+            let read: Int64
+            let write: Int64
         }
-        return matched ? (read, write) : nil
+
+        var values: [Statistics] = []
+        for line in section.split(separator: "\n") {
+            let text = String(line)
+            guard let read = integer(after: "\"Bytes (Read)\"", in: text),
+                  let write = integer(after: "\"Bytes (Write)\"", in: text)
+            else { continue }
+            let depth = line.prefix { $0 == " " || $0 == "\t" }.count
+            values.append(Statistics(depth: depth, read: read, write: write))
+        }
+        guard let rootDepth = values.map(\.depth).min() else { return nil }
+        let roots = values.filter { $0.depth == rootDepth }
+        return (
+            roots.reduce(0) { $0 + $1.read },
+            roots.reduce(0) { $0 + $1.write }
+        )
     }
 
     private static func parseOS(_ section: String) -> String? {

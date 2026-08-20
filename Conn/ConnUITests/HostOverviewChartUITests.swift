@@ -39,10 +39,26 @@ final class HostOverviewChartUITests: XCTestCase {
     }
 
     @MainActor
-    private func launchOverview() -> XCUIApplication {
+    func testDarwinOverviewShowsNormalizedSystemAndAPFSUsage() {
+        let app = launchOverview(darwin: true)
+
+        XCTAssertTrue(app.staticTexts["macOS 26.0 (25A123)"].waitForExistence(timeout: 10))
+        XCTAssertFalse(app.staticTexts["部分主机指标不可用"].exists)
+
+        let diskUsage = app.staticTexts["381 G / 477 G"]
+        XCTAssertTrue(diskUsage.waitForExistence(timeout: 10))
+        scrollToElement(diskUsage, in: app)
+        XCTAssertEqual(app.state, .runningForeground)
+    }
+
+    @MainActor
+    private func launchOverview(darwin: Bool = false) -> XCUIApplication {
         let app = XCUIApplication()
         app.launchEnvironment["CONN_DEMO"] = "1"
         app.launchEnvironment["CONN_SMOKE_DETAIL"] = "1"
+        if darwin {
+            app.launchEnvironment["CONN_SMOKE_DARWIN_METRICS"] = "1"
+        }
         app.launch()
         return app
     }

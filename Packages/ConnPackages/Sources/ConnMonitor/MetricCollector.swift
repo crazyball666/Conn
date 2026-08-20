@@ -22,6 +22,7 @@ public actor MetricCollector {
     private struct RateBaseline {
         var netRx: Int64?
         var netTx: Int64?
+        var netIdentity: String?
         var ioRead: Int64?
         var ioWrite: Int64?
         var uptime: Double?
@@ -179,15 +180,19 @@ public actor MetricCollector {
         var result = Rates()
         if let prev = previousRate[host.id], let prevUptime = prev.uptime {
             let dt = uptime - prevUptime
+            let sameNetworkCounter = parsed.netCounterIdentity == prev.netIdentity
             result = Rates(
-                netRx: Self.rate(parsed.netRxBytes, prev.netRx, over: dt),
-                netTx: Self.rate(parsed.netTxBytes, prev.netTx, over: dt),
+                netRx: sameNetworkCounter
+                    ? Self.rate(parsed.netRxBytes, prev.netRx, over: dt) : nil,
+                netTx: sameNetworkCounter
+                    ? Self.rate(parsed.netTxBytes, prev.netTx, over: dt) : nil,
                 ioRead: Self.rate(parsed.ioReadBytes, prev.ioRead, over: dt),
                 ioWrite: Self.rate(parsed.ioWriteBytes, prev.ioWrite, over: dt)
             )
         }
         previousRate[host.id] = RateBaseline(
             netRx: parsed.netRxBytes, netTx: parsed.netTxBytes,
+            netIdentity: parsed.netCounterIdentity,
             ioRead: parsed.ioReadBytes, ioWrite: parsed.ioWriteBytes,
             uptime: uptime
         )

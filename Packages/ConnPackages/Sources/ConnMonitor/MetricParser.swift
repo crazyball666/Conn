@@ -31,6 +31,8 @@ public struct ParsedMetrics: Sendable, Equatable {
     public var diskTotalBytes: Double?
     public var netRxBytes: Int64?
     public var netTxBytes: Int64?
+    /// 汇总网络计数所属的接口；接口切换时用于丢弃跨接口速率差分。
+    public var netCounterIdentity: String?
     public var netInterfaces: [RawInterface]
     public var interfaceIPs: [String: String]
     public var tcp: TCPStats?
@@ -63,6 +65,7 @@ public struct ParsedMetrics: Sendable, Equatable {
         diskTotalBytes: Double? = nil,
         netRxBytes: Int64? = nil,
         netTxBytes: Int64? = nil,
+        netCounterIdentity: String? = nil,
         netInterfaces: [RawInterface] = [],
         interfaceIPs: [String: String] = [:],
         tcp: TCPStats? = nil,
@@ -93,6 +96,7 @@ public struct ParsedMetrics: Sendable, Equatable {
         self.diskTotalBytes = diskTotalBytes
         self.netRxBytes = netRxBytes
         self.netTxBytes = netTxBytes
+        self.netCounterIdentity = netCounterIdentity
         self.netInterfaces = netInterfaces
         self.interfaceIPs = interfaceIPs
         self.tcp = tcp

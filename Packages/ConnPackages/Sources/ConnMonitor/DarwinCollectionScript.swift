@@ -11,6 +11,7 @@ public enum DarwinCollectionScript {
         public static let load = "__CONN_DARWIN_LOAD__"
         public static let disk = "__CONN_DARWIN_DISK__"
         public static let net = "__CONN_DARWIN_NET__"
+        public static let primaryInterface = "__CONN_DARWIN_PRIMARY_INTERFACE__"
         public static let ifconfig = "__CONN_DARWIN_IFCONFIG__"
         public static let tcp = "__CONN_DARWIN_TCP__"
         public static let ioreg = "__CONN_DARWIN_IOREG__"
@@ -20,7 +21,7 @@ public enum DarwinCollectionScript {
         public static let end = "__CONN_DARWIN_END__"
 
         static let all: Set<String> = [
-            top, cores, memsize, vmstat, swap, load, disk, net, ifconfig,
+            top, cores, memsize, vmstat, swap, load, disk, net, primaryInterface, ifconfig,
             tcp, ioreg, uptime, os, cpuinfo, end,
         ]
     }
@@ -36,6 +37,8 @@ public enum DarwinCollectionScript {
             "echo \(Sentinel.load)", "uptime 2>/dev/null",
             "echo \(Sentinel.disk)", "df -P -k 2>/dev/null",
             "echo \(Sentinel.net)", "netstat -ibdn 2>/dev/null",
+            "echo \(Sentinel.primaryInterface)",
+            "/sbin/route -n get default 2>/dev/null | awk '/interface:/{print $2; exit}'",
             "echo \(Sentinel.ioreg)", "ioreg -r -c IOBlockStorageDriver -l 2>/dev/null",
             "echo \(Sentinel.uptime)",
             "boot=$(sysctl -n kern.boottime 2>/dev/null | sed -E 's/.*sec = ([0-9]+).*/\\1/'); "

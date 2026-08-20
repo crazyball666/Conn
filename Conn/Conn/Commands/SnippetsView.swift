@@ -212,7 +212,7 @@ struct SnippetsView: View {
                 VStack(alignment: .leading, spacing: ConnSpacing.xxs) {
                     HStack(spacing: ConnSpacing.xs) {
                         Text(snippet.title)
-                            .font(.connBody)
+                            .font(.connSubheadline)
                             .fontWeight(.semibold)
                             .foregroundStyle(.connInk)
                             .lineLimit(1)
