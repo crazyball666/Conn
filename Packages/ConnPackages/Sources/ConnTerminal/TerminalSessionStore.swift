@@ -3,7 +3,8 @@ import ConnUI
 import Foundation
 import Observation
 
-/// 会话由哪个功能入口创建。只用于展示和重连规则，不存入 SQLite。
+/// 会话由哪个功能入口创建。只用于活动 Tab 的展示和重连规则；恢复书签只保存
+/// provider descriptor，不持久化这个 UI 来源枚举。
 public enum TerminalSessionSource: Sendable, Equatable {
     case shell
     case docker(containerName: String)
@@ -44,11 +45,28 @@ public struct TerminalHostSessionGroup: Identifiable, Sendable {
     public let hostName: String
     public let hostAddress: String
     public let tabs: [TerminalTab]
+    public let resumeRecords: [PersistentTerminalResumeRecord]
 
     public var id: String { hostID }
+    public var terminalCount: Int { tabs.count + resumeRecords.count }
+
+    public init(
+        hostID: String,
+        hostName: String,
+        hostAddress: String,
+        tabs: [TerminalTab],
+        resumeRecords: [PersistentTerminalResumeRecord] = []
+    ) {
+        self.hostID = hostID
+        self.hostName = hostName
+        self.hostAddress = hostAddress
+        self.tabs = tabs
+        self.resumeRecords = resumeRecords
+    }
 }
 
-/// 一个活跃终端会话的句柄。元数据只在内存保存。
+/// 一个活跃终端会话的句柄。完整 Tab 与 PTY 只在内存保存；持久 provider 只会
+/// 从中投影出最小恢复书签，不保存 transcript、channel 或瞬时状态。
 public struct TerminalTab: Identifiable, Sendable {
     public let id: String
     public let hostID: String
@@ -116,9 +134,15 @@ public struct TerminalTab: Identifiable, Sendable {
 @MainActor
 public final class TerminalSessionStore {
     public private(set) var tabs: [TerminalTab] = []
+    public private(set) var resumeRecords: [PersistentTerminalResumeRecord]
     public private(set) var currentTabID: String?
 
-    public init() {}
+    public init(resumeRecords: [PersistentTerminalResumeRecord] = []) {
+        self.resumeRecords = []
+        for record in resumeRecords.sorted(by: { $0.lastConnectedAt < $1.lastConnectedAt }) {
+            upsertResumeRecord(record)
+        }
+    }
 
     public var currentTab: TerminalTab? {
         tabs.first { $0.id == currentTabID }
@@ -133,7 +157,8 @@ public final class TerminalSessionStore {
                     hostID: groups[index].hostID,
                     hostName: groups[index].hostName,
                     hostAddress: groups[index].hostAddress,
-                    tabs: groups[index].tabs + [tab]
+                    tabs: groups[index].tabs + [tab],
+                    resumeRecords: groups[index].resumeRecords
                 )
             } else {
                 indices[tab.hostID] = groups.count
@@ -145,7 +170,49 @@ public final class TerminalSessionStore {
                 ))
             }
         }
+
+        let activeIdentities = Set(tabs.compactMap(\.persistentResumeIdentity))
+        for record in resumeRecords where !activeIdentities.contains(record.identity) {
+            if let index = indices[record.hostID] {
+                groups[index] = TerminalHostSessionGroup(
+                    hostID: groups[index].hostID,
+                    hostName: groups[index].hostName,
+                    hostAddress: groups[index].hostAddress,
+                    tabs: groups[index].tabs,
+                    resumeRecords: groups[index].resumeRecords + [record]
+                )
+            } else {
+                indices[record.hostID] = groups.count
+                groups.append(TerminalHostSessionGroup(
+                    hostID: record.hostID,
+                    hostName: record.hostName,
+                    hostAddress: record.hostAddress,
+                    tabs: [],
+                    resumeRecords: [record]
+                ))
+            }
+        }
         return groups
+    }
+
+    public func resumeRecord(id: String) -> PersistentTerminalResumeRecord? {
+        resumeRecords.first { $0.id == id }
+    }
+
+    public func upsertResumeRecord(_ record: PersistentTerminalResumeRecord) {
+        resumeRecords.removeAll { $0.id == record.id || $0.identity == record.identity }
+        resumeRecords.append(record)
+        resumeRecords.sort { $0.lastConnectedAt > $1.lastConnectedAt }
+    }
+
+    @discardableResult
+    public func removeResumeRecord(id: String) -> PersistentTerminalResumeRecord? {
+        guard let index = resumeRecords.firstIndex(where: { $0.id == id }) else { return nil }
+        return resumeRecords.remove(at: index)
+    }
+
+    public func removeResumeRecords(forHost hostID: String) {
+        resumeRecords.removeAll { $0.hostID == hostID }
     }
 
     public func tab(id: String) -> TerminalTab? {
@@ -222,6 +289,9 @@ public final class TerminalSessionStore {
         for index in tabs.indices where tabs[index].hostID == hostID {
             tabs[index].hostName = name
         }
+        for index in resumeRecords.indices where resumeRecords[index].hostID == hostID {
+            resumeRecords[index].hostName = name
+        }
     }
 
     public func close(_ tabID: String) async {
@@ -254,5 +324,17 @@ public final class TerminalSessionStore {
             await tab.session.close()
             await tab.persistentAttachment?.close()
         }
+    }
+}
+
+private extension TerminalTab {
+    var persistentResumeIdentity: PersistentTerminalResumeIdentity? {
+        guard case let .persistent(descriptor) = reconnectDescriptor else { return nil }
+        return PersistentTerminalResumeIdentity(
+            hostID: hostID,
+            providerID: descriptor.providerID,
+            configurationKey: descriptor.configurationKey,
+            workspaceID: descriptor.workspace.workspaceID
+        )
     }
 }

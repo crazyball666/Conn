@@ -47,6 +47,7 @@ let package = Package(
             dependencies: [
                 "ConnKit",
                 "ConnSSH",
+                "ConnMultiplexer",
                 .product(name: "GRDB", package: "GRDB.swift"),
             ]
         ),
@@ -149,7 +150,7 @@ let package = Package(
         ),
 
         .testTarget(name: "ConnKitTests", dependencies: ["ConnKit"]),
-        .testTarget(name: "ConnStoreTests", dependencies: ["ConnStore"]),
+        .testTarget(name: "ConnStoreTests", dependencies: ["ConnStore", "ConnMultiplexer"]),
         .testTarget(name: "ConnSSHTests", dependencies: ["ConnSSH"]),
         .testTarget(
             name: "ConnMultiplexerTests",

@@ -392,12 +392,14 @@ struct AppWideUIConsistencyTests {
         #expect(source.contains("maxHeight: .infinity, alignment: .top"))
     }
 
-    @Test("终端会话中心只显示本地 Store 中有 Tab 的主机")
-    func terminalSessionCenterOmitsHostsWithoutLocalTabs() throws {
+    @Test("终端会话中心只显示本地活动 Tab 或恢复记录，不探测远端目录")
+    func terminalSessionCenterUsesOnlyLocalSessionState() throws {
         let source = try appSource("Terminal/TerminalSessionCenterView.swift")
         #expect(source.contains("sessions.hostGroups"))
+        #expect(source.contains("ForEach(group.resumeRecords)"))
         #expect(!source.contains("@State private var hosts: [Host]"))
         #expect(!source.contains("displayedHostGroups"))
+        #expect(!source.contains("persistentWorkspaceOptions"))
     }
 
     @Test("当前页面 tmux 启动流程允许选择已有 Session 或新建 Session")
@@ -497,8 +499,9 @@ struct AppWideUIConsistencyTests {
         #expect(!source.contains("cardListInsets"))
         #expect(source.contains(".listRowBackground(Color.connSurface)"))
         #expect(source.contains(".accessibilityIdentifier(\"terminal.session.\\(tab.id)\")"))
+        #expect(source.contains(".accessibilityIdentifier(\"terminal.resume.\\(record.id)\")"))
         #expect(source.contains(".environment(\\.defaultMinListRowHeight, ConnSize.minTouchTarget)"))
-        #expect(source.components(separatedBy: ".listRowInsets(Self.compactRowInsets)").count == 3)
+        #expect(source.components(separatedBy: ".listRowInsets(Self.compactRowInsets)").count == 4)
         #expect(sheet.contains(".swipeActions(edge: .trailing, allowsFullSwipe: true)"))
         #expect(sheet.contains("Label(L(\"删除\"), systemImage: \"trash\")"))
         #expect(!sheet.contains("Label(L(\"关闭会话\"), systemImage: \"xmark.circle\")"))

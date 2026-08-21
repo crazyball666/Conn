@@ -82,20 +82,24 @@ public struct TerminalLaunchAttemptID: Hashable, Sendable {
 /// App 全局唯一的多终端编排器。
 ///
 /// 只开关 PTY，不关闭 ConnectionManager 池里的 SSH 连接；监控、文件、Docker 和其它
-/// 终端可以持续复用同一连接。会话本身在进程内存中保存，App 被杀后自然消失。
+/// 终端可以持续复用同一连接。活动 PTY 只驻留内存；持久终端只保存 provider-neutral
+/// 恢复书签，App 重启后按需重建 attachment，不保存终端输出或瞬时连接状态。
 @Observable
 @MainActor
 public final class TerminalSessionCoordinator {
-    public let store = TerminalSessionStore()
+    public let store: TerminalSessionStore
+    public private(set) var resumePersistenceIssue: String?
 
     private let hostRepository: any HostRepository
     private let connectionManager: ConnectionManager
     private let persistentBackend: PersistentProviderBackend
+    private let resumeRepository: any PersistentTerminalResumeRepository
     private var inFlightLaunches: [String: Task<Result<TerminalTab, TerminalLaunchFailure>, Never>] = [:]
     /// 主机删除/连接身份变更时递增。Citadel 的建连与开 PTY 不一定响应 cancellation，
     /// 所以必须在完成后再用这个代次阻止旧任务把会话写回 store。
     private var hostLaunchGenerations: [String: UInt64] = [:]
     private var reconnectTasks: [String: Task<Result<TerminalTab, TerminalLaunchFailure>, Never>] = [:]
+    private var restoreTasks: [String: Task<Result<TerminalTab, TerminalLaunchFailure>, Never>] = [:]
     private var lifecycleTasks: [String: Task<Void, Never>] = [:]
     private var attachmentLifecycleTasks: [String: Task<Void, Never>] = [:]
     private var automaticRecoveryTasks: [String: AutomaticRecoveryTask] = [:]
@@ -122,11 +126,21 @@ public final class TerminalSessionCoordinator {
     public init(
         hostRepository: any HostRepository,
         connectionManager: ConnectionManager,
-        providerRegistry: PersistentTerminalProviderRegistry = .default
+        providerRegistry: PersistentTerminalProviderRegistry = .default,
+        resumeRepository: any PersistentTerminalResumeRepository =
+            InMemoryTerminalResumeRepository()
     ) {
         self.hostRepository = hostRepository
         self.connectionManager = connectionManager
+        self.resumeRepository = resumeRepository
         persistentBackend = PersistentProviderBackend(registry: providerRegistry)
+        do {
+            store = TerminalSessionStore(resumeRecords: try resumeRepository.allRecords())
+            resumePersistenceIssue = nil
+        } catch {
+            store = TerminalSessionStore()
+            resumePersistenceIssue = String(describing: error)
+        }
     }
 
     public func launch(_ request: TerminalLaunchRequest) async -> Result<TerminalTab, TerminalLaunchFailure> {
@@ -232,6 +246,7 @@ public final class TerminalSessionCoordinator {
             generation: tab.generation,
             attachment: tab.persistentAttachment
         )
+        persistResumeRecord(for: tab)
         return .success(tab)
     }
 
@@ -355,6 +370,40 @@ public final class TerminalSessionCoordinator {
         return result
     }
 
+    /// Restores one locally bookmarked persistent terminal without performing workspace
+    /// discovery. The exact saved descriptor is routed back through the registered provider.
+    public func restore(_ recordID: String) async -> Result<TerminalTab, TerminalLaunchFailure> {
+        if let active = store.tab(id: recordID) {
+            store.select(active.id)
+            return .success(active)
+        }
+        if let task = restoreTasks[recordID] {
+            return await task.value
+        }
+        guard let record = store.resumeRecord(id: recordID) else {
+            return .failure(TerminalLaunchFailure(message: L("终端恢复记录不存在")))
+        }
+        if let active = store.tabs.first(where: {
+            persistentResumeIdentity(for: $0) == record.identity
+        }) {
+            store.select(active.id)
+            return .success(active)
+        }
+
+        let task: Task<Result<TerminalTab, TerminalLaunchFailure>, Never> = Task { [weak self] in
+            guard let self else {
+                return .failure(TerminalLaunchFailure(message: L("终端协调器已释放")))
+            }
+            return await self.restoreRecord(record)
+        }
+        restoreTasks[recordID] = task
+        let result = await task.value
+        if restoreTasks[recordID] == task {
+            restoreTasks[recordID] = nil
+        }
+        return result
+    }
+
     /// Renames a local-only terminal immediately. Persistent terminals first rename
     /// their remote workspace and commit the local title only after that succeeds.
     public func rename(
@@ -370,6 +419,7 @@ public final class TerminalSessionCoordinator {
             guard let updated = store.tab(id: tabID) else {
                 return .failure(TerminalLaunchFailure(message: L("终端会话不存在")))
             }
+            persistResumeRecord(for: updated)
             return .success(updated)
         }
 
@@ -400,6 +450,7 @@ public final class TerminalSessionCoordinator {
             guard let updated = store.tab(id: tabID) else {
                 return .failure(TerminalLaunchFailure(message: L("终端会话已关闭")))
             }
+            persistResumeRecord(for: updated)
             return .success(updated)
         } catch let failure as TerminalLaunchFailure {
             return .failure(failure)
@@ -465,15 +516,37 @@ public final class TerminalSessionCoordinator {
     }
 
     public func close(_ tabID: String) async {
+        let closingTab = store.tab(id: tabID)
         lifecycleTasks.removeValue(forKey: tabID)?.cancel()
         attachmentLifecycleTasks.removeValue(forKey: tabID)?.cancel()
         automaticRecoveryTasks.removeValue(forKey: tabID)?.task.cancel()
         reconnectTasks.removeValue(forKey: tabID)?.cancel()
         await store.close(tabID)
+        if let closingTab {
+            removeOrTransferResumeRecord(afterClosing: closingTab)
+        }
+    }
+
+    /// Removes a disconnected local bookmark only. It never destroys the remote workspace.
+    public func forgetResumeRecord(_ recordID: String) {
+        restoreTasks.removeValue(forKey: recordID)?.cancel()
+        guard store.removeResumeRecord(id: recordID) != nil else { return }
+        do {
+            try resumeRepository.delete(id: recordID)
+            resumePersistenceIssue = nil
+        } catch {
+            resumePersistenceIssue = String(describing: error)
+        }
     }
 
     public func closeAll(forHost hostID: String) async {
         await invalidatePendingLaunches(forHost: hostID)
+        let restoringRecordIDs = store.resumeRecords
+            .filter { $0.hostID == hostID }
+            .map(\.id)
+        for recordID in restoringRecordIDs {
+            restoreTasks.removeValue(forKey: recordID)?.cancel()
+        }
         for tab in store.tabs(forHost: hostID) {
             lifecycleTasks.removeValue(forKey: tab.id)?.cancel()
             attachmentLifecycleTasks.removeValue(forKey: tab.id)?.cancel()
@@ -481,6 +554,13 @@ public final class TerminalSessionCoordinator {
             reconnectTasks.removeValue(forKey: tab.id)?.cancel()
         }
         await store.closeAll(forHost: hostID)
+        store.removeResumeRecords(forHost: hostID)
+        do {
+            try resumeRepository.delete(hostID: hostID)
+            resumePersistenceIssue = nil
+        } catch {
+            resumePersistenceIssue = String(describing: error)
+        }
     }
 
     /// 主机保存后的会话联动。
@@ -509,6 +589,9 @@ public final class TerminalSessionCoordinator {
 
     public func refreshHostName(_ host: ConnKit.Host) {
         store.refreshHostName(hostID: host.id, name: host.name)
+        for record in store.resumeRecords where record.hostID == host.id {
+            persist(record)
+        }
     }
 
     private func launchNew(
@@ -523,9 +606,59 @@ public final class TerminalSessionCoordinator {
         }
     }
 
+    private func restoreRecord(
+        _ record: PersistentTerminalResumeRecord
+    ) async -> Result<TerminalTab, TerminalLaunchFailure> {
+        do {
+            guard let host = try hostRepository.host(id: record.hostID) else {
+                return .failure(TerminalLaunchFailure(message: L("主机已被删除")))
+            }
+            let generation = launchGeneration(forHost: host.id)
+            let request = TerminalLaunchRequest(
+                host: host,
+                policy: .createNew,
+                source: .persistent(providerID: record.providerID),
+                backend: .persistent(record.descriptor),
+                automaticAlias: record.automaticAlias
+            )
+            switch await prepareTab(
+                for: request,
+                expectedHostLaunchGeneration: generation,
+                openReason: .reconnect,
+                restorationRecord: record
+            ) {
+            case let .success(prepared):
+                guard let currentRecord = store.resumeRecord(id: record.id),
+                      currentRecord.identity == record.identity,
+                      isLaunchCurrent(forHost: host.id, expectedGeneration: generation)
+                else {
+                    await closePreparedLaunch(prepared)
+                    return .failure(TerminalLaunchFailure(message: L("终端会话启动已取消")))
+                }
+                let tab = prepared.tab
+                store.add(tab)
+                await tab.session.start()
+                observeLifecycle(for: tab.id, generation: tab.generation, session: tab.session)
+                observeAttachmentLifecycle(
+                    for: tab.id,
+                    generation: tab.generation,
+                    attachment: tab.persistentAttachment
+                )
+                persistResumeRecord(for: tab)
+                return .success(tab)
+            case let .failure(failure):
+                return .failure(failure)
+            }
+        } catch {
+            return .failure(TerminalLaunchFailure(message: terminalUserFacingDiagnosis(error)))
+        }
+    }
+
     private func prepareTab(
         for request: TerminalLaunchRequest,
-        expectedHostLaunchGeneration: UInt64
+        expectedHostLaunchGeneration: UInt64,
+        openReason: PersistentAttachmentOpenReason = .initial,
+        restorationRecord: PersistentTerminalResumeRecord? = nil
     ) async -> Result<PreparedLaunch, TerminalLaunchFailure> {
         var temporarySession: TerminalSession?
         var temporaryAttachment: (any PersistentTerminalAttachment)?
@@ -536,7 +669,7 @@ public final class TerminalSessionCoordinator {
                 return .failure(TerminalLaunchFailure(message: L("终端会话启动已取消")))
             }
 
-            let opened = try await openBackend(request.backend, for: host, reason: .initial)
+            let opened = try await openBackend(request.backend, for: host, reason: openReason)
             let channel = opened.channel
             temporaryAttachment = opened.attachment
             let transcript = TerminalTranscript()
@@ -568,6 +701,7 @@ public final class TerminalSessionCoordinator {
                 .persistent(descriptor)
             }
             let tab = TerminalTab(
+                id: restorationRecord?.id ?? UUID().uuidString,
                 hostID: host.id,
                 hostName: host.name,
                 hostAddress: host.displayAddress,
@@ -576,8 +710,12 @@ public final class TerminalSessionCoordinator {
                 transcript: transcript,
                 source: request.source,
                 reconnectDescriptor: reconnectDescriptor,
-                automaticAlias: automaticAlias(for: request, hostID: host.id),
-                generation: generation
+                automaticAlias: restorationRecord?.automaticAlias
+                    ?? automaticAlias(for: request, hostID: host.id),
+                alias: restorationRecord?.alias,
+                generation: generation,
+                createdAt: restorationRecord?.createdAt ?? .now,
+                lastUsedAt: .now
             )
             return .success(PreparedLaunch(tab: tab))
         } catch {
@@ -654,6 +792,7 @@ public final class TerminalSessionCoordinator {
             guard let replacement = store.tab(id: tabID) else {
                 return .failure(TerminalLaunchFailure(message: L("终端会话已关闭")))
             }
+            persistResumeRecord(for: replacement)
             return .success(replacement)
         } catch {
             if let temporarySession {
@@ -857,6 +996,64 @@ public final class TerminalSessionCoordinator {
 
     private func isLaunchCurrent(forHost hostID: String, expectedGeneration: UInt64) -> Bool {
         launchGeneration(forHost: hostID) == expectedGeneration
+    }
+
+    private func persistResumeRecord(for tab: TerminalTab) {
+        guard case let .persistent(descriptor) = tab.reconnectDescriptor else { return }
+        let record = PersistentTerminalResumeRecord(
+            id: tab.id,
+            hostID: tab.hostID,
+            hostName: tab.hostName,
+            hostAddress: tab.hostAddress,
+            descriptor: descriptor,
+            automaticAlias: tab.automaticAlias,
+            alias: tab.alias,
+            createdAt: tab.createdAt,
+            lastConnectedAt: .now
+        )
+        store.upsertResumeRecord(record)
+        persist(record)
+    }
+
+    private func persist(_ record: PersistentTerminalResumeRecord) {
+        do {
+            try resumeRepository.save(record)
+            resumePersistenceIssue = nil
+        } catch {
+            resumePersistenceIssue = String(describing: error)
+        }
+    }
+
+    private func removeOrTransferResumeRecord(afterClosing tab: TerminalTab) {
+        guard let identity = persistentResumeIdentity(for: tab) else { return }
+        if let alternative = store.tabs.first(where: {
+            persistentResumeIdentity(for: $0) == identity
+        }) {
+            persistResumeRecord(for: alternative)
+            return
+        }
+        guard let record = store.resumeRecords.first(where: { $0.identity == identity }) else {
+            return
+        }
+        _ = store.removeResumeRecord(id: record.id)
+        do {
+            try resumeRepository.delete(id: record.id)
+            resumePersistenceIssue = nil
+        } catch {
+            resumePersistenceIssue = String(describing: error)
+        }
+    }
+
+    private func persistentResumeIdentity(
+        for tab: TerminalTab
+    ) -> PersistentTerminalResumeIdentity? {
+        guard case let .persistent(descriptor) = tab.reconnectDescriptor else { return nil }
+        return PersistentTerminalResumeIdentity(
+            hostID: tab.hostID,
+            providerID: descriptor.providerID,
+            configurationKey: descriptor.configurationKey,
+            workspaceID: descriptor.workspace.workspaceID
+        )
     }
 
     private func automaticAlias(for request: TerminalLaunchRequest, hostID: String) -> String {

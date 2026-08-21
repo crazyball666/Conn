@@ -277,7 +277,8 @@ struct AppDependencies {
     let snippetRepository: any SnippetRepository
     /// 命令分组仓库。与 `hostGroupRepository`（主机分组）同构。
     let snippetGroupRepository: any SnippetGroupRepository
-    /// 全局终端会话中心。只驻留内存，复用 `connectionManager` 的 SSH 连接池。
+    /// 全局终端会话中心。活动 PTY 驻留内存；可恢复 provider 仅保存本地恢复书签。
+    /// SSH 连接仍统一复用 `connectionManager` 的连接池。
     let terminalSessions: TerminalSessionCoordinator
     /// 应用锁。默认关闭，设置页开启（Phase 5）。
     let appLock: AppLockController
@@ -362,7 +363,8 @@ struct AppDependencies {
             )
             let terminalSessions = TerminalSessionCoordinator(
                 hostRepository: hostStore,
-                connectionManager: connectionManager
+                connectionManager: connectionManager,
+                resumeRepository: PersistentTerminalResumeStore(database: database)
             )
             let snippetExecutionPlanner = makeSnippetExecutionPlanner(
                 connectionManager: connectionManager
@@ -416,9 +418,29 @@ struct AppDependencies {
             let transport = MockSSHTransport(behavior: DemoData.behavior())
             let credentialStore = InMemoryCredentialStore()
             let connectionManager = ConnectionManager(transport: transport) { _ in .password("demo") }
+            let isResumeSmoke =
+                ProcessInfo.processInfo.environment["CONN_SMOKE_TERMINAL_RESUME"] != nil
+            let resumeProvider = TerminalResumeSmokeProvider()
+            let resumeRecords: [PersistentTerminalResumeRecord]
+            if isResumeSmoke, let host = try hostStore.allHosts().first {
+                resumeRecords = [PersistentTerminalResumeRecord(
+                    id: "smoke-resume",
+                    hostID: host.id,
+                    hostName: host.name,
+                    hostAddress: host.displayAddress,
+                    descriptor: resumeProvider.attachmentDescriptor,
+                    automaticAlias: "saved-session"
+                )]
+            } else {
+                resumeRecords = []
+            }
             let terminalSessions = TerminalSessionCoordinator(
                 hostRepository: hostStore,
-                connectionManager: connectionManager
+                connectionManager: connectionManager,
+                providerRegistry: isResumeSmoke
+                    ? try PersistentTerminalProviderRegistry(providers: [resumeProvider])
+                    : .default,
+                resumeRepository: InMemoryTerminalResumeRepository(records: resumeRecords)
             )
             let snippetExecutionPlanner = makeSnippetExecutionPlanner(
                 connectionManager: connectionManager

@@ -68,20 +68,25 @@ struct RemoteScriptExecutionProviderTests {
             #expect(!command.contains("/dev/null"))
         }
 
-        let process = Process()
-        let standardOutput = Pipe()
-        process.executableURL = URL(fileURLWithPath: "/bin/sh")
-        process.arguments = ["-c", provider.interpreterProbeCommand(for: .sh)]
-        process.standardOutput = standardOutput
-        try process.run()
-        process.waitUntilExit()
+        #if os(macOS)
+            // Foundation.Process is unavailable on iOS. Keep the host integration
+            // assertion on macOS while allowing the package unit suites to run in the
+            // iOS simulator, where the command-shape assertions above still apply.
+            let process = Process()
+            let standardOutput = Pipe()
+            process.executableURL = URL(fileURLWithPath: "/bin/sh")
+            process.arguments = ["-c", provider.interpreterProbeCommand(for: .sh)]
+            process.standardOutput = standardOutput
+            try process.run()
+            process.waitUntilExit()
 
-        let output = String(
-            decoding: standardOutput.fileHandleForReading.readDataToEndOfFile(),
-            as: UTF8.self
-        )
-        #expect(process.terminationStatus == 0)
-        #expect(!output.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            let output = String(
+                decoding: standardOutput.fileHandleForReading.readDataToEndOfFile(),
+                as: UTF8.self
+            )
+            #expect(process.terminationStatus == 0)
+            #expect(!output.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+        #endif
     }
 
     @Test("POSIX invocation 将含单引号的完整多行脚本作为一个参数转义")

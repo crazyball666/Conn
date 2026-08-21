@@ -1,10 +1,11 @@
 import ConnKit
+import ConnMultiplexer
 import ConnTerminal
 import ConnUI
 import SwiftUI
 
-/// Local terminal tabs only. Remote tmux workspaces are discovered exclusively in
-/// `NewTerminalSheet` after the user explicitly chooses tmux.
+/// Local active tabs plus lightweight restoration bookmarks. Remote workspace catalogs
+/// are still discovered exclusively after the user explicitly creates a persistent terminal.
 struct TerminalSessionCenterView: View {
     let dependencies: AppDependencies
 
@@ -20,6 +21,7 @@ struct TerminalSessionCenterView: View {
     @State private var isNewTerminalPresented = false
     @State private var pendingCompletion: NewTerminalFlowCompletion?
     @State private var route: ExistingTerminalRoute?
+    @State private var restoringRecordID: String?
     @Environment(\.connToastCenter) private var toastCenter
 
     private var sessions: TerminalSessionStore { dependencies.terminalSessions.store }
@@ -37,6 +39,9 @@ struct TerminalSessionCenterView: View {
                                 if expandedHostIDs.contains(group.hostID) {
                                     ForEach(group.tabs) { tab in
                                         terminalRow(tab)
+                                    }
+                                    ForEach(group.resumeRecords) { record in
+                                        resumeRow(record)
                                     }
                                 }
                             }
@@ -107,7 +112,7 @@ struct TerminalSessionCenterView: View {
                     Text(group.hostName.isEmpty ? group.hostAddress : group.hostName)
                         .font(.connHeadline)
                         .foregroundStyle(.connInk)
-                    Text(String(format: L("%d 个本地终端"), group.tabs.count))
+                    Text(String(format: L("%d 个本地终端"), group.terminalCount))
                         .font(.connFootnote)
                         .foregroundStyle(.connMuted)
                 }
@@ -171,6 +176,54 @@ struct TerminalSessionCenterView: View {
         .contentShape(Rectangle())
     }
 
+    private func resumeRow(_ record: PersistentTerminalResumeRecord) -> some View {
+        Button { restore(record) } label: {
+            HStack(spacing: ConnSpacing.sm) {
+                if restoringRecordID == record.id {
+                    ProgressView()
+                        .controlSize(.small)
+                        .tint(.connAccent)
+                        .frame(width: 24)
+                } else {
+                    Image(systemName: "rectangle.connected.to.line.below")
+                        .foregroundStyle(.connAccent)
+                        .frame(width: 24)
+                }
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(record.displayName)
+                        .font(.connSubheadline)
+                        .fontWeight(.semibold)
+                        .foregroundStyle(.connInk)
+                    HStack(spacing: ConnSpacing.xs) {
+                        Text(record.providerID)
+                        Text("·")
+                        Text(restoringRecordID == record.id ? L("正在恢复") : L("可恢复"))
+                    }
+                    .font(.connFootnote)
+                    .foregroundStyle(.connMuted)
+                }
+                Spacer()
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .disabled(restoringRecordID != nil)
+        .accessibilityIdentifier("terminal.resume.\(record.id)")
+        .listRowInsets(Self.compactRowInsets)
+        .listRowBackground(Color.connSurface)
+        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+            Button(role: .destructive) {
+                dependencies.terminalSessions.forgetResumeRecord(record.id)
+            } label: {
+                Label(L("删除"), systemImage: "trash")
+            }
+        }
+        .accessibilityAction(named: Text(L("删除"))) {
+            dependencies.terminalSessions.forgetResumeRecord(record.id)
+        }
+    }
+
     private func open(_ tab: TerminalTab) {
         do {
             guard let host = try dependencies.hostRepository.host(id: tab.hostID) else {
@@ -186,6 +239,30 @@ struct TerminalSessionCenterView: View {
 
     private func close(_ tabID: String) {
         Task { await dependencies.terminalSessions.close(tabID) }
+    }
+
+    private func restore(_ record: PersistentTerminalResumeRecord) {
+        guard restoringRecordID == nil else { return }
+        restoringRecordID = record.id
+        Task {
+            defer { restoringRecordID = nil }
+            switch await dependencies.terminalSessions.restore(record.id) {
+            case let .success(tab):
+                do {
+                    guard let host = try dependencies.hostRepository.host(id: tab.hostID) else {
+                        toastCenter.show(L("主机不存在或已被删除"), style: .warning)
+                        return
+                    }
+                    route = ExistingTerminalRoute(host: host, tabID: tab.id)
+                } catch {
+                    toastCenter.show(error.localizedDescription, style: .error)
+                }
+            case let .failure(failure):
+                if let message = dependencies.terminalSessions.consumeFailure(failure) {
+                    toastCenter.show(message, style: .error)
+                }
+            }
+        }
     }
 
     private func openPendingCompletion() {

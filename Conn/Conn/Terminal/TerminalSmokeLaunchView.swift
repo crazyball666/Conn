@@ -63,6 +63,9 @@ struct TerminalSessionCenterSmokeView: View {
             .task {
                 guard !didSeed else { return }
                 didSeed = true
+                if ProcessInfo.processInfo.environment["CONN_SMOKE_TERMINAL_RESUME"] != nil {
+                    return
+                }
                 guard let hosts = try? dependencies.hostRepository.allHosts(),
                       let host = hosts.first
                 else { return }

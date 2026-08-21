@@ -749,6 +749,169 @@ struct TerminalSessionCoordinatorTests {
         #expect(request.source == .shell)
     }
 
+    @Test("持久终端成功启动后保存恢复记录，普通 PTY 不保存")
+    func persistsOnlySuccessfulPersistentTerminals() async throws {
+        let host = Host(id: "host-1", name: "web", address: "10.0.0.1", username: "root")
+        let repository = InMemoryTerminalResumeRepository()
+        let recorder = RecoveryAttachmentRecorder()
+        let provider = RecoveryPersistentProvider(recorder: recorder)
+        let coordinator = TerminalSessionCoordinator(
+            hostRepository: TerminalHostRepository(hosts: [host]),
+            connectionManager: ConnectionManager(
+                transport: MockSSHTransport(),
+                platformDetector: RenamePlatformDetector()
+            ),
+            providerRegistry: try PersistentTerminalProviderRegistry(providers: [provider]),
+            resumeRepository: repository
+        )
+
+        guard case let .success(persistentTab) = await coordinator.launch(.init(
+            host: host,
+            policy: .createNew,
+            source: .persistent(providerID: provider.descriptor.id),
+            backend: .persistent(provider.attachmentDescriptor),
+            automaticAlias: "ops"
+        )) else {
+            Issue.record("持久终端应启动成功")
+            return
+        }
+        guard case let .success(plainTab) = await coordinator.launch(.init(
+            host: host,
+            policy: .createNew,
+            source: .shell
+        )) else {
+            Issue.record("普通 PTY 应启动成功")
+            return
+        }
+
+        let records = try repository.allRecords()
+        #expect(records.count == 1)
+        #expect(records.first?.id == persistentTab.id)
+        #expect(records.first?.displayName == "ops")
+        #expect(records.first?.descriptor == provider.attachmentDescriptor)
+
+        await coordinator.close(plainTab.id)
+        #expect(try repository.allRecords().count == 1)
+        await coordinator.close(persistentTab.id)
+        #expect(try repository.allRecords().isEmpty)
+    }
+
+    @Test("App 重启后直接用保存的 descriptor 恢复并在主动关闭时删除记录")
+    func restoresPersistedTerminalWithoutWorkspaceDiscovery() async throws {
+        let host = Host(id: "host-1", name: "web", address: "10.0.0.1", username: "root")
+        let recorder = RecoveryAttachmentRecorder()
+        let provider = RecoveryPersistentProvider(recorder: recorder)
+        let record = PersistentTerminalResumeRecord(
+            id: "resume-1",
+            hostID: host.id,
+            hostName: host.name,
+            hostAddress: host.displayAddress,
+            descriptor: provider.attachmentDescriptor,
+            automaticAlias: "ops",
+            createdAt: Date(timeIntervalSince1970: 1),
+            lastConnectedAt: Date(timeIntervalSince1970: 2)
+        )
+        let repository = InMemoryTerminalResumeRepository(records: [record])
+        let coordinator = TerminalSessionCoordinator(
+            hostRepository: TerminalHostRepository(hosts: [host]),
+            connectionManager: ConnectionManager(
+                transport: MockSSHTransport(),
+                platformDetector: RenamePlatformDetector()
+            ),
+            providerRegistry: try PersistentTerminalProviderRegistry(providers: [provider]),
+            resumeRepository: repository
+        )
+
+        #expect(coordinator.store.tabs.isEmpty)
+        #expect(coordinator.store.hostGroups.first?.resumeRecords == [record])
+
+        guard case let .success(tab) = await coordinator.restore(record.id) else {
+            Issue.record("保存的持久终端应恢复成功")
+            return
+        }
+
+        #expect(tab.id == record.id)
+        #expect(tab.displayName == "ops")
+        #expect(await recorder.reasons == [.reconnect])
+        #expect(coordinator.store.hostGroups.first?.resumeRecords.isEmpty == true)
+        #expect(coordinator.store.hostGroups.first?.tabs.map(\.id) == [record.id])
+
+        await coordinator.close(tab.id)
+        #expect(try repository.allRecords().isEmpty)
+        #expect(coordinator.store.hostGroups.isEmpty)
+    }
+
+    @Test("连接中断只标记断开，不删除持久终端恢复记录")
+    func transientAttachmentFailureKeepsResumeRecord() async throws {
+        let host = Host(id: "host-1", name: "web", address: "10.0.0.1", username: "root")
+        let recorder = RecoveryAttachmentRecorder()
+        let provider = RecoveryPersistentProvider(recorder: recorder)
+        let repository = InMemoryTerminalResumeRepository()
+        let coordinator = TerminalSessionCoordinator(
+            hostRepository: TerminalHostRepository(hosts: [host]),
+            connectionManager: ConnectionManager(
+                transport: MockSSHTransport(),
+                platformDetector: RenamePlatformDetector()
+            ),
+            providerRegistry: try PersistentTerminalProviderRegistry(providers: [provider]),
+            resumeRepository: repository
+        )
+
+        guard case let .success(tab) = await coordinator.launch(.init(
+            host: host,
+            policy: .createNew,
+            source: .persistent(providerID: provider.descriptor.id),
+            backend: .persistent(provider.attachmentDescriptor),
+            automaticAlias: "ops"
+        )) else {
+            Issue.record("持久终端应启动成功")
+            return
+        }
+        let attachment = try #require(await recorder.attachments.first)
+        attachment.fail(recovery: .manual)
+        for _ in 0 ..< 50 {
+            if case .disconnected = coordinator.store.tab(id: tab.id)?.status { break }
+            try await Task.sleep(for: .milliseconds(10))
+        }
+
+        guard case .disconnected = coordinator.store.tab(id: tab.id)?.status else {
+            Issue.record("连接故障应保留 Tab 并标记为断开")
+            return
+        }
+        #expect(try repository.allRecords().map(\.id) == [tab.id])
+
+        await coordinator.close(tab.id)
+        #expect(try repository.allRecords().isEmpty)
+    }
+
+    @Test("主机连接身份变化会清理旧持久终端恢复记录")
+    func changingHostIdentityRemovesResumeRecords() async throws {
+        let previous = Host(id: "host-1", name: "web", address: "10.0.0.1", username: "root")
+        let updated = Host(id: "host-1", name: "web", address: "10.0.0.2", username: "root")
+        let recorder = RecoveryAttachmentRecorder()
+        let provider = RecoveryPersistentProvider(recorder: recorder)
+        let repository = InMemoryTerminalResumeRepository(records: [
+            PersistentTerminalResumeRecord(
+                id: "resume-1",
+                hostID: previous.id,
+                hostName: previous.name,
+                hostAddress: previous.displayAddress,
+                descriptor: provider.attachmentDescriptor,
+                automaticAlias: "ops"
+            ),
+        ])
+        let coordinator = TerminalSessionCoordinator(
+            hostRepository: TerminalHostRepository(hosts: [previous]),
+            connectionManager: ConnectionManager(transport: MockSSHTransport()),
+            resumeRepository: repository
+        )
+
+        await coordinator.hostDidSave(updated, replacing: previous, connectionIdentityChanged: true)
+
+        #expect(try repository.allRecords().isEmpty)
+        #expect(coordinator.store.hostGroups.isEmpty)
+    }
+
     @Test("启动请求提供的 Workspace 名称成为终端自动别名")
     func launchUsesRequestedAutomaticAlias() async {
         let host = Host(id: "host-1", name: "web", address: "10.0.0.1", username: "root")
@@ -778,13 +941,15 @@ struct TerminalSessionCoordinatorTests {
         let host = Host(id: "host-1", name: "web", address: "10.0.0.1", username: "root")
         let recorder = PersistentRenameRecorder()
         let provider = RenamePersistentProvider(recorder: recorder)
+        let repository = InMemoryTerminalResumeRepository()
         let coordinator = TerminalSessionCoordinator(
             hostRepository: TerminalHostRepository(hosts: [host]),
             connectionManager: ConnectionManager(
                 transport: MockSSHTransport(),
                 platformDetector: RenamePlatformDetector()
             ),
-            providerRegistry: try PersistentTerminalProviderRegistry(providers: [provider])
+            providerRegistry: try PersistentTerminalProviderRegistry(providers: [provider]),
+            resumeRepository: repository
         )
         let tab = makePersistentRenameTab(host: host, descriptor: provider.attachmentDescriptor)
         coordinator.store.add(tab)
@@ -799,6 +964,7 @@ struct TerminalSessionCoordinatorTests {
         #expect(updated.automaticAlias == "production")
         #expect(updated.alias == nil)
         #expect(updated.displayName == "production")
+        #expect(try repository.allRecords().first?.displayName == "production")
     }
 
     @Test("持久终端远端重命名失败时保留本地名称")

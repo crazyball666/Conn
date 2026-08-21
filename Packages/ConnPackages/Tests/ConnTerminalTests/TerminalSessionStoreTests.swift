@@ -1,3 +1,4 @@
+import ConnMultiplexer
 import ConnSSH
 import Foundation
 import Testing
@@ -8,6 +9,37 @@ private func makeTab(hostID: String, name: String) -> TerminalTab {
     let channel = InertShellChannel()
     let session = TerminalSession(channel: channel)
     return TerminalTab(hostID: hostID, hostName: name, session: session)
+}
+
+private func makeResumeRecord(
+    id: String = UUID().uuidString,
+    hostID: String = "h1",
+    workspaceID: String = "$1",
+    name: String = "ops"
+) -> PersistentTerminalResumeRecord {
+    PersistentTerminalResumeRecord(
+        id: id,
+        hostID: hostID,
+        hostName: hostID == "h1" ? "web" : "db",
+        hostAddress: "root@\(hostID)",
+        descriptor: PersistentAttachmentDescriptor(
+            providerID: "tmux",
+            configuration: PersistentTerminalConfiguration(
+                providerID: "tmux",
+                configurationKey: "default",
+                payloadVersion: 1,
+                providerPayload: Data()
+            ),
+            workspace: RemoteWorkspaceRef(
+                workspaceID: workspaceID,
+                instancePayloadVersion: 1,
+                providerInstancePayload: Data()
+            ),
+            payloadVersion: 1,
+            providerPayload: Data()
+        ),
+        automaticAlias: name
+    )
 }
 
 /// 永不产出、写入即丢弃的通道。
@@ -129,6 +161,50 @@ struct TerminalSessionStoreTests {
         #expect(store.hostGroups.map(\.hostID) == ["h1", "h2"])
         #expect(store.hostGroups.map(\.hostName) == ["web", "db"])
         #expect(store.hostGroups.map { $0.tabs.count } == [1, 1])
+    }
+
+    @Test("仅有恢复记录的主机也进入终端列表分组")
+    func groupsRestorableRecordsWithoutLiveTabs() {
+        let record = makeResumeRecord(hostID: "h1", name: "production")
+        let store = TerminalSessionStore(resumeRecords: [record])
+
+        #expect(store.hostGroups.map(\.hostID) == ["h1"])
+        #expect(store.hostGroups.first?.tabs.isEmpty == true)
+        #expect(store.hostGroups.first?.resumeRecords == [record])
+        #expect(store.hostGroups.first?.terminalCount == 1)
+    }
+
+    @Test("活动 Tab 覆盖同一恢复记录避免列表重复")
+    func activeTabHidesItsResumeRecord() {
+        let record = makeResumeRecord(id: "resume-1", hostID: "h1")
+        let store = TerminalSessionStore(resumeRecords: [record])
+        let channel = InertShellChannel()
+        let tab = TerminalTab(
+            id: record.id,
+            hostID: record.hostID,
+            hostName: record.hostName,
+            session: TerminalSession(channel: channel),
+            source: .persistent(providerID: record.providerID),
+            reconnectDescriptor: .persistent(record.descriptor),
+            automaticAlias: record.automaticAlias
+        )
+
+        store.add(tab)
+
+        #expect(store.hostGroups.first?.tabs.map(\.id) == [record.id])
+        #expect(store.hostGroups.first?.resumeRecords.isEmpty == true)
+        #expect(store.hostGroups.first?.terminalCount == 1)
+    }
+
+    @Test("恢复记录按 Workspace 身份更新而不是重复追加")
+    func upsertsResumeRecordByWorkspaceIdentity() {
+        let first = makeResumeRecord(id: "first", workspaceID: "$1", name: "ops")
+        let replacement = makeResumeRecord(id: "replacement", workspaceID: "$1", name: "production")
+        let store = TerminalSessionStore(resumeRecords: [first])
+
+        store.upsertResumeRecord(replacement)
+
+        #expect(store.resumeRecords == [replacement])
     }
 
     @Test("关闭一台主机的会话不影响其它主机")

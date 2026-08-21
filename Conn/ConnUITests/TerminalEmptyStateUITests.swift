@@ -53,4 +53,44 @@ final class TerminalEmptyStateUITests: XCTestCase {
         terminalRow.swipeLeft()
         XCTAssertTrue(app.buttons["删除"].waitForExistence(timeout: 3))
     }
+
+    @MainActor
+    func testPersistedTmuxEntryRestoresWithoutOpeningWorkspacePicker() throws {
+        let app = XCUIApplication()
+        app.launchEnvironment["CONN_DEMO"] = "1"
+        app.launchEnvironment["CONN_SMOKE_TERMINAL_CENTER"] = "1"
+        app.launchEnvironment["CONN_SMOKE_TERMINAL_RESUME"] = "1"
+        // A blinking terminal cursor keeps XCTest's animation-idle detector busy.
+        // The behavior under test is restoration, so use the supported steady-cursor setting.
+        app.launchArguments += ["-conn.settings.terminalCursorBlinking", "false"]
+        app.launch()
+
+        let hostCard = app.descendants(matching: .any).matching(
+            NSPredicate(format: "identifier BEGINSWITH %@", "terminal.host.")
+        ).firstMatch
+        XCTAssertTrue(hostCard.waitForExistence(timeout: 15))
+        hostCard.tap()
+
+        let resume = app.buttons["terminal.resume.smoke-resume"]
+        XCTAssertTrue(resume.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["saved-session"].exists)
+        XCTAssertTrue(app.staticTexts["可恢复"].exists)
+
+        let listScreenshot = XCTAttachment(screenshot: app.screenshot())
+        listScreenshot.name = "Persisted terminal in local terminal list"
+        listScreenshot.lifetime = .keepAlways
+        add(listScreenshot)
+
+        resume.tap()
+
+        let header = app.descendants(matching: .any)["terminal.header"]
+        XCTAssertTrue(header.waitForExistence(timeout: 10))
+        XCTAssertTrue(header.label.contains("saved-session"))
+        XCTAssertFalse(app.staticTexts["选择持久终端"].exists)
+
+        let screenshot = XCTAttachment(screenshot: app.screenshot())
+        screenshot.name = "Restored persistent terminal"
+        screenshot.lifetime = .keepAlways
+        add(screenshot)
+    }
 }

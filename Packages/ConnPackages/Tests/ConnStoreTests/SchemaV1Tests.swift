@@ -23,7 +23,7 @@ struct SchemaV1Tests {
         #expect(tables == [
             "builtin_snippet_catalog_state", "builtin_snippet_suppression",
             "host", "host_group", "host_group_membership", "known_host",
-            "run_history", "snippet", "snippet_group",
+            "persistent_terminal_resume_record", "run_history", "snippet", "snippet_group",
             "snippet_group_membership", "ssh_key"
         ])
     }
