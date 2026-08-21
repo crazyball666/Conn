@@ -68,6 +68,39 @@ final class TerminalKeybarLayoutUITests: XCTestCase {
     }
 
     @MainActor
+    func testClaudeCodePanelInsertsCommandWithoutSubmitting() {
+        let app = XCUIApplication()
+        app.launchEnvironment["CONN_DEMO"] = "1"
+        app.launchEnvironment["CONN_SMOKE_TERMINAL"] = "1"
+        app.launchEnvironment["CONN_SMOKE_TERMINAL_EXPANDED"] = "1"
+        app.launchEnvironment["CONN_SMOKE_TERMINAL_ATTACHMENTS"] = "1"
+        app.launchArguments += ["-conn.settings.terminalCursorBlinking", "NO"]
+        app.launch()
+
+        let claudeTab = app.buttons["terminal.keybar.tab.claude-code"]
+        XCTAssertTrue(claudeTab.waitForExistence(timeout: 10))
+        XCTAssertTrue(claudeTab.isHittable)
+        claudeTab.tap()
+
+        let clear = app.buttons["terminal.keybar.tool.claude-code.clear"]
+        let compact = app.buttons["terminal.keybar.tool.claude-code.compact"]
+        XCTAssertTrue(clear.waitForExistence(timeout: 5))
+        XCTAssertTrue(compact.exists)
+        XCTAssertTrue(compact.isHittable)
+        compact.tap()
+
+        let insertedText = app.staticTexts["terminal.smoke.lastInsertedText"]
+        XCTAssertTrue(insertedText.waitForExistence(timeout: 5))
+        XCTAssertEqual(insertedText.label, "/compact")
+        XCTAssertEqual(app.state, .runningForeground)
+
+        let attachment = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+        attachment.name = "Claude Code terminal shortcuts"
+        attachment.lifetime = .keepAlways
+        add(attachment)
+    }
+
+    @MainActor
     func testUploadPanelUploadsSmokeImageAndInsertsRemotePath() {
         let app = XCUIApplication()
         app.launchEnvironment["CONN_DEMO"] = "1"

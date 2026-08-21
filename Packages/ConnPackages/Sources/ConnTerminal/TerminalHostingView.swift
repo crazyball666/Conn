@@ -161,6 +161,7 @@
                         isExpanded: isKeybarExpanded,
                         onKey: controller.handleKey,
                         onPaste: { controller.handlePaste($0) },
+                        onInsertToolCommand: insertToolCommand,
                         onChooseCommand: onChooseCommand,
                         onReconnect: onReconnect,
                         pointerAvailable: controller.pointerAvailable,
@@ -289,6 +290,18 @@
                 inputEpoch: controller.inputEpoch,
                 persistentTarget: controller.persistentTarget
             ))
+        }
+
+        /// Tool shortcuts use the same generation- and target-aware insertion path as
+        /// uploaded attachment paths. Falling back to the controller keeps previews and
+        /// embedders without a mailbox functional.
+        private func insertToolCommand(_ command: String) {
+            guard let insertionMailbox,
+                  let context = insertionMailbox.currentContext else {
+                controller.handlePaste(command, source: .programmatic)
+                return
+            }
+            insertionMailbox.enqueue(command, expectedContext: context)
         }
 
         private func selectProviderQuickAction(

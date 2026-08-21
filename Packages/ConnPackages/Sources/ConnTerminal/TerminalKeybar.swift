@@ -13,6 +13,7 @@
         let isExpanded: Bool
         let onKey: (TerminalKey) -> Void
         let onPaste: (String) -> Void
+        let onInsertToolCommand: (String) -> Void
         let onChooseCommand: () -> Void
         let onReconnect: () -> Void
         let pointerAvailable: Bool
@@ -35,6 +36,7 @@
 
         private enum ExpandedSection: String {
             case common
+            case claudeCode
             case upload
             case provider
         }
@@ -56,7 +58,7 @@
             }
             .sensoryFeedback(ConnHapticFeedback.highImpact, trigger: pressCount)
             .onChange(of: providerQuickActionGroup?.id) { _, groupID in
-                if groupID == nil {
+                if groupID == nil, expandedSection == .provider {
                     expandedSection = .common
                 }
             }
@@ -95,23 +97,33 @@
                 HStack(spacing: TerminalKeybarMetrics.gridSpacing) {
                     expansionCap(expanded: true)
 
-                    expandedTab(
-                        title: L("常用"),
-                        section: .common,
-                        identifier: "terminal.keybar.tab.common"
-                    )
-                    expandedTab(
-                        title: L("上传"),
-                        section: .upload,
-                        identifier: "terminal.keybar.tab.upload"
-                    )
-                    if let providerQuickActionGroup {
-                        expandedTab(
-                            title: providerQuickActionGroup.title,
-                            section: .provider,
-                            identifier: "terminal.keybar.tab.\(providerQuickActionGroup.id)"
-                        )
+                    ScrollView(.horizontal) {
+                        HStack(spacing: TerminalKeybarMetrics.gridSpacing) {
+                            expandedTab(
+                                title: L("常用"),
+                                section: .common,
+                                identifier: "terminal.keybar.tab.common"
+                            )
+                            expandedTab(
+                                title: L("Claude"),
+                                section: .claudeCode,
+                                identifier: "terminal.keybar.tab.claude-code"
+                            )
+                            expandedTab(
+                                title: L("上传"),
+                                section: .upload,
+                                identifier: "terminal.keybar.tab.upload"
+                            )
+                            if let providerQuickActionGroup {
+                                expandedTab(
+                                    title: providerQuickActionGroup.title,
+                                    section: .provider,
+                                    identifier: "terminal.keybar.tab.\(providerQuickActionGroup.id)"
+                                )
+                            }
+                        }
                     }
+                    .scrollIndicators(.hidden)
 
                     Spacer(minLength: 0)
                     fixedCommandCap
@@ -120,6 +132,11 @@
 
                 if expandedSection == .provider, let providerQuickActionGroup {
                     providerPanel(providerQuickActionGroup)
+                } else if expandedSection == .claudeCode {
+                    TerminalToolCommandPanelView(catalog: .claudeCode) { command in
+                        pressCount &+= 1
+                        onInsertToolCommand(command)
+                    }
                 } else if expandedSection == .upload {
                     TerminalAttachmentPanelView(state: attachmentState) { action in
                         pressCount &+= 1
@@ -202,7 +219,7 @@
                     .font(.connData(.caption))
                     .foregroundStyle(isSelected ? Color.connAccent : Color.connMuted)
                     .lineLimit(1)
-                    .padding(.horizontal, 10)
+                    .padding(.horizontal, 8)
                     .frame(height: TerminalKeybarMetrics.capVisualHeight)
                     .background(
                         isSelected ? Color.connAccentFill : Color.clear,
