@@ -18,8 +18,12 @@ final class CitadelFileSystem: RemoteFileSystem, @unchecked Sendable {
                 .flatMap(\.components)
                 .filter { $0.filename != "." && $0.filename != ".." }
                 .map { component in
-                    Self.entry(filename: component.filename, dir: path,
-                               attributes: component.attributes, longname: component.longname)
+                    Self.entry(
+                        filename: component.filename,
+                        dir: path,
+                        attributes: component.attributes,
+                        longname: component.longname
+                    )
                 }
                 .sorted { lhs, rhs in
                     lhs.isDirectory != rhs.isDirectory ? lhs.isDirectory : lhs.name < rhs.name
@@ -32,19 +36,56 @@ final class CitadelFileSystem: RemoteFileSystem, @unchecked Sendable {
     func stat(_ path: String) async throws -> FileEntry {
         do {
             let attributes = try await client.getAttributes(at: path)
-            return Self.entry(filename: RemotePath.lastComponent(path),
-                              dir: RemotePath.parent(path), attributes: attributes, longname: nil)
+            return Self.entry(
+                filename: RemotePath.lastComponent(path),
+                dir: RemotePath.parent(path),
+                attributes: attributes,
+                longname: nil
+            )
         } catch {
             throw Self.mapSFTPError(error, path: path)
         }
     }
 
     func open(_ path: String, mode: RemoteFileMode) async throws -> any RemoteFile {
+        try await open(path, mode: mode, creationPermissions: nil)
+    }
+
+    func open(
+        _ path: String,
+        mode: RemoteFileMode,
+        creationPermissions: UInt32?
+    ) async throws -> any RemoteFile {
+        let flags: SFTPOpenFileFlags = switch mode {
+        case .read: .read
+        case .write: [.write, .truncate]
+        case .writeCreate: [.write, .create, .truncate]
+        }
         do {
-            let flags: SFTPOpenFileFlags = switch mode {
-            case .read: .read
-            case .write: [.write, .truncate]
-            case .writeCreate: [.write, .create, .truncate]
+            if case .writeCreate = mode, let creationPermissions {
+                var attributes = SFTPFileAttributes()
+                attributes.permissions = creationPermissions & 0o7777
+                do {
+                    let file = try await client.openFile(
+                        filePath: path,
+                        flags: flags,
+                        attributes: attributes
+                    )
+                    return CitadelRemoteFile(file: file)
+                } catch {
+                    // Some SFTP v3 servers reject attributes on OPEN. Fall back to an
+                    // immediate chmod before returning the handle; no payload is written
+                    // while the temporary file has server-default permissions.
+                    let file = try await client.openFile(filePath: path, flags: flags)
+                    do {
+                        try await client.setAttributes(at: path, to: attributes)
+                        return CitadelRemoteFile(file: file)
+                    } catch {
+                        try? await file.close()
+                        try? await client.remove(at: path)
+                        throw error
+                    }
+                }
             }
             let file = try await client.openFile(filePath: path, flags: flags)
             return CitadelRemoteFile(file: file)
@@ -113,7 +154,7 @@ final class CitadelFileSystem: RemoteFileSystem, @unchecked Sendable {
     /// 不在此层暴露 Citadel 类型——上层 ViewModel 只看 SSHError。
     /// `message` 透传服务器原文，**不在客户端翻译**（i18n 边界：Conn 的产品文案本地化，
     /// 服务器消息是远端事实，由服务器自己负责语言）。
-    private static func mapSFTPError(_ error: Error, path: String) -> Error {
+    private static func mapSFTPError(_ error: Error, path _: String) -> Error {
         guard let status = error as? SFTPMessage.Status else { return error }
         let message = status.message.isEmpty ? status.errorCode.debugDescription : status.message
         return SSHError.sftpError(code: status.errorCode.rawValue, message: message)

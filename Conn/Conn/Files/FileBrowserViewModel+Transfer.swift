@@ -35,7 +35,9 @@ extension FileBrowserViewModel {
             do {
                 while true {
                     let chunk = try await file.read(offset: offset, length: Self.chunkSize)
-                    if chunk.isEmpty { break }
+                    if chunk.isEmpty {
+                        break
+                    }
                     try handle.write(contentsOf: chunk)
                     offset += UInt64(chunk.count)
                     transfer?.progress = min(1, Double(offset) / Double(total))
@@ -73,33 +75,18 @@ extension FileBrowserViewModel {
         let name = localURL.lastPathComponent
         transfer = FileTransferState(name: name, direction: .upload, progress: 0)
         defer { transfer = nil }
-        let scoped = localURL.startAccessingSecurityScopedResource()
-        defer { if scoped { localURL.stopAccessingSecurityScopedResource() } }
         do {
-            let localHandle = try FileHandle(forReadingFrom: localURL)
-            defer { try? localHandle.close() } // #15：任何路径都关闭
-            let total = max(Self.fileSize(localURL), 1)
-            let remotePath = RemotePath.join(currentPath, name)
             let fileSystem = try await filesystem()
-            try await fileSystem.writeFileSafely(to: remotePath) { temporaryPath in
-                let file = try await fileSystem.open(temporaryPath, mode: .writeCreate)
-                var offset: UInt64 = 0
-                do {
-                    while true {
-                        let chunk = try localHandle.read(upToCount: Int(Self.chunkSize)) ?? Data()
-                        if chunk.isEmpty { break }
-                        try await file.write(chunk, at: offset)
-                        offset += UInt64(chunk.count)
-                        transfer?.progress = min(1, Double(offset) / Double(total))
-                    }
-                    try await file.close()
-                    try localHandle.close()
-                } catch {
-                    try? await file.close()
-                    try? localHandle.close()
-                    throw error
+            _ = try await uploadService.upload(
+                localURL: localURL,
+                originalName: name,
+                remoteName: name,
+                to: currentPath,
+                using: fileSystem,
+                onProgress: { [weak self] progress in
+                    await self?.setUploadProgress(progress)
                 }
-            }
+            )
             await load()
         } catch {
             actionMessage = String(format: L("上传失败：%@"), error.friendlyDiagnosis)
@@ -109,5 +96,9 @@ extension FileBrowserViewModel {
     private static func fileSize(_ url: URL) -> UInt64 {
         let attributes = try? FileManager.default.attributesOfItem(atPath: url.path)
         return (attributes?[.size] as? NSNumber)?.uint64Value ?? 0
+    }
+
+    private func setUploadProgress(_ progress: Double) {
+        transfer?.progress = progress
     }
 }

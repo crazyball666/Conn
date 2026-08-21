@@ -3433,6 +3433,94 @@
         }
       }
     },
+    "上传" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Upload" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "アップロード" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "업로드" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "上傳" } }
+      }
+    },
+    "图片" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Images" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "画像" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "이미지" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "圖片" } }
+      }
+    },
+    "文件" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Files" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "ファイル" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "파일" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "檔案" } }
+      }
+    },
+    "剪贴板" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Clipboard" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "クリップボード" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "클립보드" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "剪貼簿" } }
+      }
+    },
+    "选择本地资源后，将通过 SFTP 上传并插入远端路径。" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Selected resources are uploaded over SFTP and their remote paths are inserted." } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "選択した項目をSFTPでアップロードし、リモートパスを挿入します。" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "선택한 항목을 SFTP로 업로드하고 원격 경로를 삽입합니다." } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "選取本機資源後，將透過 SFTP 上傳並插入遠端路徑。" } }
+      }
+    },
+    "正在准备附件…" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Preparing attachments…" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "添付ファイルを準備中…" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "첨부 파일 준비 중…" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "正在準備附件…" } }
+      }
+    },
+    "正在上传：%@" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Uploading: %@" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "アップロード中：%@" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "업로드 중: %@" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "正在上傳：%@" } }
+      }
+    },
+    "已上传 %d 个附件" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Uploaded %d attachments" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "添付ファイルを%d件アップロードしました" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "첨부 파일 %d개 업로드됨" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "已上傳 %d 個附件" } }
+      }
+    },
+    "%d 个远端路径待插入" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "%d remote path(s) ready to insert" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "%d 件のリモートパスを挿入できます" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "삽입할 원격 경로 %d개" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "%d 個遠端路徑待插入" } }
+      }
+    },
+    "插入路径" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Insert paths" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "パスを挿入" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "경로 삽입" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "插入路徑" } }
+      }
+    },
+    "重试" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Retry" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "再試行" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "다시 시도" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "重試" } }
+      }
+    },
     "重新打开终端" : {
       "extractionState" : "stale",
       "localizations" : {

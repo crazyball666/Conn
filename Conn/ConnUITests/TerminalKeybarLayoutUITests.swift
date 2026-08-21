@@ -45,7 +45,8 @@ final class TerminalKeybarLayoutUITests: XCTestCase {
         let providerTab = app.buttons["terminal.keybar.tab.tmux"]
         XCTAssertTrue(keybar.waitForExistence(timeout: 10))
         XCTAssertGreaterThanOrEqual(keybar.frame.height, 212)
-        XCTAssertLessThanOrEqual(keybar.frame.height, 220)
+        // The expanded panel includes the device bottom safe area when the keyboard is hidden.
+        XCTAssertLessThanOrEqual(keybar.frame.height, 260)
         XCTAssertTrue(providerTab.waitForExistence(timeout: 5))
         providerTab.tap()
 
@@ -64,5 +65,70 @@ final class TerminalKeybarLayoutUITests: XCTestCase {
         attachment.name = "Expanded tmux keybar layout"
         attachment.lifetime = .keepAlways
         add(attachment)
+    }
+
+    @MainActor
+    func testUploadPanelUploadsSmokeImageAndInsertsRemotePath() {
+        let app = XCUIApplication()
+        app.launchEnvironment["CONN_DEMO"] = "1"
+        app.launchEnvironment["CONN_SMOKE_TERMINAL"] = "1"
+        app.launchEnvironment["CONN_SMOKE_TERMINAL_EXPANDED"] = "1"
+        app.launchEnvironment["CONN_SMOKE_TERMINAL_ATTACHMENTS"] = "1"
+        app.launchArguments += ["-conn.settings.terminalCursorBlinking", "NO"]
+        app.launch()
+
+        let uploadTab = app.buttons["terminal.keybar.tab.upload"]
+        XCTAssertTrue(uploadTab.waitForExistence(timeout: 10))
+        uploadTab.tap()
+
+        let images = app.buttons["terminal.keybar.upload.photos"]
+        let files = app.buttons["terminal.keybar.upload.files"]
+        let clipboard = app.buttons["terminal.keybar.upload.clipboard"]
+        XCTAssertTrue(images.waitForExistence(timeout: 5))
+        XCTAssertTrue(files.exists)
+        XCTAssertTrue(clipboard.exists)
+        clipboard.tap()
+
+        let successToast = app.descendants(matching: .any)["conn.toast.success"].firstMatch
+        XCTAssertTrue(successToast.waitForExistence(timeout: 10))
+        XCTAssertEqual(successToast.label, "已上传 1 个附件")
+        let toastAttachment = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+        toastAttachment.name = "Terminal attachment success toast"
+        toastAttachment.lifetime = .keepAlways
+        add(toastAttachment)
+        let insertedText = app.staticTexts["terminal.smoke.lastInsertedText"]
+        XCTAssertTrue(insertedText.waitForExistence(timeout: 5))
+        XCTAssertTrue(insertedText.label.localizedCaseInsensitiveContains("ConnUploadSmoke"))
+        let screenshot = XCUIScreen.main.screenshot()
+        let attachment = XCTAttachment(screenshot: screenshot)
+        attachment.name = "Terminal attachment upload"
+        attachment.lifetime = .keepAlways
+        add(attachment)
+        XCTAssertEqual(app.state, .runningForeground)
+    }
+
+    @MainActor
+    func testUploadFailureUsesGlobalToastAndLeavesRetryInPanel() {
+        let app = XCUIApplication()
+        app.launchEnvironment["CONN_DEMO"] = "1"
+        app.launchEnvironment["CONN_SMOKE_TERMINAL"] = "1"
+        app.launchEnvironment["CONN_SMOKE_TERMINAL_EXPANDED"] = "1"
+        app.launchEnvironment["CONN_SMOKE_TERMINAL_ATTACHMENTS_FAILURE"] = "1"
+        app.launchArguments += ["-conn.settings.terminalCursorBlinking", "NO"]
+        app.launch()
+
+        let uploadTab = app.buttons["terminal.keybar.tab.upload"]
+        XCTAssertTrue(uploadTab.waitForExistence(timeout: 10))
+        uploadTab.tap()
+
+        let clipboard = app.buttons["terminal.keybar.upload.clipboard"]
+        XCTAssertTrue(clipboard.waitForExistence(timeout: 5))
+        clipboard.tap()
+
+        let errorToast = app.descendants(matching: .any)["conn.toast.error"].firstMatch
+        XCTAssertTrue(errorToast.waitForExistence(timeout: 5))
+        XCTAssertEqual(errorToast.label, "无法建立附件上传通道。")
+        XCTAssertTrue(app.buttons["terminal.keybar.upload.retry"].exists)
+        XCTAssertEqual(app.state, .runningForeground)
     }
 }

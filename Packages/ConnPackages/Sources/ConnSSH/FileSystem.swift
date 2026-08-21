@@ -21,13 +21,27 @@ public struct FileEntry: Identifiable, Sendable, Equatable, Hashable {
     public let modifiedAt: Date?
     public let kind: FileKind
 
-    public var id: String { path }
-    public var isDirectory: Bool { kind == .directory }
-    public var isSymlink: Bool { kind == .symlink }
-    public var isHidden: Bool { name.hasPrefix(".") }
+    public var id: String {
+        path
+    }
+
+    public var isDirectory: Bool {
+        kind == .directory
+    }
+
+    public var isSymlink: Bool {
+        kind == .symlink
+    }
+
+    public var isHidden: Bool {
+        name.hasPrefix(".")
+    }
 
     /// 权限 rwx 串（不含类型位），如 `rwxr-xr-x`。
-    public var permissionString: String { FilePermissions.string(from: permissions) }
+    public var permissionString: String {
+        FilePermissions.string(from: permissions)
+    }
+
     /// 八进制权限串，如 `755`。nil 无信息。
     public var octalPermissions: String? {
         permissions.map { String($0 & 0o777, radix: 8) }
@@ -103,7 +117,9 @@ public enum FilePermissions {
 /// 远端路径工具（POSIX 正斜杠）。纯函数、host 可测。
 public enum RemotePath {
     public static func join(_ base: String, _ component: String) -> String {
-        if base == "/" { return "/" + component }
+        if base == "/" {
+            return "/" + component
+        }
         return base.hasSuffix("/") ? base + component : base + "/" + component
     }
 
@@ -145,6 +161,13 @@ public protocol RemoteFileSystem: Sendable {
     func list(_ path: String) async throws -> [FileEntry]
     func stat(_ path: String) async throws -> FileEntry
     func open(_ path: String, mode: RemoteFileMode) async throws -> any RemoteFile
+    /// Opens a file and requests its mode as part of creation when the transport supports it.
+    /// The default implementation fails closed before returning the handle if chmod fails.
+    func open(
+        _ path: String,
+        mode: RemoteFileMode,
+        creationPermissions: UInt32?
+    ) async throws -> any RemoteFile
     func createDirectory(_ path: String) async throws
     func remove(_ path: String) async throws
     func removeDirectory(_ path: String) async throws
@@ -155,6 +178,23 @@ public protocol RemoteFileSystem: Sendable {
 }
 
 public extension RemoteFileSystem {
+    func open(
+        _ path: String,
+        mode: RemoteFileMode,
+        creationPermissions: UInt32?
+    ) async throws -> any RemoteFile {
+        let file = try await open(path, mode: mode)
+        guard case .writeCreate = mode, let creationPermissions else { return file }
+        do {
+            try await setPermissions(creationPermissions & 0o7777, path: path)
+            return file
+        } catch {
+            try? await file.close()
+            try? await remove(path)
+            throw error
+        }
+    }
+
     /// 读全文件（小文件 / 编辑用）。分块累计，避免一次巨读。
     func readAll(_ path: String) async throws -> Data {
         let file = try await open(path, mode: .read)
@@ -163,7 +203,9 @@ public extension RemoteFileSystem {
             var offset: UInt64 = 0
             while true {
                 let piece = try await file.read(offset: offset, length: 32 * 1024)
-                if piece.isEmpty { break }
+                if piece.isEmpty {
+                    break
+                }
                 data.append(piece)
                 offset += UInt64(piece.count)
             }
@@ -203,7 +245,7 @@ public extension RemoteFileSystem {
         writeTemporary: (String) async throws -> Void
     ) async throws {
         let temporaryPath = temporarySiblingPath(of: destinationPath, suffix: "tmp")
-        let permissions = (try? await stat(destinationPath).permissions) ?? fallbackPermissions
+        let permissions = await (try? stat(destinationPath).permissions) ?? fallbackPermissions
 
         do {
             try await writeTemporary(temporaryPath)

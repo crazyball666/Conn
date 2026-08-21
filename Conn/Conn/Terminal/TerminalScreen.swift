@@ -3,7 +3,9 @@ import ConnMultiplexer
 import ConnSSH
 import ConnTerminal
 import ConnUI
+import PhotosUI
 import SwiftUI
+import UniformTypeIdentifiers
 
 /// Presents an already-created local tab. Backend selection and initial launch are
 /// intentionally owned by the source page before this screen is shown.
@@ -21,6 +23,14 @@ struct TerminalScreen: View {
     @State private var isNewTerminalPresented = false
     @State private var createAfterSessionListDismisses = false
     @State private var pendingCompletion: NewTerminalFlowCompletion?
+    @StateObject private var insertionMailbox: TerminalTextInsertionMailbox
+    @StateObject private var attachmentCoordinator: TerminalAttachmentCoordinator
+    @State private var isPhotoPickerPresented = false
+    @State private var isFileImporterPresented = false
+    @State private var photoSelection: [PhotosPickerItem] = []
+    @State private var providerWorkingDirectory: String?
+    @State private var pendingAttachmentContext: TerminalTextInsertionContext?
+    @State private var pendingAttachmentWorkingDirectory: String?
     @Environment(SettingsStore.self) private var settings
     @Environment(\.connToastCenter) private var toastCenter
     @Environment(\.dismiss) private var dismiss
@@ -37,6 +47,11 @@ struct TerminalScreen: View {
         snippetRepository = dependencies.snippetRepository
         snippetGroupRepository = dependencies.snippetGroupRepository
         _tabID = State(initialValue: tabID)
+        _insertionMailbox = StateObject(wrappedValue: TerminalTextInsertionMailbox())
+        _attachmentCoordinator = StateObject(wrappedValue: TerminalAttachmentCoordinator(
+            host: host,
+            connectionManager: dependencies.connectionManager
+        ))
     }
 
     var body: some View {
@@ -137,8 +152,68 @@ struct TerminalScreen: View {
             )
             .presentationDetents([.medium, .large])
         }
+        .photosPicker(
+            isPresented: $isPhotoPickerPresented,
+            selection: $photoSelection,
+            maxSelectionCount: 10,
+            matching: .images,
+            preferredItemEncoding: .automatic
+        )
+        .onChange(of: photoSelection.count) { _, count in
+            guard count > 0 else { return }
+            let selected = photoSelection
+            photoSelection = []
+            attachmentCoordinator.uploadPhotos(
+                selected,
+                providerWorkingDirectory: pendingAttachmentWorkingDirectory,
+                insertionContext: pendingAttachmentContext,
+                insertionMailbox: insertionMailbox
+            )
+            pendingAttachmentContext = nil
+            pendingAttachmentWorkingDirectory = nil
+        }
+        .onChange(of: isPhotoPickerPresented) { _, isPresented in
+            if !isPresented, photoSelection.isEmpty {
+                pendingAttachmentContext = nil
+                pendingAttachmentWorkingDirectory = nil
+            }
+        }
+        .fileImporter(
+            isPresented: $isFileImporterPresented,
+            allowedContentTypes: [.item],
+            allowsMultipleSelection: true
+        ) { result in
+            defer {
+                pendingAttachmentContext = nil
+                pendingAttachmentWorkingDirectory = nil
+            }
+            guard case let .success(urls) = result, !urls.isEmpty else { return }
+            attachmentCoordinator.uploadFiles(
+                urls,
+                providerWorkingDirectory: pendingAttachmentWorkingDirectory,
+                insertionContext: pendingAttachmentContext,
+                insertionMailbox: insertionMailbox
+            )
+        }
+        .onDisappear { attachmentCoordinator.cancel() }
+        .onChange(of: attachmentCoordinator.panelState.phase) { _, phase in
+            presentAttachmentResult(phase)
+        }
+        #if DEBUG
+        .overlay(alignment: .topLeading) {
+                if ProcessInfo.processInfo.environment["CONN_SMOKE_TERMINAL_ATTACHMENTS"] != nil,
+                   let lastInsertedText = insertionMailbox.lastConsumedText {
+                    Text(lastInsertedText)
+                        .font(.system(size: 1))
+                        .opacity(0.01)
+                        .accessibilityIdentifier("terminal.smoke.lastInsertedText")
+                }
+            }
+        #endif
     }
+}
 
+private extension TerminalScreen {
     private var activeTab: TerminalTab? {
         terminalSessions.store.tab(id: tabID)
     }
@@ -171,13 +246,18 @@ struct TerminalScreen: View {
                     persistentInteraction: (
                         tab.persistentAttachment as? any PersistentTerminalInteractiveAttachment
                     )?.interaction,
+                    tabID: tab.id,
                     terminalGeneration: tab.generation,
+                    insertionMailbox: insertionMailbox,
                     configuration: configuration,
                     onChooseCommand: showCommandPicker,
                     onReconnect: { Task { await reconnect(tab.id) } },
                     onPersistentWorkspaceRenamed: { name in
                         terminalSessions.store.updatePersistentWorkspaceName(tab.id, to: name)
-                    }
+                    },
+                    attachmentState: attachmentCoordinator.panelState,
+                    onAttachmentAction: handleAttachmentAction,
+                    onPersistentWorkingDirectoryChanged: { providerWorkingDirectory = $0 }
                 )
                 .overlay {
                     if case let .disconnected(message) = tab.status {
@@ -296,8 +376,52 @@ struct TerminalScreen: View {
     /// Inserts text only; the user still decides whether to execute it.
     private func insertCommand(_ command: String) {
         isCommandPickerPresented = false
-        guard let tab = activeTab else { return }
-        Task { try? await tab.session.send(Array(command.utf8)) }
+        guard let context = insertionMailbox.currentContext else { return }
+        insertionMailbox.enqueue(command, expectedContext: context)
+    }
+
+    private func handleAttachmentAction(_ action: TerminalAttachmentAction) {
+        switch action {
+        case .photos:
+            captureAttachmentContext()
+            isPhotoPickerPresented = true
+        case .files:
+            captureAttachmentContext()
+            isFileImporterPresented = true
+        case .clipboard:
+            attachmentCoordinator.uploadClipboard(
+                providerWorkingDirectory: providerWorkingDirectory,
+                insertionContext: insertionMailbox.currentContext,
+                insertionMailbox: insertionMailbox
+            )
+        case .retry:
+            attachmentCoordinator.retry()
+        case .insertPaths:
+            attachmentCoordinator.insertCompletedPaths()
+        case .cancel:
+            attachmentCoordinator.cancel()
+        }
+    }
+
+    private func captureAttachmentContext() {
+        pendingAttachmentContext = insertionMailbox.currentContext
+        pendingAttachmentWorkingDirectory = providerWorkingDirectory
+    }
+
+    private func presentAttachmentResult(_ phase: TerminalAttachmentPanelState.Phase) {
+        switch phase {
+        case let .completed(count, _):
+            toastCenter.show(
+                String(format: ConnUI.L("已上传 %d 个附件"), count),
+                style: .success
+            )
+        case let .notice(message):
+            toastCenter.show(message, style: .info)
+        case let .failed(message):
+            toastCenter.show(message, style: .error)
+        case .idle, .preparing, .uploading:
+            break
+        }
     }
 }
 

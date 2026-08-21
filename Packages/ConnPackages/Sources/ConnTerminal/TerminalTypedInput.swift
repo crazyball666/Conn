@@ -1,6 +1,7 @@
 public enum TerminalPasteSource: Sendable, Equatable {
     case keybar
     case systemMenu
+    case programmatic
 }
 
 public enum TerminalTypedInputAction: Sendable, Equatable {

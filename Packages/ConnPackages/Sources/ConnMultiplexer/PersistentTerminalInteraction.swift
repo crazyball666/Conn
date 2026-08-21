@@ -48,6 +48,9 @@ public struct PersistentTerminalInteractionState: Sendable, Equatable {
     public let providerModeID: String?
     public let historyAvailable: Bool
     public let observedAt: Date
+    /// Provider-observed working directory for the verified active target. `nil` means
+    /// the provider cannot supply a trustworthy path; callers must use their fallback.
+    public let workingDirectory: String?
 
     public init(
         target: PersistentTerminalInteractionTarget,
@@ -58,7 +61,8 @@ public struct PersistentTerminalInteractionState: Sendable, Equatable {
         modeCapability: PersistentTerminalModeCapability,
         providerModeID: String? = nil,
         historyAvailable: Bool,
-        observedAt: Date
+        observedAt: Date,
+        workingDirectory: String? = nil
     ) {
         self.target = target
         self.attachmentGeneration = attachmentGeneration
@@ -69,12 +73,13 @@ public struct PersistentTerminalInteractionState: Sendable, Equatable {
         self.providerModeID = providerModeID
         self.historyAvailable = historyAvailable
         self.observedAt = observedAt
+        self.workingDirectory = workingDirectory
     }
 }
 
 public struct PersistentTerminalHistoryRequest: Sendable, Equatable {
     public static let maximumLines = 100_000
-    public static let maximumBytes = 4 * 1_024 * 1_024
+    public static let maximumBytes = 4 * 1024 * 1024
 
     public let target: PersistentTerminalInteractionTarget
     public let attachmentGeneration: UInt64
@@ -89,10 +94,10 @@ public struct PersistentTerminalHistoryRequest: Sendable, Equatable {
         maxLines: Int,
         maxBytes: Int
     ) throws {
-        guard (1...Self.maximumLines).contains(maxLines) else {
+        guard (1 ... Self.maximumLines).contains(maxLines) else {
             throw PersistentTerminalInteractionError.invalidHistoryLineLimit(maxLines)
         }
-        guard (1...Self.maximumBytes).contains(maxBytes) else {
+        guard (1 ... Self.maximumBytes).contains(maxBytes) else {
             throw PersistentTerminalInteractionError.invalidHistoryByteLimit(maxBytes)
         }
         self.target = target
@@ -167,7 +172,7 @@ public struct PersistentTerminalModeScrollRequest: Sendable, Equatable {
         direction: PersistentTerminalScrollDirection,
         rows: Int
     ) throws {
-        guard (1...Self.maximumRows).contains(rows) else {
+        guard (1 ... Self.maximumRows).contains(rows) else {
             throw PersistentTerminalInteractionError.invalidScrollRows(rows)
         }
         self.target = target
@@ -261,7 +266,9 @@ public enum PersistentTerminalHorizontalSwipeDirection: String, Sendable, Equata
 }
 
 public struct PersistentTerminalSwipeActionDescriptor: Sendable, Equatable, Identifiable {
-    public var id: String { direction.rawValue }
+    public var id: String {
+        direction.rawValue
+    }
 
     public let direction: PersistentTerminalHorizontalSwipeDirection
     public let actionID: String
@@ -375,7 +382,9 @@ public protocol PersistentTerminalInteractionFacet: AnyObject, Sendable {
 /// Interaction facets are independently optional. A provider can support state/history while
 /// omitting quick actions, and existing providers do not need no-op implementations.
 public extension PersistentTerminalInteractionFacet {
-    var quickActionGroup: PersistentTerminalQuickActionGroup? { get async { nil } }
+    var quickActionGroup: PersistentTerminalQuickActionGroup? {
+        get async { nil }
+    }
 
     func performQuickAction(
         _ request: PersistentTerminalQuickActionRequest

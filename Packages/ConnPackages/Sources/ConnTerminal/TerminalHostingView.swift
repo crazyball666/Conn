@@ -20,30 +20,45 @@
         private let session: TerminalSession
         private let transcript: TerminalTranscript
         private let persistentInteraction: (any PersistentTerminalInteractionFacet)?
+        private let tabID: String
         private let terminalGeneration: UInt64
+        private let insertionMailbox: TerminalTextInsertionMailbox?
         private let configuration: TerminalConfiguration
         private let onChooseCommand: () -> Void
         private let onReconnect: () -> Void
         private let onPersistentWorkspaceRenamed: (String) -> Void
+        private let attachmentState: TerminalAttachmentPanelState
+        private let onAttachmentAction: (TerminalAttachmentAction) -> Void
+        private let onPersistentWorkingDirectoryChanged: (String?) -> Void
 
         public init(
             session: TerminalSession,
             transcript: TerminalTranscript,
             persistentInteraction: (any PersistentTerminalInteractionFacet)? = nil,
+            tabID: String = "",
             terminalGeneration: UInt64 = 0,
+            insertionMailbox: TerminalTextInsertionMailbox? = nil,
             configuration: TerminalConfiguration = .init(),
             onChooseCommand: @escaping () -> Void = {},
             onReconnect: @escaping () -> Void = {},
-            onPersistentWorkspaceRenamed: @escaping (String) -> Void = { _ in }
+            onPersistentWorkspaceRenamed: @escaping (String) -> Void = { _ in },
+            attachmentState: TerminalAttachmentPanelState = .idle,
+            onAttachmentAction: @escaping (TerminalAttachmentAction) -> Void = { _ in },
+            onPersistentWorkingDirectoryChanged: @escaping (String?) -> Void = { _ in }
         ) {
             self.session = session
             self.transcript = transcript
             self.persistentInteraction = persistentInteraction
+            self.tabID = tabID
             self.terminalGeneration = terminalGeneration
+            self.insertionMailbox = insertionMailbox
             self.configuration = configuration
             self.onChooseCommand = onChooseCommand
             self.onReconnect = onReconnect
             self.onPersistentWorkspaceRenamed = onPersistentWorkspaceRenamed
+            self.attachmentState = attachmentState
+            self.onAttachmentAction = onAttachmentAction
+            self.onPersistentWorkingDirectoryChanged = onPersistentWorkingDirectoryChanged
         }
 
         public var body: some View {
@@ -51,11 +66,16 @@
                 session: session,
                 transcript: transcript,
                 persistentInteraction: persistentInteraction,
+                tabID: tabID,
                 terminalGeneration: terminalGeneration,
+                insertionMailbox: insertionMailbox,
                 configuration: configuration,
                 onChooseCommand: onChooseCommand,
                 onReconnect: onReconnect,
-                onPersistentWorkspaceRenamed: onPersistentWorkspaceRenamed
+                onPersistentWorkspaceRenamed: onPersistentWorkspaceRenamed,
+                attachmentState: attachmentState,
+                onAttachmentAction: onAttachmentAction,
+                onPersistentWorkingDirectoryChanged: onPersistentWorkingDirectoryChanged
             )
             // 重连会换一个 TerminalSession；显式换身份，避免 @StateObject 继续持有旧会话。
             .id(ObjectIdentifier(session))
@@ -77,32 +97,48 @@
         @Environment(\.connToastCenter) private var toastCenter
 
         private let configuration: TerminalConfiguration
+        private let tabID: String
+        private let terminalGeneration: UInt64
+        private let insertionMailbox: TerminalTextInsertionMailbox?
         private let onChooseCommand: () -> Void
         private let onReconnect: () -> Void
+        private let attachmentState: TerminalAttachmentPanelState
+        private let onAttachmentAction: (TerminalAttachmentAction) -> Void
 
         init(
             session: TerminalSession,
             transcript: TerminalTranscript,
             persistentInteraction: (any PersistentTerminalInteractionFacet)?,
+            tabID: String,
             terminalGeneration: UInt64,
+            insertionMailbox: TerminalTextInsertionMailbox?,
             configuration: TerminalConfiguration,
             onChooseCommand: @escaping () -> Void,
             onReconnect: @escaping () -> Void,
-            onPersistentWorkspaceRenamed: @escaping (String) -> Void
+            onPersistentWorkspaceRenamed: @escaping (String) -> Void,
+            attachmentState: TerminalAttachmentPanelState,
+            onAttachmentAction: @escaping (TerminalAttachmentAction) -> Void,
+            onPersistentWorkingDirectoryChanged: @escaping (String?) -> Void
         ) {
             _controller = StateObject(wrappedValue: TerminalInputController(
                 session: session,
                 transcript: transcript,
                 persistentInteraction: persistentInteraction,
                 terminalGeneration: terminalGeneration,
-                onPersistentWorkspaceRenamed: onPersistentWorkspaceRenamed
+                onPersistentWorkspaceRenamed: onPersistentWorkspaceRenamed,
+                onPersistentWorkingDirectoryChanged: onPersistentWorkingDirectoryChanged
             ))
             _isKeybarExpanded = State(
                 initialValue: ProcessInfo.processInfo.environment["CONN_SMOKE_TERMINAL_EXPANDED"] != nil
             )
             self.configuration = configuration
+            self.tabID = tabID
+            self.terminalGeneration = terminalGeneration
+            self.insertionMailbox = insertionMailbox
             self.onChooseCommand = onChooseCommand
             self.onReconnect = onReconnect
+            self.attachmentState = attachmentState
+            self.onAttachmentAction = onAttachmentAction
         }
 
         var body: some View {
@@ -138,7 +174,9 @@
                             keepsKeybarVisible = true
                             controller.toggleKeyboard()
                         },
-                        onExpansionChange: { isKeybarExpanded = $0 }
+                        onExpansionChange: { isKeybarExpanded = $0 },
+                        attachmentState: attachmentState,
+                        onAttachmentAction: onAttachmentAction
                     )
                     .frame(
                         height: isKeybarExpanded
@@ -224,7 +262,16 @@
                 guard let notice else { return }
                 toastCenter.show(notice.text, style: notice.style)
             }
-            .onAppear { controller.setApplicationActive(scenePhase == .active) }
+            .onChange(of: controller.inputEpoch) { _, _ in synchronizeInsertionContext() }
+            .onChange(of: controller.persistentTarget) { _, _ in synchronizeInsertionContext() }
+            .onChange(of: insertionMailbox?.pending?.id) { _, _ in
+                guard let text = insertionMailbox?.consumeIfCurrent() else { return }
+                controller.handlePaste(text, source: .programmatic)
+            }
+            .onAppear {
+                controller.setApplicationActive(scenePhase == .active)
+                synchronizeInsertionContext()
+            }
             .onChange(of: scenePhase) { _, phase in
                 controller.setApplicationActive(phase == .active)
             }
@@ -233,6 +280,15 @@
 
         private var isProviderActionPresented: Bool {
             pendingTextInputAction != nil || pendingConfirmationAction != nil
+        }
+
+        private func synchronizeInsertionContext() {
+            insertionMailbox?.updateContext(.init(
+                tabID: tabID,
+                generation: terminalGeneration,
+                inputEpoch: controller.inputEpoch,
+                persistentTarget: controller.persistentTarget
+            ))
         }
 
         private func selectProviderQuickAction(
@@ -260,7 +316,7 @@
         let configuration: TerminalConfiguration
         let controller: TerminalInputController
 
-        func makeUIView(context: Context) -> KeybarTerminalView {
+        func makeUIView(context _: Context) -> KeybarTerminalView {
             let terminalView = KeybarTerminalView(frame: .zero)
             terminalView.accessibilityIdentifier = "terminal.viewport"
             terminalView.terminalDelegate = controller
@@ -272,12 +328,12 @@
             return terminalView
         }
 
-        func updateUIView(_ terminalView: KeybarTerminalView, context: Context) {
+        func updateUIView(_ terminalView: KeybarTerminalView, context _: Context) {
             applyConfiguration(to: terminalView)
             terminalView.configureContentPadding(horizontal: ConnSpacing.sm)
         }
 
-        static func dismantleUIView(_ terminalView: KeybarTerminalView, coordinator: Void) {
+        static func dismantleUIView(_ terminalView: KeybarTerminalView, coordinator _: Void) {
             terminalView.onFirstResponderChange = nil
             terminalView.onSystemPaste = nil
             terminalView.removeInteractionHost()
@@ -344,6 +400,7 @@
         private let persistentInteraction: (any PersistentTerminalInteractionFacet)?
         private let terminalGeneration: UInt64
         private let onPersistentWorkspaceRenamed: (String) -> Void
+        private let onPersistentWorkingDirectoryChanged: (String?) -> Void
         private let replayOutboundGate = TerminalReplayOutboundGate()
         private let interactionController = TerminalInteractionController()
         private let typedInputPlanner = TerminalTypedInputPlanner()
@@ -377,19 +434,24 @@
         @Published private(set) var interactionNotice: TerminalInteractionNotice?
         @Published private(set) var providerQuickActionGroup: PersistentTerminalQuickActionGroup?
         @Published private(set) var performingProviderQuickActionID: String?
+        @Published private(set) var inputEpoch: UInt64 = 0
+        @Published private(set) var persistentTarget: PersistentTerminalInteractionTarget?
+        @Published private(set) var persistentWorkingDirectory: String?
 
         init(
             session: TerminalSession,
             transcript: TerminalTranscript,
             persistentInteraction: (any PersistentTerminalInteractionFacet)?,
             terminalGeneration: UInt64,
-            onPersistentWorkspaceRenamed: @escaping (String) -> Void
+            onPersistentWorkspaceRenamed: @escaping (String) -> Void,
+            onPersistentWorkingDirectoryChanged: @escaping (String?) -> Void
         ) {
             self.session = session
             self.transcript = transcript
             self.persistentInteraction = persistentInteraction
             self.terminalGeneration = terminalGeneration
             self.onPersistentWorkspaceRenamed = onPersistentWorkspaceRenamed
+            self.onPersistentWorkingDirectoryChanged = onPersistentWorkingDirectoryChanged
         }
 
         func attach(_ terminalView: KeybarTerminalView) {
@@ -497,6 +559,9 @@
             isReviewActive = false
             providerQuickActionGroup = nil
             performingProviderQuickActionID = nil
+            persistentTarget = nil
+            persistentWorkingDirectory = nil
+            onPersistentWorkingDirectoryChanged(nil)
             guard let attachmentID else { return }
             self.attachmentID = nil
             Task { [transcript] in
@@ -595,6 +660,7 @@
 
             let encoded: [UInt8]
             if replayOutboundGate.currentFeedProvenance == .outsideFeed, !isTypedPaste {
+                inputEpoch &+= 1
                 let result = TerminalKeyEncoder.encode(bytes, ctrlActive: ctrlActive)
                 encoded = result.bytes
                 ctrlActive = result.ctrlStillActive
@@ -620,6 +686,7 @@
                 syncInteractionPresentation()
                 return
             }
+            inputEpoch &+= 1
             let (encoded, stillActive) = TerminalKeyEncoder.encode(key.bytes, ctrlActive: ctrlActive)
             ctrlActive = stillActive
             Task { try? await session.send(encoded) }
@@ -629,6 +696,9 @@
             dismissHistoryReviewIfNeeded()
             guard let terminalView else { return }
             terminalView.clearSelection()
+            if source != .programmatic {
+                inputEpoch &+= 1
+            }
             switch typedInputPlanner.paste(text, source: source) {
             case let .paste(value):
                 isTypedPaste = true
@@ -662,6 +732,11 @@
 
         private func acceptPersistentState(_ state: PersistentTerminalInteractionState) {
             persistentState = state
+            persistentTarget = state.target
+            persistentWorkingDirectory = state.workingDirectory
+            onPersistentWorkingDirectoryChanged(
+                state.freshness == .live ? state.workingDirectory : nil
+            )
             refreshProviderQuickActions(for: state)
             updateInteractionContext()
             drainProviderNavigation()
@@ -1226,8 +1301,8 @@
             }
         }
 
-        func setTerminalTitle(source: TerminalView, title: String) {}
-        func hostCurrentDirectoryUpdate(source: TerminalView, directory: String?) {}
+        func setTerminalTitle(source _: TerminalView, title _: String) {}
+        func hostCurrentDirectoryUpdate(source _: TerminalView, directory _: String?) {}
         func scrolled(source: TerminalView, position: Double) {
             updateInteractionContext()
             let state = TerminalViewportState(
@@ -1237,9 +1312,9 @@
             Task { [transcript] in await transcript.updateViewport(state) }
         }
 
-        func requestOpenLink(source: TerminalView, link: String, params: [String: String]) {}
-        func bell(source: TerminalView) {}
-        func clipboardCopy(source: TerminalView, content: Data) {
+        func requestOpenLink(source _: TerminalView, link _: String, params _: [String: String]) {}
+        func bell(source _: TerminalView) {}
+        func clipboardCopy(source _: TerminalView, content: Data) {
             guard replayOutboundGate.allowsHostSideEffects,
                   clipboardPolicy.acceptsWrite(
                       content,
@@ -1264,7 +1339,7 @@
             return nil
         }
 
-        func rangeChanged(source: TerminalView, startY: Int, endY: Int) {}
+        func rangeChanged(source _: TerminalView, startY _: Int, endY _: Int) {}
     }
 
     private extension TerminalProtocolState {
@@ -1339,12 +1414,29 @@
         private var onIndirectPointer: ((UIGestureRecognizer) -> Void)?
         private var reviewSurface: TerminalReviewTextView?
 
-        var installedProviderNavigationGesture: UIPanGestureRecognizer? { providerNavigationPan }
-        var installedRemoteScrollGesture: UIPanGestureRecognizer? { remoteScrollPan }
-        var installedSelectionGesture: UILongPressGestureRecognizer? { selectionLongPress }
-        var installedSelectionDragGesture: UIPanGestureRecognizer? { selectionPan }
-        var installedDirectPointerGesture: UIPanGestureRecognizer? { directPointerPan }
-        var installedIndirectPointerGesture: UIPanGestureRecognizer? { indirectPointerPan }
+        var installedProviderNavigationGesture: UIPanGestureRecognizer? {
+            providerNavigationPan
+        }
+
+        var installedRemoteScrollGesture: UIPanGestureRecognizer? {
+            remoteScrollPan
+        }
+
+        var installedSelectionGesture: UILongPressGestureRecognizer? {
+            selectionLongPress
+        }
+
+        var installedSelectionDragGesture: UIPanGestureRecognizer? {
+            selectionPan
+        }
+
+        var installedDirectPointerGesture: UIPanGestureRecognizer? {
+            directPointerPan
+        }
+
+        var installedIndirectPointerGesture: UIPanGestureRecognizer? {
+            indirectPointerPan
+        }
 
         var estimatedRowHeight: Double {
             Double(max(font.lineHeight, 1))
@@ -1576,7 +1668,7 @@
             return super.gestureRecognizerShouldBegin(gestureRecognizer)
         }
 
-        @objc override public func paste(_ sender: Any?) {
+        @objc override public func paste(_: Any?) {
             guard let text = UIPasteboard.general.string else { return }
             onSystemPaste?(text)
         }
@@ -1710,7 +1802,8 @@
             let terminal = getTerminal()
             guard horizontalContentPadding > 0,
                   usableWidth > 0,
-                  terminal.cols > 0 else {
+                  terminal.cols > 0
+            else {
                 return
             }
 

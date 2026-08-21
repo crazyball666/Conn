@@ -1,8 +1,8 @@
 import ConnKit
-@testable import ConnMultiplexer
 import ConnSSH
 import Foundation
 import Testing
+@testable import ConnMultiplexer
 
 @Suite("tmux terminal interaction")
 struct TmuxInteractionTests {
@@ -55,6 +55,7 @@ struct TmuxInteractionTests {
         #expect(live.modeCapability == .scrollable)
         #expect(live.providerModeID == "copy-mode")
         #expect(live.historyAvailable)
+        #expect(live.workingDirectory == "/repo/conn")
 
         let stale = try TmuxInteractionStateProjector().project(
             snapshot: fixture.snapshot(freshness: .stale(lastObservedAt: fixture.now)),
@@ -63,6 +64,7 @@ struct TmuxInteractionTests {
         )
         #expect(stale.freshness == .stale)
         #expect(stale.modeCapability == .scrollable)
+        #expect(stale.workingDirectory == nil)
     }
 
     @Test("tmux quick actions map to typed operations against the verified active topology")
@@ -185,17 +187,17 @@ struct TmuxInteractionTests {
     }
 
     @Test("history parsing strips terminal side effects and returns immutable bounded lines")
-    func sanitizesCapturedHistory() throws {
+    func sanitizesCapturedHistory() {
         let bytes = Data([
             0x61, 0x1B, 0x5D, 0x35, 0x32, 0x3B, 0x63, 0x3B, 0x63, 0x32, 0x56, 0x6A, 0x63, 0x6D,
             0x56, 0x30, 0x07, 0x62, 0x0D, 0x0A,
             0x1B, 0x50, 0x71, 0x75, 0x65, 0x72, 0x79, 0x1B, 0x5C,
-            0x63, 0x09, 0x64, 0x00, 0xFF,
+            0x63, 0x09, 0x64, 0x00, 0xFF
         ])
         let parsed = TmuxHistoryCaptureParser().parse(
             bytes,
             maximumLines: 10,
-            maximumBytes: 1_024
+            maximumBytes: 1024
         )
 
         #expect(parsed.lines.map(\.text) == ["ab", "c\td�"])
@@ -238,7 +240,7 @@ private struct InteractionFixture {
         session = try #require(TmuxSessionID(rawValue: "$1"))
         window = try #require(TmuxWindowID(rawValue: "@1"))
         pane = try #require(TmuxPaneID(rawValue: "%1"))
-        client = .init(targetName: "/dev/pts/1", processID: 101, createdAt: 1_000)
+        client = .init(targetName: "/dev/pts/1", processID: 101, createdAt: 1000)
     }
 
     var identity: TmuxControlInteractiveIdentity {
@@ -250,7 +252,7 @@ private struct InteractionFixture {
     }
 
     func snapshot(freshness: TmuxMetadataFreshness) throws -> TmuxServerSnapshot {
-        return try TmuxServerSnapshot(
+        try TmuxServerSnapshot(
             instance: .init(token: token, version: "3.5a"),
             sessions: [session: .init(
                 id: session, name: "main", groupName: nil, currentWindowID: window
@@ -265,14 +267,14 @@ private struct InteractionFixture {
                 index: 0,
                 title: .unavailable,
                 currentCommand: .unavailable,
-                currentPath: .unavailable,
+                currentPath: observed("/repo/conn", freshness: freshness),
                 interaction: .init(
                     alternateOn: observed(false, freshness: freshness),
                     paneInMode: observed(true, freshness: freshness),
                     mode: observed("copy-mode", freshness: freshness),
                     mouseAnyFlag: observed(false, freshness: freshness),
                     historySize: observed(120, freshness: freshness),
-                    historyLimit: observed(2_000, freshness: freshness)
+                    historyLimit: observed(2000, freshness: freshness)
                 ),
                 size: .init(cols: 80, rows: 24),
                 isDead: false

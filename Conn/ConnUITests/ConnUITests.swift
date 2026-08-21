@@ -5,19 +5,19 @@
 //  Created by crazyball on 2026/7/19.
 //
 
-import XCTest
 import UIKit
 import Vision
+import XCTest
 
 final class ConnUITests: XCTestCase {
-
     override func setUpWithError() throws {
         // Put setup code here. This method is called before the invocation of each test method in the class.
 
         // In UI tests it is usually best to stop immediately when a failure occurs.
         continueAfterFailure = false
 
-        // In UI tests it’s important to set the initial state - such as interface orientation - required for your tests before they run. The setUp method is a good place to do this.
+        // In UI tests it’s important to set the initial state - such as interface orientation - required for your tests before they run.
+        // The setUp method is a good place to do this.
     }
 
     override func tearDownWithError() throws {
@@ -25,7 +25,7 @@ final class ConnUITests: XCTestCase {
     }
 
     @MainActor
-    func testExample() throws {
+    func testExample() {
         // UI tests must launch the application that they test.
         let app = XCUIApplication()
         app.launch()
@@ -34,7 +34,7 @@ final class ConnUITests: XCTestCase {
     }
 
     @MainActor
-    func testTerminalKeyboardViewportRestoresAfterDismissAndReopen() throws {
+    func testTerminalKeyboardViewportRestoresAfterDismissAndReopen() {
         let app = XCUIApplication()
         app.launchEnvironment["CONN_DEMO"] = "1"
         app.launchEnvironment["CONN_SMOKE_TERMINAL"] = "1"
@@ -62,7 +62,7 @@ final class ConnUITests: XCTestCase {
     }
 
     @MainActor
-    func testTerminalContentTapKeepsKeyboardViewportVisible() throws {
+    func testTerminalContentTapKeepsKeyboardViewportVisible() {
         let app = XCUIApplication()
         app.launchEnvironment["CONN_DEMO"] = "1"
         app.launchEnvironment["CONN_SMOKE_TERMINAL"] = "1"
@@ -84,7 +84,7 @@ final class ConnUITests: XCTestCase {
     }
 
     @MainActor
-    func testTerminalDismissKeyboardKeepsKeybarVisible() throws {
+    func testTerminalDismissKeyboardKeepsKeybarVisible() {
         let app = XCUIApplication()
         app.launchEnvironment["CONN_DEMO"] = "1"
         app.launchEnvironment["CONN_SMOKE_TERMINAL"] = "1"
@@ -169,7 +169,7 @@ final class ConnUITests: XCTestCase {
     }
 
     @MainActor
-    func testTerminalKeybarExpandsAboveKeyboardAndRestoresViewport() throws {
+    func testTerminalKeybarExpandsAboveKeyboardAndRestoresViewport() {
         let app = XCUIApplication()
         app.launchEnvironment["CONN_DEMO"] = "1"
         app.launchEnvironment["CONN_SMOKE_TERMINAL"] = "1"
@@ -184,7 +184,6 @@ final class ConnUITests: XCTestCase {
         XCTAssertTrue(expand.waitForExistence(timeout: 10))
         XCTAssertTrue(app.buttons["terminal.keybar.dismissKeyboard"].exists)
         XCTAssertTrue(app.buttons["terminal.keybar.commands"].exists)
-        XCTAssertTrue(app.buttons["terminal.keybar.reconnect"].exists)
         let compactViewport = terminal.frame
         XCTAssertLessThanOrEqual(terminal.frame.maxY, keybar.frame.minY + 1)
 
@@ -222,7 +221,7 @@ final class ConnUITests: XCTestCase {
     }
 
     @MainActor
-    func testTerminalCommandPickerShowsScriptSearchAndResults() throws {
+    func testTerminalCommandPickerShowsScriptSearchAndResults() {
         let app = XCUIApplication()
         app.launchEnvironment["CONN_DEMO"] = "1"
         app.launchEnvironment["CONN_SMOKE_TERMINAL"] = "1"
@@ -247,7 +246,7 @@ final class ConnUITests: XCTestCase {
     }
 
     @MainActor
-    func testSnippetGroupCreateAlertIsPresentedOnGroupDestination() throws {
+    func testSnippetGroupCreateAlertIsPresentedOnGroupDestination() {
         let app = XCUIApplication()
         app.launchEnvironment["CONN_DEMO"] = "1"
         app.launchEnvironment["CONN_SMOKE_SNIPPETS"] = "1"
@@ -274,7 +273,7 @@ final class ConnUITests: XCTestCase {
     }
 
     @MainActor
-    func testHostFormGroupPickerStartsCollapsed() throws {
+    func testHostFormGroupPickerStartsCollapsed() {
         let app = XCUIApplication()
         app.launchEnvironment["CONN_DEMO"] = "1"
         app.launchEnvironment["CONN_SMOKE_HOSTFORM"] = "1"
@@ -286,7 +285,7 @@ final class ConnUITests: XCTestCase {
     }
 
     @MainActor
-    func testAddingHostFromServersSavesWithoutCrashing() throws {
+    func testAddingHostFromServersSavesWithoutCrashing() {
         let app = XCUIApplication()
         app.launchEnvironment["CONN_DEMO"] = "1"
         app.launch()
@@ -323,7 +322,7 @@ final class ConnUITests: XCTestCase {
     }
 
     @MainActor
-    func testEditingHostFromServersSavesWithoutCrashing() throws {
+    func testEditingHostFromServersSavesWithoutCrashing() {
         let app = XCUIApplication()
         app.launchEnvironment["CONN_DEMO"] = "1"
         app.launch()
@@ -350,7 +349,7 @@ final class ConnUITests: XCTestCase {
     }
 
     @MainActor
-    func testLiveDatabaseCanAddEditAndDeleteHostWithoutCrashing() throws {
+    func testLiveDatabaseCanAddEditAndDeleteHostWithoutCrashing() {
         let app = XCUIApplication()
         app.launch()
 
@@ -410,7 +409,7 @@ final class ConnUITests: XCTestCase {
     }
 
     @MainActor
-    func testSnippetFormGroupPickerStartsCollapsed() throws {
+    func testSnippetFormGroupPickerStartsCollapsed() {
         let app = XCUIApplication()
         app.launchEnvironment["CONN_DEMO"] = "1"
         app.launchEnvironment["CONN_SMOKE_SNIPPETS"] = "1"
@@ -438,8 +437,12 @@ final class ConnUITests: XCTestCase {
         app.launchArguments += ["-conn.settings.terminalCursorBlinking", "NO"]
         app.launch()
 
+        let expand = app.buttons["terminal.keybar.expand"]
+        XCTAssertTrue(expand.waitForExistence(timeout: 10))
+        expand.tap()
+
         let pasteButton = app.buttons["terminal.keybar.paste"]
-        XCTAssertTrue(pasteButton.waitForExistence(timeout: 10))
+        XCTAssertTrue(pasteButton.waitForExistence(timeout: 5))
         pasteButton.tap()
         Thread.sleep(forTimeInterval: 1)
 
@@ -461,7 +464,7 @@ final class ConnUITests: XCTestCase {
     }
 
     @MainActor
-    func testLaunchPerformance() throws {
+    func testLaunchPerformance() {
         // This measures how long it takes to launch your application.
         measure(metrics: [XCTApplicationLaunchMetric()]) {
             XCUIApplication().launch()

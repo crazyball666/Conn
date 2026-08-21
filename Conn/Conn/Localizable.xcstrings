@@ -2903,6 +2903,62 @@
         }
       }
     },
+    "剪贴板中没有可上传的图片或文件。" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "The clipboard does not contain an image or file that can be uploaded." } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "クリップボードにアップロード可能な画像またはファイルがありません。" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "클립보드에 업로드할 수 있는 이미지나 파일이 없습니다." } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "剪貼簿中沒有可上傳的圖片或檔案。" } }
+      }
+    },
+    "当前终端尚未准备好，请稍后重试。" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "The terminal is not ready. Try again shortly." } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "ターミナルの準備ができていません。しばらくしてから再試行してください。" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "터미널이 아직 준비되지 않았습니다. 잠시 후 다시 시도하십시오." } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "目前終端機尚未就緒，請稍後重試。" } }
+      }
+    },
+    "附件上传失败：%@" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Attachment upload failed: %@" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "添付ファイルのアップロードに失敗しました：%@" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "첨부 파일 업로드 실패: %@" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "附件上傳失敗：%@" } }
+      }
+    },
+    "已上传 %d 个附件" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Uploaded %d attachments" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "添付ファイルを%d件アップロードしました" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "첨부 파일 %d개 업로드됨" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "已上傳 %d 個附件" } }
+      }
+    },
+    "已上传 %d 个附件，其余附件上传失败：%@" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "%d attachment(s) uploaded; the remaining upload failed: %@" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "%d 件の添付ファイルをアップロードしました。残りのアップロードに失敗しました：%@" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "첨부 파일 %d개를 업로드했지만 나머지 업로드에 실패했습니다: %@" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "已上傳 %d 個附件，其餘附件上傳失敗：%@" } }
+      }
+    },
+    "无法处理所选图片格式。" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "The selected image format could not be processed." } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "選択した画像形式を処理できません。" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "선택한 이미지 형식을 처리할 수 없습니다." } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "無法處理所選圖片格式。" } }
+      }
+    },
+    "无法建立附件上传通道。" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "An attachment upload channel could not be established." } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "添付ファイルのアップロードチャネルを確立できません。" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "첨부 파일 업로드 채널을 설정할 수 없습니다." } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "無法建立附件上傳通道。" } }
+      }
+    },
     "上传" : {
       "extractionState" : "stale",
       "localizations" : {

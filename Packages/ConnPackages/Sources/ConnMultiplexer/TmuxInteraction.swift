@@ -21,14 +21,14 @@ package enum TmuxInteractionModeClassifier {
     private static let scrollableModes: Set<String> = [
         "copy-mode",
         "copy-mode-vi",
-        "view-mode",
+        "view-mode"
     ]
     private static let keyDrivenModes: Set<String> = [
         "choose-buffer",
         "choose-client",
         "choose-tree",
         "client-mode",
-        "tree-mode",
+        "tree-mode"
     ]
 
     package static func classify(
@@ -39,8 +39,12 @@ package enum TmuxInteractionModeClassifier {
             return paneInMode == false ? .none : .unsupported
         }
         guard let mode, !mode.isEmpty else { return .unsupported }
-        if scrollableModes.contains(mode) { return .scrollable }
-        if keyDrivenModes.contains(mode) { return .keyDriven }
+        if scrollableModes.contains(mode) {
+            return .scrollable
+        }
+        if keyDrivenModes.contains(mode) {
+            return .keyDriven
+        }
         return .unsupported
     }
 }
@@ -96,7 +100,7 @@ package enum TmuxTerminalQuickAction: String, CaseIterable, Sendable {
                     "pencil",
                     textInput: .init(titleKey: "重命名 Session", placeholderKey: "Session 名称"),
                     completionEffect: .workspaceRenamed
-                ),
+                )
             ]),
             .init(id: "window", titleKey: "Window", actions: [
                 descriptor(.newWindow, "新建 Window", "plus.rectangle"),
@@ -113,7 +117,7 @@ package enum TmuxTerminalQuickAction: String, CaseIterable, Sendable {
                     "关闭 Window",
                     "xmark.rectangle",
                     confirmation: .init(titleKey: "关闭当前 Window？")
-                ),
+                )
             ]),
             .init(id: "pane", titleKey: "Pane", actions: [
                 descriptor(.splitHorizontal, "左右分屏", "rectangle.split.2x1"),
@@ -137,10 +141,10 @@ package enum TmuxTerminalQuickAction: String, CaseIterable, Sendable {
                     "关闭 Pane",
                     "xmark.square",
                     confirmation: .init(titleKey: "关闭当前 Pane？")
-                ),
+                )
             ]),
             .init(id: "mode", titleKey: "模式", actions: [
-                descriptor(.copyMode, "复制模式", "doc.on.doc"),
+                descriptor(.copyMode, "复制模式", "doc.on.doc")
             ]),
             .init(id: "layout", titleKey: "Pane 布局", actions: [
                 descriptor(.cycleLayout, "切换布局", "rectangle.3.group"),
@@ -148,8 +152,8 @@ package enum TmuxTerminalQuickAction: String, CaseIterable, Sendable {
                 descriptor(.evenHorizontalLayout, "等宽布局", "rectangle.split.3x1"),
                 descriptor(.evenVerticalLayout, "等高布局", "rectangle.split.1x2"),
                 descriptor(.mainHorizontalLayout, "主区域居上", "rectangle.tophalf.inset.filled"),
-                descriptor(.mainVerticalLayout, "主区域居左", "rectangle.lefthalf.inset.filled"),
-            ]),
+                descriptor(.mainVerticalLayout, "主区域居左", "rectangle.lefthalf.inset.filled")
+            ])
         ],
         swipeActions: [
             // The content follows the finger: swiping left advances, swiping right goes back.
@@ -164,7 +168,7 @@ package enum TmuxTerminalQuickAction: String, CaseIterable, Sendable {
                 actionID: previousWindow.rawValue,
                 successNoticeKey: "已切换到上一个 Window",
                 unavailableNoticeKey: "没有可切换的 Window"
-            ),
+            )
         ]
     )
 
@@ -179,25 +183,25 @@ package enum TmuxTerminalQuickAction: String, CaseIterable, Sendable {
         }
         return switch self {
         case .renameSession:
-            .renameSession(state.sessionID, to: try TmuxName(argument ?? ""))
+            try .renameSession(state.sessionID, to: TmuxName(argument ?? ""))
         case .newWindow:
             .createWindow(in: state.sessionID, name: nil)
         case .previousWindow:
-            .selectRelativeWindow(
+            try .selectRelativeWindow(
                 in: state.sessionID,
                 direction: .previous,
-                steps: try TmuxWindowNavigationStepCount(repeatCount),
+                steps: TmuxWindowNavigationStepCount(repeatCount),
                 for: client
             )
         case .nextWindow:
-            .selectRelativeWindow(
+            try .selectRelativeWindow(
                 in: state.sessionID,
                 direction: .next,
-                steps: try TmuxWindowNavigationStepCount(repeatCount),
+                steps: TmuxWindowNavigationStepCount(repeatCount),
                 for: client
             )
         case .renameWindow:
-            .renameWindow(state.windowID, to: try TmuxName(argument ?? ""))
+            try .renameWindow(state.windowID, to: TmuxName(argument ?? ""))
         case .closeWindow:
             .killWindow(state.windowID)
         case .splitHorizontal:
@@ -215,13 +219,13 @@ package enum TmuxTerminalQuickAction: String, CaseIterable, Sendable {
         case .swapPaneNext:
             .swapPane(state.paneID, direction: .next)
         case .resizeLeft:
-            .resizePane(state.paneID, direction: .left, cells: try TmuxResizeCellCount(5))
+            try .resizePane(state.paneID, direction: .left, cells: TmuxResizeCellCount(5))
         case .resizeRight:
-            .resizePane(state.paneID, direction: .right, cells: try TmuxResizeCellCount(5))
+            try .resizePane(state.paneID, direction: .right, cells: TmuxResizeCellCount(5))
         case .resizeUp:
-            .resizePane(state.paneID, direction: .up, cells: try TmuxResizeCellCount(5))
+            try .resizePane(state.paneID, direction: .up, cells: TmuxResizeCellCount(5))
         case .resizeDown:
-            .resizePane(state.paneID, direction: .down, cells: try TmuxResizeCellCount(5))
+            try .resizePane(state.paneID, direction: .down, cells: TmuxResizeCellCount(5))
         case .toggleSynchronizePanes:
             .toggleSynchronizePanes(state.windowID)
         case .copyMode:
@@ -338,7 +342,7 @@ package struct TmuxInteractionStateProjector: Sendable {
             interaction.paneInMode.freshness,
             interaction.mode.freshness,
             interaction.historySize.freshness,
-            interaction.historyLimit.freshness,
+            interaction.historyLimit.freshness
         ])
         let state = PersistentTerminalInteractionState(
             target: target,
@@ -352,7 +356,10 @@ package struct TmuxInteractionStateProjector: Sendable {
             ),
             providerModeID: interaction.mode.value,
             historyAvailable: (interaction.historySize.value ?? 0) > 0,
-            observedAt: snapshot.observedAt
+            observedAt: snapshot.observedAt,
+            workingDirectory: effectiveFreshness([pane.currentPath.freshness]) == .live
+                ? pane.currentPath.value
+                : nil
         )
         return .init(
             state: state,
@@ -373,14 +380,20 @@ package struct TmuxInteractionStateProjector: Sendable {
         _ values: [TmuxMetadataFreshness]
     ) -> PersistentTerminalInteractionFreshness {
         if values.contains(where: {
-            if case .stale = $0 { return true }
+            if case .stale = $0 {
+                return true
+            }
             return false
         }) {
             return .stale
         }
-        if values.contains(.unavailable) { return .stale }
+        if values.contains(.unavailable) {
+            return .stale
+        }
         if values.contains(where: {
-            if case .snapshot = $0 { return true }
+            if case .snapshot = $0 {
+                return true
+            }
             return false
         }) {
             return .snapshot
@@ -560,7 +573,9 @@ package struct TmuxOneShotReadOnlyCommandExecutor: TmuxReadOnlyCommandExecuting,
         else {
             throw TmuxInteractionOneShotError.malformedResponse
         }
-        if command.hasSuffix("\n") { command.removeLast() }
+        if command.hasSuffix("\n") {
+            command.removeLast()
+        }
         let nonce = try nonceFactory()
         let acceptedMarker = "__CONN_TMUX_READ_ACCEPTED_\(nonce.value)__"
         let changedMarker = "__CONN_TMUX_READ_CHANGED_\(nonce.value)__"
@@ -569,7 +584,7 @@ package struct TmuxOneShotReadOnlyCommandExecutor: TmuxReadOnlyCommandExecuting,
         let acceptedCommand = "display-message -p \(encodeTmux(acceptedMarker)) ; \(command)"
         let changedCommand = "display-message -p \(encodeTmux(changedMarker))"
         let arguments = locator.arguments + [
-            "if-shell", "-F", condition, acceptedCommand, changedCommand,
+            "if-shell", "-F", condition, acceptedCommand, changedCommand
         ]
         let script = (["exec", executable.value] + arguments)
             .map { POSIXShellArgument.encode($0) }
@@ -614,7 +629,9 @@ package struct TmuxOneShotReadOnlyCommandExecutor: TmuxReadOnlyCommandExecuting,
 
     private func consumeLeadingLine(_ marker: Data, from output: Data) -> Data? {
         guard output.starts(with: marker) else { return nil }
-        if output.count == marker.count { return Data() }
+        if output.count == marker.count {
+            return Data()
+        }
         let boundary = output.index(output.startIndex, offsetBy: marker.count)
         if output[boundary] == UInt8(ascii: "\n") {
             return Data(output[output.index(after: boundary)...])
@@ -649,12 +666,12 @@ package protocol TmuxPaneHistoryCaptureExecuting: Sendable {
 }
 
 package struct TmuxStreamingPaneHistoryCaptureExecutor:
-    TmuxPaneHistoryCaptureExecuting, Sendable
-{
+    TmuxPaneHistoryCaptureExecuting, Sendable {
     private struct Collection: Sendable {
         let stdout: Data
         let isTruncated: Bool
     }
+
     private let session: any SSHSession
     private let runtime: PreparedRemoteScriptRuntime
     private let executable: TmuxExecutablePath
@@ -701,12 +718,12 @@ package struct TmuxStreamingPaneHistoryCaptureExecutor:
             + "#{==:#{start_time},\(scope.instanceToken.serverStartTime)}}"
         let capture = [
             "capture-pane", "-p", "-N", "-t", encodeTmux(paneID.rawValue),
-            "-S", encodeTmux(String(startLine)), "-E", encodeTmux("-"),
+            "-S", encodeTmux(String(startLine)), "-E", encodeTmux("-")
         ].joined(separator: " ")
         let acceptedCommand = "display-message -p \(encodeTmux(acceptedMarker)) ; \(capture)"
         let changedCommand = "display-message -p \(encodeTmux(changedMarker))"
         let arguments = locator.arguments + [
-            "if-shell", "-F", condition, acceptedCommand, changedCommand,
+            "if-shell", "-F", condition, acceptedCommand, changedCommand
         ]
         let script = (["exec", executable.value] + arguments)
             .map { POSIXShellArgument.encode($0) }
@@ -782,7 +799,7 @@ package struct TmuxStreamingPaneHistoryCaptureExecutor:
                 }
             case let .stderr(chunk):
                 let total = stderrBytes.addingReportingOverflow(chunk.count)
-                guard !total.overflow, total.partialValue <= 64 * 1_024 else {
+                guard !total.overflow, total.partialValue <= 64 * 1024 else {
                     throw TmuxInteractionOneShotError.captureFailed
                 }
                 stderrBytes = total.partialValue
@@ -797,7 +814,9 @@ package struct TmuxStreamingPaneHistoryCaptureExecutor:
 
     private func consumeLeadingLine(_ marker: Data, from output: Data) -> Data? {
         guard output.starts(with: marker) else { return nil }
-        if output.count == marker.count { return Data() }
+        if output.count == marker.count {
+            return Data()
+        }
         let boundary = output.index(output.startIndex, offsetBy: marker.count)
         if output[boundary] == UInt8(ascii: "\n") {
             return Data(output[output.index(after: boundary)...])
@@ -886,13 +905,12 @@ package actor TmuxOneShotInteractionBackend {
             controlClientID: nil,
             timeout: .seconds(5)
         )
-        let resolved = try TmuxInteractionStateProjector().resolve(
+        return try TmuxInteractionStateProjector().resolve(
             snapshot: owned,
             identity: identity,
             expectedTarget: nil,
             attachmentGeneration: attachmentGeneration
         )
-        return resolved
     }
 
     package func captureHistory(
@@ -956,7 +974,6 @@ package actor TmuxOneShotInteractionBackend {
             throw PersistentTerminalInteractionError.staleStateRevision
         }
     }
-
 }
 
 package actor TmuxInteractionFacet: PersistentTerminalInteractionFacet {

@@ -24,6 +24,8 @@
         let keyboardVisible: Bool
         let onToggleKeyboard: () -> Void
         let onExpansionChange: (Bool) -> Void
+        let attachmentState: TerminalAttachmentPanelState
+        let onAttachmentAction: (TerminalAttachmentAction) -> Void
 
         /// 触感的触发源。每次按键自增一次，`sensoryFeedback` 只认「值变了」。
         ///
@@ -33,6 +35,7 @@
 
         private enum ExpandedSection: String {
             case common
+            case upload
             case provider
         }
 
@@ -97,6 +100,11 @@
                         section: .common,
                         identifier: "terminal.keybar.tab.common"
                     )
+                    expandedTab(
+                        title: L("上传"),
+                        section: .upload,
+                        identifier: "terminal.keybar.tab.upload"
+                    )
                     if let providerQuickActionGroup {
                         expandedTab(
                             title: providerQuickActionGroup.title,
@@ -112,6 +120,11 @@
 
                 if expandedSection == .provider, let providerQuickActionGroup {
                     providerPanel(providerQuickActionGroup)
+                } else if expandedSection == .upload {
+                    TerminalAttachmentPanelView(state: attachmentState) { action in
+                        pressCount &+= 1
+                        onAttachmentAction(action)
+                    }
                 } else {
                     commonPanel
                 }

@@ -3,7 +3,7 @@ import ConnSSH
 import Foundation
 import Observation
 #if canImport(UIKit)
-import UIKit
+    import UIKit
 #endif
 
 /// 文件传输状态（下载/上传进度）。
@@ -16,14 +16,21 @@ struct FileTransferState: Equatable {
 
 /// 文件操作超时。
 private struct OperationTimedOut: LocalizedError {
-    var errorDescription: String? { L("操作超时") }
+    var errorDescription: String? {
+        L("操作超时")
+    }
 }
 
 /// 文件操作失败（携带远端 stderr / 说明）。
 private struct FileOpError: LocalizedError {
     let message: String
-    init(_ message: String) { self.message = message }
-    var errorDescription: String? { message }
+    init(_ message: String) {
+        self.message = message
+    }
+
+    var errorDescription: String? {
+        message
+    }
 }
 
 /// SFTP 文件浏览 ViewModel（Phase 6）。
@@ -53,21 +60,29 @@ final class FileBrowserViewModel {
     /// 正在进行的文件操作标签（删除/移动/重命名…）——非 nil 时视图盖 loading 蒙层。
     private(set) var busyLabel: String?
 
-    // 传输状态（下载/上传进度）
+    /// 传输状态（下载/上传进度）
     var transfer: FileTransferState?
     /// 下载完成待分享的本地文件。
     var downloadedURL: URL?
 
     let host: Host
     private let connectionManager: ConnectionManager
+    let uploadService: RemoteUploadService
     private var fileSystem: (any RemoteFileSystem)?
 
-    init(host: Host, dependencies: AppDependencies) {
+    init(
+        host: Host,
+        dependencies: AppDependencies,
+        uploadService: RemoteUploadService = RemoteUploadService()
+    ) {
         self.host = host
         connectionManager = dependencies.connectionManager
+        self.uploadService = uploadService
     }
 
-    var canGoUp: Bool { currentPath != "/" }
+    var canGoUp: Bool {
+        currentPath != "/"
+    }
 
     // MARK: - 导航 / 列表
 
@@ -141,8 +156,8 @@ final class FileBrowserViewModel {
     /// 静默操作，弹 alert 反而干扰。给一个轻量 `actionMessage` 反馈。
     func copyCurrentPath() {
         #if canImport(UIKit)
-        UIPasteboard.general.string = currentPath
-        actionMessage = String(format: L("已复制：%@"), currentPath)
+            UIPasteboard.general.string = currentPath
+            actionMessage = String(format: L("已复制：%@"), currentPath)
         #endif
     }
 
@@ -235,7 +250,7 @@ final class FileBrowserViewModel {
         busyLabel = L("复制")
         defer { busyLabel = nil }
         do {
-            if (try? await filesystem().stat(newPath)) != nil {
+            if await (try? filesystem().stat(newPath)) != nil {
                 actionMessage = String(format: L("目标已存在：%@"), newPath)
                 return
             }
@@ -321,18 +336,19 @@ final class FileBrowserViewModel {
                 throw OperationTimedOut()
             }
             _ = try await group.next() // 先完成者：成功→返回；超时→抛错（组自动取消其余任务）
-            group.cancelAll()          // 成功时取消计时器
+            group.cancelAll() // 成功时取消计时器
         }
     }
 
     // MARK: - 会话
 
     func filesystem() async throws -> any RemoteFileSystem {
-        if let fileSystem { return fileSystem }
+        if let fileSystem {
+            return fileSystem
+        }
         let session = try await connectionManager.session(for: host)
         let opened = try await session.sftp()
         fileSystem = opened
         return opened
     }
-
 }

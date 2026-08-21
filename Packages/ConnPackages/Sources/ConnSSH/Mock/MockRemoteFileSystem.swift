@@ -22,13 +22,20 @@ public struct MockFileSeed: Sendable {
         .init(path: "/home/deploy/app", kind: .directory),
         .init(path: "/home/deploy/app/config.yml", kind: .file, content: "server:\n  port: 8080\n  workers: 4\n"),
         .init(path: "/home/deploy/app/app.log", kind: .file, content: "[info] started\n[warn] cache miss\n[info] ok\n"),
-        .init(path: "/home/deploy/deploy.sh", kind: .file,
-              content: "#!/bin/bash\nset -e\ngit pull\ndocker compose up -d\n", permissions: 0o100755),
+        .init(
+            path: "/home/deploy/deploy.sh",
+            kind: .file,
+            content: "#!/bin/bash\nset -e\ngit pull\ndocker compose up -d\n",
+            permissions: 0o100755
+        ),
         .init(path: "/etc", kind: .directory),
         .init(path: "/etc/hostname", kind: .file, content: "web-01\n"),
         .init(path: "/etc/nginx", kind: .directory),
-        .init(path: "/etc/nginx/nginx.conf", kind: .file,
-              content: "user www-data;\nworker_processes auto;\nhttp {\n    server {\n        listen 80;\n    }\n}\n"),
+        .init(
+            path: "/etc/nginx/nginx.conf",
+            kind: .file,
+            content: "user www-data;\nworker_processes auto;\nhttp {\n    server {\n        listen 80;\n    }\n}\n"
+        ),
         .init(path: "/var", kind: .directory),
         .init(path: "/var/log", kind: .directory),
         .init(path: "/var/log/syslog", kind: .file, content: "Jul 23 09:14 web-01 systemd[1]: Started.\n")
@@ -47,7 +54,7 @@ public actor MockRemoteFileSystem: RemoteFileSystem {
     }
 
     private var nodes: [String: Node]
-    // 固定时间戳，保证测试确定性。
+    /// 固定时间戳，保证测试确定性。
     private static let referenceDate = Date(timeIntervalSince1970: 1_700_000_000)
 
     public init(seeds: [MockFileSeed] = MockFileSeed.defaultTree) {
@@ -96,13 +103,22 @@ public actor MockRemoteFileSystem: RemoteFileSystem {
     }
 
     public func open(_ path: String, mode: RemoteFileMode) async throws -> any RemoteFile {
+        try await open(path, mode: mode, creationPermissions: nil)
+    }
+
+    public func open(
+        _ path: String,
+        mode: RemoteFileMode,
+        creationPermissions: UInt32?
+    ) async throws -> any RemoteFile {
         switch mode {
         case .read:
             guard nodes[path]?.kind == .file else { throw SFTPFileError.notFound(path) }
         case .write:
             guard nodes[path] != nil else { throw SFTPFileError.notFound(path) }
         case .writeCreate:
-            let permissions = nodes[path]?.permissions ?? 0o100644
+            let permissions = nodes[path]?.permissions
+                ?? FilePermissions.regularBit | (creationPermissions ?? 0o644)
             Self.addAncestors(of: path, into: &nodes)
             nodes[path] = Node(kind: .file, data: Data(), permissions: permissions, modifiedAt: Self.referenceDate)
         }
@@ -150,7 +166,9 @@ public actor MockRemoteFileSystem: RemoteFileSystem {
         nodes[path] = node
     }
 
-    public func realPath(_ path: String) async throws -> String { path }
+    public func realPath(_ path: String) async throws -> String {
+        path == "." ? "/home/demo" : path
+    }
 
     public func close() async {}
 
@@ -168,9 +186,13 @@ public actor MockRemoteFileSystem: RemoteFileSystem {
         guard var node = nodes[path] else { throw SFTPFileError.notFound(path) }
         var buffer = node.data
         let start = Int(offset)
-        if buffer.count < start { buffer.append(Data(count: start - buffer.count)) }
+        if buffer.count < start {
+            buffer.append(Data(count: start - buffer.count))
+        }
         let end = start + data.count
-        if buffer.count < end { buffer.append(Data(count: end - buffer.count)) }
+        if buffer.count < end {
+            buffer.append(Data(count: end - buffer.count))
+        }
         buffer.replaceSubrange((buffer.startIndex + start) ..< (buffer.startIndex + end), with: data)
         node.data = buffer
         node.modifiedAt = Self.referenceDate
