@@ -572,7 +572,10 @@ public final class TerminalSessionCoordinator {
         replacing previousHost: ConnKit.Host?,
         connectionIdentityChanged: Bool
     ) async {
-        guard connectionIdentityChanged, let previousHost else {
+        // 新增主机没有任何既有会话元数据需要同步。不要扫描终端列表，也不要
+        // 让主机持久化无意义地耦合到终端会话状态。
+        guard let previousHost else { return }
+        guard connectionIdentityChanged else {
             refreshHostName(host)
             return
         }

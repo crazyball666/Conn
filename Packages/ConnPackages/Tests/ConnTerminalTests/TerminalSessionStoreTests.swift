@@ -196,6 +196,24 @@ struct TerminalSessionStoreTests {
         #expect(store.hostGroups.first?.terminalCount == 1)
     }
 
+    @Test("刷新主机名只更新匹配的活动会话与恢复记录")
+    func refreshHostNameUpdatesMatchingSessionsFromSnapshots() {
+        let matchingRecord = makeResumeRecord(id: "matching-resume", hostID: "h1")
+        let otherRecord = makeResumeRecord(id: "other-resume", hostID: "h2")
+        let store = TerminalSessionStore(resumeRecords: [matchingRecord, otherRecord])
+        store.add(makeTab(hostID: "h1", name: "旧名称"))
+        store.add(makeTab(hostID: "h2", name: "其它主机"))
+
+        for index in 0 ..< 1_000 {
+            store.refreshHostName(hostID: "h1", name: "新名称-\(index)")
+        }
+
+        #expect(store.tabs.first { $0.hostID == "h1" }?.hostName == "新名称-999")
+        #expect(store.tabs.first { $0.hostID == "h2" }?.hostName == "其它主机")
+        #expect(store.resumeRecords.first { $0.hostID == "h1" }?.hostName == "新名称-999")
+        #expect(store.resumeRecords.first { $0.hostID == "h2" }?.hostName == otherRecord.hostName)
+    }
+
     @Test("恢复记录按 Workspace 身份更新而不是重复追加")
     func upsertsResumeRecordByWorkspaceIdentity() {
         let first = makeResumeRecord(id: "first", workspaceID: "$1", name: "ops")

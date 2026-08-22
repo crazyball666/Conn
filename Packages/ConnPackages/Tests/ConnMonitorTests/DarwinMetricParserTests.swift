@@ -1,4 +1,5 @@
 import ConnKit
+import Foundation
 import Testing
 @testable import ConnMonitor
 
@@ -132,5 +133,29 @@ struct DarwinMetricParserTests {
     func commandUsesStableLocale() {
         #expect(DarwinCollectionScript.command().hasPrefix("export LC_ALL=C LANG=C; "))
         #expect(DarwinCollectionScript.command().contains("route -n get default"))
+    }
+
+    @Test("运行时长提取 sec 字段而不是 usec 字段")
+    func uptimeCommandExtractsBootEpoch() throws {
+        let command = DarwinCollectionScript.uptimeCommand(
+            bootTimeSource: "printf '%s\\n' '{ sec = 1720000000, usec = 773848 } Thu Jul  4 09:46:40 2024'",
+            nowSource: "printf '%s\\n' 1720123456"
+        )
+        let process = Process()
+        let output = Pipe()
+        process.executableURL = URL(fileURLWithPath: "/bin/sh")
+        process.arguments = ["-c", command]
+        process.standardOutput = output
+        process.standardError = output
+
+        try process.run()
+        process.waitUntilExit()
+
+        let data = output.fileHandleForReading.readDataToEndOfFile()
+        let result = String(decoding: data, as: UTF8.self)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        #expect(process.terminationStatus == 0)
+        #expect(result == "123456")
+        #expect(result != "1719349608")
     }
 }

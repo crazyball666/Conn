@@ -1317,4 +1317,28 @@ struct TerminalSessionCoordinatorTests {
         await coordinator.close(tab.id)
     }
 
+    @Test("新增主机不扫描或修改已有终端会话")
+    func savingNewHostLeavesExistingSessionsUntouched() async {
+        let existing = Host(id: "host-1", name: "web", address: "10.0.0.1", username: "root")
+        let added = Host(id: "host-2", name: "db", address: "10.0.0.2", username: "root")
+        let coordinator = TerminalSessionCoordinator(
+            hostRepository: TerminalHostRepository(hosts: [existing, added]),
+            connectionManager: ConnectionManager(transport: MockSSHTransport())
+        )
+
+        guard case let .success(tab) = await coordinator.launch(
+            TerminalLaunchRequest(host: existing, policy: .createNew, source: .shell)
+        ) else {
+            Issue.record("初始终端会话应成功建立")
+            return
+        }
+
+        await coordinator.hostDidSave(added, replacing: nil, connectionIdentityChanged: false)
+
+        #expect(coordinator.store.tabs.count == 1)
+        #expect(coordinator.store.currentTab?.id == tab.id)
+        #expect(coordinator.store.currentTab?.hostName == existing.name)
+        await coordinator.close(tab.id)
+    }
+
 }

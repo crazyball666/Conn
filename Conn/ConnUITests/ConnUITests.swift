@@ -322,6 +322,54 @@ final class ConnUITests: XCTestCase {
     }
 
     @MainActor
+    func testAddingHostWithExistingTerminalDoesNotCrash() {
+        let app = XCUIApplication()
+        app.launchEnvironment["CONN_DEMO"] = "1"
+        app.launchEnvironment["CONN_SMOKE_ACTIVE_TERMINAL"] = "1"
+        app.launch()
+
+        XCTAssertTrue(app.navigationBars["主机"].waitForExistence(timeout: 10))
+        app.buttons["新增"].tap()
+        XCTAssertTrue(app.buttons["新增主机"].waitForExistence(timeout: 5))
+        app.buttons["新增主机"].tap()
+
+        XCTAssertTrue(app.navigationBars["添加主机"].waitForExistence(timeout: 5))
+        let marker = "active-terminal-save"
+        let name = app.textFields.matching(
+            NSPredicate(format: "placeholderValue == %@", "便于记忆，选填")
+        ).firstMatch
+        let address = app.textFields.matching(
+            NSPredicate(format: "placeholderValue == %@", "example.com 或 10.0.0.1")
+        ).firstMatch
+        let username = app.textFields.matching(
+            NSPredicate(format: "placeholderValue == %@", "root")
+        ).firstMatch
+        XCTAssertTrue(name.waitForExistence(timeout: 5))
+        name.tap()
+        name.typeText(marker)
+        address.tap()
+        address.typeText("203.0.113.20")
+        username.tap()
+        username.typeText("root")
+        app.navigationBars["添加主机"].buttons["保存"].tap()
+
+        XCTAssertTrue(app.navigationBars["主机"].waitForExistence(timeout: 10))
+        XCTAssertEqual(app.state, .runningForeground)
+        XCTAssertTrue(app.buttons.matching(
+            NSPredicate(format: "label CONTAINS %@", marker)
+        ).firstMatch.waitForExistence(timeout: 5))
+
+        app.tabBars.buttons["终端"].tap()
+        let existingHost = app.buttons.matching(
+            NSPredicate(format: "identifier BEGINSWITH %@", "terminal.host.")
+        ).firstMatch
+        XCTAssertTrue(existingHost.waitForExistence(timeout: 5))
+        existingHost.tap()
+        XCTAssertTrue(app.buttons["terminal.session.smoke-existing-terminal"].waitForExistence(timeout: 5))
+        XCTAssertEqual(app.state, .runningForeground)
+    }
+
+    @MainActor
     func testEditingHostFromServersSavesWithoutCrashing() {
         let app = XCUIApplication()
         app.launchEnvironment["CONN_DEMO"] = "1"

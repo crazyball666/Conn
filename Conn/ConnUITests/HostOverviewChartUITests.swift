@@ -43,6 +43,7 @@ final class HostOverviewChartUITests: XCTestCase {
         let app = launchOverview(darwin: true)
 
         XCTAssertTrue(app.staticTexts["macOS 26.0 (25A123)"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["10 天 0 小时"].waitForExistence(timeout: 10))
         XCTAssertFalse(app.staticTexts["部分主机指标不可用"].exists)
 
         let diskUsage = app.staticTexts["381 G / 477 G"]

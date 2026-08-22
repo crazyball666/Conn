@@ -41,8 +41,7 @@ public enum DarwinCollectionScript {
             "/sbin/route -n get default 2>/dev/null | awk '/interface:/{print $2; exit}'",
             "echo \(Sentinel.ioreg)", "ioreg -r -c IOBlockStorageDriver -l 2>/dev/null",
             "echo \(Sentinel.uptime)",
-            "boot=$(sysctl -n kern.boottime 2>/dev/null | sed -E 's/.*sec = ([0-9]+).*/\\1/'); "
-                + "now=$(date +%s); [ -n \"$boot\" ] && echo $((now - boot))",
+            uptimeCommand(),
         ]
         if includeExtended {
             parts += [
@@ -55,5 +54,18 @@ public enum DarwinCollectionScript {
         }
         parts.append("echo \(Sentinel.end)")
         return parts.joined(separator: "; ")
+    }
+
+    /// `kern.boottime` 的标准输出同时包含 `sec` 与 `usec`。提取表达式必须从
+    /// 行首的 `{ sec = …` 锚定，否则贪婪匹配会把 `usec` 误当作启动时间戳。
+    static func uptimeCommand(
+        bootTimeSource: String = "sysctl -n kern.boottime 2>/dev/null",
+        nowSource: String = "date +%s"
+    ) -> String {
+        "boot=$(\(bootTimeSource) | "
+            + "sed -E 's/^\\{[[:space:]]*sec[[:space:]]*=[[:space:]]*([0-9]+).*/\\1/'); "
+            + "now=$(\(nowSource)); "
+            + "case \"$boot:$now\" in *[!0-9:]*|:*|*:) ;; *) "
+            + "[ \"$now\" -ge \"$boot\" ] && echo $((now - boot)) ;; esac"
     }
 }

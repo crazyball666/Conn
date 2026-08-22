@@ -442,6 +442,16 @@ struct AppDependencies {
                     : .default,
                 resumeRepository: InMemoryTerminalResumeRepository(records: resumeRecords)
             )
+            if ProcessInfo.processInfo.environment["CONN_SMOKE_ACTIVE_TERMINAL"] != nil,
+               let host = try hostStore.allHosts().first {
+                terminalSessions.store.add(TerminalTab(
+                    id: "smoke-existing-terminal",
+                    hostID: host.id,
+                    hostName: host.name,
+                    hostAddress: host.displayAddress,
+                    session: TerminalSession(channel: TerminalSessionCrashSmokeChannel())
+                ))
+            }
             let snippetExecutionPlanner = makeSnippetExecutionPlanner(
                 connectionManager: connectionManager
             )

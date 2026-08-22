@@ -286,11 +286,21 @@ public final class TerminalSessionStore {
     /// 这样可以避免保存主机时触发无意义的地址格式化，也保证已建立会话继续显示
     /// 当时使用的连接端点。
     public func refreshHostName(hostID: String, name: String) {
-        for index in tabs.indices where tabs[index].hostID == hostID {
-            tabs[index].hostName = name
+        // 不要在 `for … where` 的筛选表达式借用数组元素时，又通过同一个
+        // subscript 修改元素。Release 优化下该模式曾让 String 的借用越过
+        // 数组写入边界，最终在 `_StringObject.getSharedUTF8Start` 崩溃。
+        // 先基于旧快照生成新值，再一次性提交给 Observation。
+        tabs = tabs.map { tab in
+            guard tab.hostID == hostID else { return tab }
+            var updated = tab
+            updated.hostName = name
+            return updated
         }
-        for index in resumeRecords.indices where resumeRecords[index].hostID == hostID {
-            resumeRecords[index].hostName = name
+        resumeRecords = resumeRecords.map { record in
+            guard record.hostID == hostID else { return record }
+            var updated = record
+            updated.hostName = name
+            return updated
         }
     }
 
