@@ -20,6 +20,12 @@ final class TerminalKeybarLayoutUITests: XCTestCase {
         XCTAssertTrue(keybar.waitForExistence(timeout: 10))
         XCTAssertTrue(directionPad.waitForExistence(timeout: 5))
 
+        XCTAssertTrue(app.buttons["^C"].exists)
+        XCTAssertFalse(app.buttons["^D"].exists)
+        XCTAssertFalse(app.buttons["^Z"].exists)
+        XCTAssertFalse(app.buttons["^L"].exists)
+        XCTAssertFalse(app.buttons["^W"].exists)
+
         XCTAssertEqual(directionPad.frame.width, 40, accuracy: 1)
         XCTAssertEqual(directionPad.frame.height, 40, accuracy: 1)
         XCTAssertLessThanOrEqual(directionPad.frame.maxX, keybar.frame.maxX + 1)
@@ -65,6 +71,54 @@ final class TerminalKeybarLayoutUITests: XCTestCase {
         attachment.name = "Expanded tmux keybar layout"
         attachment.lifetime = .keepAlways
         add(attachment)
+    }
+
+    @MainActor
+    func testExpandedKeybarUsesProviderToolUploadOrder() {
+        let app = XCUIApplication()
+        app.launchEnvironment["CONN_DEMO"] = "1"
+        app.launchEnvironment["CONN_SMOKE_TERMINAL"] = "1"
+        app.launchEnvironment["CONN_SMOKE_TERMINAL_EXPANDED"] = "1"
+        app.launchEnvironment["CONN_SMOKE_TMUX_ACTIONS"] = "1"
+        app.launchArguments += ["-conn.settings.terminalCursorBlinking", "NO"]
+        app.launch()
+
+        let common = app.buttons["terminal.keybar.tab.common"]
+        let tmux = app.buttons["terminal.keybar.tab.tmux"]
+        let claudeCode = app.buttons["terminal.keybar.tab.claude-code"]
+        let upload = app.buttons["terminal.keybar.tab.upload"]
+
+        XCTAssertTrue(common.waitForExistence(timeout: 10))
+        XCTAssertTrue(tmux.waitForExistence(timeout: 5))
+        XCTAssertTrue(claudeCode.waitForExistence(timeout: 5))
+        XCTAssertTrue(upload.waitForExistence(timeout: 5))
+        XCTAssertLessThan(common.frame.minX, tmux.frame.minX)
+        XCTAssertLessThan(tmux.frame.minX, claudeCode.frame.minX)
+        XCTAssertLessThan(claudeCode.frame.minX, upload.frame.minX)
+        XCTAssertEqual(claudeCode.label, "Claude Code")
+        XCTAssertEqual(app.state, .runningForeground)
+    }
+
+    @MainActor
+    func testCommonPanelUsesIconKeysForClearInputAndReturn() {
+        let app = XCUIApplication()
+        app.launchEnvironment["CONN_DEMO"] = "1"
+        app.launchEnvironment["CONN_SMOKE_TERMINAL"] = "1"
+        app.launchEnvironment["CONN_SMOKE_TERMINAL_EXPANDED"] = "1"
+        app.launchArguments += ["-conn.settings.terminalCursorBlinking", "NO"]
+        app.launch()
+
+        let keybar = app.descendants(matching: .any)["terminal.keybar"].firstMatch
+        XCTAssertTrue(keybar.waitForExistence(timeout: 10))
+
+        let clearInput = app.buttons["清除"]
+        let returnKey = app.buttons["回车"]
+        XCTAssertTrue(clearInput.waitForExistence(timeout: 5))
+        XCTAssertTrue(returnKey.exists)
+        XCTAssertFalse(app.buttons["Clear"].exists)
+        XCTAssertLessThan(clearInput.frame.minX, app.buttons["Esc"].frame.minX)
+        XCTAssertLessThan(returnKey.frame.minX, app.buttons["Esc"].frame.minX)
+        XCTAssertEqual(app.state, .runningForeground)
     }
 
     @MainActor

@@ -53,4 +53,32 @@ final class TerminalTmuxRenameUITests: XCTestCase {
         XCTAssertFalse(app.descendants(matching: .any)["conn.toast.error"].exists)
         XCTAssertEqual(app.state, .runningForeground)
     }
+
+    @MainActor
+    func testCloseWindowUsesSystemAlertConfirmation() {
+        let app = XCUIApplication()
+        app.launchEnvironment["CONN_DEMO"] = "1"
+        app.launchEnvironment["CONN_SMOKE_TERMINAL"] = "1"
+        app.launchEnvironment["CONN_SMOKE_TERMINAL_EXPANDED"] = "1"
+        app.launchEnvironment["CONN_SMOKE_TMUX_ACTIONS"] = "1"
+        app.launchArguments += ["-conn.settings.terminalCursorBlinking", "NO"]
+        app.launch()
+
+        let providerTab = app.buttons["terminal.keybar.tab.tmux"]
+        XCTAssertTrue(providerTab.waitForExistence(timeout: 10))
+        providerTab.tap()
+
+        let closeWindow = app.buttons["terminal.keybar.tmux.tmux.window.close"]
+        XCTAssertTrue(closeWindow.waitForExistence(timeout: 5))
+        closeWindow.tap()
+
+        let alert = app.alerts["关闭当前 Window？"]
+        XCTAssertTrue(alert.waitForExistence(timeout: 5))
+        XCTAssertFalse(alert.textFields.firstMatch.exists)
+        XCTAssertTrue(alert.buttons["关闭 Window"].exists)
+        XCTAssertTrue(alert.buttons["取消"].exists)
+        alert.buttons["取消"].tap()
+        XCTAssertTrue(alert.waitForNonExistence(timeout: 3))
+        XCTAssertEqual(app.state, .runningForeground)
+    }
 }

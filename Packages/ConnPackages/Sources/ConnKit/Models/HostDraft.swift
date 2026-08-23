@@ -22,7 +22,6 @@ public struct HostDraft: Sendable, Equatable {
     public var tags: [String]
     public var icon: String?
     public var color: String?
-    public var note: String?
 
     public init(
         name: String = "",
@@ -35,8 +34,7 @@ public struct HostDraft: Sendable, Equatable {
         groupIDs: [String] = [],
         tags: [String] = [],
         icon: String? = nil,
-        color: String? = nil,
-        note: String? = nil
+        color: String? = nil
     ) {
         self.name = name
         self.address = address
@@ -49,7 +47,6 @@ public struct HostDraft: Sendable, Equatable {
         self.tags = tags
         self.icon = icon
         self.color = color
-        self.note = note
     }
 
     /// 从已有主机构造草稿（编辑场景）。
@@ -65,7 +62,6 @@ public struct HostDraft: Sendable, Equatable {
         tags = host.tags
         icon = host.icon
         color = host.color
-        note = host.note
     }
 
     /// 逐字段校验。返回 字段→错误信息；空字典表示可保存。
@@ -108,8 +104,7 @@ public struct HostDraft: Sendable, Equatable {
             groupIDs: groupIDs,
             tags: tags,
             icon: icon,
-            color: color,
-            note: note
+            color: color
         )
     }
 }

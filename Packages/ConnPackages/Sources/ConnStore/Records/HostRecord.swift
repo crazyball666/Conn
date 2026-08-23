@@ -20,7 +20,6 @@ struct HostRecord: Codable, FetchableRecord, PersistableRecord, Sendable {
     var tags: String // JSON 数组
     var icon: String?
     var color: String?
-    var note: String?
     var expireAt: Int64?
     var sortOrder: Int
     var status: String
@@ -29,7 +28,7 @@ struct HostRecord: Codable, FetchableRecord, PersistableRecord, Sendable {
     var syncDirty: Bool
 
     enum CodingKeys: String, CodingKey {
-        case uuid, name, address, port, username, icon, color, note, status, tags
+        case uuid, name, address, port, username, icon, color, status, tags
         case authKind = "auth_kind"
         case credentialRef = "credential_ref"
         case keyUUID = "key_uuid"
@@ -56,7 +55,6 @@ extension HostRecord {
         tags = Self.encodeJSON(host.tags)
         icon = host.icon
         color = host.color
-        note = host.note
         expireAt = host.expireAt
         sortOrder = host.sortOrder
         status = host.status.rawValue
@@ -83,7 +81,6 @@ extension HostRecord {
             tags: Self.decodeJSON(tags),
             icon: icon,
             color: color,
-            note: note,
             expireAt: expireAt,
             sortOrder: sortOrder,
             status: DomainHost.HealthStatus(rawValue: status) ?? .unknown,

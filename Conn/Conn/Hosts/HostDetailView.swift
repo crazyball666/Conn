@@ -111,11 +111,8 @@ struct HostDetailView: View {
         terminalRoute = ExistingTerminalRoute(host: completion.host, tabID: completion.tabID)
     }
 
-    /// 导航栏标题：备注优先，否则主机名。
-    private var displayTitle: String {
-        if let note = host.note, !note.trimmingCharacters(in: .whitespaces).isEmpty { return note }
-        return host.name
-    }
+    /// 导航栏始终显示主机名称。
+    private var displayTitle: String { host.name }
 
     private var toolGrid: some View {
         VStack(alignment: .leading, spacing: ConnSpacing.xs) {

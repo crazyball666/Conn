@@ -153,7 +153,7 @@ struct KeyManagerView: View {
                     }
                 }
                 Section {
-                    Text(L("私钥不会写入数据库，只保存在设备 Keychain。"))
+                    Text(L("密钥只保存在本地 Keychain"))
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                 }

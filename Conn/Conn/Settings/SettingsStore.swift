@@ -64,7 +64,7 @@ enum RefreshInterval: Int, CaseIterable, Identifiable {
     case normal = 30
     case slow = 60
     var id: Int { rawValue }
-    var label: String { String(format: L("每 %d 秒"), rawValue) }
+    var label: String { String(format: L("%ds"), rawValue) }
     var duration: Duration { .seconds(rawValue) }
 }
 

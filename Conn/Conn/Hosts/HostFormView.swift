@@ -45,7 +45,6 @@ struct HostFormView: View {
                 connectionSection
                 authSection
                 groupSection
-                noteSection
                 testSection
             }
             .scrollContentBackground(.hidden)
@@ -228,16 +227,6 @@ struct HostFormView: View {
             viewModel.draft.groupIDs.remove(at: index)
         } else {
             viewModel.draft.groupIDs.append(groupID)
-        }
-    }
-
-    private var noteSection: some View {
-        Section {
-            textRow(L("备注"), field: nil, text: Binding(
-                get: { viewModel.draft.note ?? "" },
-                set: { viewModel.draft.note = $0.isEmpty ? nil : $0 }
-            ), placeholder: L("选填"))
-                .listRowBackground(Color.connSurface)
         }
     }
 

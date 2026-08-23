@@ -145,6 +145,35 @@
         }
       }
     },
+    "%d 个远端路径待插入" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%d remote path(s) ready to insert"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%d 件のリモートパスを挿入できます"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "삽입할 원격 경로 %d개"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%d 個遠端路徑待插入"
+          }
+        }
+      }
+    },
     "%d 核" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -198,6 +227,35 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%lld%%"
+          }
+        }
+      }
+    },
+    "Claude Code" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Claude Code"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Claude Code"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Claude Code"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Claude Code"
           }
         }
       }
@@ -549,6 +607,35 @@
         }
       }
     },
+    "上传" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Upload"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "アップロード"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "업로드"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "上傳"
+          }
+        }
+      }
+    },
     "下一个 Pane" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -777,6 +864,35 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "儀表板"
+          }
+        }
+      }
+    },
+    "会话与上下文" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Session & Context"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "セッションとコンテキスト"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "세션 및 컨텍스트"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "工作階段與上下文"
           }
         }
       }
@@ -1098,6 +1214,35 @@
         }
       }
     },
+    "剪贴板" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clipboard"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "クリップボード"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "클립보드"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "剪貼簿"
+          }
+        }
+      }
+    },
     "取消" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -1330,6 +1475,64 @@
         }
       }
     },
+    "回车" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Return"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "改行"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Return"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "換行"
+          }
+        }
+      }
+    },
+    "图片" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Images"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "画像"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이미지"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "圖片"
+          }
+        }
+      }
+    },
     "复制" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -1471,6 +1674,35 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "左右分割"
+          }
+        }
+      }
+    },
+    "已上传 %d 个附件" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Uploaded %d attachments"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "添付ファイルを%d件アップロードしました"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "첨부 파일 %d개 업로드됨"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已上傳 %d 個附件"
           }
         }
       }
@@ -1620,118 +1852,6 @@
         }
       }
     },
-    "Claude" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Claude"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Claude"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Claude"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Claude"
-          }
-        }
-      }
-    },
-    "会话与上下文" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Session & Context"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "セッションとコンテキスト"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "세션 및 컨텍스트"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "工作階段與上下文"
-          }
-        }
-      }
-    },
-    "开发工作流" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Development Workflow"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "開発ワークフロー"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "개발 워크플로"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "開發工作流程"
-          }
-        }
-      }
-    },
-    "配置与诊断" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Configuration & Diagnostics"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "設定と診断"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "구성 및 진단"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "設定與診斷"
-          }
-        }
-      }
-    },
     "常用" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -1786,6 +1906,35 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "平鋪佈局"
+          }
+        }
+      }
+    },
+    "开发工作流" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Development Workflow"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "開発ワークフロー"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "개발 워크플로"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "開發工作流程"
           }
         }
       }
@@ -2051,6 +2200,35 @@
         }
       }
     },
+    "插入路径" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Insert paths"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "パスを挿入"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "경로 삽입"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "插入路徑"
+          }
+        }
+      }
+    },
     "操作目标已变化，请刷新后重试" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -2220,6 +2398,35 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "故障"
+          }
+        }
+      }
+    },
+    "文件" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Files"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ファイル"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "파일"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "檔案"
           }
         }
       }
@@ -2484,6 +2691,64 @@
         }
       }
     },
+    "正在上传：%@" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Uploading: %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "アップロード中：%@"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "업로드 중: %@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在上傳：%@"
+          }
+        }
+      }
+    },
+    "正在准备附件…" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Preparing attachments…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "添付ファイルを準備中…"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "첨부 파일 준비 중…"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在準備附件…"
+          }
+        }
+      }
+    },
     "正常" : {
       "localizations" : {
         "en" : {
@@ -2740,34 +3005,6 @@
         }
       }
     },
-    "终端恢复记录不存在" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Terminal restore record not found"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "ターミナルの復元記録が見つかりません"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "터미널 복원 기록을 찾을 수 없습니다"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "找不到終端恢復記錄"
-          }
-        }
-      }
-    },
     "终端会话不存在" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -2880,6 +3117,35 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "終端協調器無法使用"
+          }
+        }
+      }
+    },
+    "终端恢复记录不存在" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Terminal restore record not found"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ターミナルの復元記録が見つかりません"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "터미널 복원 기록을 찾을 수 없습니다"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "找不到終端恢復記錄"
           }
         }
       }
@@ -3430,6 +3696,64 @@
         }
       }
     },
+    "选择本地资源后，将通过 SFTP 上传并插入远端路径。" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Selected resources are uploaded over SFTP and their remote paths are inserted."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "選択した項目をSFTPでアップロードし、リモートパスを挿入します。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "선택한 항목을 SFTP로 업로드하고 원격 경로를 삽입합니다."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "選取本機資源後，將透過 SFTP 上傳並插入遠端路徑。"
+          }
+        }
+      }
+    },
+    "配置与诊断" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Configuration & Diagnostics"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "設定と診断"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "구성 및 진단"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "設定與診斷"
+          }
+        }
+      }
+    },
     "采集中…" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -3545,94 +3869,6 @@
         }
       }
     },
-    "上传" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Upload" } },
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "アップロード" } },
-        "ko" : { "stringUnit" : { "state" : "translated", "value" : "업로드" } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "上傳" } }
-      }
-    },
-    "图片" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Images" } },
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "画像" } },
-        "ko" : { "stringUnit" : { "state" : "translated", "value" : "이미지" } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "圖片" } }
-      }
-    },
-    "文件" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Files" } },
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "ファイル" } },
-        "ko" : { "stringUnit" : { "state" : "translated", "value" : "파일" } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "檔案" } }
-      }
-    },
-    "剪贴板" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Clipboard" } },
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "クリップボード" } },
-        "ko" : { "stringUnit" : { "state" : "translated", "value" : "클립보드" } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "剪貼簿" } }
-      }
-    },
-    "选择本地资源后，将通过 SFTP 上传并插入远端路径。" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Selected resources are uploaded over SFTP and their remote paths are inserted." } },
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "選択した項目をSFTPでアップロードし、リモートパスを挿入します。" } },
-        "ko" : { "stringUnit" : { "state" : "translated", "value" : "선택한 항목을 SFTP로 업로드하고 원격 경로를 삽입합니다." } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "選取本機資源後，將透過 SFTP 上傳並插入遠端路徑。" } }
-      }
-    },
-    "正在准备附件…" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Preparing attachments…" } },
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "添付ファイルを準備中…" } },
-        "ko" : { "stringUnit" : { "state" : "translated", "value" : "첨부 파일 준비 중…" } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "正在準備附件…" } }
-      }
-    },
-    "正在上传：%@" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Uploading: %@" } },
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "アップロード中：%@" } },
-        "ko" : { "stringUnit" : { "state" : "translated", "value" : "업로드 중: %@" } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "正在上傳：%@" } }
-      }
-    },
-    "已上传 %d 个附件" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Uploaded %d attachments" } },
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "添付ファイルを%d件アップロードしました" } },
-        "ko" : { "stringUnit" : { "state" : "translated", "value" : "첨부 파일 %d개 업로드됨" } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "已上傳 %d 個附件" } }
-      }
-    },
-    "%d 个远端路径待插入" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "%d remote path(s) ready to insert" } },
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "%d 件のリモートパスを挿入できます" } },
-        "ko" : { "stringUnit" : { "state" : "translated", "value" : "삽입할 원격 경로 %d개" } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "%d 個遠端路徑待插入" } }
-      }
-    },
-    "插入路径" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Insert paths" } },
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "パスを挿入" } },
-        "ko" : { "stringUnit" : { "state" : "translated", "value" : "경로 삽입" } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "插入路徑" } }
-      }
-    },
-    "重试" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Retry" } },
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "再試行" } },
-        "ko" : { "stringUnit" : { "state" : "translated", "value" : "다시 시도" } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "重試" } }
-      }
-    },
     "重新打开终端" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -3658,6 +3894,35 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "重新開啟終端機"
+          }
+        }
+      }
+    },
+    "重试" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Retry"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "再試行"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "다시 시도"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重試"
           }
         }
       }

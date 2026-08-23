@@ -43,7 +43,7 @@ struct HostDraftTests {
     func roundTripWithHost() {
         let original = Host(
             name: "web-01", address: "10.0.0.1", username: "root",
-            port: 2222, authKind: .key, tags: ["prod"], note: "生产"
+            port: 2222, authKind: .key, tags: ["prod"]
         )
         let draft = HostDraft(from: original)
         let rebuilt = draft.toHost(existingID: original.id)
@@ -52,7 +52,6 @@ struct HostDraftTests {
         #expect(rebuilt.port == original.port)
         #expect(rebuilt.authKind == original.authKind)
         #expect(rebuilt.tags == original.tags)
-        #expect(rebuilt.note == original.note)
     }
 
     @Test("编辑场景保留原 id，新增场景生成新 id")

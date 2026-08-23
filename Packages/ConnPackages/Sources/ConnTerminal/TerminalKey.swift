@@ -5,7 +5,7 @@ import Foundation
 /// 键位与其发送的字节序列。控制键（Ctrl）是粘滞态，不直接发字节而是改变
 /// 下一次输入的编码，由 `TerminalKeyEncoder` 处理。
 public enum TerminalKey: String, CaseIterable, Identifiable, Sendable {
-    case esc, tab, ctrl
+    case esc, tab, ctrl, enter
     /// 四个方向不再各占一个键帽，改由摇杆（`TerminalDirectionPad`）发出，
     /// 但字节定义仍在这里——摇杆只是换了触发方式，序列没变。
     case up, down, left, right
@@ -24,6 +24,7 @@ public enum TerminalKey: String, CaseIterable, Identifiable, Sendable {
         case .esc: "Esc"
         case .tab: "Tab"
         case .ctrl: "Ctrl"
+        case .enter: "↵"
         case .up: "↑"
         case .down: "↓"
         case .left: "←"
@@ -34,7 +35,7 @@ public enum TerminalKey: String, CaseIterable, Identifiable, Sendable {
         case .home: "Home"
         case .end: "End"
         case .insert: "Ins"
-        case .clearLine: "Clear"
+        case .clearLine: "⌫"
         case .clearScreen: "^L"
         case .deleteForward: "Del"
         case .deleteWord: "^W"
@@ -61,6 +62,15 @@ public enum TerminalKey: String, CaseIterable, Identifiable, Sendable {
         }
     }
 
+    /// System image for keys whose action is clearer as an icon than as a text label.
+    var systemImageName: String? {
+        switch self {
+        case .clearLine: "eraser"
+        case .enter: "return"
+        default: nil
+        }
+    }
+
     /// Ctrl 是粘滞键，不直接发字节。
     public var isSticky: Bool { self == .ctrl }
 
@@ -70,6 +80,7 @@ public enum TerminalKey: String, CaseIterable, Identifiable, Sendable {
         case .esc: [0x1B]
         case .tab: [0x09]
         case .ctrl: []
+        case .enter: [0x0D]
         // 方向键：ESC [ A/B/C/D（xterm 常规光标序列）
         case .up: [0x1B, 0x5B, 0x41]
         case .down: [0x1B, 0x5B, 0x42]
@@ -119,20 +130,19 @@ public enum TerminalKey: String, CaseIterable, Identifiable, Sendable {
 enum TerminalKeybarLayout {
     /// 紧凑态横向滚动区。固定的键盘、展开、命令列表和方向盘不占用这里的位置。
     static let compactKeys: [TerminalKey] = [
-        .esc, .tab, .ctrl, .ctrlC, .ctrlD, .ctrlZ,
-        .clearLine, .clearScreen, .deleteWord, .lineStart, .lineEnd, .reverseSearch
+        .clearLine, .enter, .esc, .tab, .ctrl, .ctrlC
     ]
 
     static let compactRows: [[TerminalKey]] = [
         compactKeys
     ]
 
-    /// 展开态按「导航编辑 → shell 控制 → 功能键」排列，普通可打印字符不重复出现。
+    /// 展开态按「高频 shell 控制 → 编辑导航 → 功能键」排列，普通可打印字符不重复出现。
     static let expandedKeys: [TerminalKey] = [
+        .ctrl, .ctrlC, .ctrlD, .ctrlZ, .clearScreen, .deleteWord,
+        .lineStart, .lineEnd, .reverseSearch, .historyPrevious, .historyNext,
         .esc, .tab, .backTab, .up, .down, .left, .right,
         .home, .end, .insert, .deleteForward, .pageUp, .pageDown,
-        .ctrlC, .ctrlD, .ctrlZ, .clearLine, .clearScreen,
-        .lineStart, .lineEnd, .deleteWord, .reverseSearch, .historyPrevious, .historyNext,
         .f1, .f2, .f3, .f4, .f5, .f6, .f7, .f8, .f9, .f10, .f11, .f12
     ]
 }

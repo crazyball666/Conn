@@ -219,7 +219,7 @@
                 }
                 .disabled(quickActionText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             }
-            .confirmationDialog(
+            .alert(
                 pendingConfirmationAction?.confirmation.map { L($0.titleKey) } ?? "",
                 isPresented: Binding(
                     get: { pendingConfirmationAction != nil },
@@ -229,7 +229,6 @@
                         }
                     }
                 ),
-                titleVisibility: .visible
             ) {
                 if let action = pendingConfirmationAction {
                     Button(L(action.titleKey), role: .destructive) {

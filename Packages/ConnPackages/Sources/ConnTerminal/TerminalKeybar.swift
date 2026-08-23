@@ -104,8 +104,15 @@
                                 section: .common,
                                 identifier: "terminal.keybar.tab.common"
                             )
+                            if let providerQuickActionGroup {
+                                expandedTab(
+                                    title: providerQuickActionGroup.title,
+                                    section: .provider,
+                                    identifier: "terminal.keybar.tab.\(providerQuickActionGroup.id)"
+                                )
+                            }
                             expandedTab(
-                                title: L("Claude"),
+                                title: L("Claude Code"),
                                 section: .claudeCode,
                                 identifier: "terminal.keybar.tab.claude-code"
                             )
@@ -114,13 +121,6 @@
                                 section: .upload,
                                 identifier: "terminal.keybar.tab.upload"
                             )
-                            if let providerQuickActionGroup {
-                                expandedTab(
-                                    title: providerQuickActionGroup.title,
-                                    section: .provider,
-                                    identifier: "terminal.keybar.tab.\(providerQuickActionGroup.id)"
-                                )
-                            }
                         }
                     }
                     .scrollIndicators(.hidden)
@@ -167,6 +167,8 @@
                     if pointerAvailable {
                         pointerCap
                     }
+                    keyCap(.clearLine)
+                    keyCap(.enter)
                     ForEach(TerminalKeybarLayout.expandedKeys) { key in
                         keyCap(key)
                     }
@@ -300,8 +302,7 @@
                 pressCount &+= 1
                 onKey(key)
             } label: {
-                Text(key.label)
-                    .font(.connData(.footnote))
+                keyVisual(key)
                     .foregroundStyle(isLit ? Color.connAccent : .connInk)
                     .frame(maxWidth: .infinity)
                     .frame(height: TerminalKeybarMetrics.capVisualHeight)
@@ -315,8 +316,27 @@
                     )
             }
             .buttonStyle(.plain)
-            .accessibilityLabel(key.label)
+            .accessibilityLabel(keyAccessibilityLabel(key))
             .frame(width: width, height: TerminalKeybarMetrics.hitTargetHeight)
+        }
+
+        @ViewBuilder
+        private func keyVisual(_ key: TerminalKey) -> some View {
+            if let systemImageName = key.systemImageName {
+                Image(systemName: systemImageName)
+                    .font(.system(size: 15, weight: .medium))
+            } else {
+                Text(key.label)
+                    .font(.connData(.footnote))
+            }
+        }
+
+        private func keyAccessibilityLabel(_ key: TerminalKey) -> String {
+            switch key {
+            case .clearLine: L("清除")
+            case .enter: L("回车")
+            default: key.label
+            }
         }
 
         /// 粘贴使用完整的普通按钮命中区；`PasteButton` 的透明覆盖层在终端键盘中

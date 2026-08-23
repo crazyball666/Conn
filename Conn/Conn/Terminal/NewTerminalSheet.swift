@@ -18,12 +18,24 @@ struct NewTerminalSheet: View {
         terminalSessions: TerminalSessionCoordinator,
         onCompleted: @escaping @MainActor (NewTerminalFlowCompletion) -> Void
     ) {
-        _model = State(initialValue: NewTerminalFlowModel(
+        self.init(
             fixedHost: fixedHost,
             operations: .live(
                 hostRepository: hostRepository,
                 coordinator: terminalSessions
             ),
+            onCompleted: onCompleted
+        )
+    }
+
+    init(
+        fixedHost: Host?,
+        operations: NewTerminalFlowModel.Operations,
+        onCompleted: @escaping @MainActor (NewTerminalFlowCompletion) -> Void
+    ) {
+        _model = State(initialValue: NewTerminalFlowModel(
+            fixedHost: fixedHost,
+            operations: operations,
             onCompleted: onCompleted
         ))
     }
@@ -38,6 +50,23 @@ struct NewTerminalSheet: View {
                         ToolbarItem(placement: .topBarLeading) {
                             Button(L("返回")) { Task { await model.back() } }
                                 .disabled(model.isCreating)
+                        }
+                    }
+                    if isWorkspaceSelection {
+                        ToolbarItem(placement: .topBarTrailing) {
+                            Button {
+                                Task { await model.refresh() }
+                            } label: {
+                                if model.isRefreshing {
+                                    ProgressView()
+                                        .controlSize(.small)
+                                } else {
+                                    Image(systemName: "arrow.clockwise")
+                                }
+                            }
+                            .accessibilityLabel(L("刷新 Session 列表"))
+                            .accessibilityIdentifier("new-terminal.refresh-sessions")
+                            .disabled(model.isLoading || model.isRefreshing || model.isCreating)
                         }
                     }
                     ToolbarItem(placement: .topBarTrailing) {
@@ -121,14 +150,12 @@ struct NewTerminalSheet: View {
                 Button { Task { await model.selectPlainPTY() } } label: {
                     launchChoice(
                         title: L("普通终端"),
-                        subtitle: L("启动独立远程 Shell"),
                         systemImage: "terminal"
                     )
                 }
                 Button { Task { await model.selectPersistent() } } label: {
                     launchChoice(
                         title: "tmux",
-                        subtitle: L("连接或创建可恢复的远程 Session"),
                         systemImage: "rectangle.connected.to.line.below"
                     )
                 }
@@ -176,13 +203,15 @@ struct NewTerminalSheet: View {
             if let errorMessage = model.errorMessage {
                 errorSection(errorMessage)
             }
-            Section {
-                Button { Task { await model.refresh() } } label: {
-                    HStack {
-                        Label(L("刷新 Session 列表"), systemImage: "arrow.clockwise")
-                        Spacer()
-                        if model.isRefreshing { ProgressView().controlSize(.small) }
-                    }
+
+            Section(L("创建 Session")) {
+                TextField(L("Session 名称（可选）"), text: $newWorkspaceName)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                Button {
+                    Task { await model.createWorkspace(name: newWorkspaceName) }
+                } label: {
+                    Label(L("创建并连接"), systemImage: "plus.rectangle")
                 }
                 .disabled(model.isLoading || model.isRefreshing || model.isCreating)
             }
@@ -219,18 +248,6 @@ struct NewTerminalSheet: View {
                     }
                 }
             }
-
-            Section(L("创建 Session")) {
-                TextField(L("Session 名称（可选）"), text: $newWorkspaceName)
-                    .textInputAutocapitalization(.never)
-                    .autocorrectionDisabled()
-                Button {
-                    Task { await model.createWorkspace(name: newWorkspaceName) }
-                } label: {
-                    Label(L("创建并连接"), systemImage: "plus.rectangle")
-                }
-                .disabled(model.isLoading || model.isRefreshing || model.isCreating)
-            }
         }
     }
 
@@ -253,17 +270,12 @@ struct NewTerminalSheet: View {
         }
     }
 
-    private func launchChoice(title: String, subtitle: String, systemImage: String) -> some View {
+    private func launchChoice(title: String, systemImage: String) -> some View {
         HStack(spacing: ConnSpacing.sm) {
             Image(systemName: systemImage)
                 .foregroundStyle(.connAccent)
                 .frame(width: 28)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title).foregroundStyle(.connInk)
-                Text(subtitle)
-                    .font(.connFootnote)
-                    .foregroundStyle(.connMuted)
-            }
+            Text(title).foregroundStyle(.connInk)
             Spacer()
             Image(systemName: "chevron.forward")
                 .foregroundStyle(.connMuted)
@@ -291,6 +303,11 @@ struct NewTerminalSheet: View {
         case .providerLoading, .providerSelection, .workspaceSelection, .creating:
             true
         }
+    }
+
+    private var isWorkspaceSelection: Bool {
+        if case .workspaceSelection = model.phase { return true }
+        return false
     }
 
     private func close() {

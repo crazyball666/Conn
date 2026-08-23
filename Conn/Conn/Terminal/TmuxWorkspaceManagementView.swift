@@ -104,10 +104,9 @@ struct TmuxWorkspaceManagementView: View {
             } message: {
                 Text(L("同一 Session 关联多个 Conn 终端，请选择需要操作的终端。"))
             }
-            .confirmationDialog(
+            .alert(
                 destructiveTitle,
                 isPresented: $isConfirmingDestructive,
-                titleVisibility: .visible
             ) {
                 Button(L("确认执行"), role: .destructive) {
                     guard let pendingDestructive else { return }

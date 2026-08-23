@@ -13,6 +13,12 @@ struct TerminalKeyTests {
         #expect(TerminalKey.tab.bytes == [0x09])
     }
 
+    @Test("回车键发送 CR")
+    func enterByte() {
+        #expect(TerminalKey.enter.bytes == [0x0D])
+        #expect(TerminalKey.enter.systemImageName == "return")
+    }
+
     @Test("方向键发 xterm 光标序列 ESC [ A/B/C/D")
     func arrowKeys() {
         #expect(TerminalKey.up.bytes == [0x1B, 0x5B, 0x41])
@@ -44,6 +50,7 @@ struct TerminalKeyTests {
     @Test("移动键盘缺失的编辑与翻页键发送标准终端序列")
     func mobileEditingKeys() {
         #expect(TerminalKey.clearLine.bytes == [0x15])
+        #expect(TerminalKey.clearLine.systemImageName == "eraser")
         #expect(TerminalKey.deleteForward.bytes == [0x1B, 0x5B, 0x33, 0x7E])
         #expect(TerminalKey.pageUp.bytes == [0x1B, 0x5B, 0x35, 0x7E])
         #expect(TerminalKey.pageDown.bytes == [0x1B, 0x5B, 0x36, 0x7E])
@@ -73,15 +80,25 @@ struct TerminalKeyTests {
         #expect(TerminalKey.f12.bytes == [0x1B, 0x5B, 0x32, 0x34, 0x7E])
     }
 
-    @Test("快捷栏只保留手机难以输入的控制键")
+    @Test("快捷栏紧凑态只保留高频控制键，其余移入常用面板")
     func mobileControlKeyLayout() {
         #expect(TerminalKeybarLayout.compactRows == [
             [
-                .esc, .tab, .ctrl, .ctrlC, .ctrlD, .ctrlZ,
-                .clearLine, .clearScreen, .deleteWord, .lineStart, .lineEnd, .reverseSearch
+                .clearLine, .enter, .esc, .tab, .ctrl, .ctrlC
             ]
         ])
-        #expect(TerminalKeybarLayout.compactKeys.count == 12)
+        #expect(TerminalKeybarLayout.compactKeys.count == 6)
+        #expect(TerminalKeybarLayout.compactKeys.contains(.ctrlC))
+        #expect(!TerminalKeybarLayout.compactKeys.contains(.ctrlD))
+        #expect(!TerminalKeybarLayout.compactKeys.contains(.ctrlZ))
+        #expect(!TerminalKeybarLayout.compactKeys.contains(.clearScreen))
+        #expect(!TerminalKeybarLayout.compactKeys.contains(.deleteWord))
+        #expect(TerminalKey.clearLine.systemImageName == "eraser")
+        #expect(!TerminalKeybarLayout.expandedKeys.contains(.clearLine))
+        #expect(TerminalKeybarLayout.expandedKeys.first == .ctrl)
+        #expect(TerminalKeybarLayout.expandedKeys.contains(.ctrlD))
+        #expect(TerminalKeybarLayout.expandedKeys.contains(.ctrlZ))
+        #expect(TerminalKeybarLayout.expandedKeys.contains(.clearScreen))
         #expect(TerminalKeybarLayout.expandedKeys.contains(.backTab))
         #expect(TerminalKeybarLayout.expandedKeys.contains(.pageUp))
         #expect(TerminalKeybarLayout.expandedKeys.contains(.pageDown))

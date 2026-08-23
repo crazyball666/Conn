@@ -34,6 +34,21 @@ final class ConnUITests: XCTestCase {
     }
 
     @MainActor
+    func testRefreshIntervalUsesCompactTechnicalUnits() {
+        let app = XCUIApplication()
+        app.launchEnvironment["CONN_DEMO"] = "1"
+        app.launchEnvironment["CONN_SMOKE_ME"] = "1"
+        app.launch()
+
+        XCTAssertTrue(app.navigationBars["设置"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["主页刷新间隔"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["30s"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.staticTexts["每 30 秒"].exists)
+        XCTAssertTrue(app.staticTexts["容器刷新间隔"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.staticTexts["每 30 秒"].exists)
+    }
+
+    @MainActor
     func testTerminalKeyboardViewportRestoresAfterDismissAndReopen() {
         let app = XCUIApplication()
         app.launchEnvironment["CONN_DEMO"] = "1"
@@ -282,6 +297,7 @@ final class ConnUITests: XCTestCase {
         XCTAssertTrue(app.navigationBars["添加主机"].waitForExistence(timeout: 10))
         XCTAssertTrue(app.staticTexts["分组"].waitForExistence(timeout: 5))
         XCTAssertFalse(app.staticTexts["生产"].exists)
+        XCTAssertFalse(app.staticTexts["备注"].exists)
     }
 
     @MainActor

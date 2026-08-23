@@ -3,7 +3,7 @@ import SwiftUI
 /// 主机健康卡（服务器页 S1 的主角）。
 ///
 /// 紧凑单行指标带：CPU/内存/磁盘 三枚小环（环心百分比、环下绝对量），
-/// 网络/IO 各一列 ↑↓。**标题备注优先**；运行时长与负载缩进卡头右上。
+/// 网络/IO 各一列 ↑↓；运行时长与负载缩进卡头右上。
 /// **卡片高度恒定**：指标带始终占位，加载中盖 spinner、失败盖错误文案，
 /// 加载成功淡出蒙层显示数据——不再「加载后突然变高」。故障态左侧 3pt 红条。
 public struct HealthCard: View {
@@ -47,8 +47,6 @@ public struct HealthCard: View {
         public let loadText: String?
         /// 加载态：驱动指标带的 spinner / 错误蒙层。
         public let loadState: LoadState
-        /// 用户备注（便于记忆）。有则作为卡片主标题优先显示。
-        public let note: String?
         /// SSH 连接阶段：驱动右上角胶囊的连接/重连文案与转圈。
         public let connectionPhase: ConnConnectionPhase
         /// 后台指标采集阶段。与 SSH 连接阶段独立，采集不会改变状态文案。
@@ -70,7 +68,6 @@ public struct HealthCard: View {
             uptimeText: String? = nil,
             loadText: String? = nil,
             loadState: LoadState = .loaded,
-            note: String? = nil,
             connectionPhase: ConnConnectionPhase,
             collectPhase: ConnCollectPhase = .idle
         ) {
@@ -89,16 +86,12 @@ public struct HealthCard: View {
             self.uptimeText = uptimeText
             self.loadText = loadText
             self.loadState = loadState
-            self.note = note
             self.connectionPhase = connectionPhase
             self.collectPhase = collectPhase
         }
 
-        /// 卡片主标题：备注优先（用户的记忆锚点），否则用名称/地址。
-        var title: String {
-            if let note, !note.trimmingCharacters(in: .whitespaces).isEmpty { return note }
-            return name
-        }
+        /// 主机名称是卡片唯一的主标题。
+        var title: String { name }
     }
 
     private let model: Model
@@ -445,7 +438,7 @@ private extension View {
             id: "1", name: "38.147.173.228", address: "root@38.147.173.228:62256",
             status: .ok, cpu: 8, memory: 38, disk: 68,
             coresText: "2 核", memTotalText: "3.6 G", diskTotalText: "30 G",
-            net: net, io: io, uptimeText: "15 天", loadText: "0.09", note: "hk",
+            net: net, io: io, uptimeText: "15 天", loadText: "0.09",
             connectionPhase: .connected
         )) {}
         HealthCard(.init(

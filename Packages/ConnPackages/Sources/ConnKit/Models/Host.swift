@@ -43,7 +43,6 @@ public struct Host: Identifiable, Codable, Sendable, Equatable, Hashable {
     public var tags: [String]
     public var icon: String?
     public var color: String?
-    public var note: String?
     /// VPS 到期提醒时间（毫秒）。PRD §5.1 的 P2 功能，v1.0 只存不用。
     public var expireAt: Int64?
     public var sortOrder: Int
@@ -68,7 +67,6 @@ public struct Host: Identifiable, Codable, Sendable, Equatable, Hashable {
         tags: [String] = [],
         icon: String? = nil,
         color: String? = nil,
-        note: String? = nil,
         expireAt: Int64? = nil,
         sortOrder: Int = 0,
         status: HealthStatus = .unknown,
@@ -89,7 +87,6 @@ public struct Host: Identifiable, Codable, Sendable, Equatable, Hashable {
         self.tags = tags
         self.icon = icon
         self.color = color
-        self.note = note
         self.expireAt = expireAt
         self.sortOrder = sortOrder
         self.status = status

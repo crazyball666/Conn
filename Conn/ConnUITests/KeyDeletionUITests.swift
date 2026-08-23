@@ -23,6 +23,7 @@ final class KeyDeletionUITests: XCTestCase {
         generate.tap()
         let generateNavigationBar = app.navigationBars["生成密钥"]
         XCTAssertTrue(generateNavigationBar.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["密钥只保存在本地 Keychain"].waitForExistence(timeout: 5))
         generateNavigationBar.buttons["生成"].tap()
 
         let key = app.staticTexts["新密钥"]

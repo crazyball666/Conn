@@ -368,10 +368,7 @@ struct DockerView: View {
         viewModel.canWrite && (tab != .compose || viewModel.compose.dialect != nil)
     }
 
-    private var hostTitle: String {
-        if let note = host.note, !note.trimmingCharacters(in: .whitespaces).isEmpty { return note }
-        return host.name
-    }
+    private var hostTitle: String { host.name }
 
 }
 

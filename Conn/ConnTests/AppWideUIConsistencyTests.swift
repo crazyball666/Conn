@@ -2,6 +2,49 @@ import Foundation
 import Testing
 
 struct AppWideUIConsistencyTests {
+    @Test("密钥提示明确说明本地 Keychain 存储")
+    func keyGenerationCopyUsesLocalKeychainStatement() throws {
+        let source = try appSource("Keys/KeyManagerView.swift")
+
+        #expect(source.contains("Text(L(\"密钥只保存在本地 Keychain\"))"))
+        #expect(!source.contains("私钥不会写入数据库，只保存在设备 Keychain。"))
+    }
+
+    @Test("新建终端类型仅展示类型名称，不展示冗余说明")
+    func newTerminalTypeChoicesHideSubtitles() throws {
+        let source = try appSource("Terminal/NewTerminalSheet.swift")
+
+        #expect(source.contains("launchChoice(\n                        title: L(\"普通终端\"),\n                        systemImage: \"terminal\""))
+        #expect(source.contains("launchChoice(\n                        title: \"tmux\",\n                        systemImage: \"rectangle.connected.to.line.below\""))
+        #expect(!source.contains("启动独立远程 Shell"))
+        #expect(!source.contains("连接或创建可恢复的远程 Session"))
+        #expect(!source.contains("subtitle:"))
+    }
+
+    @Test("终端快捷键分类按常用、Provider、Claude Code、上传排列")
+    func terminalKeybarCategoriesUseProviderFirstOrder() throws {
+        let source = try packageSource("Sources/ConnTerminal/TerminalKeybar.swift")
+
+        let common = try #require(source.range(of: "title: L(\"常用\")"))
+        let provider = try #require(source.range(of: "title: providerQuickActionGroup.title"))
+        let claudeCode = try #require(source.range(of: "title: L(\"Claude Code\")"))
+        let upload = try #require(source.range(of: "title: L(\"上传\")"))
+
+        #expect(common.lowerBound < provider.lowerBound)
+        #expect(provider.lowerBound < claudeCode.lowerBound)
+        #expect(claudeCode.lowerBound < upload.lowerBound)
+        #expect(!source.contains("title: L(\"Claude\")"))
+    }
+
+    @Test("刷新间隔使用紧凑技术单位并保留秒数调度语义")
+    func refreshIntervalUsesCompactTechnicalUnit() throws {
+        let settings = try appSource("Settings/SettingsStore.swift")
+
+        #expect(settings.contains("var label: String { String(format: L(\"%ds\"), rawValue) }"))
+        #expect(!settings.contains("每 %d 秒"))
+        #expect(settings.contains("var duration: Duration { .seconds(rawValue) }"))
+    }
+
     @Test("全 App 交互触感统一使用高强度策略")
     func appHapticsUseHighImpactPolicy() throws {
         let sources = [
@@ -357,7 +400,11 @@ struct AppWideUIConsistencyTests {
         #expect(!host.contains("allowClipboardReadOnce"))
         #expect(keybar.components(separatedBy: "TerminalDirectionPad(").count == 2)
         #expect(keys.contains("static let compactKeys: [TerminalKey] = ["))
-        #expect(keys.contains(".esc, .tab, .ctrl, .ctrlC, .ctrlD, .ctrlZ"))
+        #expect(keys.contains(".clearLine, .enter, .esc, .tab, .ctrl, .ctrlC"))
+        #expect(keys.contains("case .clearLine: \"eraser\""))
+        #expect(keys.contains("case .enter: \"return\""))
+        #expect(!keys.contains("case .clearLine: \"Clear\""))
+        #expect(keys.contains(".ctrl, .ctrlC, .ctrlD, .ctrlZ, .clearScreen, .deleteWord"))
         #expect(!keys.contains(".esc, .ctrl, .tab, .up, .down, .left, .right"))
         #expect(!screen.contains(".ignoresSafeArea(.container, edges: .bottom)"))
         #expect(keybar.contains(".background(Color.connBar.ignoresSafeArea(edges: .bottom))"))
@@ -407,7 +454,12 @@ struct AppWideUIConsistencyTests {
         let source = try appSource("Terminal/NewTerminalSheet.swift")
         #expect(source.contains("model.attach(workspace)"))
         #expect(source.contains("model.createWorkspace"))
-        #expect(source.contains("model.refresh()"))
+        #expect(source.contains("Task { await model.refresh() }"))
+        #expect(source.contains("accessibilityIdentifier(\"new-terminal.refresh-sessions\")"))
+
+        let createSection = try #require(source.range(of: "Section(L(\"创建 Session\"))"))
+        let existingSection = try #require(source.range(of: "Section(L(\"连接现有 Session\"))"))
+        #expect(createSection.lowerBound < existingSection.lowerBound)
     }
 
     @Test("终端内新增会话复用当前页面 NewTerminalSheet")
@@ -566,10 +618,15 @@ struct AppWideUIConsistencyTests {
     @Test("tmux 管理页只提交 typed operation 并使用破坏性确认")
     func tmuxManagementViewUsesTypedOperations() throws {
         let source = try appSource("Terminal/TmuxWorkspaceManagementView.swift")
+        let hosting = try packageSource("Sources/ConnTerminal/TerminalHostingView.swift")
         #expect(source.contains("TmuxWorkspaceCatalogManaging"))
         #expect(source.contains("TmuxOperation"))
         #expect(source.contains("prepareDestructive"))
         #expect(source.contains("executeDestructive"))
+        #expect(source.contains(".alert(\n                destructiveTitle,"))
+        #expect(!source.contains(".confirmationDialog(\n                destructiveTitle,"))
+        #expect(hosting.contains(".alert(\n                pendingConfirmationAction?.confirmation"))
+        #expect(!hosting.contains(".confirmationDialog(\n                pendingConfirmationAction?.confirmation"))
     }
 
     @Test("tmux 管理页展示协商降级并提示共享的非破坏性影响")
@@ -623,6 +680,23 @@ struct AppWideUIConsistencyTests {
         #expect(keyManager.contains("ToolbarItem(placement: .topBarTrailing)"))
         #expect(keyManager.contains("ForEach(SSHKey.Kind.allCases"))
         #expect(keyManager.contains("导入私钥"))
+    }
+
+    @Test("主机展示只使用名称，不再暴露备注字段")
+    func hostPresentationUsesNameOnly() throws {
+        let form = try appSource("Hosts/HostFormView.swift")
+        let servers = try appSource("Servers/ServersViewModel.swift")
+        let detail = try appSource("Hosts/HostDetailView.swift")
+        let docker = try appSource("Hosts/DockerView.swift")
+        let card = try packageSource("Sources/ConnUI/Components/HealthCard.swift")
+
+        #expect(!form.contains("备注"))
+        #expect(!form.contains("noteSection"))
+        #expect(!servers.contains("note:"))
+        #expect(detail.contains("private var displayTitle: String { host.name }"))
+        #expect(docker.contains("private var hostTitle: String { host.name }"))
+        #expect(card.contains("var title: String { name }"))
+        #expect(!card.contains("public let note: String?"))
     }
 
     @Test("主机登录密码支持显示与隐藏切换")

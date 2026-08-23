@@ -145,7 +145,10 @@
                             PersistentTerminalQuickActionDescriptor(
                                 id: "tmux.window.close",
                                 titleKey: "关闭 Window",
-                                systemImageName: "xmark.rectangle"
+                                systemImageName: "xmark.rectangle",
+                                confirmation: PersistentTerminalActionConfirmation(
+                                    titleKey: "关闭当前 Window？"
+                                )
                             )
                         ]
                     )

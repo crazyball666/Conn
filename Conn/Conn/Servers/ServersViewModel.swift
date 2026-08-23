@@ -208,7 +208,6 @@ final class ServersViewModel {
             uptimeText: metrics?.uptimeSeconds.map { MetricFormat.compactUptime($0) },
             loadText: metrics?.load1.map { String(format: "%.2f", $0) },
             loadState: loadState,
-            note: host.note,
             connectionPhase: connectionPhase,
             collectPhase: collectPhase(phase)
         )
