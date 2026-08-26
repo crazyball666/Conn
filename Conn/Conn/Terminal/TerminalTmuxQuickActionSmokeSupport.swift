@@ -157,6 +157,16 @@
                         titleKey: "Pane",
                         actions: [
                             PersistentTerminalQuickActionDescriptor(
+                                id: "tmux.pane.split-horizontal",
+                                titleKey: "左右分屏",
+                                systemImageName: "rectangle.split.2x1"
+                            ),
+                            PersistentTerminalQuickActionDescriptor(
+                                id: "tmux.pane.split-vertical",
+                                titleKey: "上下分屏",
+                                systemImageName: "rectangle.split.1x2"
+                            ),
+                            PersistentTerminalQuickActionDescriptor(
                                 id: "tmux.pane.close",
                                 titleKey: "关闭 Pane",
                                 systemImageName: "xmark.rectangle",
@@ -207,7 +217,9 @@
             guard request.attachmentGeneration == state.attachmentGeneration else {
                 throw PersistentTerminalInteractionError.staleAttachmentGeneration
             }
-            guard request.expectedStateRevision == state.revision else {
+            guard request.resolution == .currentAtExecution
+                || request.expectedStateRevision == state.revision
+            else {
                 throw PersistentTerminalInteractionError.staleStateRevision
             }
             if request.actionID == "tmux.window.next"
@@ -217,6 +229,14 @@
             if request.actionID == "tmux.pane.close" {
                 return .performed
             }
+            if request.actionID == "tmux.window.new"
+                || request.actionID == "tmux.pane.split-horizontal"
+                || request.actionID == "tmux.pane.split-vertical"
+            {
+                try await Task.sleep(for: .milliseconds(120))
+                advanceStateRevision()
+                return .performed
+            }
             guard request.actionID == "tmux.session.rename" else {
                 throw PersistentTerminalInteractionError.unsupportedQuickAction(request.actionID)
             }
@@ -224,6 +244,11 @@
                 throw PersistentTerminalInteractionError.unavailable
             }
 
+            advanceStateRevision()
+            return .performed
+        }
+
+        private func advanceStateRevision() {
             state = PersistentTerminalInteractionState(
                 target: state.target,
                 attachmentGeneration: state.attachmentGeneration,
@@ -236,7 +261,6 @@
                 observedAt: .now
             )
             continuation.yield(state)
-            return .performed
         }
 
         func close() {

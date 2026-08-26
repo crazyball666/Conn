@@ -149,12 +149,12 @@ final class ConnUITests: XCTestCase {
         XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 5))
     }
 
-    /// 使用模拟器里用户已经配置好的真实主机做 opt-in 验收。默认跳过，避免 CI 依赖
+    /// 使用测试设备里用户已经配置好的真实主机做 opt-in 验收。默认跳过，避免 CI 依赖
     /// 私有凭据；手工验收时设置 CONN_LIVE_TMUX_UI_ACCEPTANCE=1。
     @MainActor
     func testLiveTmuxWindowNavigationShowsSuccessAndDoesNotMisreportFailure() throws {
         guard ProcessInfo.processInfo.environment["CONN_LIVE_TMUX_UI_ACCEPTANCE"] == "1" else {
-            throw XCTSkip("需要模拟器内已有 38.147.173.228 凭据与 tmux Session")
+            throw XCTSkip("需要测试设备内已有 38.147.173.228 凭据与 tmux")
         }
 
         let app = XCUIApplication()
@@ -181,14 +181,28 @@ final class ConnUITests: XCTestCase {
         XCTAssertTrue(tmuxChoice.waitForExistence(timeout: 5))
         tmuxChoice.tap()
 
-        let existingSession = app.buttons.matching(
-            NSPredicate(format: "label CONTAINS %@", "$")
-        ).firstMatch
-        XCTAssertTrue(existingSession.waitForExistence(timeout: 20))
-        existingSession.tap()
+        // Keep live acceptance isolated from the user's existing tmux topology. Cleanup
+        // always targets this exact temporary Session, including every queued Window/Pane.
+        let sessionSuffix = UUID().uuidString
+            .replacingOccurrences(of: "-", with: "")
+            .lowercased()
+            .prefix(12)
+        let sessionName = "conn-ui-\(sessionSuffix)"
+        let sessionField = app.textFields["Session 名称（可选）"]
+        XCTAssertTrue(sessionField.waitForExistence(timeout: 20))
+        sessionField.tap()
+        sessionField.typeText(String(sessionName))
+        let createSession = app.buttons["创建并连接"]
+        XCTAssertTrue(createSession.isEnabled)
+        createSession.tap()
 
         let terminal = app.descendants(matching: .any)["terminal.viewport"].firstMatch
         XCTAssertTrue(terminal.waitForExistence(timeout: 30))
+        addTeardownBlock {
+            guard terminal.exists else { return }
+            terminal.tap()
+            terminal.typeText("tmux kill-session -t \(sessionName)\n")
+        }
 
         // provider Tab 的出现意味着 Control Mode 已就绪且快捷动作已经发布。
         let expand = app.buttons["terminal.keybar.expand"]
@@ -198,18 +212,13 @@ final class ConnUITests: XCTestCase {
         XCTAssertTrue(providerTab.waitForExistence(timeout: 15))
         providerTab.tap()
 
-        // The remote fixture may start with one Window. Create a second Window so a
-        // successful rapid navigation burst is observable instead of truthfully returning
-        // "no Window available". Four switches land back on this temporary Window.
+        // Queue a real burst while the first Control Mode command is still in flight. Every
+        // tap must be retained and topology synchronization must complete before the next
+        // intent resolves its current target.
         let newWindow = app.buttons["terminal.keybar.tmux.tmux.window.new"]
         XCTAssertTrue(newWindow.waitForExistence(timeout: 5))
         XCTAssertTrue(newWindow.isHittable)
-        newWindow.tap()
-        let newWindowReady = XCTNSPredicateExpectation(
-            predicate: NSPredicate(format: "isEnabled == true"),
-            object: newWindow
-        )
-        XCTAssertEqual(XCTWaiter.wait(for: [newWindowReady], timeout: 5), .completed)
+        for _ in 0 ..< 4 { newWindow.tap() }
         app.buttons["terminal.keybar.collapse"].tap()
 
         for _ in 0 ..< 4 {
@@ -218,7 +227,11 @@ final class ConnUITests: XCTestCase {
 
         let successToast = app.descendants(matching: .any)["conn.toast.success"].firstMatch
         XCTAssertTrue(successToast.waitForExistence(timeout: 8))
-        XCTAssertFalse(app.descendants(matching: .any)["conn.toast.error"].exists)
+        XCTAssertFalse(
+            app.descendants(matching: .any)["conn.toast.error"].firstMatch
+                .waitForExistence(timeout: 5),
+            "快速切换队列执行完成前后均不得出现失败 Toast"
+        )
         XCTAssertFalse(app.staticTexts["持久终端操作失败，请重试"].exists)
 
         // Remove the temporary Window and leave the user's Session unchanged.
@@ -252,7 +265,7 @@ final class ConnUITests: XCTestCase {
             keybar.swipeUp()
         }
         XCTAssertTrue(splitPane.isHittable)
-        splitPane.tap()
+        for _ in 0 ..< 4 { splitPane.tap() }
 
         let closePane = app.buttons["terminal.keybar.tmux.tmux.pane.close"]
         for _ in 0 ..< 4 where !closePane.exists || !closePane.isHittable {
@@ -260,11 +273,6 @@ final class ConnUITests: XCTestCase {
         }
         XCTAssertTrue(closePane.waitForExistence(timeout: 5))
         XCTAssertTrue(closePane.isHittable)
-        let closePaneReady = XCTNSPredicateExpectation(
-            predicate: NSPredicate(format: "isEnabled == true"),
-            object: closePane
-        )
-        XCTAssertEqual(XCTWaiter.wait(for: [closePaneReady], timeout: 5), .completed)
         XCTAssertTrue(keyboard.exists)
         closePane.tap()
         let closePaneAlert = app.alerts["关闭当前 Pane？"]
@@ -272,7 +280,11 @@ final class ConnUITests: XCTestCase {
         closePaneAlert.buttons["关闭 Pane"].tap()
         XCTAssertTrue(closePaneAlert.waitForNonExistence(timeout: 5))
         XCTAssertTrue(keyboard.waitForExistence(timeout: 5))
-        XCTAssertFalse(app.descendants(matching: .any)["conn.toast.error"].exists)
+        XCTAssertFalse(
+            app.descendants(matching: .any)["conn.toast.error"].firstMatch
+                .waitForExistence(timeout: 8),
+            "关闭 Pane 异步执行完成前不得出现失败 Toast"
+        )
         XCTAssertFalse(app.staticTexts["持久终端操作失败，请重试"].exists)
     }
 

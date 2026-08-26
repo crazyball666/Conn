@@ -677,6 +677,25 @@ struct AppWideUIConsistencyTests {
         #expect(!source.contains("snapshot.clients.values.first(where:"))
     }
 
+    @Test("tmux 运行时交互由 Hub 排队且不使用瞬时 readiness 拦截")
+    func tmuxRuntimeInteractionsDelegateBusyStateToHub() throws {
+        let source = try packageSource("Sources/ConnMultiplexer/TmuxInteraction.swift")
+        let hosting = try packageSource("Sources/ConnTerminal/TerminalHostingView.swift")
+        let keybar = try packageSource("Sources/ConnTerminal/TerminalKeybar.swift")
+        let facetStart = try #require(source.range(of: "package actor TmuxInteractionFacet"))
+        let facet = source[facetStart.lowerBound...]
+
+        #expect(!facet.contains("hasReadyControlRuntime"))
+        #expect(facet.contains("controlLease.registry.performQuickAction("))
+        #expect(facet.contains("controlLease.registry.scrollInteraction("))
+        #expect(facet.contains("controlLease.registry.resolveInteraction("))
+        #expect(hosting.contains("TerminalProviderActionQueue()"))
+        #expect(hosting.contains("resolution: .currentAtExecution"))
+        #expect(!hosting.contains("providerNavigationTask"))
+        #expect(!hosting.contains("providerNavigationQueue"))
+        #expect(!keybar.contains(".disabled(performingProviderQuickActionID != nil)"))
+    }
+
     @Test("创建 Docker 命令保存成功后锁定按钮并防止重复保存")
     func dockerCommandSaveLocksAfterSuccess() throws {
         let runForm = try appSource("Hosts/DockerRunFormView.swift")

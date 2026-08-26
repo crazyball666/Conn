@@ -33,5 +33,21 @@ final class NewTerminalSessionPickerUITests: XCTestCase {
         XCTAssertTrue(createHeader.exists)
         XCTAssertTrue(existingHeader.exists)
         XCTAssertLessThan(createHeader.frame.minY, existingHeader.frame.minY)
+
+        let sessionField = app.textFields["Session 名称（可选）"]
+        sessionField.tap()
+        sessionField.typeText("one-tap-session")
+        XCTAssertTrue(app.keyboards.firstMatch.exists)
+        app.buttons["创建并连接"].tap()
+        XCTAssertTrue(
+            app.keyboards.firstMatch.waitForNonExistence(timeout: 3),
+            "键盘显示时首次点击必须执行创建 action，不能只收起键盘"
+        )
+        XCTAssertTrue(
+            createHeader.waitForNonExistence(timeout: 3),
+            "创建按钮 action 应在同一次点击中离开 Session 选择页"
+        )
+
+        XCTAssertEqual(app.state, .runningForeground)
     }
 }

@@ -298,6 +298,18 @@ public enum PersistentTerminalQuickActionOutcome: Sendable, Equatable {
     case unavailable
 }
 
+/// Determines how a queued provider action resolves its execution target.
+///
+/// Direct API callers can pin an operation to the exact state they inspected. Interactive
+/// controls use `currentAtExecution`: the host preserves intent order, while the provider
+/// resolves the attachment's current target only when that intent reaches the head of its
+/// serial queue. This prevents a queued topology change from inheriting an obsolete Pane or
+/// revision from an earlier tap.
+public enum PersistentTerminalQuickActionResolution: Sendable, Equatable {
+    case exactObservedState
+    case currentAtExecution
+}
+
 public struct PersistentTerminalQuickActionGroup: Sendable, Equatable, Identifiable {
     public let id: String
     public let title: String
@@ -327,9 +339,9 @@ public struct PersistentTerminalQuickActionGroup: Sendable, Equatable, Identifia
     }
 }
 
-/// Pins a provider action to the exact attachment, target, and observed state that supplied
-/// its UI. Providers must reject stale requests instead of applying an action to a different
-/// Pane or workspace after an asynchronous topology change.
+/// Carries one provider action for an exact attachment. Direct callers default to pinning the
+/// observed target and revision; interactive queues explicitly request execution-time target
+/// resolution after preserving the user's total action order.
 public struct PersistentTerminalQuickActionRequest: Sendable, Equatable {
     public static let maximumRepeatCount = 32
 
@@ -342,6 +354,9 @@ public struct PersistentTerminalQuickActionRequest: Sendable, Equatable {
     public let repeatCount: Int
     /// 仅由展示层在用户确认破坏性操作后置真；provider 必须再次校验动作语义。
     public let confirmsDestructiveAction: Bool
+    /// Exact pinning is the safe default for direct callers. Interactive hosts opt into
+    /// execution-time resolution only after placing every action in one ordered queue.
+    public let resolution: PersistentTerminalQuickActionResolution
 
     public init(
         actionID: String,
@@ -350,7 +365,8 @@ public struct PersistentTerminalQuickActionRequest: Sendable, Equatable {
         expectedStateRevision: UInt64,
         argument: String? = nil,
         repeatCount: Int = 1,
-        confirmsDestructiveAction: Bool = false
+        confirmsDestructiveAction: Bool = false,
+        resolution: PersistentTerminalQuickActionResolution = .exactObservedState
     ) {
         self.actionID = actionID
         self.target = target
@@ -359,6 +375,7 @@ public struct PersistentTerminalQuickActionRequest: Sendable, Equatable {
         self.argument = argument
         self.repeatCount = repeatCount
         self.confirmsDestructiveAction = confirmsDestructiveAction
+        self.resolution = resolution
     }
 }
 

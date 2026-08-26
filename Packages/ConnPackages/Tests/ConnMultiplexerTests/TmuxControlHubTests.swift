@@ -955,6 +955,178 @@ struct TmuxControlHubTests {
         ])
         await hub.releaseLease(observation.lease)
     }
+
+    @Test("排队的新建 Window 以执行时状态为准且不因旧 revision 失败")
+    func queuedWindowCreationResolvesAtExecutionTime() async throws {
+        let fixture = try ControlHubFixture()
+        let adapter = ScriptedControlHubAdapter()
+        let attachmentID = "attachment-queued-window"
+        let clientID = TmuxClientID(
+            targetName: "/dev/pts/24",
+            processID: 24,
+            createdAt: 24
+        )
+        let client = TmuxClientSnapshot(
+            id: clientID,
+            sessionID: fixture.session,
+            currentWindowID: fixture.window,
+            activePaneID: fixture.pane,
+            flags: [],
+            role: .connInteractive(attachmentID: attachmentID),
+            kind: .interactiveTerminal,
+            sizeParticipation: .participating,
+            observedAt: fixture.now
+        )
+        let initial = try fixture.snapshot(clients: [clientID: client])
+        let hub = try TmuxControlHub(
+            scope: try fixture.scope(),
+            initialSnapshot: initial,
+            adapter: adapter,
+            clock: { fixture.later }
+        )
+        let observation = try await hub.acquireInteractionLease(
+            identity: .init(
+                attachmentID: attachmentID,
+                clientID: clientID,
+                requestedSessionID: fixture.session
+            ),
+            target: .session(fixture.session)
+        )
+        let target = PersistentTerminalInteractionTarget(
+            providerID: TmuxProvider.providerID,
+            workspaceID: fixture.session.rawValue,
+            targetID: fixture.pane.rawValue
+        )
+        _ = try await hub.apply(fixture.envelope(event: .paneMetadataChanged(
+            fixture.pane,
+            field: .title,
+            value: .init(value: "newer", freshness: .liveSubscription(observedAt: fixture.later))
+        )))
+        let secondWindow = try #require(TmuxWindowID(rawValue: "@2"))
+        let thirdWindow = try #require(TmuxWindowID(rawValue: "@3"))
+        await adapter.enqueueOperationOutput([Data("@2\n".utf8)])
+        await adapter.enqueueOperationOutput([])
+        await adapter.enqueueSnapshot(initial)
+        await adapter.enqueueOperationOutput([Data("@3\n".utf8)])
+        await adapter.enqueueOperationOutput([])
+        await adapter.enqueueSnapshot(initial)
+
+        for _ in 0 ..< 2 {
+            _ = try await hub.executeQuickAction(
+                lease: observation.lease,
+                target: target,
+                attachmentGeneration: 3,
+                expectedRevision: 0,
+                action: .newWindow,
+                argument: nil,
+                resolution: .currentAtExecution,
+                timeout: .seconds(1)
+            )
+        }
+
+        let clientTarget = try TmuxClientTarget(clientID.targetName)
+        #expect(await adapter.executedRequests.map(\.operation) == [
+            .createWindow(in: fixture.session, name: nil),
+            .selectWindow(secondWindow, for: clientTarget),
+            .createWindow(in: fixture.session, name: nil),
+            .selectWindow(thirdWindow, for: clientTarget),
+        ])
+        #expect(await adapter.snapshotRequestCount == 2)
+        await hub.releaseLease(observation.lease)
+    }
+
+    @Test("连续分屏在每次出队前使用最新活动 Pane")
+    func queuedPaneCreationUsesReconciledActivePane() async throws {
+        let fixture = try ControlHubFixture()
+        let adapter = ScriptedControlHubAdapter()
+        let attachmentID = "attachment-queued-pane"
+        let clientID = TmuxClientID(
+            targetName: "/dev/pts/25",
+            processID: 25,
+            createdAt: 25
+        )
+        let secondPane = try #require(TmuxPaneID(rawValue: "%2"))
+        let thirdPane = try #require(TmuxPaneID(rawValue: "%3"))
+        func client(activePaneID: TmuxPaneID, observedAt: Date) -> TmuxClientSnapshot {
+            TmuxClientSnapshot(
+                id: clientID,
+                sessionID: fixture.session,
+                currentWindowID: fixture.window,
+                activePaneID: activePaneID,
+                flags: [],
+                role: .connInteractive(attachmentID: attachmentID),
+                kind: .interactiveTerminal,
+                sizeParticipation: .participating,
+                observedAt: observedAt
+            )
+        }
+        let initial = try fixture.snapshot(clients: [
+            clientID: client(activePaneID: fixture.pane, observedAt: fixture.now),
+        ])
+        let hub = try TmuxControlHub(
+            scope: try fixture.scope(),
+            initialSnapshot: initial,
+            adapter: adapter,
+            clock: { fixture.later }
+        )
+        let observation = try await hub.acquireInteractionLease(
+            identity: .init(
+                attachmentID: attachmentID,
+                clientID: clientID,
+                requestedSessionID: fixture.session
+            ),
+            target: .session(fixture.session)
+        )
+        await adapter.enqueueOperationOutput([Data("%2\n".utf8)])
+        await adapter.enqueueOperationOutput([])
+        await adapter.enqueueSnapshot(try fixture.snapshot(
+            observedAt: fixture.later,
+            clients: [clientID: client(activePaneID: secondPane, observedAt: fixture.later)],
+            activePane: secondPane,
+            additionalPanes: [secondPane]
+        ))
+        await adapter.enqueueOperationOutput([Data("%3\n".utf8)])
+        await adapter.enqueueOperationOutput([])
+        await adapter.enqueueSnapshot(try fixture.snapshot(
+            observedAt: fixture.later.addingTimeInterval(1),
+            clients: [
+                clientID: client(
+                    activePaneID: thirdPane,
+                    observedAt: fixture.later.addingTimeInterval(1)
+                ),
+            ],
+            activePane: thirdPane,
+            additionalPanes: [secondPane, thirdPane]
+        ))
+        let staleTarget = PersistentTerminalInteractionTarget(
+            providerID: TmuxProvider.providerID,
+            workspaceID: fixture.session.rawValue,
+            targetID: fixture.pane.rawValue
+        )
+
+        for _ in 0 ..< 2 {
+            _ = try await hub.executeQuickAction(
+                lease: observation.lease,
+                target: staleTarget,
+                attachmentGeneration: 3,
+                expectedRevision: 0,
+                action: .splitHorizontal,
+                argument: nil,
+                resolution: .currentAtExecution,
+                timeout: .seconds(1)
+            )
+        }
+
+        let clientTarget = try TmuxClientTarget(clientID.targetName)
+        #expect(await adapter.executedRequests.map(\.operation) == [
+            .splitPane(fixture.pane, orientation: .horizontal),
+            .selectPane(secondPane, for: clientTarget),
+            .splitPane(secondPane, orientation: .horizontal),
+            .selectPane(thirdPane, for: clientTarget),
+        ])
+        #expect(await adapter.snapshotRequestCount == 2)
+        await hub.releaseLease(observation.lease)
+    }
 }
 
 private actor ScriptedControlHubAdapter: TmuxControlHubAdapter {
@@ -963,6 +1135,7 @@ private actor ScriptedControlHubAdapter: TmuxControlHubAdapter {
     private var executions: [TmuxOperationRequest] = []
     private var operationWaiters: [CheckedContinuation<Void, Never>] = []
     private var snapshotWaiters: [CheckedContinuation<Void, Never>] = []
+    private var operationOutputs: [[Data]] = []
     private let blockOperations: Bool
     private let blockSnapshots: Bool
 
@@ -989,7 +1162,9 @@ private actor ScriptedControlHubAdapter: TmuxControlHubAdapter {
         }
         return TmuxControlHubOperationReceipt(
             request: request,
-            output: [Data("ok".utf8)]
+            output: operationOutputs.isEmpty
+                ? [Data("ok".utf8)]
+                : operationOutputs.removeFirst()
         )
     }
 
@@ -1014,6 +1189,10 @@ private actor ScriptedControlHubAdapter: TmuxControlHubAdapter {
 
     func enqueueSnapshot(_ snapshot: TmuxServerSnapshot) {
         snapshots.append(snapshot)
+    }
+
+    func enqueueOperationOutput(_ output: [Data]) {
+        operationOutputs.append(output)
     }
 
     func releaseNextOperation() {
@@ -1128,14 +1307,17 @@ private struct ControlHubFixture: Sendable {
         observedAt: Date = Date(timeIntervalSince1970: 100),
         clients: [TmuxClientID: TmuxClientSnapshot] = [:],
         additionalWindow: TmuxWindowID? = nil,
+        activePane: TmuxPaneID? = nil,
+        additionalPanes: [TmuxPaneID] = [],
         paneSize: TermSize = .init(cols: 80, rows: 24)
     ) throws -> TmuxServerSnapshot {
+        let effectiveActivePane = activePane ?? pane
         var windows = [window: TmuxWindowSnapshot(
             id: window,
             name: "window",
             layout: nil,
             isZoomed: false,
-            activePaneID: pane
+            activePaneID: effectiveActivePane
         )]
         var links = [TmuxWindowLink(sessionID: session, windowID: window, index: 0)]
         if let additionalWindow {
@@ -1148,6 +1330,28 @@ private struct ControlHubFixture: Sendable {
             )
             links.append(.init(sessionID: session, windowID: additionalWindow, index: 1))
         }
+        var panes = [pane: TmuxPaneSnapshot(
+            id: pane,
+            windowID: window,
+            index: 0,
+            title: .unavailable,
+            currentCommand: .unavailable,
+            currentPath: .unavailable,
+            size: paneSize,
+            isDead: false
+        )]
+        for (offset, additionalPane) in additionalPanes.enumerated() {
+            panes[additionalPane] = TmuxPaneSnapshot(
+                id: additionalPane,
+                windowID: window,
+                index: offset + 1,
+                title: .unavailable,
+                currentCommand: .unavailable,
+                currentPath: .unavailable,
+                size: paneSize,
+                isDead: false
+            )
+        }
         return try TmuxServerSnapshot(
             instance: .init(token: token ?? self.token, version: "tmux 3.5a"),
             sessions: [session: .init(
@@ -1158,16 +1362,7 @@ private struct ControlHubFixture: Sendable {
             )],
             sessionGroups: [:],
             windows: windows,
-            panes: [pane: .init(
-                id: pane,
-                windowID: window,
-                index: 0,
-                title: .unavailable,
-                currentCommand: .unavailable,
-                currentPath: .unavailable,
-                size: paneSize,
-                isDead: false
-            )],
+            panes: panes,
             windowLinks: links,
             clients: clients,
             observedAt: observedAt,

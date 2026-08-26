@@ -38,11 +38,14 @@ final class TerminalTmuxRenameUITests: XCTestCase {
         XCTAssertTrue(save.exists)
         save.tap()
 
-        XCTAssertTrue(alert.waitForNonExistence(timeout: 5))
+        // Toast 从 action 成功时开始计时，而 Alert 退场动画还在进行。
+        // 先观测短暂的 Toast，再等待 Alert 完全消失，避免把已执行成功
+        // 且标题已更新的操作误判为失败。
         XCTAssertTrue(
             app.descendants(matching: .any)["conn.toast.success"].firstMatch
                 .waitForExistence(timeout: 5)
         )
+        XCTAssertTrue(alert.waitForNonExistence(timeout: 5))
         let terminalHeader = app.descendants(matching: .any)["terminal.header"]
         XCTAssertTrue(terminalHeader.waitForExistence(timeout: 5))
         let renamedTitle = XCTNSPredicateExpectation(
@@ -121,6 +124,42 @@ final class TerminalTmuxRenameUITests: XCTestCase {
 
         XCTAssertTrue(alert.waitForNonExistence(timeout: 5))
         XCTAssertTrue(keyboard.waitForExistence(timeout: 5))
+        XCTAssertFalse(app.descendants(matching: .any)["conn.toast.error"].exists)
+        XCTAssertFalse(app.staticTexts["持久终端操作失败，请重试"].exists)
+        XCTAssertEqual(app.state, .runningForeground)
+    }
+
+    @MainActor
+    func testRapidWindowAndPaneCreationUsesOneSerialQueue() {
+        let app = XCUIApplication()
+        app.launchEnvironment["CONN_DEMO"] = "1"
+        app.launchEnvironment["CONN_SMOKE_TERMINAL"] = "1"
+        app.launchEnvironment["CONN_SMOKE_TERMINAL_EXPANDED"] = "1"
+        app.launchEnvironment["CONN_SMOKE_TMUX_ACTIONS"] = "1"
+        app.launchArguments += ["-conn.settings.terminalCursorBlinking", "NO"]
+        app.launch()
+
+        let providerTab = app.buttons["terminal.keybar.tab.tmux"]
+        XCTAssertTrue(providerTab.waitForExistence(timeout: 10))
+        providerTab.tap()
+
+        let newWindow = app.buttons["terminal.keybar.tmux.tmux.window.new"]
+        XCTAssertTrue(newWindow.waitForExistence(timeout: 5))
+        for _ in 0 ..< 4 { newWindow.tap() }
+
+        let splitPane = app.buttons["terminal.keybar.tmux.tmux.pane.split-horizontal"]
+        let keybar = app.descendants(matching: .any)["terminal.keybar"].firstMatch
+        for _ in 0 ..< 4 where !splitPane.isHittable {
+            keybar.swipeUp()
+        }
+        XCTAssertTrue(splitPane.waitForExistence(timeout: 5))
+        XCTAssertTrue(splitPane.isHittable)
+        for _ in 0 ..< 4 { splitPane.tap() }
+
+        // The smoke provider deliberately takes 120 ms per action. Waiting longer than the
+        // eight-command serial budget verifies that no stale-state failure interrupts the
+        // queue while the App remains responsive.
+        Thread.sleep(forTimeInterval: 2)
         XCTAssertFalse(app.descendants(matching: .any)["conn.toast.error"].exists)
         XCTAssertFalse(app.staticTexts["持久终端操作失败，请重试"].exists)
         XCTAssertEqual(app.state, .runningForeground)

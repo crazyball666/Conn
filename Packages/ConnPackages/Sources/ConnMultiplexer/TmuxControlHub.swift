@@ -686,9 +686,9 @@ package actor TmuxControlHub {
         )
     }
 
-    /// Executes one provider-owned quick action against the exact Pane state from which its
-    /// button was rendered. Target resolution and operation construction happen inside this
-    /// actor so a topology update cannot retarget the action between validation and dispatch.
+    /// Executes one provider-owned quick action in the Hub's serial command lane. Direct
+    /// callers may pin the exact observed state; an ordered interactive queue can instead
+    /// resolve the attachment's current target atomically when the action is admitted.
     package func executeQuickAction(
         lease: TmuxControlHubLease,
         target: PersistentTerminalInteractionTarget,
@@ -698,6 +698,7 @@ package actor TmuxControlHub {
         argument: String?,
         repeatCount: Int = 1,
         destructiveActionConfirmed: Bool = false,
+        resolution: PersistentTerminalQuickActionResolution = .exactObservedState,
         timeout: Duration
     ) async throws -> PersistentTerminalQuickActionOutcome {
         try validateTimeout(timeout)
@@ -711,7 +712,12 @@ package actor TmuxControlHub {
         else {
             throw TmuxInteractionError.clientUnavailable
         }
-        if !action.toleratesStateRevisionDrift {
+        guard target.providerID == TmuxProvider.providerID,
+              target.workspaceID == interactionLease.identity.requestedSessionID.rawValue
+        else {
+            throw TmuxInteractionError.targetMismatch
+        }
+        if resolution == .exactObservedState, !action.toleratesStateRevisionDrift {
             guard snapshot.revision == expectedRevision else {
                 throw TmuxInteractionError.staleState(
                     expectedRevision: expectedRevision,
@@ -722,7 +728,11 @@ package actor TmuxControlHub {
         let resolved = try TmuxInteractionStateProjector().resolve(
             snapshot: snapshot,
             identity: interactionLease.identity,
-            expectedTarget: action == .previousWindow || action == .nextWindow ? nil : target,
+            expectedTarget: resolution == .currentAtExecution
+                || action == .previousWindow
+                || action == .nextWindow
+                ? nil
+                : target,
             attachmentGeneration: attachmentGeneration
         )
         let client = try TmuxClientTarget(interactionLease.identity.clientID.targetName)
@@ -771,7 +781,43 @@ package actor TmuxControlHub {
              .mainVerticalLayout:
             break
         }
+        if resolution == .currentAtExecution,
+           action.requiresPostExecutionReconciliation
+        {
+            try await reconcileAfterQueuedTopologyAction(operation)
+        }
         return .performed
+    }
+
+    /// Runs inside the already-acquired interactive operation slot. Calling `refresh` here
+    /// would enqueue behind this action and deadlock; loading through the adapter directly
+    /// keeps command ordering atomic and publishes the resulting target before the next
+    /// queued intent is admitted.
+    private func reconcileAfterQueuedTopologyAction(
+        _ operation: TmuxOperation
+    ) async throws {
+        let requestedScope = scope
+        let requestedEpoch = epoch
+        let snapshot = try await adapter.loadSnapshot(
+            scope: requestedScope,
+            reason: .operationCompleted(operation),
+            identities: activeIdentities
+        )
+        try requireActive()
+        guard epoch == requestedEpoch, scope == requestedScope else {
+            throw TmuxControlHubError.operationOutcomeUnknown(
+                .init(scope: requestedScope, operation: operation)
+            )
+        }
+        let reduction = try reconcile(
+            with: snapshot,
+            generation: requestedScope.generation
+        )
+        guard reduction == .applied || reduction == .unchanged else {
+            throw TmuxControlHubError.operationOutcomeUnknown(
+                .init(scope: requestedScope, operation: operation)
+            )
+        }
     }
 
     private func createdWindowID(from output: [Data]) -> TmuxWindowID? {

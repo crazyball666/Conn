@@ -208,6 +208,99 @@ struct TmuxProviderControlRuntimeRegistryTests {
         await registry.release(attachmentLease)
         #expect(firstChannel.closeCount == 1)
     }
+
+    @Test("交互 Facet 将已绑定操作交给 Hub 排队而不按瞬时 readiness 拒绝")
+    func interactionFacetDelegatesBoundOperationsToHub() async throws {
+        let fixture = try RegistryFixture()
+        let registry = TmuxProviderControlRuntimeRegistry()
+        let channel = RegistryTrackingProcessChannel()
+        let runtime = try fixture.runtime(channel: channel)
+        let preflight = try #require(await registry.acquireRuntime(for: fixture.scope) {
+            runtime
+        })
+        let adapter = RegistryHubAdapter(fixture: fixture)
+        let snapshot = try fixture.snapshot(identities: [fixture.identity])
+        let dataClientProcessID = try #require(fixture.dataClient.processID)
+        let attachment = try #require(await registry.acquireAttachment(
+            preflight,
+            attachmentID: fixture.attachmentID,
+            attachmentGeneration: 3,
+            requestedSessionID: fixture.session,
+            makeHub: { _ in
+                let hub = try? TmuxControlHub(
+                    scope: fixture.scope,
+                    initialSnapshot: snapshot,
+                    adapter: adapter
+                )
+                return hub.map { TmuxProviderControlSetup(hub: $0, identity: fixture.identity) }
+            },
+            resolveIdentity: { _ in fixture.identity }
+        ))
+        let facet = TmuxInteractionFacet(
+            attachmentGeneration: 3,
+            historyBackend: TmuxOneShotInteractionBackend(
+                executor: RegistryUnusedReadExecutor(),
+                captureExecutor: RegistryUnusedCaptureExecutor(),
+                scope: fixture.scope,
+                dialect: .init(commandGuardShape: .threeFields, snapshotCodec: .quoted),
+                attachmentID: fixture.attachmentID,
+                attachmentGeneration: 3,
+                requestedSessionID: fixture.session,
+                tty: fixture.dataClient.targetName,
+                processID: dataClientProcessID,
+                nonceFactory: { try TmuxInvocationNonce("unused") }
+            )
+        )
+        await facet.install(attachment)
+
+        let outcome = try await facet.performQuickAction(PersistentTerminalQuickActionRequest(
+            actionID: TmuxTerminalQuickAction.nextWindow.rawValue,
+            target: PersistentTerminalInteractionTarget(
+                providerID: TmuxProvider.providerID,
+                workspaceID: fixture.session.rawValue,
+                targetID: fixture.pane.rawValue
+            ),
+            attachmentGeneration: 3,
+            expectedStateRevision: snapshot.revision
+        ))
+
+        #expect(outcome == .performed)
+        #expect(await adapter.operations == [
+            .selectRelativeWindow(
+                in: fixture.session,
+                direction: .next,
+                steps: try TmuxWindowNavigationStepCount(1),
+                for: try TmuxClientTarget(fixture.dataClient.targetName)
+            ),
+        ])
+        await facet.close()
+        #expect(channel.closeCount == 1)
+    }
+}
+
+private enum RegistryUnusedBackendError: Error {
+    case unexpectedlyCalled
+}
+
+private struct RegistryUnusedReadExecutor: TmuxReadOnlyCommandExecuting {
+    func execute(
+        _ request: TmuxControlRequest,
+        scope: TmuxOperationScope,
+        timeout: Duration
+    ) async throws -> TmuxReadOnlyCommandExecution {
+        throw RegistryUnusedBackendError.unexpectedlyCalled
+    }
+}
+
+private struct RegistryUnusedCaptureExecutor: TmuxPaneHistoryCaptureExecuting {
+    func capture(
+        paneID: TmuxPaneID,
+        startLine: Int,
+        maximumBytes: Int,
+        timeout: Duration
+    ) async throws -> TmuxPaneCaptureResult {
+        throw RegistryUnusedBackendError.unexpectedlyCalled
+    }
 }
 
 private struct RegistryFixture: Sendable {

@@ -453,13 +453,14 @@ actor TmuxProviderControlRuntimeRegistry {
             argument: request.argument,
             repeatCount: request.repeatCount,
             destructiveActionConfirmed: request.confirmsDestructiveAction,
+            resolution: request.resolution,
             timeout: .seconds(30)
         )
     }
 
-    /// A lease proves ownership of the management route, but its long-lived Control Mode
-    /// process may already have terminated. Quick interactions must not enter the Hub's
-    /// slower one-shot reconciliation path when the direct command channel is gone.
+    /// Startup validation requires an idle, command-ready client before the attachment is
+    /// published. Runtime interactions intentionally do not call this: `isReady` is also
+    /// false while a healthy command is in flight, and the Hub owns queuing that work.
     func hasReadyControlRuntime(
         _ lease: TmuxProviderControlInteractionLease
     ) async -> Bool {

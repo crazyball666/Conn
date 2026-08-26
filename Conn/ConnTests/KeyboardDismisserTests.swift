@@ -43,6 +43,21 @@ struct KeyboardDismisserTests {
         #expect(KeyboardDismisser.shouldDismissKeyboard(for: UIView()))
     }
 
+    @Test("全局收键盘延后到 SwiftUI 按钮 action 交付之后")
+    func dismissalRunsAfterCurrentTouchDelivery() async {
+        var events = ["gesture"]
+
+        await withCheckedContinuation { continuation in
+            KeyboardDismisser.afterCurrentTouchDelivery {
+                events.append("dismiss")
+                continuation.resume()
+            }
+            events.append("button-action")
+        }
+
+        #expect(events == ["gesture", "button-action", "dismiss"])
+    }
+
     @Test("点击 Alert 保存按钮等 UIControl 不触发全局收键盘")
     func controlTapDoesNotDismissKeyboard() {
         let button = UIButton(type: .system)

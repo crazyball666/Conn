@@ -290,7 +290,6 @@
                 )
             }
             .buttonStyle(.plain)
-            .disabled(performingProviderQuickActionID != nil)
             .accessibilityLabel(Text(L(action.titleKey)))
             .accessibilityIdentifier("terminal.keybar.\(groupID).\(action.id)")
             .frame(height: TerminalKeybarMetrics.hitTargetHeight)

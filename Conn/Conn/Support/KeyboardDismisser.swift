@@ -29,9 +29,26 @@ final class KeyboardDismisser: NSObject, UIGestureRecognizerDelegate {
 
     @objc private func handleTap() {
         // `shouldReceive` 发生在触摸开始阶段；同一次触摸可能随后弹出 Alert。
-        // 执行动作时必须再次检查，避免迟到的全局手势关闭 Alert 输入键盘。
-        guard !Self.containsSystemAlert(in: window?.rootViewController) else { return }
-        window?.endEditing(true)
+        // 等本轮触摸完整交付给 SwiftUI Button 后再收起键盘。如果在手势
+        // callback 中同步 endEditing，iOS 26 的 List/Button 会只收键盘而丢掉
+        // 本次 action，表现为“创建并连接/保存需要点两次”。
+        guard let window else { return }
+        let responderAtTouchEnd = Self.firstInputResponder(in: window)
+        Self.afterCurrentTouchDelivery {
+            // Button action 可能已弹出 Alert 或将焦点交给新输入框；这些情况
+            // 不得被迟到的全局收键盘再次干扰。
+            guard !Self.containsSystemAlert(in: window.rootViewController) else { return }
+            guard Self.firstInputResponder(in: window) === responderAtTouchEnd else { return }
+            window.endEditing(true)
+        }
+    }
+
+    /// UIKit 的全局手势与 SwiftUI Button 共用同一次触摸时，必须让按钮先完成
+    /// action 交付。保持为独立 seam，便于用单元测试锁定执行顺序。
+    static func afterCurrentTouchDelivery(_ action: @escaping @MainActor () -> Void) {
+        DispatchQueue.main.async {
+            action()
+        }
     }
 
     nonisolated func gestureRecognizer(

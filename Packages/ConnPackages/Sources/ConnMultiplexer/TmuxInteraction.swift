@@ -92,6 +92,17 @@ package enum TmuxTerminalQuickAction: String, CaseIterable, Sendable {
             || self == .closePane
     }
 
+    /// These actions change the normalized graph or the interactive client's current target.
+    /// A queued successor must not start from the pre-command snapshot, so the Hub installs
+    /// one verified post-command snapshot before releasing its serial operation slot.
+    package var requiresPostExecutionReconciliation: Bool {
+        self == .newWindow
+            || self == .closeWindow
+            || self == .splitHorizontal
+            || self == .splitVertical
+            || self == .closePane
+    }
+
     package static let group = PersistentTerminalQuickActionGroup(
         id: TmuxProvider.providerID,
         title: "tmux",
@@ -1028,9 +1039,7 @@ package actor TmuxInteractionFacet: PersistentTerminalInteractionFacet {
 
     public func resolveState() async throws -> PersistentTerminalInteractionState {
         guard !closed else { throw TmuxInteractionError.closed }
-        guard let controlLease,
-              await controlLease.registry.hasReadyControlRuntime(controlLease)
-        else {
+        guard let controlLease else {
             throw PersistentTerminalError.controlModeUnavailable
         }
         let state = try await controlLease.registry.resolveInteraction(controlLease)
@@ -1042,9 +1051,7 @@ package actor TmuxInteractionFacet: PersistentTerminalInteractionFacet {
         _ request: PersistentTerminalHistoryRequest
     ) async throws -> PersistentTerminalHistorySnapshot {
         guard !closed else { throw TmuxInteractionError.closed }
-        guard let lease = controlLease,
-              await lease.registry.hasReadyControlRuntime(lease)
-        else {
+        guard let lease = controlLease else {
             throw PersistentTerminalError.controlModeUnavailable
         }
         let pinned = try await lease.registry.resolveInteractionContext(
@@ -1061,9 +1068,7 @@ package actor TmuxInteractionFacet: PersistentTerminalInteractionFacet {
         guard request.attachmentGeneration == attachmentGeneration else {
             throw PersistentTerminalInteractionError.staleAttachmentGeneration
         }
-        guard let controlLease,
-              await controlLease.registry.hasReadyControlRuntime(controlLease)
-        else {
+        guard let controlLease else {
             throw PersistentTerminalError.controlModeUnavailable
         }
         try await controlLease.registry.scrollInteraction(controlLease, request: request)
@@ -1076,9 +1081,7 @@ package actor TmuxInteractionFacet: PersistentTerminalInteractionFacet {
         guard request.attachmentGeneration == attachmentGeneration else {
             throw PersistentTerminalInteractionError.staleAttachmentGeneration
         }
-        guard let controlLease,
-              await controlLease.registry.hasReadyControlRuntime(controlLease)
-        else {
+        guard let controlLease else {
             throw PersistentTerminalError.controlModeUnavailable
         }
         return try await controlLease.registry.performQuickAction(

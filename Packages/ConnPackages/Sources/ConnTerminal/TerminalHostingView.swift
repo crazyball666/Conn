@@ -2,9 +2,15 @@
     import ConnMultiplexer
     import ConnSSH
     import ConnUI
+    import OSLog
     import SwiftTerm
     import SwiftUI
     import UIKit
+
+    private let terminalInteractionLogger = Logger(
+        subsystem: "com.crazyball.Conn",
+        category: "TerminalInteraction"
+    )
 
     private struct TerminalInteractionNotice: Equatable {
         let id = UUID()
@@ -424,7 +430,6 @@
         private var providerScrollTask: Task<Void, Never>?
         private var quickActionDiscoveryTask: Task<Void, Never>?
         private var quickActionExecutionTask: Task<Void, Never>?
-        private var providerNavigationTask: Task<Void, Never>?
         private var noticeTask: Task<Void, Never>?
         private var attachmentID: UUID?
         private var protocolState: TerminalProtocolState?
@@ -432,7 +437,7 @@
         private var scrollAccumulator = TerminalScrollAccumulator(rowHeight: 18)
         private var scrollHit = TerminalInteractionHit(column: 0, row: 0, pixelX: 0, pixelY: 0)
         private var providerPendingRows = 0
-        private var providerNavigationQueue = TerminalProviderNavigationQueue()
+        private var providerActionQueue = TerminalProviderActionQueue()
         private var clipboardPolicy = TerminalClipboardPolicy()
         private var focusState = TerminalFocusState()
         private var isTypedPaste = false
@@ -548,7 +553,6 @@
             providerScrollTask?.cancel()
             quickActionDiscoveryTask?.cancel()
             quickActionExecutionTask?.cancel()
-            providerNavigationTask?.cancel()
             noticeTask?.cancel()
             renderTask = nil
             persistentStateTask = nil
@@ -557,10 +561,9 @@
             providerScrollTask = nil
             quickActionDiscoveryTask = nil
             quickActionExecutionTask = nil
-            providerNavigationTask = nil
             noticeTask = nil
             providerPendingRows = 0
-            providerNavigationQueue.removeAll()
+            providerActionQueue.removeAll()
             interactionController.invalidate()
             terminalView?.onHostProtocolStateChanged = nil
             terminalView?.dismissReview(restoringTerminalFocus: false)
@@ -751,7 +754,7 @@
             )
             refreshProviderQuickActions(for: state)
             updateInteractionContext()
-            drainProviderNavigation()
+            drainProviderActionQueue()
         }
 
         private func refreshProviderQuickActions(
@@ -812,61 +815,86 @@
             successNoticeKey: String?,
             completionEffect: PersistentTerminalActionEffect? = nil
         ) {
+            guard providerQuickActionGroup?.actions.contains(where: { $0.id == actionID }) == true,
+                  persistentInteraction != nil,
+                  persistentState != nil
+            else { return }
+            let intent = TerminalProviderActionIntent(
+                actionID: actionID,
+                argument: argument,
+                confirmsDestructiveAction: confirmsDestructiveAction,
+                successNoticeKey: successNoticeKey,
+                unavailableNoticeKey: nil,
+                completionEffect: completionEffect,
+                repeatCount: 1
+            )
+            guard providerActionQueue.enqueue(intent) else {
+                terminalInteractionLogger.error(
+                    "Provider action queue is full: action=\(actionID, privacy: .public)"
+                )
+                return
+            }
+            terminalInteractionLogger.info(
+                "Provider action queued: action=\(actionID, privacy: .public), pending=\(self.providerActionQueue.count, privacy: .public)"
+            )
+            drainProviderActionQueue()
+        }
+
+        /// Buttons and swipe gestures share one ordered lane. A request is built only after
+        /// its intent reaches the head, and execution-time resolution tells the provider to
+        /// use the attachment's current Pane/Window instead of the state seen by an older tap.
+        private func drainProviderActionQueue() {
             guard quickActionExecutionTask == nil,
-                  providerNavigationTask == nil,
-                  providerNavigationQueue.isEmpty,
-                  providerQuickActionGroup?.actions.contains(where: { $0.id == actionID }) == true,
                   let persistentInteraction,
-                  let state = persistentState
+                  let state = persistentState,
+                  let intent = providerActionQueue.dequeue()
             else { return }
             let request = PersistentTerminalQuickActionRequest(
-                actionID: actionID,
+                actionID: intent.actionID,
                 target: state.target,
                 attachmentGeneration: state.attachmentGeneration,
                 expectedStateRevision: state.revision,
-                argument: argument,
-                repeatCount: 1,
-                confirmsDestructiveAction: confirmsDestructiveAction
+                argument: intent.argument,
+                repeatCount: intent.repeatCount,
+                confirmsDestructiveAction: intent.confirmsDestructiveAction,
+                resolution: .currentAtExecution
             )
-            performingProviderQuickActionID = actionID
+            performingProviderQuickActionID = intent.actionID
             quickActionExecutionTask = Task { @MainActor [weak self] in
+                terminalInteractionLogger.info(
+                    "Provider action started: action=\(intent.actionID, privacy: .public), observedRevision=\(state.revision, privacy: .public), repeat=\(intent.repeatCount, privacy: .public)"
+                )
                 do {
                     let outcome = try await persistentInteraction.performQuickAction(request)
                     switch outcome {
                     case .performed:
-                        if completionEffect == .workspaceRenamed,
-                           let name = argument?.trimmingCharacters(in: .whitespacesAndNewlines),
+                        terminalInteractionLogger.info(
+                            "Provider action completed: action=\(intent.actionID, privacy: .public), repeat=\(intent.repeatCount, privacy: .public)"
+                        )
+                        if intent.completionEffect == .workspaceRenamed,
+                           let name = intent.argument?.trimmingCharacters(in: .whitespacesAndNewlines),
                            !name.isEmpty {
                             self?.onPersistentWorkspaceRenamed(name)
                         }
-                        if let successNoticeKey {
+                        if let successNoticeKey = intent.successNoticeKey {
                             self?.showNotice(L(successNoticeKey), style: .success)
                         }
                     case .unavailable:
-                        self?.showQuickActionUnavailableNotice(actionID: actionID)
+                        if let noticeKey = intent.unavailableNoticeKey {
+                            self?.showNotice(L(noticeKey), style: .warning)
+                        }
                     }
                 } catch {
                     guard !Task.isCancelled else { return }
+                    terminalInteractionLogger.error(
+                        "Provider action failed: action=\(intent.actionID, privacy: .public), error=\(String(reflecting: error), privacy: .public)"
+                    )
+                    self?.providerActionQueue.removeAll()
                     self?.showNotice(L("持久终端操作失败，请重试"), style: .error)
                 }
                 self?.performingProviderQuickActionID = nil
                 self?.quickActionExecutionTask = nil
-                self?.refreshPersistentStateAfterQuickAction(using: persistentInteraction)
-            }
-        }
-
-        /// Command acknowledgement is the user-visible completion boundary. Topology
-        /// reconciliation must not delay the terminal redraw, haptic or App-level Toast.
-        private func refreshPersistentStateAfterQuickAction(
-            using persistentInteraction: any PersistentTerminalInteractionFacet
-        ) {
-            guard stateResolutionTask == nil else { return }
-            stateResolutionTask = Task { @MainActor [weak self] in
-                defer { self?.stateResolutionTask = nil }
-                guard let state = try? await persistentInteraction.resolveState(),
-                      !Task.isCancelled
-                else { return }
-                self?.acceptPersistentState(state)
+                self?.drainProviderActionQueue()
             }
         }
 
@@ -909,8 +937,7 @@
             _ gesture: UIPanGestureRecognizer,
             in terminalView: KeybarTerminalView
         ) -> Bool {
-            guard quickActionExecutionTask == nil,
-                  interactionController.mode == .live,
+            guard interactionController.mode == .live,
                   persistentState != nil,
                   let group = providerQuickActionGroup
             else { return false }
@@ -953,67 +980,25 @@
         private func enqueueProviderNavigation(
             _ binding: PersistentTerminalSwipeActionDescriptor
         ) {
-            providerNavigationQueue.enqueue(binding)
-            drainProviderNavigation()
-        }
-
-        /// Relative provider navigation is its own serial lane. It remains open while a
-        /// command is in flight, so additional swipes are compacted instead of rejected.
-        /// State reconciliation is driven by provider notifications and never occupies the
-        /// Control Mode command channel between two queued gestures.
-        private func drainProviderNavigation() {
-            guard providerNavigationTask == nil,
-                  quickActionExecutionTask == nil,
-                  let persistentInteraction,
-                  let state = persistentState,
-                  let batch = providerNavigationQueue.dequeue()
-            else { return }
-            let request = PersistentTerminalQuickActionRequest(
-                actionID: batch.binding.actionID,
-                target: state.target,
-                attachmentGeneration: state.attachmentGeneration,
-                expectedStateRevision: state.revision,
+            let intent = TerminalProviderActionIntent(
+                actionID: binding.actionID,
                 argument: nil,
-                repeatCount: batch.repeatCount
+                confirmsDestructiveAction: false,
+                successNoticeKey: binding.successNoticeKey,
+                unavailableNoticeKey: binding.unavailableNoticeKey,
+                completionEffect: nil,
+                repeatCount: 1
             )
-            performingProviderQuickActionID = batch.binding.actionID
-            providerNavigationTask = Task { @MainActor [weak self] in
-                do {
-                    let outcome = try await persistentInteraction.performQuickAction(request)
-                    switch outcome {
-                    case .performed:
-                        self?.showNotice(
-                            L(batch.binding.successNoticeKey),
-                            style: .success
-                        )
-                    case .unavailable:
-                        // The current topology cannot satisfy any queued relative navigation.
-                        // Drop the burst and present one truthful warning instead of one false
-                        // success Toast per compacted batch.
-                        self?.providerNavigationQueue.removeAll()
-                        if let noticeKey = batch.binding.unavailableNoticeKey {
-                            self?.showNotice(L(noticeKey), style: .warning)
-                        }
-                    }
-                } catch {
-                    guard !Task.isCancelled else { return }
-                    self?.providerNavigationQueue.removeAll()
-                    self?.showNotice(
-                        L("持久终端操作失败，请重试"),
-                        style: .error
-                    )
-                }
-                self?.performingProviderQuickActionID = nil
-                self?.providerNavigationTask = nil
-                self?.drainProviderNavigation()
+            guard providerActionQueue.enqueue(intent, coalescesRepeatCount: true) else {
+                terminalInteractionLogger.error(
+                    "Provider action queue is full: action=\(binding.actionID, privacy: .public)"
+                )
+                return
             }
-        }
-
-        private func showQuickActionUnavailableNotice(actionID: String) {
-            guard let noticeKey = providerQuickActionGroup?.swipeActions.first(where: {
-                $0.actionID == actionID
-            })?.unavailableNoticeKey else { return }
-            showNotice(L(noticeKey), style: .warning)
+            terminalInteractionLogger.info(
+                "Provider navigation queued: action=\(binding.actionID, privacy: .public), pending=\(self.providerActionQueue.count, privacy: .public)"
+            )
+            drainProviderActionQueue()
         }
 
         private func dismissHistoryReviewIfNeeded() {
