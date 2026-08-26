@@ -22,14 +22,18 @@ public actor TerminalSession {
     private let transcript: TerminalTranscript
     private let generation: UInt64
     private let frameInterval: UInt64
+    private let resizeDebounceInterval: UInt64
     private let lifecycleContinuation: AsyncStream<TerminalSessionLifecycleEvent>.Continuation
 
     public nonisolated let lifecycleEvents: AsyncStream<TerminalSessionLifecycleEvent>
 
     private var pumpTask: Task<Void, Never>?
     private var flushTask: Task<Void, Never>?
+    private var resizeTask: Task<Void, Never>?
     private var legacyFeedTask: Task<Void, Never>?
     private var pending: [UInt8] = []
+    private var pendingResize: TermSize?
+    private var lastDeliveredResize: TermSize?
     private var hasPublishedLifecycle = false
     public private(set) var state: State = .idle
 
@@ -37,12 +41,14 @@ public actor TerminalSession {
         channel: any ShellChannel,
         transcript: TerminalTranscript,
         generation: UInt64,
-        frameIntervalMillis: UInt64 = 16
+        frameIntervalMillis: UInt64 = 16,
+        resizeDebounceMillis: UInt64 = 60
     ) {
         self.channel = channel
         self.transcript = transcript
         self.generation = generation
         frameInterval = frameIntervalMillis * 1_000_000
+        resizeDebounceInterval = resizeDebounceMillis * 1_000_000
         let stream = AsyncStream<TerminalSessionLifecycleEvent>.makeStream(bufferingPolicy: .unbounded)
         lifecycleEvents = stream.stream
         lifecycleContinuation = stream.continuation
@@ -109,17 +115,27 @@ public actor TerminalSession {
 
     /// 终端尺寸变化 → PTY resize（SIGWINCH）。
     public func resize(cols: Int, rows: Int) async throws {
-        do {
-            try await channel.resize(TermSize(cols: cols, rows: rows))
-        } catch {
-            await finishFailed(message: error.friendlyDiagnosis)
-            throw error
+        let size = TermSize(cols: cols, rows: rows)
+        guard size != pendingResize, size != lastDeliveredResize else { return }
+        pendingResize = size
+        resizeTask?.cancel()
+        resizeTask = Task { [weak self] in
+            guard let self else { return }
+            do {
+                try await Task.sleep(nanoseconds: self.resizeDebounceInterval)
+            } catch {
+                return
+            }
+            await self.flushResize()
         }
     }
 
     /// 只关闭当前 PTY；绝不触碰承载它的共享 SSH 连接。
     public func close() async {
         guard state != .closed else { return }
+        resizeTask?.cancel()
+        resizeTask = nil
+        pendingResize = nil
         await channel.close()
         flushTask?.cancel()
         flushTask = nil
@@ -153,6 +169,21 @@ public actor TerminalSession {
         let frame = pending
         pending.removeAll(keepingCapacity: true)
         await transcript.append(frame, generation: generation)
+    }
+
+    private func flushResize() async {
+        resizeTask = nil
+        guard let size = pendingResize, size != lastDeliveredResize else {
+            pendingResize = nil
+            return
+        }
+        pendingResize = nil
+        do {
+            try await channel.resize(size)
+            lastDeliveredResize = size
+        } catch {
+            await finishFailed(message: error.friendlyDiagnosis)
+        }
     }
 
     private func finishClosed() async {

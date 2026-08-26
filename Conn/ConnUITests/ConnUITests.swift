@@ -49,6 +49,31 @@ final class ConnUITests: XCTestCase {
     }
 
     @MainActor
+    func testSettingsFeedbackEntryProvidesMailFallbackOnSimulator() {
+        let app = XCUIApplication()
+        app.launchEnvironment["CONN_DEMO"] = "1"
+        app.launchEnvironment["CONN_SMOKE_ME"] = "1"
+        app.launch()
+
+        let feedback = app.buttons["settings.feedback"]
+        for _ in 0..<4 where !feedback.exists {
+            app.swipeUp()
+        }
+        XCTAssertTrue(feedback.waitForExistence(timeout: 10))
+        feedback.tap()
+
+        let alert = app.alerts["无法发送邮件"]
+        XCTAssertTrue(alert.waitForExistence(timeout: 5))
+        XCTAssertTrue(alert.staticTexts[
+            "此设备尚未配置邮件账户，反馈模板已复制到剪贴板。请粘贴到邮件中发送。"
+        ].exists)
+        XCTAssertTrue(alert.buttons["确定"].exists)
+        alert.buttons["确定"].tap()
+        XCTAssertTrue(alert.waitForNonExistence(timeout: 3))
+        XCTAssertEqual(app.state, .runningForeground)
+    }
+
+    @MainActor
     func testTerminalKeyboardViewportRestoresAfterDismissAndReopen() {
         let app = XCUIApplication()
         app.launchEnvironment["CONN_DEMO"] = "1"
@@ -171,6 +196,20 @@ final class ConnUITests: XCTestCase {
         expand.tap()
         let providerTab = app.buttons["terminal.keybar.tab.tmux"]
         XCTAssertTrue(providerTab.waitForExistence(timeout: 15))
+        providerTab.tap()
+
+        // The remote fixture may start with one Window. Create a second Window so a
+        // successful rapid navigation burst is observable instead of truthfully returning
+        // "no Window available". Four switches land back on this temporary Window.
+        let newWindow = app.buttons["terminal.keybar.tmux.tmux.window.new"]
+        XCTAssertTrue(newWindow.waitForExistence(timeout: 5))
+        XCTAssertTrue(newWindow.isHittable)
+        newWindow.tap()
+        let newWindowReady = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "isEnabled == true"),
+            object: newWindow
+        )
+        XCTAssertEqual(XCTWaiter.wait(for: [newWindowReady], timeout: 5), .completed)
         app.buttons["terminal.keybar.collapse"].tap()
 
         for _ in 0 ..< 4 {
@@ -179,6 +218,60 @@ final class ConnUITests: XCTestCase {
 
         let successToast = app.descendants(matching: .any)["conn.toast.success"].firstMatch
         XCTAssertTrue(successToast.waitForExistence(timeout: 8))
+        XCTAssertFalse(app.descendants(matching: .any)["conn.toast.error"].exists)
+        XCTAssertFalse(app.staticTexts["持久终端操作失败，请重试"].exists)
+
+        // Remove the temporary Window and leave the user's Session unchanged.
+        expand.tap()
+        XCTAssertTrue(providerTab.waitForExistence(timeout: 5))
+        providerTab.tap()
+        let closeWindow = app.buttons["terminal.keybar.tmux.tmux.window.close"]
+        XCTAssertTrue(closeWindow.waitForExistence(timeout: 5))
+        closeWindow.tap()
+        let closeAlert = app.alerts["关闭当前 Window？"]
+        XCTAssertTrue(closeAlert.waitForExistence(timeout: 5))
+        closeAlert.buttons["关闭 Window"].tap()
+        XCTAssertTrue(closeAlert.waitForNonExistence(timeout: 5))
+        XCTAssertFalse(app.descendants(matching: .any)["conn.toast.error"].exists)
+
+        // Reproduce the reported path on the real attachment: keep the terminal keyboard
+        // active, create a temporary Pane, then confirm its deletion through a system Alert.
+        let keyboard = app.keyboards.firstMatch
+        if !keyboard.exists {
+            app.buttons["terminal.keybar.dismissKeyboard"].tap()
+        }
+        XCTAssertTrue(keyboard.waitForExistence(timeout: 5))
+        XCTAssertTrue(providerTab.waitForExistence(timeout: 5))
+        providerTab.tap()
+        let keybar = app.descendants(matching: .any)["terminal.keybar"].firstMatch
+        let providerScroll = keybar.scrollViews.element(boundBy: 1)
+        XCTAssertTrue(providerScroll.waitForExistence(timeout: 5))
+        let splitPane = app.buttons["terminal.keybar.tmux.tmux.pane.split-horizontal"]
+        XCTAssertTrue(splitPane.waitForExistence(timeout: 5))
+        for _ in 0 ..< 4 where !splitPane.isHittable {
+            keybar.swipeUp()
+        }
+        XCTAssertTrue(splitPane.isHittable)
+        splitPane.tap()
+
+        let closePane = app.buttons["terminal.keybar.tmux.tmux.pane.close"]
+        for _ in 0 ..< 4 where !closePane.exists || !closePane.isHittable {
+            providerScroll.swipeUp()
+        }
+        XCTAssertTrue(closePane.waitForExistence(timeout: 5))
+        XCTAssertTrue(closePane.isHittable)
+        let closePaneReady = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "isEnabled == true"),
+            object: closePane
+        )
+        XCTAssertEqual(XCTWaiter.wait(for: [closePaneReady], timeout: 5), .completed)
+        XCTAssertTrue(keyboard.exists)
+        closePane.tap()
+        let closePaneAlert = app.alerts["关闭当前 Pane？"]
+        XCTAssertTrue(closePaneAlert.waitForExistence(timeout: 5))
+        closePaneAlert.buttons["关闭 Pane"].tap()
+        XCTAssertTrue(closePaneAlert.waitForNonExistence(timeout: 5))
+        XCTAssertTrue(keyboard.waitForExistence(timeout: 5))
         XCTAssertFalse(app.descendants(matching: .any)["conn.toast.error"].exists)
         XCTAssertFalse(app.staticTexts["持久终端操作失败，请重试"].exists)
     }

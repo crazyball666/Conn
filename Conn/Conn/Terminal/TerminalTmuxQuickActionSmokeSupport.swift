@@ -151,6 +151,20 @@
                                 )
                             )
                         ]
+                    ),
+                    PersistentTerminalQuickActionSection(
+                        id: "pane",
+                        titleKey: "Pane",
+                        actions: [
+                            PersistentTerminalQuickActionDescriptor(
+                                id: "tmux.pane.close",
+                                titleKey: "关闭 Pane",
+                                systemImageName: "xmark.rectangle",
+                                confirmation: PersistentTerminalActionConfirmation(
+                                    titleKey: "关闭当前 Pane？"
+                                )
+                            )
+                        ]
                     )
                 ],
                 swipeActions: [
@@ -199,6 +213,9 @@
             if request.actionID == "tmux.window.next"
                 || request.actionID == "tmux.window.previous" {
                 return .unavailable
+            }
+            if request.actionID == "tmux.pane.close" {
+                return .performed
             }
             guard request.actionID == "tmux.session.rename" else {
                 throw PersistentTerminalInteractionError.unsupportedQuickAction(request.actionID)

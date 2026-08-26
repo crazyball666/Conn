@@ -1,7 +1,9 @@
 import ConnEditor
 import ConnUI
+import MessageUI
 import SafariServices
 import SwiftUI
+import UIKit
 
 /// 「我的」/设置页——原生 `Form` 分组（Apple 设置页风格）。
 ///
@@ -11,6 +13,8 @@ struct MeView: View {
     @Environment(LocalizationManager.self) private var localization
     @Environment(SettingsStore.self) private var settings
     @State private var showsPrivacyPolicy = false
+    @State private var feedbackMailContent: FeedbackMailContent?
+    @State private var showsFeedbackFallback = false
 
     var body: some View {
         @Bindable var localization = localization
@@ -70,6 +74,18 @@ struct MeView: View {
                 }
             }
 
+            Section(L("支持")) {
+                Button {
+                    openFeedback()
+                } label: {
+                    settingsLabel(L("问题反馈"), systemImage: "envelope")
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("settings.feedback")
+            }
+
             Section {
                 if AppLegalLinks.privacyPolicyURL != nil {
                     Button {
@@ -105,6 +121,16 @@ struct MeView: View {
                 InAppSafariView(url: url, tintColor: UIColor(ConnTheme.accent))
                     .ignoresSafeArea()
             }
+        }
+        .sheet(item: $feedbackMailContent) { content in
+            FeedbackMailComposer(content: content) {
+                feedbackMailContent = nil
+            }
+        }
+        .alert(L("无法发送邮件"), isPresented: $showsFeedbackFallback) {
+            Button(L("确定"), role: .cancel) {}
+        } message: {
+            Text(L("此设备尚未配置邮件账户，反馈模板已复制到剪贴板。请粘贴到邮件中发送。"))
         }
     }
 
@@ -157,6 +183,16 @@ struct MeView: View {
     private var appVersion: String {
         let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"
         return "v\(version)"
+    }
+
+    private func openFeedback() {
+        let content = FeedbackMailTemplate.make()
+        if MFMailComposeViewController.canSendMail() {
+            feedbackMailContent = content
+        } else {
+            UIPasteboard.general.string = content.body
+            showsFeedbackFallback = true
+        }
     }
 }
 

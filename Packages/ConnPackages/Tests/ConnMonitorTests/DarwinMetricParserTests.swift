@@ -135,6 +135,7 @@ struct DarwinMetricParserTests {
         #expect(DarwinCollectionScript.command().contains("route -n get default"))
     }
 
+    #if os(macOS)
     @Test("运行时长提取 sec 字段而不是 usec 字段")
     func uptimeCommandExtractsBootEpoch() throws {
         let command = DarwinCollectionScript.uptimeCommand(
@@ -158,4 +159,5 @@ struct DarwinMetricParserTests {
         #expect(result == "123456")
         #expect(result != "1719349608")
     }
+    #endif
 }

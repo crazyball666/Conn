@@ -79,14 +79,17 @@ package enum TmuxTerminalQuickAction: String, CaseIterable, Sendable {
     case mainHorizontalLayout = "tmux.layout.main-horizontal"
     case mainVerticalLayout = "tmux.layout.main-vertical"
 
-    /// Rename input is collected by an Alert. Keyboard/layout changes can advance the
-    /// topology revision without changing the verified Session/Pane target, so identity
-    /// validation—not byte-for-byte revision equality—is the safe execution boundary.
+    /// Alert presentation and keyboard/layout changes can advance the topology revision
+    /// without changing the verified Session/Pane target. These actions resolve their exact
+    /// stable target again inside the Hub, so identity validation—not byte-for-byte revision
+    /// equality—is the safe execution boundary.
     package var toleratesStateRevisionDrift: Bool {
         self == .previousWindow
             || self == .nextWindow
             || self == .renameSession
             || self == .renameWindow
+            || self == .closeWindow
+            || self == .closePane
     }
 
     package static let group = PersistentTerminalQuickActionGroup(

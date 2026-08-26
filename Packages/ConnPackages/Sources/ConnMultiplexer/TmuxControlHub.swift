@@ -132,6 +132,16 @@ package protocol TmuxControlHubAdapter: Sendable {
 package actor TmuxControlHub {
     package typealias Clock = @Sendable () -> Date
 
+    private enum ControlWorkPriority {
+        case interactive
+        case background
+    }
+
+    private struct ControlWorkWaiter {
+        let id: UUID
+        let priority: ControlWorkPriority
+    }
+
     private struct ObservationLeaseRecord {
         let target: TmuxControlObservationTarget
         let continuation: AsyncStream<TmuxServerSnapshot>.Continuation
@@ -160,7 +170,7 @@ package actor TmuxControlHub {
 
     private var pendingOperationCount = 0
     private var operationInFlight = false
-    private var operationWaiterOrder: [UUID] = []
+    private var operationWaiterOrder: [ControlWorkWaiter] = []
     private var operationWaiters: [UUID: CheckedContinuation<Void, any Error>] = [:]
 
     private var consumedConfirmationNonces: [UUID: Date] = [:]
@@ -534,6 +544,12 @@ package actor TmuxControlHub {
         reason: TmuxControlHubSnapshotReason = .userRequested
     ) async throws -> TmuxStateReduction {
         try requireActive()
+        // Snapshot reads and mutations share the same single-command Control Mode client.
+        // Serialize both at the Hub boundary so notification reconciliation cannot race an
+        // interactive command and surface `commandAlreadyInFlight` to the user.
+        _ = try await acquireOperationSlot(priority: Self.refreshPriority(for: reason))
+        defer { releaseOperationSlot() }
+        try Task.checkCancellation()
         let refreshID = UUID()
         latestRefreshID = refreshID
         let requestedScope = scope
@@ -805,6 +821,13 @@ package actor TmuxControlHub {
     ) async throws -> TmuxControlHubOperationReceipt {
         try validateTimeout(timeout)
         try requireRequestScope(request)
+        let admissionTime = clock()
+        consumedConfirmationNonces = consumedConfirmationNonces.filter {
+            $0.value > admissionTime
+        }
+        guard consumedConfirmationNonces[claim.nonce] == nil else {
+            throw TmuxControlHubError.confirmationAlreadyConsumed(claim.nonce)
+        }
         _ = try await refresh(reason: .userRequested)
         try requireRequestScope(request)
         guard let snapshot = reducer.snapshot else {
@@ -939,7 +962,20 @@ package actor TmuxControlHub {
         return receipt
     }
 
-    private func acquireOperationSlot() async throws -> UUID {
+    private static func refreshPriority(
+        for reason: TmuxControlHubSnapshotReason
+    ) -> ControlWorkPriority {
+        switch reason {
+        case .userRequested:
+            .interactive
+        case .stateEvent, .operationCompleted, .clientRecovery:
+            .background
+        }
+    }
+
+    private func acquireOperationSlot(
+        priority: ControlWorkPriority = .interactive
+    ) async throws -> UUID {
         try requireActive()
         let ticket = UUID()
         pendingOperationCount += 1
@@ -949,14 +985,22 @@ package actor TmuxControlHub {
             return ticket
         }
 
-        operationWaiterOrder.append(ticket)
+        let waiter = ControlWorkWaiter(id: ticket, priority: priority)
+        if priority == .interactive,
+           let firstBackground = operationWaiterOrder.firstIndex(where: {
+               $0.priority == .background
+           }) {
+            operationWaiterOrder.insert(waiter, at: firstBackground)
+        } else {
+            operationWaiterOrder.append(waiter)
+        }
         publishDemand()
         do {
             try await withTaskCancellationHandler {
                 try await withCheckedThrowingContinuation {
                     (continuation: CheckedContinuation<Void, any Error>) in
                     if Task.isCancelled {
-                        operationWaiterOrder.removeAll { $0 == ticket }
+                        operationWaiterOrder.removeAll { $0.id == ticket }
                         continuation.resume(throwing: CancellationError())
                     } else {
                         operationWaiters[ticket] = continuation
@@ -977,7 +1021,7 @@ package actor TmuxControlHub {
         guard let continuation = operationWaiters.removeValue(forKey: ticket) else {
             return
         }
-        operationWaiterOrder.removeAll { $0 == ticket }
+        operationWaiterOrder.removeAll { $0.id == ticket }
         continuation.resume(throwing: CancellationError())
     }
 
@@ -986,7 +1030,7 @@ package actor TmuxControlHub {
         pendingOperationCount -= 1
         while !operationWaiterOrder.isEmpty {
             let next = operationWaiterOrder.removeFirst()
-            guard let continuation = operationWaiters.removeValue(forKey: next) else {
+            guard let continuation = operationWaiters.removeValue(forKey: next.id) else {
                 continue
             }
             continuation.resume()

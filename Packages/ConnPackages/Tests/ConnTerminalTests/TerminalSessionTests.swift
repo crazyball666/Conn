@@ -86,10 +86,35 @@ struct TerminalSessionTests {
     func forwardsResize() async throws {
         let channel = TestShellChannel()
         let transcript = TerminalTranscript()
-        let session = TerminalSession(channel: channel, transcript: transcript, generation: 1)
+        let session = TerminalSession(
+            channel: channel,
+            transcript: transcript,
+            generation: 1,
+            resizeDebounceMillis: 10
+        )
         try await session.resize(cols: 120, rows: 40)
-        try await Task.sleep(for: .milliseconds(20))
+        #expect(await waitUntil { !channel.resizeSizes.isEmpty })
         #expect(channel.resizeSizes.first == TermSize(cols: 120, rows: 40))
+        await session.close()
+    }
+
+    @Test("键盘动画产生的连续尺寸变化只发送最终尺寸")
+    func coalescesBurstResizeToLatestSize() async throws {
+        let channel = TestShellChannel()
+        let transcript = TerminalTranscript()
+        let session = TerminalSession(
+            channel: channel,
+            transcript: transcript,
+            generation: 1,
+            resizeDebounceMillis: 10
+        )
+
+        try await session.resize(cols: 80, rows: 24)
+        try await session.resize(cols: 80, rows: 20)
+        try await session.resize(cols: 80, rows: 16)
+        #expect(await waitUntil { !channel.resizeSizes.isEmpty })
+
+        #expect(channel.resizeSizes == [TermSize(cols: 80, rows: 16)])
         await session.close()
     }
 
@@ -133,4 +158,17 @@ struct TerminalSessionTests {
         #expect(await render.next() == .liveBytes(Array("last\n".utf8)))
         #expect(await lifecycle.next() == .closed)
     }
+}
+
+private func waitUntil(
+    timeout: Duration = .seconds(1),
+    condition: @escaping @Sendable () async -> Bool
+) async -> Bool {
+    let clock = ContinuousClock()
+    let deadline = clock.now.advanced(by: timeout)
+    while clock.now < deadline {
+        if await condition() { return true }
+        try? await Task.sleep(for: .milliseconds(5))
+    }
+    return await condition()
 }

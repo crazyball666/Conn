@@ -81,4 +81,48 @@ final class TerminalTmuxRenameUITests: XCTestCase {
         XCTAssertTrue(alert.waitForNonExistence(timeout: 3))
         XCTAssertEqual(app.state, .runningForeground)
     }
+
+    @MainActor
+    func testClosePaneCompletesAfterKeyboardDrivenAlertResize() {
+        let app = XCUIApplication()
+        app.launchEnvironment["CONN_DEMO"] = "1"
+        app.launchEnvironment["CONN_SMOKE_TERMINAL"] = "1"
+        app.launchEnvironment["CONN_SMOKE_TMUX_ACTIONS"] = "1"
+        app.launchArguments += ["-conn.settings.terminalCursorBlinking", "NO"]
+        app.launch()
+
+        let terminal = app.descendants(matching: .any)["terminal.viewport"].firstMatch
+        let keyboard = app.keyboards.firstMatch
+        let expand = app.buttons["terminal.keybar.expand"]
+        XCTAssertTrue(terminal.waitForExistence(timeout: 10))
+        terminal.tap()
+        XCTAssertTrue(keyboard.waitForExistence(timeout: 5))
+        XCTAssertTrue(expand.waitForExistence(timeout: 5))
+        expand.tap()
+
+        let providerTab = app.buttons["terminal.keybar.tab.tmux"]
+        XCTAssertTrue(providerTab.waitForExistence(timeout: 5))
+        providerTab.tap()
+
+        let closePane = app.buttons["terminal.keybar.tmux.tmux.pane.close"]
+        let keybar = app.descendants(matching: .any)["terminal.keybar"].firstMatch
+        XCTAssertTrue(closePane.waitForExistence(timeout: 5))
+        for _ in 0 ..< 3 where !closePane.isHittable {
+            keybar.swipeUp()
+        }
+        XCTAssertTrue(closePane.isHittable)
+        closePane.tap()
+
+        let alert = app.alerts["关闭当前 Pane？"]
+        XCTAssertTrue(alert.waitForExistence(timeout: 5))
+        let confirm = alert.buttons["关闭 Pane"]
+        XCTAssertTrue(confirm.exists)
+        confirm.tap()
+
+        XCTAssertTrue(alert.waitForNonExistence(timeout: 5))
+        XCTAssertTrue(keyboard.waitForExistence(timeout: 5))
+        XCTAssertFalse(app.descendants(matching: .any)["conn.toast.error"].exists)
+        XCTAssertFalse(app.staticTexts["持久终端操作失败，请重试"].exists)
+        XCTAssertEqual(app.state, .runningForeground)
+    }
 }

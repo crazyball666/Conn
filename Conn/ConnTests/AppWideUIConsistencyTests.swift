@@ -1,5 +1,7 @@
 import Foundation
 import Testing
+import UIKit
+@testable import Conn
 
 struct AppWideUIConsistencyTests {
     @Test("密钥提示明确说明本地 Keychain 存储")
@@ -43,6 +45,39 @@ struct AppWideUIConsistencyTests {
         #expect(settings.contains("var label: String { String(format: L(\"%ds\"), rawValue) }"))
         #expect(!settings.contains("每 %d 秒"))
         #expect(settings.contains("var duration: Duration { .seconds(rawValue) }"))
+    }
+
+    @Test("设置页提供带设备环境信息的邮件反馈入口")
+    func settingsProvidesFeedbackMailEntry() throws {
+        let settings = try appSource("Me/MeView.swift")
+        let feedback = try appSource("Me/FeedbackMailComposer.swift")
+
+        #expect(settings.contains("Section(L(\"支持\"))"))
+        #expect(settings.contains("accessibilityIdentifier(\"settings.feedback\")"))
+        #expect(settings.contains("MFMailComposeViewController.canSendMail()"))
+        #expect(settings.contains("UIPasteboard.general.string = content.body"))
+        #expect(feedback.contains("setToRecipients([FeedbackMailTemplate.recipient])"))
+        #expect(feedback.contains("UIDevice.current.systemVersion"))
+        #expect(feedback.contains("SIMULATOR_MODEL_IDENTIFIER"))
+        #expect(feedback.contains("CFBundleShortVersionString"))
+        #expect(feedback.contains("Device: "))
+        #expect(feedback.contains("OS: "))
+        #expect(feedback.contains("App Version: "))
+    }
+
+    @Test("反馈邮件模板预留填写区域并附带设备环境信息")
+    @MainActor
+    func feedbackMailTemplateContainsEnvironmentDetails() {
+        let content = FeedbackMailTemplate.make()
+
+        #expect(!content.subject.isEmpty)
+        #expect(content.body.hasPrefix("\n\n\n\n\n"))
+        #expect(content.body.contains("Device: "))
+        #expect(content.body.contains("OS: "))
+        #expect(content.body.contains("App Version: "))
+        #expect(content.body.contains(UIDevice.current.systemVersion))
+        #expect(!content.body.contains("问题描述"))
+        #expect(!content.body.contains("复现步骤"))
     }
 
     @Test("全 App 交互触感统一使用高强度策略")

@@ -240,8 +240,8 @@ struct TmuxControlHubTests {
         await hub.close()
     }
 
-    @Test("an older concurrent refresh cannot overwrite a newer completed snapshot")
-    func discardsOutOfOrderRefreshResults() async throws {
+    @Test("concurrent refresh requests execute serially and preserve latest state")
+    func serializesConcurrentRefreshRequests() async throws {
         let fixture = try ControlHubFixture()
         let adapter = OutOfOrderSnapshotAdapter()
         let hub = try TmuxControlHub(
@@ -254,13 +254,9 @@ struct TmuxControlHubTests {
         let older = Task { try await hub.refresh() }
         #expect(await waitUntil { await adapter.requestCount == 1 })
         let newer = Task { try await hub.refresh() }
-        #expect(await waitUntil { await adapter.requestCount == 2 })
+        try await Task.sleep(for: .milliseconds(30))
+        #expect(await adapter.requestCount == 1)
 
-        await adapter.complete(
-            request: 1,
-            with: try fixture.snapshot(name: "newer", observedAt: fixture.later)
-        )
-        #expect(try await newer.value == .applied)
         await adapter.complete(
             request: 0,
             with: try fixture.snapshot(
@@ -268,7 +264,13 @@ struct TmuxControlHubTests {
                 observedAt: fixture.now.addingTimeInterval(1)
             )
         )
-        #expect(try await older.value == .discardedStaleGeneration)
+        #expect(try await older.value == .applied)
+        #expect(await waitUntil { await adapter.requestCount == 2 })
+        await adapter.complete(
+            request: 1,
+            with: try fixture.snapshot(name: "newer", observedAt: fixture.later)
+        )
+        #expect(try await newer.value == .applied)
         #expect(await hub.currentSnapshot?.sessions[fixture.session]?.name == "newer")
     }
 
@@ -613,6 +615,149 @@ struct TmuxControlHubTests {
         await hub.releaseLease(observation.lease)
     }
 
+    @Test("关闭 Pane 在键盘布局引起的 revision 漂移后仍锁定原 Pane")
+    func closePaneIgnoresLayoutRevisionDrift() async throws {
+        let fixture = try ControlHubFixture()
+        let adapter = ScriptedControlHubAdapter()
+        let attachmentID = "attachment-close-pane-layout"
+        let clientID = TmuxClientID(
+            targetName: "/dev/pts/18",
+            processID: 18,
+            createdAt: 18
+        )
+        let client = TmuxClientSnapshot(
+            id: clientID,
+            sessionID: fixture.session,
+            currentWindowID: fixture.window,
+            activePaneID: fixture.pane,
+            flags: [],
+            role: .connInteractive(attachmentID: attachmentID),
+            kind: .interactiveTerminal,
+            sizeParticipation: .participating,
+            observedAt: fixture.now
+        )
+        let hub = try TmuxControlHub(
+            scope: try fixture.scope(),
+            initialSnapshot: try fixture.snapshot(clients: [clientID: client]),
+            adapter: adapter,
+            clock: { fixture.later }
+        )
+        let observation = try await hub.acquireInteractionLease(
+            identity: .init(
+                attachmentID: attachmentID,
+                clientID: clientID,
+                requestedSessionID: fixture.session
+            ),
+            target: .session(fixture.session)
+        )
+        let target = PersistentTerminalInteractionTarget(
+            providerID: TmuxProvider.providerID,
+            workspaceID: fixture.session.rawValue,
+            targetID: fixture.pane.rawValue
+        )
+        _ = try await hub.reconcile(
+            with: fixture.snapshot(
+                observedAt: fixture.later,
+                clients: [clientID: client],
+                paneSize: .init(cols: 80, rows: 16)
+            ),
+            generation: 7
+        )
+
+        _ = try await hub.executeQuickAction(
+            lease: observation.lease,
+            target: target,
+            attachmentGeneration: 3,
+            expectedRevision: 0,
+            action: .closePane,
+            argument: nil,
+            destructiveActionConfirmed: true,
+            timeout: .seconds(1)
+        )
+
+        #expect(await adapter.executedRequests.map(\.operation) == [.killPane(fixture.pane)])
+        await hub.releaseLease(observation.lease)
+    }
+
+    @Test("Control Mode 快照读取与交互操作共用单一调度槽")
+    func serializesSnapshotReadsAndInteractiveOperations() async throws {
+        let fixture = try ControlHubFixture()
+        let adapter = ScriptedControlHubAdapter(blockSnapshots: true)
+        await adapter.enqueueSnapshot(try fixture.snapshot(observedAt: fixture.later))
+        let hub = try TmuxControlHub(
+            scope: try fixture.scope(),
+            initialSnapshot: try fixture.snapshot(),
+            adapter: adapter,
+            clock: { fixture.now }
+        )
+        let request = try fixture.renameRequest("after-refresh")
+
+        let refresh = Task { try await hub.refresh() }
+        #expect(await waitUntil { await adapter.snapshotRequestCount == 1 })
+        let operation = Task {
+            try await hub.execute(request, timeout: .seconds(1))
+        }
+        try await Task.sleep(for: .milliseconds(30))
+
+        #expect(await adapter.executionCount == 0)
+
+        await adapter.releaseNextSnapshot()
+        _ = try await refresh.value
+        #expect(try await operation.value.request == request)
+        #expect(await adapter.executedRequests == [request])
+    }
+
+    @Test("排队的交互操作优先于通知触发的后台刷新")
+    func prioritizesInteractiveOperationOverBackgroundRefresh() async throws {
+        let fixture = try ControlHubFixture()
+        let adapter = ScriptedControlHubAdapter(
+            blockOperations: true,
+            blockSnapshots: true
+        )
+        await adapter.enqueueSnapshot(try fixture.snapshot(observedAt: fixture.later))
+        let hub = try TmuxControlHub(
+            scope: try fixture.scope(),
+            initialSnapshot: try fixture.snapshot(),
+            adapter: adapter,
+            clock: { fixture.now }
+        )
+        let firstRequest = try fixture.renameRequest("first")
+        let secondRequest = try fixture.renameRequest("second")
+
+        let first = Task { try await hub.execute(firstRequest, timeout: .seconds(1)) }
+        #expect(await waitUntil { await adapter.executionCount == 1 })
+        let refresh = Task {
+            try await hub.refresh(reason: .stateEvent(.server))
+        }
+        #expect(await waitUntil { await hub.status.pendingOperationCount == 2 })
+        let second = Task { try await hub.execute(secondRequest, timeout: .seconds(1)) }
+        #expect(await waitUntil { await hub.status.pendingOperationCount == 3 })
+
+        await adapter.releaseNextOperation()
+        _ = try await first.value
+        #expect(await waitUntil {
+            let executionCount = await adapter.executionCount
+            let snapshotRequestCount = await adapter.snapshotRequestCount
+            return executionCount == 2 || snapshotRequestCount == 1
+        })
+        #expect(await adapter.snapshotRequestCount == 0)
+
+        if await adapter.snapshotRequestCount == 1 {
+            await adapter.releaseNextSnapshot()
+            _ = try await refresh.value
+            #expect(await waitUntil { await adapter.executionCount == 2 })
+        }
+
+        await adapter.releaseNextOperation()
+        _ = try await second.value
+        if await adapter.snapshotRequestCount == 0 {
+            #expect(await waitUntil { await adapter.snapshotRequestCount == 1 })
+            await adapter.releaseNextSnapshot()
+            _ = try await refresh.value
+        }
+        #expect(await adapter.executedRequests == [firstRequest, secondRequest])
+    }
+
     @Test("高频 Window 导航忽略显示 revision 漂移并合并为一次相对命令")
     func burstWindowNavigationDoesNotDependOnSnapshotRefresh() async throws {
         let fixture = try ControlHubFixture()
@@ -817,10 +962,13 @@ private actor ScriptedControlHubAdapter: TmuxControlHubAdapter {
     private var demands: [TmuxControlHubDemand] = []
     private var executions: [TmuxOperationRequest] = []
     private var operationWaiters: [CheckedContinuation<Void, Never>] = []
+    private var snapshotWaiters: [CheckedContinuation<Void, Never>] = []
     private let blockOperations: Bool
+    private let blockSnapshots: Bool
 
-    init(blockOperations: Bool = false) {
+    init(blockOperations: Bool = false, blockSnapshots: Bool = false) {
         self.blockOperations = blockOperations
+        self.blockSnapshots = blockSnapshots
     }
 
     var snapshotRequestCount: Int { demandsSnapshotRequestCount }
@@ -851,7 +999,13 @@ private actor ScriptedControlHubAdapter: TmuxControlHubAdapter {
         identities: Set<TmuxControlInteractiveIdentity>
     ) async throws -> TmuxServerSnapshot {
         demandsSnapshotRequestCount += 1
-        return snapshots.removeFirst()
+        let snapshot = snapshots.removeFirst()
+        if blockSnapshots {
+            await withCheckedContinuation { continuation in
+                snapshotWaiters.append(continuation)
+            }
+        }
+        return snapshot
     }
 
     func demandChanged(_ demand: TmuxControlHubDemand) async {
@@ -865,6 +1019,11 @@ private actor ScriptedControlHubAdapter: TmuxControlHubAdapter {
     func releaseNextOperation() {
         guard !operationWaiters.isEmpty else { return }
         operationWaiters.removeFirst().resume()
+    }
+
+    func releaseNextSnapshot() {
+        guard !snapshotWaiters.isEmpty else { return }
+        snapshotWaiters.removeFirst().resume()
     }
 
     func latestDemand() -> TmuxControlHubDemand? {
@@ -968,7 +1127,8 @@ private struct ControlHubFixture: Sendable {
         name: String = "one",
         observedAt: Date = Date(timeIntervalSince1970: 100),
         clients: [TmuxClientID: TmuxClientSnapshot] = [:],
-        additionalWindow: TmuxWindowID? = nil
+        additionalWindow: TmuxWindowID? = nil,
+        paneSize: TermSize = .init(cols: 80, rows: 24)
     ) throws -> TmuxServerSnapshot {
         var windows = [window: TmuxWindowSnapshot(
             id: window,
@@ -1005,7 +1165,7 @@ private struct ControlHubFixture: Sendable {
                 title: .unavailable,
                 currentCommand: .unavailable,
                 currentPath: .unavailable,
-                size: .init(cols: 80, rows: 24),
+                size: paneSize,
                 isDead: false
             )],
             windowLinks: links,
