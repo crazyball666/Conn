@@ -416,8 +416,18 @@ public struct TmuxProvider: PersistentTerminalCatalogProvider {
                     failureBox: controlFailure,
                     maximumAttempts: 2
                 ) else {
-                    throw await controlFailure.failure
-                        ?? PersistentTerminalError.controlModeUnavailable
+                    let underlyingFailure = await controlFailure.failure
+                    // A missing target Session commonly surfaces as a short-lived Control
+                    // Mode process. Only after startup has failed do one catalog read to
+                    // distinguish that terminal condition from a transient control-plane
+                    // failure, keeping the healthy startup path free of another SSH round trip.
+                    if let workspaces = try? await listWorkspaces(in: context),
+                       !workspaces.contains(where: {
+                           $0.workspace.workspaceID == sessionID.rawValue
+                       }) {
+                        throw PersistentTerminalError.remoteObjectMissing
+                    }
+                    throw underlyingFailure ?? PersistentTerminalError.controlModeUnavailable
                 }
                 await startup.storeControlPreflight(lease)
                 return TerminalStartupRollback {

@@ -58,13 +58,25 @@ public struct TerminalLaunchRequest: Sendable {
     }
 }
 
+public enum TerminalLaunchRecovery: Sendable, Equatable {
+    /// The saved remote workspace no longer exists. The stale bookmark has already been
+    /// removed; callers may explicitly create or reuse a workspace with the saved name.
+    case createPersistentWorkspace(PersistentTerminalResumeRecord)
+}
+
 public struct TerminalLaunchFailure: Error, Sendable, Equatable {
     public let id: UUID
     public let message: String
+    public let recovery: TerminalLaunchRecovery?
 
-    public init(id: UUID = UUID(), message: String) {
+    public init(
+        id: UUID = UUID(),
+        message: String,
+        recovery: TerminalLaunchRecovery? = nil
+    ) {
         self.id = id
         self.message = message
+        self.recovery = recovery
     }
 }
 
@@ -401,7 +413,83 @@ public final class TerminalSessionCoordinator {
         if restoreTasks[recordID] == task {
             restoreTasks[recordID] = nil
         }
+        if case let .failure(failure) = result,
+           case .createPersistentWorkspace = failure.recovery {
+            forgetResumeRecord(recordID)
+        }
         return result
+    }
+
+    /// Replaces a stale restoration bookmark with a live provider workspace. If a workspace
+    /// with the previous remote name already exists (for example after a tmux server restart),
+    /// it is reused; otherwise creation is explicit and occurs only after UI confirmation.
+    public func createReplacement(
+        for record: PersistentTerminalResumeRecord
+    ) async -> Result<TerminalTab, TerminalLaunchFailure> {
+        do {
+            guard let host = try hostRepository.host(id: record.hostID) else {
+                return .failure(TerminalLaunchFailure(message: L("主机已被删除")))
+            }
+            guard let registered = persistentBackend.options().first(where: {
+                $0.providerID == record.providerID
+            }) else {
+                throw PersistentTerminalError.providerNotRegistered(record.providerID)
+            }
+            // Recreate through the configuration snapshot embedded in the bookmark rather
+            // than today's default option. This preserves custom locators and remains valid
+            // across default-configuration changes as long as the provider still supports
+            // that version.
+            let option = PersistentBackendOption(
+                providerID: registered.providerID,
+                displayName: registered.displayName,
+                configuration: record.descriptor.configuration
+            )
+
+            let workspaces = try await persistentBackend.workspaceOptions(
+                for: option,
+                host: host,
+                connectionManager: connectionManager
+            )
+            let launch: PersistentTerminalLaunch
+            if let existing = workspaces.first(where: { $0.name == record.automaticAlias }) {
+                launch = try await persistentBackend.launch(
+                    for: existing,
+                    option: option,
+                    host: host,
+                    connectionManager: connectionManager
+                )
+            } else {
+                launch = try await persistentBackend.createLaunch(
+                    for: .init(name: record.automaticAlias),
+                    option: option,
+                    host: host,
+                    connectionManager: connectionManager
+                )
+            }
+
+            switch await launchNew(TerminalLaunchRequest(
+                host: host,
+                policy: .createNew,
+                source: .persistent(providerID: record.providerID),
+                backend: .persistent(launch.descriptor),
+                automaticAlias: launch.workspaceName
+            )) {
+            case let .success(tab):
+                if let alias = record.alias {
+                    store.updateAlias(tab.id, to: alias)
+                    guard let updated = store.tab(id: tab.id) else {
+                        return .failure(TerminalLaunchFailure(message: L("终端会话不存在")))
+                    }
+                    persistResumeRecord(for: updated)
+                    return .success(updated)
+                }
+                return .success(tab)
+            case let .failure(failure):
+                return .failure(failure)
+            }
+        } catch {
+            return .failure(TerminalLaunchFailure(message: terminalUserFacingDiagnosis(error)))
+        }
     }
 
     /// Renames a local-only terminal immediately. Persistent terminals first rename
@@ -726,7 +814,15 @@ public final class TerminalSessionCoordinator {
                 await temporarySession.close()
             }
             await temporaryAttachment?.close()
-            return .failure(TerminalLaunchFailure(message: terminalUserFacingDiagnosis(error)))
+            let recovery = restorationRecord.flatMap { record in
+                terminalPersistentWorkspaceIsMissing(error)
+                    ? TerminalLaunchRecovery.createPersistentWorkspace(record)
+                    : nil
+            }
+            return .failure(TerminalLaunchFailure(
+                message: terminalUserFacingDiagnosis(error),
+                recovery: recovery
+            ))
         }
     }
 
@@ -911,6 +1007,15 @@ public final class TerminalSessionCoordinator {
         guard let tab = store.tab(id: tabID), tab.generation == generation else { return }
         switch event {
         case let .failed(failure):
+            if failure.issue == .remoteObjectMissing {
+                // The provider has authoritatively reported that the remote workspace no
+                // longer exists. Keeping a disconnected tab would also keep a bookmark that
+                // can never reconnect, so retire both through the normal close path.
+                Task { @MainActor [weak self] in
+                    await self?.close(tabID)
+                }
+                return
+            }
             store.updateStatus(
                 tabID,
                 to: .disconnected(message: failure.issue.userFacingDiagnosis)

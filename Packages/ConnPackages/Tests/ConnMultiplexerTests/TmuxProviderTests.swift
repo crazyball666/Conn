@@ -401,6 +401,48 @@ struct TmuxProviderTests {
         await attachment.close()
     }
 
+    @Test("Control Mode 启动失败且目录中无目标 Session 时返回远端对象已丢失")
+    func missingAttachmentSessionIsClassifiedAfterControlFailure() async throws {
+        let processFactory: MockSSHTransport.ProcessFactory = { _ in
+            RecordingProcessChannel(outputs: [])
+        }
+        let context = try await makeContext(
+            behavior: behavior(
+                sessionID: "$2",
+                sessionName: "other",
+                processFactory: processFactory
+            )
+        )
+        let token = try TmuxServerInstanceToken(
+            resolvedSocketPath: "/tmp/tmux-1000/default",
+            serverPID: 1234,
+            serverStartTime: 987654
+        )
+        let descriptor = try TmuxProvider().makeAttachmentDescriptor(
+            to: RemoteWorkspaceRef(
+                workspaceID: "$1",
+                instancePayloadVersion: 1,
+                providerInstancePayload: try JSONEncoder().encode(
+                    TmuxWorkspaceInstancePayload(serverInstanceToken: token)
+                )
+            ),
+            in: context
+        )
+
+        do {
+            _ = try await TmuxProvider().openAttachment(
+                descriptor,
+                reason: .reconnect,
+                terminalSize: .init(cols: 80, rows: 24),
+                in: context
+            )
+            Issue.record("目录中无目标 Session 时不得发布 attachment")
+        } catch let failure as TerminalStartupFailure {
+            #expect(failure.stageID == .controlPlane)
+            #expect(failure.underlyingError as? PersistentTerminalError == .remoteObjectMissing)
+        }
+    }
+
     @Test("数据 tmux client 延迟注册时身份绑定会等待而不是误报 Control Mode 不可用")
     func delayedDataClientRegistrationIsAwaited() async throws {
         let processFactory: MockSSHTransport.ProcessFactory = { request in

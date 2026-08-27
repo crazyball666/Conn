@@ -356,23 +356,36 @@ private func makePersistentRenameTab(
 private actor RecoveryAttachmentRecorder {
     private(set) var reasons: [PersistentAttachmentOpenReason] = []
     private(set) var attachments: [RecoveryAttachment] = []
+    private(set) var createdNames: [String?] = []
     private let failOnOpenNumbers: Set<Int>
+    private let openErrors: [Int: PersistentTerminalError]
 
-    init(failOnOpenNumbers: Set<Int> = []) {
+    init(
+        failOnOpenNumbers: Set<Int> = [],
+        openErrors: [Int: PersistentTerminalError] = [:]
+    ) {
         self.failOnOpenNumbers = failOnOpenNumbers
+        self.openErrors = openErrors
     }
 
     func open(
         descriptor: PersistentAttachmentDescriptor,
         reason: PersistentAttachmentOpenReason
-    ) -> RecoveryAttachment {
-        let attachment = RecoveryAttachment(descriptor: descriptor)
+    ) throws -> RecoveryAttachment {
         reasons.append(reason)
+        if let error = openErrors[reasons.count] {
+            throw error
+        }
+        let attachment = RecoveryAttachment(descriptor: descriptor)
         attachments.append(attachment)
         if failOnOpenNumbers.contains(reasons.count) {
             attachment.fail(recovery: .rebuildAttachment)
         }
         return attachment
+    }
+
+    func recordCreatedName(_ name: String?) {
+        createdNames.append(name)
     }
 }
 
@@ -393,10 +406,13 @@ private final class RecoveryAttachment: PersistentTerminalAttachment, @unchecked
         )
     }
 
-    func fail(recovery: PersistentTerminalAttachmentRecovery) {
+    func fail(
+        issue: PersistentTerminalError = .transportClosed,
+        recovery: PersistentTerminalAttachmentRecovery
+    ) {
         continuation.yield(.failed(.init(
             componentID: "test.control-plane",
-            issue: .transportClosed,
+            issue: issue,
             recovery: recovery
         )))
     }
@@ -456,9 +472,19 @@ private struct RecoveryPersistentProvider: PersistentTerminalProvider, Sendable 
         _ request: CreateWorkspaceRequest,
         in context: PersistentTerminalContext
     ) async throws -> RemoteWorkspaceSummary {
-        throw PersistentTerminalError.unsupportedFeature(
-            providerID: descriptor.id,
-            feature: "create"
+        await recorder.recordCreatedName(request.name)
+        return .init(
+            workspace: .init(
+                workspaceID: "workspace-created",
+                instancePayloadVersion: 1,
+                providerInstancePayload: Data()
+            ),
+            name: request.name ?? "workspace-created",
+            occupancy: .init(
+                affectedAttachmentCount: nil,
+                observedAt: .now,
+                freshness: .fresh
+            )
         )
     }
 
@@ -477,7 +503,13 @@ private struct RecoveryPersistentProvider: PersistentTerminalProvider, Sendable 
         to workspace: RemoteWorkspaceRef,
         in context: PersistentTerminalContext
     ) throws -> PersistentAttachmentDescriptor {
-        attachmentDescriptor
+        PersistentAttachmentDescriptor(
+            providerID: descriptor.id,
+            configuration: defaultConfiguration,
+            workspace: workspace,
+            payloadVersion: 1,
+            providerPayload: Data()
+        )
     }
 
     func openAttachment(
@@ -486,7 +518,7 @@ private struct RecoveryPersistentProvider: PersistentTerminalProvider, Sendable 
         terminalSize: TermSize,
         in context: PersistentTerminalContext
     ) async throws -> any PersistentTerminalAttachment {
-        await recorder.open(descriptor: descriptor, reason: reason)
+        try await recorder.open(descriptor: descriptor, reason: reason)
     }
 }
 
@@ -882,6 +914,91 @@ struct TerminalSessionCoordinatorTests {
 
         await coordinator.close(tab.id)
         #expect(try repository.allRecords().isEmpty)
+    }
+
+    @Test("远程 Workspace 消失时关闭本地 Tab 并删除恢复记录")
+    func missingRemoteWorkspaceRetiresActiveTabAndBookmark() async throws {
+        let host = Host(id: "host-1", name: "web", address: "10.0.0.1", username: "root")
+        let recorder = RecoveryAttachmentRecorder()
+        let provider = RecoveryPersistentProvider(recorder: recorder)
+        let repository = InMemoryTerminalResumeRepository()
+        let coordinator = TerminalSessionCoordinator(
+            hostRepository: TerminalHostRepository(hosts: [host]),
+            connectionManager: ConnectionManager(
+                transport: MockSSHTransport(),
+                platformDetector: RenamePlatformDetector()
+            ),
+            providerRegistry: try PersistentTerminalProviderRegistry(providers: [provider]),
+            resumeRepository: repository
+        )
+
+        guard case let .success(tab) = await coordinator.launch(.init(
+            host: host,
+            policy: .createNew,
+            source: .persistent(providerID: provider.descriptor.id),
+            backend: .persistent(provider.attachmentDescriptor),
+            automaticAlias: "ops"
+        )) else {
+            Issue.record("持久终端应启动成功")
+            return
+        }
+        let attachment = try #require(await recorder.attachments.first)
+        attachment.fail(issue: .remoteObjectMissing, recovery: .manual)
+
+        for _ in 0 ..< 50 where coordinator.store.tab(id: tab.id) != nil {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+
+        #expect(coordinator.store.tab(id: tab.id) == nil)
+        #expect(try repository.allRecords().isEmpty)
+    }
+
+    @Test("失效恢复记录被淘汰后可显式创建同名 Workspace")
+    func missingRestoredWorkspaceOffersAndCreatesReplacement() async throws {
+        let host = Host(id: "host-1", name: "web", address: "10.0.0.1", username: "root")
+        let recorder = RecoveryAttachmentRecorder(openErrors: [1: .remoteObjectMissing])
+        let provider = RecoveryPersistentProvider(recorder: recorder)
+        let record = PersistentTerminalResumeRecord(
+            id: "resume-missing",
+            hostID: host.id,
+            hostName: host.name,
+            hostAddress: host.displayAddress,
+            descriptor: provider.attachmentDescriptor,
+            automaticAlias: "ops",
+            alias: "production"
+        )
+        let repository = InMemoryTerminalResumeRepository(records: [record])
+        let coordinator = TerminalSessionCoordinator(
+            hostRepository: TerminalHostRepository(hosts: [host]),
+            connectionManager: ConnectionManager(
+                transport: MockSSHTransport(),
+                platformDetector: RenamePlatformDetector()
+            ),
+            providerRegistry: try PersistentTerminalProviderRegistry(providers: [provider]),
+            resumeRepository: repository
+        )
+
+        guard case let .failure(failure) = await coordinator.restore(record.id),
+              failure.recovery == .createPersistentWorkspace(record)
+        else {
+            Issue.record("远程 Workspace 消失时应返回显式创建恢复动作")
+            return
+        }
+        #expect(coordinator.store.resumeRecord(id: record.id) == nil)
+        #expect(try repository.allRecords().isEmpty)
+
+        guard case let .success(replacement) = await coordinator.createReplacement(for: record) else {
+            Issue.record("应创建同名 Workspace 并启动新终端")
+            return
+        }
+        #expect(replacement.id != record.id)
+        #expect(replacement.automaticAlias == "ops")
+        #expect(replacement.alias == "production")
+        #expect(replacement.displayName == "production")
+        #expect(await recorder.createdNames == ["ops"])
+        #expect(try repository.allRecords().map(\.id) == [replacement.id])
+
+        await coordinator.close(replacement.id)
     }
 
     @Test("主机连接身份变化会清理旧持久终端恢复记录")

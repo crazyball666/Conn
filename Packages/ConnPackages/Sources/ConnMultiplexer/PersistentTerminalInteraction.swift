@@ -296,6 +296,10 @@ public struct PersistentTerminalSwipeActionDescriptor: Sendable, Equatable, Iden
 public enum PersistentTerminalQuickActionOutcome: Sendable, Equatable {
     case performed
     case unavailable
+    /// The action intentionally removed the provider workspace that owns this attachment.
+    /// The host must close its local tab instead of treating the resulting control-channel
+    /// shutdown as a recoverable transport failure.
+    case workspaceClosed
 }
 
 /// Determines how a queued provider action resolves its execution target.

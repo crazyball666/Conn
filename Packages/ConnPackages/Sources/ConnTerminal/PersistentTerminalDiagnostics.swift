@@ -95,3 +95,19 @@ package func terminalUserFacingDiagnosis(_ error: any Error) -> String {
     }
     return error.friendlyDiagnosis
 }
+
+/// Typed classification used only for restoration recovery. It deliberately excludes
+/// transport and generic Control Mode failures so transient connectivity never deletes a
+/// valid local bookmark.
+package func terminalPersistentWorkspaceIsMissing(_ error: any Error) -> Bool {
+    if let startupFailure = error as? TerminalStartupFailure {
+        return terminalPersistentWorkspaceIsMissing(startupFailure.underlyingError)
+    }
+    guard let persistentError = error as? PersistentTerminalError else { return false }
+    return switch persistentError {
+    case .remoteObjectMissing, .serverInstanceChanged, .serverUnavailable:
+        true
+    default:
+        false
+    }
+}

@@ -679,6 +679,124 @@ struct TmuxControlHubTests {
         await hub.releaseLease(observation.lease)
     }
 
+    @Test("关闭最后一个 Pane 返回 Workspace 已关闭且不再刷新失效拓扑")
+    func closingLastPaneReportsWorkspaceClosedWithoutReconciliation() async throws {
+        let fixture = try ControlHubFixture()
+        let adapter = ScriptedControlHubAdapter()
+        let attachmentID = "attachment-close-last-pane"
+        let clientID = TmuxClientID(
+            targetName: "/dev/pts/28",
+            processID: 28,
+            createdAt: 28
+        )
+        let client = TmuxClientSnapshot(
+            id: clientID,
+            sessionID: fixture.session,
+            currentWindowID: fixture.window,
+            activePaneID: fixture.pane,
+            flags: [],
+            role: .connInteractive(attachmentID: attachmentID),
+            kind: .interactiveTerminal,
+            sizeParticipation: .participating,
+            observedAt: fixture.now
+        )
+        let hub = try TmuxControlHub(
+            scope: try fixture.scope(),
+            initialSnapshot: try fixture.snapshot(clients: [clientID: client]),
+            adapter: adapter,
+            clock: { fixture.now }
+        )
+        let observation = try await hub.acquireInteractionLease(
+            identity: .init(
+                attachmentID: attachmentID,
+                clientID: clientID,
+                requestedSessionID: fixture.session
+            ),
+            target: .session(fixture.session)
+        )
+        let target = PersistentTerminalInteractionTarget(
+            providerID: TmuxProvider.providerID,
+            workspaceID: fixture.session.rawValue,
+            targetID: fixture.pane.rawValue
+        )
+
+        let outcome = try await hub.executeQuickAction(
+            lease: observation.lease,
+            target: target,
+            attachmentGeneration: 3,
+            expectedRevision: 0,
+            action: .closePane,
+            argument: nil,
+            destructiveActionConfirmed: true,
+            resolution: .currentAtExecution,
+            timeout: .seconds(1)
+        )
+
+        #expect(outcome == .workspaceClosed)
+        #expect(await adapter.executedRequests.map(\.operation) == [.killPane(fixture.pane)])
+        #expect(await adapter.snapshotRequestCount == 0)
+        await hub.releaseLease(observation.lease)
+    }
+
+    @Test("关闭最后一个 Window 返回 Workspace 已关闭且不再刷新失效拓扑")
+    func closingLastWindowReportsWorkspaceClosedWithoutReconciliation() async throws {
+        let fixture = try ControlHubFixture()
+        let adapter = ScriptedControlHubAdapter()
+        let attachmentID = "attachment-close-last-window"
+        let clientID = TmuxClientID(
+            targetName: "/dev/pts/29",
+            processID: 29,
+            createdAt: 29
+        )
+        let client = TmuxClientSnapshot(
+            id: clientID,
+            sessionID: fixture.session,
+            currentWindowID: fixture.window,
+            activePaneID: fixture.pane,
+            flags: [],
+            role: .connInteractive(attachmentID: attachmentID),
+            kind: .interactiveTerminal,
+            sizeParticipation: .participating,
+            observedAt: fixture.now
+        )
+        let hub = try TmuxControlHub(
+            scope: try fixture.scope(),
+            initialSnapshot: try fixture.snapshot(clients: [clientID: client]),
+            adapter: adapter,
+            clock: { fixture.now }
+        )
+        let observation = try await hub.acquireInteractionLease(
+            identity: .init(
+                attachmentID: attachmentID,
+                clientID: clientID,
+                requestedSessionID: fixture.session
+            ),
+            target: .session(fixture.session)
+        )
+        let target = PersistentTerminalInteractionTarget(
+            providerID: TmuxProvider.providerID,
+            workspaceID: fixture.session.rawValue,
+            targetID: fixture.pane.rawValue
+        )
+
+        let outcome = try await hub.executeQuickAction(
+            lease: observation.lease,
+            target: target,
+            attachmentGeneration: 3,
+            expectedRevision: 0,
+            action: .closeWindow,
+            argument: nil,
+            destructiveActionConfirmed: true,
+            resolution: .currentAtExecution,
+            timeout: .seconds(1)
+        )
+
+        #expect(outcome == .workspaceClosed)
+        #expect(await adapter.executedRequests.map(\.operation) == [.killWindow(fixture.window)])
+        #expect(await adapter.snapshotRequestCount == 0)
+        await hub.releaseLease(observation.lease)
+    }
+
     @Test("Control Mode 快照读取与交互操作共用单一调度槽")
     func serializesSnapshotReadsAndInteractiveOperations() async throws {
         let fixture = try ControlHubFixture()

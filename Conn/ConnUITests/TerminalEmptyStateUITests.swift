@@ -93,4 +93,38 @@ final class TerminalEmptyStateUITests: XCTestCase {
         screenshot.lifetime = .keepAlways
         add(screenshot)
     }
+
+    @MainActor
+    func testMissingPersistedTmuxEntryCanCreateReplacementSession() throws {
+        let app = XCUIApplication()
+        app.launchEnvironment["CONN_DEMO"] = "1"
+        app.launchEnvironment["CONN_SMOKE_TERMINAL_CENTER"] = "1"
+        app.launchEnvironment["CONN_SMOKE_TERMINAL_RESUME"] = "1"
+        app.launchEnvironment["CONN_SMOKE_TERMINAL_RESUME_MISSING"] = "1"
+        app.launchArguments += ["-conn.settings.terminalCursorBlinking", "false"]
+        app.launch()
+
+        let hostCard = app.descendants(matching: .any).matching(
+            NSPredicate(format: "identifier BEGINSWITH %@", "terminal.host.")
+        ).firstMatch
+        XCTAssertTrue(hostCard.waitForExistence(timeout: 15))
+        hostCard.tap()
+
+        let resume = app.buttons["terminal.resume.smoke-resume"]
+        XCTAssertTrue(resume.waitForExistence(timeout: 5))
+        resume.tap()
+
+        let alert = app.alerts["远程 Session 已不存在"]
+        XCTAssertTrue(alert.waitForExistence(timeout: 5))
+        XCTAssertFalse(resume.exists, "失效的本地恢复记录应立即淘汰")
+        let create = alert.buttons["创建新 Session"]
+        XCTAssertTrue(create.exists)
+        create.tap()
+
+        let header = app.descendants(matching: .any)["terminal.header"]
+        XCTAssertTrue(header.waitForExistence(timeout: 10))
+        XCTAssertTrue(header.label.contains("saved-session"))
+        XCTAssertFalse(app.descendants(matching: .any)["conn.toast.error"].exists)
+        XCTAssertEqual(app.state, .runningForeground)
+    }
 }

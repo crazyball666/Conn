@@ -749,6 +749,14 @@ package actor TmuxControlHub {
            resolved.windowIDs.count < 2 {
             return .unavailable
         }
+        let closesWorkspace = switch action {
+        case .closeWindow:
+            resolved.windowIDs.count == 1
+        case .closePane:
+            resolved.windowIDs.count == 1 && resolved.paneIDs.count == 1
+        default:
+            false
+        }
         let receipt = try await dispatch(
             .init(scope: scope, operation: operation),
             timeout: timeout,
@@ -780,6 +788,13 @@ package actor TmuxControlHub {
              .evenHorizontalLayout, .evenVerticalLayout, .mainHorizontalLayout,
              .mainVerticalLayout:
             break
+        }
+        // Killing the final Window/Pane terminates the tmux Session and therefore the
+        // Control Mode client as part of the requested operation. There is no topology left
+        // to reconcile; attempting to reload it turns a successful close into a false
+        // Control Mode failure.
+        if closesWorkspace {
+            return .workspaceClosed
         }
         if resolution == .currentAtExecution,
            action.requiresPostExecutionReconciliation

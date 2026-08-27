@@ -33,6 +33,7 @@
         private let onChooseCommand: () -> Void
         private let onReconnect: () -> Void
         private let onPersistentWorkspaceRenamed: (String) -> Void
+        private let onPersistentWorkspaceClosed: () -> Void
         private let attachmentState: TerminalAttachmentPanelState
         private let onAttachmentAction: (TerminalAttachmentAction) -> Void
         private let onPersistentWorkingDirectoryChanged: (String?) -> Void
@@ -48,6 +49,7 @@
             onChooseCommand: @escaping () -> Void = {},
             onReconnect: @escaping () -> Void = {},
             onPersistentWorkspaceRenamed: @escaping (String) -> Void = { _ in },
+            onPersistentWorkspaceClosed: @escaping () -> Void = {},
             attachmentState: TerminalAttachmentPanelState = .idle,
             onAttachmentAction: @escaping (TerminalAttachmentAction) -> Void = { _ in },
             onPersistentWorkingDirectoryChanged: @escaping (String?) -> Void = { _ in }
@@ -62,6 +64,7 @@
             self.onChooseCommand = onChooseCommand
             self.onReconnect = onReconnect
             self.onPersistentWorkspaceRenamed = onPersistentWorkspaceRenamed
+            self.onPersistentWorkspaceClosed = onPersistentWorkspaceClosed
             self.attachmentState = attachmentState
             self.onAttachmentAction = onAttachmentAction
             self.onPersistentWorkingDirectoryChanged = onPersistentWorkingDirectoryChanged
@@ -79,6 +82,7 @@
                 onChooseCommand: onChooseCommand,
                 onReconnect: onReconnect,
                 onPersistentWorkspaceRenamed: onPersistentWorkspaceRenamed,
+                onPersistentWorkspaceClosed: onPersistentWorkspaceClosed,
                 attachmentState: attachmentState,
                 onAttachmentAction: onAttachmentAction,
                 onPersistentWorkingDirectoryChanged: onPersistentWorkingDirectoryChanged
@@ -122,6 +126,7 @@
             onChooseCommand: @escaping () -> Void,
             onReconnect: @escaping () -> Void,
             onPersistentWorkspaceRenamed: @escaping (String) -> Void,
+            onPersistentWorkspaceClosed: @escaping () -> Void,
             attachmentState: TerminalAttachmentPanelState,
             onAttachmentAction: @escaping (TerminalAttachmentAction) -> Void,
             onPersistentWorkingDirectoryChanged: @escaping (String?) -> Void
@@ -132,6 +137,7 @@
                 persistentInteraction: persistentInteraction,
                 terminalGeneration: terminalGeneration,
                 onPersistentWorkspaceRenamed: onPersistentWorkspaceRenamed,
+                onPersistentWorkspaceClosed: onPersistentWorkspaceClosed,
                 onPersistentWorkingDirectoryChanged: onPersistentWorkingDirectoryChanged
             ))
             _isKeybarExpanded = State(
@@ -418,6 +424,7 @@
         private let persistentInteraction: (any PersistentTerminalInteractionFacet)?
         private let terminalGeneration: UInt64
         private let onPersistentWorkspaceRenamed: (String) -> Void
+        private let onPersistentWorkspaceClosed: () -> Void
         private let onPersistentWorkingDirectoryChanged: (String?) -> Void
         private let replayOutboundGate = TerminalReplayOutboundGate()
         private let interactionController = TerminalInteractionController()
@@ -461,6 +468,7 @@
             persistentInteraction: (any PersistentTerminalInteractionFacet)?,
             terminalGeneration: UInt64,
             onPersistentWorkspaceRenamed: @escaping (String) -> Void,
+            onPersistentWorkspaceClosed: @escaping () -> Void,
             onPersistentWorkingDirectoryChanged: @escaping (String?) -> Void
         ) {
             self.session = session
@@ -468,6 +476,7 @@
             self.persistentInteraction = persistentInteraction
             self.terminalGeneration = terminalGeneration
             self.onPersistentWorkspaceRenamed = onPersistentWorkspaceRenamed
+            self.onPersistentWorkspaceClosed = onPersistentWorkspaceClosed
             self.onPersistentWorkingDirectoryChanged = onPersistentWorkingDirectoryChanged
         }
 
@@ -883,6 +892,12 @@
                         if let noticeKey = intent.unavailableNoticeKey {
                             self?.showNotice(L(noticeKey), style: .warning)
                         }
+                    case .workspaceClosed:
+                        terminalInteractionLogger.info(
+                            "Provider workspace closed by action: action=\(intent.actionID, privacy: .public)"
+                        )
+                        self?.providerActionQueue.removeAll()
+                        self?.onPersistentWorkspaceClosed()
                     }
                 } catch {
                     guard !Task.isCancelled else { return }

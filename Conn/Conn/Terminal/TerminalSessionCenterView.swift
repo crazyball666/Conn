@@ -22,6 +22,8 @@ struct TerminalSessionCenterView: View {
     @State private var pendingCompletion: NewTerminalFlowCompletion?
     @State private var route: ExistingTerminalRoute?
     @State private var restoringRecordID: String?
+    @State private var missingWorkspaceRecord: PersistentTerminalResumeRecord?
+    @State private var isCreatingReplacement = false
     @Environment(\.connToastCenter) private var toastCenter
 
     private var sessions: TerminalSessionStore { dependencies.terminalSessions.store }
@@ -86,6 +88,32 @@ struct TerminalSessionCenterView: View {
                 tabID: route.tabID,
                 dependencies: dependencies
             )
+        }
+        .alert(
+            L("远程 Session 已不存在"),
+            isPresented: Binding(
+                get: { missingWorkspaceRecord != nil },
+                set: { if !$0 { missingWorkspaceRecord = nil } }
+            )
+        ) {
+            Button(L("取消"), role: .cancel) {
+                missingWorkspaceRecord = nil
+            }
+            Button(L("创建新 Session")) {
+                guard let record = missingWorkspaceRecord else { return }
+                missingWorkspaceRecord = nil
+                createReplacement(for: record)
+            }
+        } message: {
+            Text(L("可以创建同名 Session 并继续使用该终端。"))
+        }
+        .overlay {
+            if isCreatingReplacement {
+                ProgressView(L("正在创建终端…"))
+                    .padding(.horizontal, ConnSpacing.lg)
+                    .padding(.vertical, ConnSpacing.md)
+                    .background(.regularMaterial, in: RoundedRectangle(cornerRadius: ConnRadius.card))
+            }
         }
     }
 
@@ -247,6 +275,32 @@ struct TerminalSessionCenterView: View {
         Task {
             defer { restoringRecordID = nil }
             switch await dependencies.terminalSessions.restore(record.id) {
+            case let .success(tab):
+                do {
+                    guard let host = try dependencies.hostRepository.host(id: tab.hostID) else {
+                        toastCenter.show(L("主机不存在或已被删除"), style: .warning)
+                        return
+                    }
+                    route = ExistingTerminalRoute(host: host, tabID: tab.id)
+                } catch {
+                    toastCenter.show(error.localizedDescription, style: .error)
+                }
+            case let .failure(failure):
+                if case let .createPersistentWorkspace(record) = failure.recovery {
+                    missingWorkspaceRecord = record
+                } else if let message = dependencies.terminalSessions.consumeFailure(failure) {
+                    toastCenter.show(message, style: .error)
+                }
+            }
+        }
+    }
+
+    private func createReplacement(for record: PersistentTerminalResumeRecord) {
+        guard !isCreatingReplacement else { return }
+        isCreatingReplacement = true
+        Task {
+            defer { isCreatingReplacement = false }
+            switch await dependencies.terminalSessions.createReplacement(for: record) {
             case let .success(tab):
                 do {
                     guard let host = try dependencies.hostRepository.host(id: tab.hostID) else {

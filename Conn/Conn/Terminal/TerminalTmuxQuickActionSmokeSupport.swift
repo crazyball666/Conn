@@ -227,7 +227,9 @@
                 return .unavailable
             }
             if request.actionID == "tmux.pane.close" {
-                return .performed
+                return ProcessInfo.processInfo.environment[
+                    "CONN_SMOKE_TMUX_LAST_WORKSPACE"
+                ] == nil ? .performed : .workspaceClosed
             }
             if request.actionID == "tmux.window.new"
                 || request.actionID == "tmux.pane.split-horizontal"

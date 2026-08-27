@@ -86,6 +86,10 @@ struct TerminalScreen: View {
         // a presentation-local overlay backed by the same environment toast center.
         .connGlobalToast()
         .onAppear { verifyExistingTab() }
+        .onChange(of: activeTab?.id) { previousID, currentID in
+            guard previousID == tabID, currentID == nil else { return }
+            leaveClosedTab()
+        }
         .sheet(isPresented: $isCommandPickerPresented) {
             if let snippetRepository, let snippetGroupRepository {
                 TerminalCommandPickerView(
@@ -255,6 +259,9 @@ private extension TerminalScreen {
                     onPersistentWorkspaceRenamed: { name in
                         terminalSessions.store.updatePersistentWorkspaceName(tab.id, to: name)
                     },
+                    onPersistentWorkspaceClosed: {
+                        closePersistentWorkspace(tab.id)
+                    },
                     attachmentState: attachmentCoordinator.panelState,
                     onAttachmentAction: handleAttachmentAction,
                     onPersistentWorkingDirectoryChanged: { providerWorkingDirectory = $0 }
@@ -305,6 +312,22 @@ private extension TerminalScreen {
         dismiss()
         Task {
             await terminalSessions.close(closingID)
+        }
+    }
+
+    private func closePersistentWorkspace(_ id: String) {
+        Task {
+            await terminalSessions.close(id)
+            guard tabID == id, activeTab == nil else { return }
+            leaveClosedTab()
+        }
+    }
+
+    private func leaveClosedTab() {
+        if let recent = terminalSessions.store.recentTab(forHost: host.id) {
+            tabID = recent.id
+        } else {
+            dismiss()
         }
     }
 

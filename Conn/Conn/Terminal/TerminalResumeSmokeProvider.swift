@@ -6,6 +6,7 @@
 
     /// Deterministic persistent provider used only by the terminal restoration XCUITest.
     struct TerminalResumeSmokeProvider: PersistentTerminalProvider, Sendable {
+        private let state = TerminalResumeSmokeState()
         let descriptor = PersistentTerminalProviderDescriptor(
             id: "tmux",
             displayName: "tmux",
@@ -43,14 +44,31 @@
         func listWorkspaces(
             in context: PersistentTerminalContext
         ) async throws -> [RemoteWorkspaceSummary] {
-            []
+            if let workspace = state.createdWorkspace {
+                return [workspace]
+            }
+            return []
         }
 
         func createWorkspace(
             _ request: CreateWorkspaceRequest,
             in context: PersistentTerminalContext
         ) async throws -> RemoteWorkspaceSummary {
-            throw PersistentTerminalError.unsupportedFeature(providerID: descriptor.id, feature: "create")
+            let workspace = RemoteWorkspaceSummary(
+                workspace: .init(
+                    workspaceID: "$smoke-replacement",
+                    instancePayloadVersion: 1,
+                    providerInstancePayload: Data()
+                ),
+                name: request.name ?? "saved-session",
+                occupancy: .init(
+                    affectedAttachmentCount: nil,
+                    observedAt: .now,
+                    freshness: .fresh
+                )
+            )
+            state.createdWorkspace = workspace
+            return workspace
         }
 
         func renameWorkspace(
@@ -68,7 +86,13 @@
             to workspace: RemoteWorkspaceRef,
             in context: PersistentTerminalContext
         ) throws -> PersistentAttachmentDescriptor {
-            attachmentDescriptor
+            PersistentAttachmentDescriptor(
+                providerID: descriptor.id,
+                configuration: defaultConfiguration,
+                workspace: workspace,
+                payloadVersion: 1,
+                providerPayload: Data()
+            )
         }
 
         func openAttachment(
@@ -77,7 +101,21 @@
             terminalSize: TermSize,
             in context: PersistentTerminalContext
         ) async throws -> any PersistentTerminalAttachment {
-            TerminalResumeSmokeAttachment(descriptor: descriptor)
+            if ProcessInfo.processInfo.environment["CONN_SMOKE_TERMINAL_RESUME_MISSING"] != nil,
+               state.createdWorkspace == nil {
+                throw PersistentTerminalError.remoteObjectMissing
+            }
+            return TerminalResumeSmokeAttachment(descriptor: descriptor)
+        }
+    }
+
+    private final class TerminalResumeSmokeState: @unchecked Sendable {
+        private let lock = NSLock()
+        private var storage: RemoteWorkspaceSummary?
+
+        var createdWorkspace: RemoteWorkspaceSummary? {
+            get { lock.withLock { storage } }
+            set { lock.withLock { storage = newValue } }
         }
     }
 
