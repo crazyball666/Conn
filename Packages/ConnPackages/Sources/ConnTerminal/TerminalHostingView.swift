@@ -682,7 +682,7 @@
             } else {
                 encoded = bytes
             }
-            Task { try? await session.send(encoded) }
+            session.enqueue(encoded)
         }
 
         func sizeChanged(source: TerminalView, newCols: Int, newRows: Int) {
@@ -704,7 +704,7 @@
             inputEpoch &+= 1
             let (encoded, stillActive) = TerminalKeyEncoder.encode(key.bytes, ctrlActive: ctrlActive)
             ctrlActive = stillActive
-            Task { try? await session.send(encoded) }
+            session.enqueue(encoded)
         }
 
         func handlePaste(_ text: String, source: TerminalPasteSource = .keybar) {

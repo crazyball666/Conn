@@ -599,7 +599,7 @@ final class ConnUITests: XCTestCase {
     @MainActor
     func testTerminalPasteButtonWritesClipboardText() throws {
         let app = XCUIApplication()
-        let marker = "PasteMarkerEightFourTwo"
+        let marker = "Paste842"
         app.launchEnvironment["CONN_DEMO"] = "1"
         app.launchEnvironment["CONN_SMOKE_TERMINAL"] = "1"
         app.launchEnvironment["CONN_SMOKE_PASTE_TEXT"] = marker
@@ -612,7 +612,9 @@ final class ConnUITests: XCTestCase {
 
         let pasteButton = app.buttons["terminal.keybar.paste"]
         XCTAssertTrue(pasteButton.waitForExistence(timeout: 5))
-        pasteButton.tap()
+        for _ in 0 ..< 6 {
+            pasteButton.tap()
+        }
         Thread.sleep(forTimeInterval: 1)
 
         let screenshot = XCUIScreen.main.screenshot()
@@ -621,7 +623,16 @@ final class ConnUITests: XCTestCase {
         attachment.lifetime = .keepAlways
         add(attachment)
 
-        XCTAssertTrue(try recognizedText(in: screenshot).contains(marker))
+        let recognized = try recognizedText(in: screenshot)
+            .replacingOccurrences(of: "\n", with: "")
+            .replacingOccurrences(of: " ", with: "")
+        XCTAssertGreaterThanOrEqual(
+            recognized.components(separatedBy: marker).count - 1,
+            5,
+            "快速连续输入不应丢失或打乱终端写入"
+        )
+        XCTAssertTrue(pasteButton.isHittable)
+        XCTAssertEqual(app.state, .runningForeground)
     }
 
     private func recognizedText(in screenshot: XCUIScreenshot) throws -> String {

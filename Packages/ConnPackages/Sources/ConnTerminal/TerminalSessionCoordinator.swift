@@ -743,7 +743,6 @@ public final class TerminalSessionCoordinator {
         store.updateStatus(tabID, to: .reconnecting)
         // 先失效旧代次，再关闭旧 PTY；任何迟到输出都不会污染新 generation。
         await oldTab.transcript.activateGeneration(nextGeneration)
-        await oldTab.transcript.resetForGeneration(nextGeneration)
         lifecycleTasks.removeValue(forKey: tabID)?.cancel()
         attachmentLifecycleTasks.removeValue(forKey: tabID)?.cancel()
         await oldTab.session.close()

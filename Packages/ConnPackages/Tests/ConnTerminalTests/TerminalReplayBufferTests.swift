@@ -22,4 +22,16 @@ struct TerminalReplayBufferTests {
         #expect(String(decoding: buffer.snapshot.bytes, as: UTF8.self) == "cdef")
         #expect(buffer.snapshot.wasTruncated)
     }
+
+    @Test("分块追加后仍按完整行和字节上限保留")
+    func fragmentedAppendsPreserveRecentContent() {
+        var buffer = TerminalReplayBuffer(maxLines: 3, maxBytes: 12)
+
+        for fragment in ["one\n", "two\n", "three\n", "four\n"] {
+            buffer.append(Array(fragment.utf8))
+        }
+
+        #expect(String(decoding: buffer.snapshot.bytes, as: UTF8.self) == "three\nfour\n")
+        #expect(buffer.snapshot.wasTruncated)
+    }
 }

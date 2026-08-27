@@ -7,6 +7,7 @@ import Foundation
 import PhotosUI
 import SwiftUI
 import UIKit
+import UniformTypeIdentifiers
 
 private actor TerminalAttachmentSerialGate {
     static let shared = TerminalAttachmentSerialGate()
@@ -82,6 +83,7 @@ final class TerminalAttachmentCoordinator: ObservableObject {
 
     func retry() {
         guard let retryRequest, let insertionMailbox else { return }
+        transferTask?.cancel()
         start(retryRequest, insertionMailbox: insertionMailbox)
     }
 
@@ -112,7 +114,8 @@ final class TerminalAttachmentCoordinator: ObservableObject {
         resources: [LocalResource],
         providerWorkingDirectory: String?,
         insertionContext: TerminalTextInsertionContext?,
-        insertionMailbox: TerminalTextInsertionMailbox
+        insertionMailbox: TerminalTextInsertionMailbox,
+        replacingExistingTransfer: Bool = true
     ) {
         guard !resources.isEmpty else { return }
         guard let insertionContext else {
@@ -120,7 +123,9 @@ final class TerminalAttachmentCoordinator: ObservableObject {
             panelState = .init(phase: .notice(message: L("当前终端尚未准备好，请稍后重试。")))
             return
         }
-        cancel(cleanup: true)
+        if replacingExistingTransfer {
+            cancel(cleanup: true)
+        }
         self.insertionMailbox = insertionMailbox
         let request = UploadRequest(
             resources: resources,
@@ -137,7 +142,6 @@ final class TerminalAttachmentCoordinator: ObservableObject {
         _ request: UploadRequest,
         insertionMailbox: TerminalTextInsertionMailbox
     ) {
-        transferTask?.cancel()
         retryRequest = request
         let hostID = host.id
         transferTask = Task { [weak self, weak insertionMailbox] in
@@ -267,27 +271,6 @@ final class TerminalAttachmentCoordinator: ObservableObject {
         await fileSystem.close()
     }
 
-    private static func stageImage(_ image: UIImage, baseName: String) throws -> LocalResource {
-        let data: Data
-        let fileExtension: String
-        if let jpeg = image.jpegData(compressionQuality: 0.92) {
-            data = jpeg
-            fileExtension = "jpg"
-        } else if let png = image.pngData() {
-            data = png
-            fileExtension = "png"
-        } else {
-            throw TerminalAttachmentPreparationError.unsupportedImage
-        }
-        let directory = FileManager.default.temporaryDirectory
-            .appendingPathComponent("conn-terminal-attachments", isDirectory: true)
-        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        let name = "\(baseName)-\(UUID().uuidString.prefix(8)).\(fileExtension)"
-        let url = directory.appendingPathComponent(name)
-        try data.write(to: url, options: .atomic)
-        return .init(url: url, originalName: name, deleteAfterUse: true)
-    }
-
     private nonisolated static func removeStagedResources(_ resources: [LocalResource]) {
         for resource in resources where resource.deleteAfterUse {
             try? FileManager.default.removeItem(at: resource.url)
@@ -328,22 +311,28 @@ extension TerminalAttachmentCoordinator {
             do {
                 for (index, item) in items.enumerated() {
                     try Task.checkCancellation()
-                    guard let data = try await item.loadTransferable(type: Data.self),
-                          let image = UIImage(data: data)
-                    else {
+                    guard let data = try await item.loadTransferable(type: Data.self) else {
                         throw TerminalAttachmentPreparationError.unsupportedImage
                     }
-                    let resource = try Self.stageImage(
-                        image,
+                    let staged = try await TerminalAttachmentStager.stage(
+                        data: data,
+                        preferredFileExtension: item.supportedContentTypes
+                            .compactMap(\.preferredFilenameExtension)
+                            .first,
                         baseName: String(format: "image-%02d", index + 1)
                     )
-                    resources.append(resource)
+                    resources.append(.init(
+                        url: staged.url,
+                        originalName: staged.originalName,
+                        deleteAfterUse: true
+                    ))
                 }
                 begin(
                     resources: resources,
                     providerWorkingDirectory: providerWorkingDirectory,
                     insertionContext: insertionContext,
-                    insertionMailbox: insertionMailbox
+                    insertionMailbox: insertionMailbox,
+                    replacingExistingTransfer: false
                 )
             } catch is CancellationError {
                 Self.removeStagedResources(resources)
@@ -371,17 +360,20 @@ extension TerminalAttachmentCoordinator {
                     UIColor.systemPurple.setFill()
                     context.fill(CGRect(x: 0, y: 0, width: 24, height: 24))
                 }
-                do {
-                    let resource = try Self.stageImage(image, baseName: "ConnUploadSmoke")
-                    begin(
-                        resources: [resource],
-                        providerWorkingDirectory: providerWorkingDirectory,
-                        insertionContext: insertionContext,
-                        insertionMailbox: insertionMailbox
-                    )
-                } catch {
-                    panelState = .init(phase: .failed(message: error.friendlyDiagnosis))
+                guard let data = image.pngData() else {
+                    panelState = .init(phase: .failed(
+                        message: TerminalAttachmentPreparationError.unsupportedImage.friendlyDiagnosis
+                    ))
+                    return
                 }
+                prepareImageData(
+                    data,
+                    preferredFileExtension: "png",
+                    baseName: "ConnUploadSmoke",
+                    providerWorkingDirectory: providerWorkingDirectory,
+                    insertionContext: insertionContext,
+                    insertionMailbox: insertionMailbox
+                )
                 return
             }
         #endif
@@ -394,25 +386,87 @@ extension TerminalAttachmentCoordinator {
             )
             return
         }
-        guard let image = UIPasteboard.general.image else {
+        guard let payload = clipboardImagePayload() else {
             panelState = .init(phase: .notice(message: L("剪贴板中没有可上传的图片或文件。")))
             return
         }
-        do {
-            let resource = try Self.stageImage(image, baseName: "clipboard-image")
-            begin(
-                resources: [resource],
-                providerWorkingDirectory: providerWorkingDirectory,
-                insertionContext: insertionContext,
-                insertionMailbox: insertionMailbox
-            )
-        } catch {
-            panelState = .init(phase: .failed(message: error.friendlyDiagnosis))
+        prepareImageData(
+            payload.data,
+            preferredFileExtension: payload.fileExtension,
+            baseName: "clipboard-image",
+            providerWorkingDirectory: providerWorkingDirectory,
+            insertionContext: insertionContext,
+            insertionMailbox: insertionMailbox
+        )
+    }
+
+    private func prepareImageData(
+        _ data: Data,
+        preferredFileExtension: String?,
+        baseName: String,
+        providerWorkingDirectory: String?,
+        insertionContext: TerminalTextInsertionContext?,
+        insertionMailbox: TerminalTextInsertionMailbox
+    ) {
+        cancel(cleanup: true)
+        panelState = .init(phase: .preparing)
+        transferTask = Task { [weak self, weak insertionMailbox] in
+            guard let self, let insertionMailbox else { return }
+            var preparedResource: LocalResource?
+            do {
+                let staged = try await TerminalAttachmentStager.stage(
+                    data: data,
+                    preferredFileExtension: preferredFileExtension,
+                    baseName: baseName
+                )
+                let resource = LocalResource(
+                    url: staged.url,
+                    originalName: staged.originalName,
+                    deleteAfterUse: true
+                )
+                preparedResource = resource
+                try Task.checkCancellation()
+                begin(
+                    resources: [resource],
+                    providerWorkingDirectory: providerWorkingDirectory,
+                    insertionContext: insertionContext,
+                    insertionMailbox: insertionMailbox,
+                    replacingExistingTransfer: false
+                )
+                preparedResource = nil
+            } catch is CancellationError {
+                if let preparedResource {
+                    Self.removeStagedResources([preparedResource])
+                }
+                panelState = .idle
+            } catch {
+                if let preparedResource {
+                    Self.removeStagedResources([preparedResource])
+                }
+                panelState = .init(phase: .failed(message: error.friendlyDiagnosis))
+            }
         }
+    }
+
+    private func clipboardImagePayload() -> (data: Data, fileExtension: String)? {
+        let pasteboard = UIPasteboard.general
+        let types: [(UTType, String)] = [
+            (.png, "png"),
+            (.jpeg, "jpg"),
+            (.heic, "heic"),
+            (.gif, "gif"),
+            (.tiff, "tif"),
+        ]
+        for (type, fileExtension) in types {
+            if let data = pasteboard.data(forPasteboardType: type.identifier), !data.isEmpty {
+                return (data, fileExtension)
+            }
+        }
+        return nil
     }
 }
 
-private enum TerminalAttachmentPreparationError: LocalizedError {
+enum TerminalAttachmentPreparationError: LocalizedError {
     case unsupportedImage
     case uploadUnavailable
 

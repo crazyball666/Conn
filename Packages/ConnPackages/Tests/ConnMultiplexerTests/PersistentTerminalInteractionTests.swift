@@ -30,6 +30,18 @@ struct PersistentTerminalInteractionTests {
         #expect(latest.revision == 3)
     }
 
+    @Test("catalog state stream retains only the newest unconsumed snapshot")
+    func boundedCatalogStateStream() async throws {
+        let pair = PersistentTerminalCatalogStreams.makeStateStream(of: Int.self)
+        pair.continuation.yield(1)
+        pair.continuation.yield(2)
+        pair.continuation.yield(3)
+
+        var iterator = pair.stream.makeAsyncIterator()
+        #expect(try #require(await iterator.next()) == 3)
+        pair.continuation.finish()
+    }
+
     @Test("history request rejects non-positive and excessive limits")
     func historyValidation() {
         #expect(throws: PersistentTerminalInteractionError.invalidHistoryLineLimit(0)) {

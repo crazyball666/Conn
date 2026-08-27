@@ -72,4 +72,40 @@ struct TerminalTranscriptTests {
         #expect(await iterator.next() == .generationBoundary)
         #expect(await iterator.next() == .liveBytes(Array("next\n".utf8)))
     }
+
+    @Test("渲染繁忙时相邻实时帧按顺序合并")
+    func coalescesAdjacentLiveFrames() async {
+        let transcript = TerminalTranscript(maxPendingLiveBytes: 1024)
+        await transcript.activateGeneration(1)
+        let attachment = await transcript.attach()
+        var iterator = attachment.events.makeAsyncIterator()
+        _ = await iterator.next()
+        _ = await iterator.next()
+
+        await transcript.append(Array("one".utf8), generation: 1)
+        await transcript.append(Array("-two".utf8), generation: 1)
+        await transcript.append(Array("-three".utf8), generation: 1)
+
+        #expect(await iterator.next() == .liveBytes(Array("one-two-three".utf8)))
+    }
+
+    @Test("慢消费者积压超过上限时重置并回放最新有界快照")
+    func slowConsumerResynchronizesFromBoundedReplay() async {
+        let transcript = TerminalTranscript(
+            maxLines: 100,
+            maxBytes: 12,
+            maxPendingLiveBytes: 3
+        )
+        await transcript.activateGeneration(1)
+        let attachment = await transcript.attach()
+
+        await transcript.append(Array("1234".utf8), generation: 1)
+        await transcript.append(Array("5678".utf8), generation: 1)
+        await transcript.append(Array("90ab".utf8), generation: 1)
+
+        var iterator = attachment.events.makeAsyncIterator()
+        #expect(await iterator.next() == .replayStarted(requiresReset: true))
+        #expect(await iterator.next() == .replayBytes(Array("1234567890ab".utf8)))
+        #expect(await iterator.next() == .replayFinished(TerminalViewportState.default))
+    }
 }

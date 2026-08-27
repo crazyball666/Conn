@@ -1111,9 +1111,42 @@ struct TerminalSessionCoordinatorTests {
             Issue.record("重连后的回放应保留输出")
             return
         }
-        #expect(!String(decoding: bytes, as: UTF8.self).contains("old-screen"))
+        #expect(String(decoding: bytes, as: UTF8.self).contains("old-screen"))
         #expect(String(decoding: bytes, as: UTF8.self).contains("[已重新连接]"))
         await coordinator.close(first.id)
+    }
+
+    @Test("重连失败保留原终端历史")
+    func reconnectFailurePreservesTranscript() async {
+        let host = Host(id: "host-1", name: "web", address: "10.0.0.1", username: "root")
+        let repository = TerminalHostRepository(hosts: [host])
+        let coordinator = TerminalSessionCoordinator(
+            hostRepository: repository,
+            connectionManager: ConnectionManager(transport: MockSSHTransport())
+        )
+        guard case let .success(tab) = await coordinator.launch(
+            TerminalLaunchRequest(host: host, policy: .createNew, source: .shell)
+        ) else {
+            Issue.record("初次创建应成功")
+            return
+        }
+        await tab.transcript.append(Array("diagnostic-output\n".utf8), generation: tab.generation)
+        repository.hosts.removeAll()
+
+        guard case .failure = await coordinator.reconnect(tab.id) else {
+            Issue.record("主机删除后重连应失败")
+            return
+        }
+
+        let attachment = await tab.transcript.attach()
+        var iterator = attachment.events.makeAsyncIterator()
+        _ = await iterator.next()
+        guard case let .replayBytes(bytes)? = await iterator.next() else {
+            Issue.record("失败后应保留已有回放")
+            return
+        }
+        #expect(String(decoding: bytes, as: UTF8.self).contains("diagnostic-output"))
+        await coordinator.close(tab.id)
     }
 
     @Test("必需组件连续失效时每一代都用同一 descriptor 和启动流水线重建")

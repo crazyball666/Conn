@@ -998,7 +998,6 @@ package actor TmuxInteractionFacet: PersistentTerminalInteractionFacet {
     private let attachmentGeneration: UInt64
     private var controlLease: TmuxProviderControlInteractionLease?
     private var observationTask: Task<Void, Never>?
-    private var latestState: PersistentTerminalInteractionState?
     private var closed = false
 
     package init(
@@ -1119,7 +1118,6 @@ package actor TmuxInteractionFacet: PersistentTerminalInteractionFacet {
     }
 
     private func publish(_ state: PersistentTerminalInteractionState) {
-        latestState = state
         continuation.yield(state)
     }
 }

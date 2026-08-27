@@ -113,6 +113,21 @@ public protocol PersistentTerminalCatalogAttachment: AnyObject, Sendable {
     func close() async
 }
 
+/// Catalog and topology values are replaceable state, not an event log. Keeping this
+/// construction provider-neutral prevents a slow or absent UI consumer from retaining every
+/// historical server snapshot.
+public enum PersistentTerminalCatalogStreams {
+    public static func makeStateStream<Element: Sendable>(
+        of _: Element.Type = Element.self,
+        bufferingNewest limit: Int = 1
+    ) -> (
+        stream: AsyncStream<Element>,
+        continuation: AsyncStream<Element>.Continuation
+    ) {
+        AsyncStream.makeStream(bufferingPolicy: .bufferingNewest(max(limit, 1)))
+    }
+}
+
 /// tmux's richer Session → Window → Pane graph remains a provider facet. Consumers that
 /// need native management can opt into this protocol without making the generic terminal
 /// coordinator understand tmux objects or commands.

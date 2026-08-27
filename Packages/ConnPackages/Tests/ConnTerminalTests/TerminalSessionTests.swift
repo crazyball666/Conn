@@ -9,6 +9,7 @@ private final class TestShellChannel: ShellChannel, @unchecked Sendable {
     private let continuation: AsyncThrowingStream<Data, Error>.Continuation
     private(set) var written: [Data] = []
     private(set) var resizes: [TermSize] = []
+    private var closeInvocations = 0
     var writeError: Error?
     var resizeError: Error?
     private let lock = NSLock()
@@ -31,10 +32,68 @@ private final class TestShellChannel: ShellChannel, @unchecked Sendable {
         lock.withLock { resizes.append(size) }
     }
 
-    func close() async { continuation.finish() }
+    func close() async {
+        lock.withLock { closeInvocations += 1 }
+        continuation.finish()
+    }
 
     var writtenData: [Data] { lock.withLock { written } }
     var resizeSizes: [TermSize] { lock.withLock { resizes } }
+    var closeCount: Int { lock.withLock { closeInvocations } }
+}
+
+private actor OrderedWriteGate {
+    private var firstWriteContinuation: CheckedContinuation<Void, Never>?
+    private var firstWriteStarted = false
+
+    func blockFirstWrite() async {
+        firstWriteStarted = true
+        await withCheckedContinuation { firstWriteContinuation = $0 }
+    }
+
+    func waitUntilFirstWriteStarts() async {
+        while !firstWriteStarted {
+            try? await Task.sleep(for: .milliseconds(5))
+        }
+    }
+
+    func releaseFirstWrite() {
+        firstWriteContinuation?.resume()
+        firstWriteContinuation = nil
+    }
+}
+
+private final class OrderedWriteShellChannel: ShellChannel, @unchecked Sendable {
+    let output = AsyncThrowingStream<Data, Error> { _ in }
+    let gate = OrderedWriteGate()
+    private let lock = NSLock()
+    private var writes: [Data] = []
+    private var concurrentWrites = 0
+    private var maximumConcurrentWrites = 0
+    private var writeIndex = 0
+
+    func write(_ bytes: Data) async throws {
+        let index = lock.withLock { () -> Int in
+            let index = writeIndex
+            writeIndex += 1
+            concurrentWrites += 1
+            maximumConcurrentWrites = max(maximumConcurrentWrites, concurrentWrites)
+            return index
+        }
+        if index == 0 {
+            await gate.blockFirstWrite()
+        }
+        lock.withLock {
+            writes.append(bytes)
+            concurrentWrites -= 1
+        }
+    }
+
+    func resize(_ size: TermSize) async throws { _ = size }
+    func close() async {}
+
+    var writtenData: [Data] { lock.withLock { writes } }
+    var maxConcurrentWrites: Int { lock.withLock { maximumConcurrentWrites } }
 }
 
 private struct TestShellError: Error {}
@@ -82,6 +141,31 @@ struct TerminalSessionTests {
         await session.close()
     }
 
+    @Test("并发提交的终端输入严格串行写入")
+    func serializesConcurrentInput() async throws {
+        let channel = OrderedWriteShellChannel()
+        let session = TerminalSession(
+            channel: channel,
+            transcript: TerminalTranscript(),
+            generation: 1
+        )
+
+        let first = Task { try await session.send(Array("first".utf8)) }
+        await channel.gate.waitUntilFirstWriteStarts()
+        let second = Task { try await session.send(Array("second".utf8)) }
+        try await Task.sleep(for: .milliseconds(30))
+
+        #expect(channel.writtenData.isEmpty)
+        #expect(channel.maxConcurrentWrites == 1)
+        await channel.gate.releaseFirstWrite()
+        try await first.value
+        try await second.value
+
+        #expect(channel.writtenData == [Data("first".utf8), Data("second".utf8)])
+        #expect(channel.maxConcurrentWrites == 1)
+        await session.close()
+    }
+
     @Test("尺寸变化透传为 resize")
     func forwardsResize() async throws {
         let channel = TestShellChannel()
@@ -125,6 +209,7 @@ struct TerminalSessionTests {
         let transcript = TerminalTranscript()
         let session = TerminalSession(channel: channel, transcript: transcript, generation: 1)
         var iterator = session.lifecycleEvents.makeAsyncIterator()
+        await session.start()
 
         do {
             try await session.send(Array("bad\n".utf8))
@@ -136,6 +221,11 @@ struct TerminalSessionTests {
         guard case .failed? = await iterator.next() else {
             Issue.record("应先收到失败生命周期事件")
             return
+        }
+        #expect(await waitUntil { channel.closeCount == 1 })
+        #expect(await session.state == .failed)
+        await #expect(throws: (any Error).self) {
+            try await session.send(Array("after-failure\n".utf8))
         }
     }
 

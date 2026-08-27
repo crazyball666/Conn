@@ -1842,8 +1842,12 @@ public final class TmuxWorkspaceCatalogAttachment: TmuxWorkspaceCatalogManaging,
         controlCapabilities: TmuxNegotiatedCapabilities,
         controlConfiguration: TmuxControlClientConfiguration
     ) {
-        let (snapshots, continuation) = AsyncStream<PersistentWorkspaceCatalogSnapshot>.makeStream()
-        let (topology, topologyContinuation) = AsyncStream<TmuxServerSnapshot>.makeStream()
+        let (snapshots, continuation) = PersistentTerminalCatalogStreams.makeStateStream(
+            of: PersistentWorkspaceCatalogSnapshot.self
+        )
+        let (topology, topologyContinuation) = PersistentTerminalCatalogStreams.makeStateStream(
+            of: TmuxServerSnapshot.self
+        )
         self.snapshots = snapshots
         self.continuation = continuation
         self.topology = topology
