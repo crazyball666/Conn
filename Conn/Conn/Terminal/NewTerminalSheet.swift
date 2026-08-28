@@ -89,13 +89,13 @@ struct NewTerminalSheet: View {
         case .terminalTypeSelection:
             terminalTypeSelection
         case .providerLoading:
-            loadingState(L("正在检测 tmux…"))
+            TerminalCreationLoadingView(title: L("正在检测 tmux…"))
         case .providerSelection:
             providerSelection
         case .workspaceSelection:
             workspaceSelection
         case .creating:
-            loadingState(L("正在创建终端…"))
+            TerminalCreationLoadingView(title: L("正在创建终端…"))
         }
     }
 
@@ -249,17 +249,6 @@ struct NewTerminalSheet: View {
                 }
             }
         }
-    }
-
-    private func loadingState(_ title: String) -> some View {
-        VStack(spacing: ConnSpacing.md) {
-            ProgressView()
-                .controlSize(.large)
-                .tint(.connAccent)
-            Text(title)
-                .foregroundStyle(.connMuted)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     private func errorSection(_ message: String) -> some View {

@@ -54,6 +54,9 @@
             _ request: CreateWorkspaceRequest,
             in context: PersistentTerminalContext
         ) async throws -> RemoteWorkspaceSummary {
+            if ProcessInfo.processInfo.environment["CONN_SMOKE_TERMINAL_REPLACEMENT_DELAY"] != nil {
+                try await Task.sleep(for: .seconds(3))
+            }
             let workspace = RemoteWorkspaceSummary(
                 workspace: .init(
                     workspaceID: "$smoke-replacement",

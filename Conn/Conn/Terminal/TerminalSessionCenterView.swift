@@ -24,6 +24,8 @@ struct TerminalSessionCenterView: View {
     @State private var restoringRecordID: String?
     @State private var missingWorkspaceRecord: PersistentTerminalResumeRecord?
     @State private var isCreatingReplacement = false
+    @State private var replacementAttemptID: UUID?
+    @State private var replacementTask: Task<Void, Never>?
     @Environment(\.connToastCenter) private var toastCenter
 
     private var sessions: TerminalSessionStore { dependencies.terminalSessions.store }
@@ -82,6 +84,23 @@ struct TerminalSessionCenterView: View {
             )
             .presentationDetents([.medium, .large])
         }
+        .sheet(
+            isPresented: $isCreatingReplacement,
+            onDismiss: openPendingCompletion
+        ) {
+            NavigationStack {
+                TerminalCreationLoadingView(title: L("正在创建终端…"))
+                    .navigationTitle(L("新建终端"))
+                    .navigationBarTitleDisplayMode(.inline)
+                    .toolbar {
+                        ToolbarItem(placement: .topBarTrailing) {
+                            Button(L("关闭")) { cancelReplacement() }
+                        }
+                    }
+            }
+            .interactiveDismissDisabled()
+            .presentationDetents([.medium, .large])
+        }
         .fullScreenCover(item: $route) { route in
             TerminalScreen(
                 host: route.host,
@@ -106,14 +125,6 @@ struct TerminalSessionCenterView: View {
             }
         } message: {
             Text(L("可以创建同名 Session 并继续使用该终端。"))
-        }
-        .overlay {
-            if isCreatingReplacement {
-                ProgressView(L("正在创建终端…"))
-                    .padding(.horizontal, ConnSpacing.lg)
-                    .padding(.vertical, ConnSpacing.md)
-                    .background(.regularMaterial, in: RoundedRectangle(cornerRadius: ConnRadius.card))
-            }
         }
     }
 
@@ -297,26 +308,43 @@ struct TerminalSessionCenterView: View {
 
     private func createReplacement(for record: PersistentTerminalResumeRecord) {
         guard !isCreatingReplacement else { return }
+        let attemptID = UUID()
+        replacementAttemptID = attemptID
         isCreatingReplacement = true
-        Task {
-            defer { isCreatingReplacement = false }
-            switch await dependencies.terminalSessions.createReplacement(for: record) {
+        replacementTask = Task {
+            let result = await dependencies.terminalSessions.createReplacement(for: record)
+            guard !Task.isCancelled, replacementAttemptID == attemptID else { return }
+            replacementAttemptID = nil
+            replacementTask = nil
+
+            switch result {
             case let .success(tab):
                 do {
                     guard let host = try dependencies.hostRepository.host(id: tab.hostID) else {
+                        isCreatingReplacement = false
                         toastCenter.show(L("主机不存在或已被删除"), style: .warning)
                         return
                     }
-                    route = ExistingTerminalRoute(host: host, tabID: tab.id)
+                    pendingCompletion = NewTerminalFlowCompletion(host: host, tabID: tab.id)
+                    isCreatingReplacement = false
                 } catch {
+                    isCreatingReplacement = false
                     toastCenter.show(error.localizedDescription, style: .error)
                 }
             case let .failure(failure):
+                isCreatingReplacement = false
                 if let message = dependencies.terminalSessions.consumeFailure(failure) {
                     toastCenter.show(message, style: .error)
                 }
             }
         }
+    }
+
+    private func cancelReplacement() {
+        replacementAttemptID = nil
+        replacementTask?.cancel()
+        replacementTask = nil
+        isCreatingReplacement = false
     }
 
     private func openPendingCompletion() {

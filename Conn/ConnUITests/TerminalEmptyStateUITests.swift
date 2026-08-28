@@ -101,6 +101,7 @@ final class TerminalEmptyStateUITests: XCTestCase {
         app.launchEnvironment["CONN_SMOKE_TERMINAL_CENTER"] = "1"
         app.launchEnvironment["CONN_SMOKE_TERMINAL_RESUME"] = "1"
         app.launchEnvironment["CONN_SMOKE_TERMINAL_RESUME_MISSING"] = "1"
+        app.launchEnvironment["CONN_SMOKE_TERMINAL_REPLACEMENT_DELAY"] = "1"
         app.launchArguments += ["-conn.settings.terminalCursorBlinking", "false"]
         app.launch()
 
@@ -120,6 +121,12 @@ final class TerminalEmptyStateUITests: XCTestCase {
         let create = alert.buttons["创建新 Session"]
         XCTAssertTrue(create.exists)
         create.tap()
+
+        let creationLoading = app.descendants(matching: .any)["terminal.creation.loading"]
+        XCTAssertTrue(creationLoading.waitForExistence(timeout: 3))
+        XCTAssertTrue(app.navigationBars["新建终端"].exists)
+        XCTAssertTrue(app.staticTexts["正在创建终端…"].exists)
+        XCTAssertTrue(app.buttons["关闭"].exists)
 
         let header = app.descendants(matching: .any)["terminal.header"]
         XCTAssertTrue(header.waitForExistence(timeout: 10))

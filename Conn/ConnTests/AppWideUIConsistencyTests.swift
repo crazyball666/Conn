@@ -549,13 +549,21 @@ struct AppWideUIConsistencyTests {
         #expect(source.contains("Button(L(\"关闭\")"))
     }
 
-    @Test("新建终端 Loading 继承 Sheet 背景而不铺不透明页面底色")
-    func newTerminalLoadingMatchesSelectionSheetBackground() throws {
-        let source = try appSource("Terminal/NewTerminalSheet.swift")
+    @Test("所有终端创建入口复用同一 Sheet Loading")
+    func terminalCreationReusesSharedSheetLoading() throws {
+        let sheet = try appSource("Terminal/NewTerminalSheet.swift")
+        let center = try appSource("Terminal/TerminalSessionCenterView.swift")
+        let loading = try appSource("Terminal/TerminalCreationLoadingView.swift")
 
-        #expect(source.contains("private func loadingState(_ title: String)"))
-        #expect(source.contains(".frame(maxWidth: .infinity, maxHeight: .infinity)"))
-        #expect(!source.contains(".background(Color.connBg)"))
+        #expect(sheet.contains("TerminalCreationLoadingView(title: L(\"正在创建终端…\"))"))
+        #expect(center.contains("TerminalCreationLoadingView(title: L(\"正在创建终端…\"))"))
+        #expect(center.contains("isPresented: $isCreatingReplacement"))
+        #expect(center.contains(".presentationDetents([.medium, .large])"))
+        #expect(center.contains("Button(L(\"关闭\")) { cancelReplacement() }"))
+        #expect(!center.contains("ProgressView(L(\"正在创建终端…\"))"))
+        #expect(loading.contains(".frame(maxWidth: .infinity, maxHeight: .infinity)"))
+        #expect(loading.contains(".accessibilityIdentifier(\"terminal.creation.loading\")"))
+        #expect(!loading.contains(".background(Color.connBg)"))
     }
 
     @Test("非固定主机的新建流程可以返回重新选择主机")
