@@ -25,28 +25,32 @@ Conn 当前相对 `v1.15.0` 的修改限定在以下边界，升级时逐项重�
 - `EscapeSequenceParser.swift`：有界控制序列处理。
 - `iOSTerminalView.swift`：Host 手势接管、选择、命中测试及输入桥接。
 - `TerminalHostInteractionTests.swift`：上述行为的 vendor 级回归测试。
+- `Package.swift` 与 BuildInfo：移除依赖父仓库 Git 状态的构建插件，改用固定的 vendor 来源信息。
 
 官方 `v1.19.0` 已公开 `SelectionService` 和 `TerminalView.selection`。移植时优先使用新的公开接口，但不为了减少补丁而改变 Conn 已验收的交互语义。`CONN_UPSTREAM.md`、开源许可页面及版本断言统一更新为 `v1.19.0` 和 commit `464df5207fc2432e16c9a23abe538187196daf5f`。
+
+官方 `v1.19.0` 的 `SwiftTermBuildInfoPlugin` 会从 Package 所在路径执行 Git 查询。vendor 目录位于 Conn 仓库内部，直接保留插件会把 Conn 的 commit 和 dirty 状态错误写成 SwiftTerm 版本。Conn vendor 因此不运行该插件：删除 manifest 中的插件和生成器 target，改为在 SwiftTerm target 内提供受版本测试约束的静态 `SwiftTermBuildInfo.swift`，固定 tag、commit、branch 和 `hasUncommittedChanges = false`。这属于 vendor 来源确定性处理，不改变终端协议行为。
 
 ## 滚动路由设计
 
 ### 手势令牌
 
-一次手势只在真正影响路由的条件变化时失效：
+一次手势只在真正影响路由的条件变化时失效。令牌不再保存整个 Host `protocolRevision` 或 tmux `persistentRevision`，而是保存专用滚动路由签名：
 
 - 终端实例代次变化；
 - attachment 代次变化；
 - 当前目标 Pane 变化；
-- Host 协议模式变化；
+- Host 的 mouse tracking、alternate-buffer、Alternate Scroll Mode、列数或行数变化；
+- tmux 状态 freshness 变化；
 - tmux Pane 的 alternate-buffer、mode capability 或历史可用性变化。
 
-普通的 tmux snapshot revision 变化不再中断正在进行的手势。实现上以持久路由签名替代原始 `persistentRevision`；签名由目标和上述路由字段组成。
+Bracketed Paste、Focus Reporting、Synchronized Output、Application Cursor 等与滚动路由无关的 Host 状态变化不会中断手势。普通的 tmux snapshot revision 变化也不再中断手势。
 
 ### 请求执行
 
-手势只固定“滚动应该走哪条路径”，不固定后台命令使用的快照版本。真正执行 Copy Mode 滚动时继续从 Coordinator 当前的 `persistentState` 构造请求，因此操作仍受最新状态保护。
+手势只固定“滚动应该走哪条路径”和“目标 Pane 是谁”，不固定后台命令使用的快照版本。`PersistentTerminalModeScrollRequest` 不再携带易过期的全局 `expectedStateRevision`。真正执行 Copy Mode 滚动时，Hub 在命令进入串行执行槽后重新取得最新快照，并原子校验 attachment、目标 Pane 和最新 mode capability；无关 revision 漂移不阻止操作，Pane、attachment 或 mode 改变仍会拒绝操作。
 
-历史读取是只读操作：开始前校验目标 Pane 和 attachment，完成后再次解析当前交互目标并确认 Pane 未切换。它不再因无关 revision 更新失败。若读取期间 Pane 已改变，结果仍丢弃，不会覆盖新 Pane 的终端画面。
+历史读取是只读操作，`PersistentTerminalHistoryRequest` 同样不携带 `expectedStateRevision`：开始前使用最新快照校验目标 Pane 和 attachment，并把实际读取快照的 revision 写入结果；完成后再次解析当前交互目标并确认 Pane 未切换。它不再因无关 revision 更新失败。若读取期间 Pane 已改变，结果仍丢弃，不会覆盖新 Pane 的终端画面。
 
 ### DECSET 1007
 
@@ -78,10 +82,13 @@ tmux Pane 自身的 Copy Mode 和其他 provider mode 仍优先于 1007，不改
 ### Conn 单元测试
 
 - revision 单独变化时，正在进行的 tmux 滚动路由保持有效。
-- Pane、attachment、模式或终端代次变化时，路由立即失效。
+- Bracketed Paste、Focus Reporting 等无关 Host 状态变化时路由保持有效。
+- freshness、Mouse Tracking、Alternate Buffer、1007、Pane、attachment、mode capability、尺寸或终端代次变化时，路由立即失效或重新解析。
 - 只读历史请求允许无关 snapshot revision 更新，但拒绝目标 Pane 或 attachment 变化。
+- Copy Mode 请求在 Hub 队列等待期间允许无关 revision 漂移，但拒绝目标 Pane、attachment 或 mode capability 变化。
 - 1007 开启与关闭时的 Alternate Buffer 路由符合预期。
 - 普通终端本地 scrollback 行为不回归。
+- vendor BuildInfo 始终为 `v1.19.0` / `464df5207fc2432e16c9a23abe538187196daf5f`，且不受 Conn 工作区 dirty 状态影响。
 
 ### 模拟器 UI 测试
 
