@@ -88,13 +88,15 @@ final class ConnUITests: XCTestCase {
         XCTAssertTrue(terminal.waitForExistence(timeout: 5))
         let initialKeyboardViewport = terminal.frame
 
-        let navigationBar = app.navigationBars.firstMatch
-        XCTAssertTrue(navigationBar.exists)
-        navigationBar.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
-        XCTAssertTrue(keybarButton.waitForNonExistence(timeout: 5))
+        let dismissKeyboard = app.buttons["terminal.keybar.dismissKeyboard"]
+        XCTAssertTrue(dismissKeyboard.waitForExistence(timeout: 5))
+        dismissKeyboard.tap()
+        XCTAssertTrue(app.keyboards.firstMatch.waitForNonExistence(timeout: 5))
+        XCTAssertTrue(keybarButton.exists, "收起键盘后快捷键栏与页面级会话入口应继续保留")
 
         terminal.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
-        XCTAssertTrue(keybarButton.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 5))
+        XCTAssertTrue(keybarButton.exists)
 
         let reopenedKeyboardViewport = terminal.frame
         XCTAssertEqual(reopenedKeyboardViewport.minY, initialKeyboardViewport.minY, accuracy: 1)

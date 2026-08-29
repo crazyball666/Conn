@@ -214,6 +214,7 @@ struct TerminalLayoutTests {
         #expect(TerminalKeybarMetrics.compactHeight >= TerminalKeybarMetrics.hitTargetHeight)
         #expect(TerminalKeybarMetrics.compactHeight == TerminalKeybarMetrics.hitTargetHeight + 2)
         #expect(TerminalKeybarMetrics.hitTargetHeight == 44)
+        #expect(TerminalKeybarMetrics.sessionActionsCapWidth == 44)
         #expect(TerminalKeybarMetrics.capVisualHeight < TerminalKeybarMetrics.hitTargetHeight)
         #expect(TerminalKeybarMetrics.compactPadSide == 40)
         #expect(TerminalKeybarMetrics.commonColumnCount >= 7)

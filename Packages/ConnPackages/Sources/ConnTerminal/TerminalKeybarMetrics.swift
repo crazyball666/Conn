@@ -11,6 +11,8 @@ public enum TerminalKeybarMetrics {
     static let hitTargetHeight: CGFloat = 44
     static let capVisualHeight: CGFloat = 30
     static let compactCapWidth: CGFloat = 38
+    /// 会话入口承载页面级导航与关闭操作，始终保留完整的 44pt 触控宽度。
+    static let sessionActionsCapWidth: CGFloat = 44
     static let compactPadSide: CGFloat = 40
     static let gridSpacing: CGFloat = 4
     static let commonColumnCount = 7

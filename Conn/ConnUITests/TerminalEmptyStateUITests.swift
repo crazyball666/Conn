@@ -83,9 +83,14 @@ final class TerminalEmptyStateUITests: XCTestCase {
 
         resume.tap()
 
-        let header = app.descendants(matching: .any)["terminal.header"]
-        XCTAssertTrue(header.waitForExistence(timeout: 10))
-        XCTAssertTrue(header.label.contains("saved-session"))
+        let terminal = app.descendants(matching: .any)["terminal.viewport"].firstMatch
+        XCTAssertTrue(terminal.waitForExistence(timeout: 10))
+        let sessionActions = app.buttons["terminal.keybar.session-actions"]
+        XCTAssertTrue(sessionActions.waitForExistence(timeout: 5))
+        sessionActions.tap()
+        let current = app.descendants(matching: .any)["terminal.session-actions.current"]
+        XCTAssertTrue(current.waitForExistence(timeout: 5))
+        XCTAssertTrue(current.label.contains("saved-session"))
         XCTAssertFalse(app.staticTexts["选择持久终端"].exists)
 
         let screenshot = XCTAttachment(screenshot: app.screenshot())
@@ -128,9 +133,14 @@ final class TerminalEmptyStateUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["正在创建终端…"].exists)
         XCTAssertTrue(app.buttons["关闭"].exists)
 
-        let header = app.descendants(matching: .any)["terminal.header"]
-        XCTAssertTrue(header.waitForExistence(timeout: 10))
-        XCTAssertTrue(header.label.contains("saved-session"))
+        let terminal = app.descendants(matching: .any)["terminal.viewport"].firstMatch
+        XCTAssertTrue(terminal.waitForExistence(timeout: 10))
+        let sessionActions = app.buttons["terminal.keybar.session-actions"]
+        XCTAssertTrue(sessionActions.waitForExistence(timeout: 5))
+        sessionActions.tap()
+        let current = app.descendants(matching: .any)["terminal.session-actions.current"]
+        XCTAssertTrue(current.waitForExistence(timeout: 5))
+        XCTAssertTrue(current.label.contains("saved-session"))
         XCTAssertFalse(app.descendants(matching: .any)["conn.toast.error"].exists)
         XCTAssertEqual(app.state, .runningForeground)
     }

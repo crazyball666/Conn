@@ -30,6 +30,7 @@
         private let terminalGeneration: UInt64
         private let insertionMailbox: TerminalTextInsertionMailbox?
         private let configuration: TerminalConfiguration
+        private let onShowSessionActions: () -> Void
         private let onChooseCommand: () -> Void
         private let onReconnect: () -> Void
         private let onPersistentWorkspaceRenamed: (String) -> Void
@@ -46,6 +47,7 @@
             terminalGeneration: UInt64 = 0,
             insertionMailbox: TerminalTextInsertionMailbox? = nil,
             configuration: TerminalConfiguration = .init(),
+            onShowSessionActions: @escaping () -> Void = {},
             onChooseCommand: @escaping () -> Void = {},
             onReconnect: @escaping () -> Void = {},
             onPersistentWorkspaceRenamed: @escaping (String) -> Void = { _ in },
@@ -61,6 +63,7 @@
             self.terminalGeneration = terminalGeneration
             self.insertionMailbox = insertionMailbox
             self.configuration = configuration
+            self.onShowSessionActions = onShowSessionActions
             self.onChooseCommand = onChooseCommand
             self.onReconnect = onReconnect
             self.onPersistentWorkspaceRenamed = onPersistentWorkspaceRenamed
@@ -79,6 +82,7 @@
                 terminalGeneration: terminalGeneration,
                 insertionMailbox: insertionMailbox,
                 configuration: configuration,
+                onShowSessionActions: onShowSessionActions,
                 onChooseCommand: onChooseCommand,
                 onReconnect: onReconnect,
                 onPersistentWorkspaceRenamed: onPersistentWorkspaceRenamed,
@@ -110,6 +114,7 @@
         private let tabID: String
         private let terminalGeneration: UInt64
         private let insertionMailbox: TerminalTextInsertionMailbox?
+        private let onShowSessionActions: () -> Void
         private let onChooseCommand: () -> Void
         private let onReconnect: () -> Void
         private let attachmentState: TerminalAttachmentPanelState
@@ -123,6 +128,7 @@
             terminalGeneration: UInt64,
             insertionMailbox: TerminalTextInsertionMailbox?,
             configuration: TerminalConfiguration,
+            onShowSessionActions: @escaping () -> Void,
             onChooseCommand: @escaping () -> Void,
             onReconnect: @escaping () -> Void,
             onPersistentWorkspaceRenamed: @escaping (String) -> Void,
@@ -147,6 +153,7 @@
             self.tabID = tabID
             self.terminalGeneration = terminalGeneration
             self.insertionMailbox = insertionMailbox
+            self.onShowSessionActions = onShowSessionActions
             self.onChooseCommand = onChooseCommand
             self.onReconnect = onReconnect
             self.attachmentState = attachmentState
@@ -174,6 +181,7 @@
                         onKey: controller.handleKey,
                         onPaste: { controller.handlePaste($0) },
                         onInsertToolCommand: insertToolCommand,
+                        onShowSessionActions: showSessionActions,
                         onChooseCommand: onChooseCommand,
                         onReconnect: onReconnect,
                         pointerAvailable: controller.pointerAvailable,
@@ -198,6 +206,9 @@
                     )
                     .accessibilityElement(children: .contain)
                     .accessibilityIdentifier("terminal.keybar")
+                } else {
+                    TerminalSessionActionsBar(onShowSessionActions: showSessionActions)
+                        .frame(height: TerminalKeybarMetrics.compactHeight)
                 }
             }
             .alert(
@@ -292,6 +303,13 @@
 
         private var isProviderActionPresented: Bool {
             pendingTextInputAction != nil || pendingConfirmationAction != nil
+        }
+
+        private func showSessionActions() {
+            // The page-level entry remains reachable after a sheet temporarily takes
+            // terminal focus and dismisses the software keyboard.
+            keepsKeybarVisible = true
+            onShowSessionActions()
         }
 
         private func synchronizeInsertionContext() {

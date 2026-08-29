@@ -14,6 +14,7 @@
         let onKey: (TerminalKey) -> Void
         let onPaste: (String) -> Void
         let onInsertToolCommand: (String) -> Void
+        let onShowSessionActions: () -> Void
         let onChooseCommand: () -> Void
         let onReconnect: () -> Void
         let pointerAvailable: Bool
@@ -68,6 +69,8 @@
         /// 滚动。这样方向始终可触达，同时比四个独立箭头多显示三个常用键位。
         private var compactPanel: some View {
             HStack(spacing: 4) {
+                sessionActionsCap
+
                 ScrollView(.horizontal) {
                     LazyHStack(spacing: 4) {
                         ForEach(TerminalKeybarLayout.compactKeys) { key in
@@ -95,6 +98,7 @@
         private var expandedPanel: some View {
             VStack(spacing: TerminalKeybarMetrics.gridSpacing) {
                 HStack(spacing: TerminalKeybarMetrics.gridSpacing) {
+                    sessionActionsCap
                     expansionCap(expanded: true)
 
                     ScrollView(.horizontal) {
@@ -411,6 +415,8 @@
                         RoundedRectangle(cornerRadius: ConnRadius.key, style: .continuous)
                             .strokeBorder(Color.connKeyline, lineWidth: 1)
                     )
+                    .frame(width: width, height: TerminalKeybarMetrics.hitTargetHeight)
+                    .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .accessibilityLabel(Text(accessibilityLabel))
@@ -425,6 +431,16 @@
                 identifier: "terminal.keybar.commands",
                 width: TerminalKeybarMetrics.compactCapWidth,
                 action: onChooseCommand
+            )
+        }
+
+        private var sessionActionsCap: some View {
+            actionCap(
+                systemName: "rectangle.stack",
+                accessibilityLabel: L("会话操作"),
+                identifier: "terminal.keybar.session-actions",
+                width: TerminalKeybarMetrics.sessionActionsCapWidth,
+                action: onShowSessionActions
             )
         }
 
@@ -447,6 +463,58 @@
                 width: TerminalKeybarMetrics.compactCapWidth,
                 action: onToggleKeyboard
             )
+        }
+    }
+
+    /// When the optional terminal shortcut bar is hidden, page-level session actions
+    /// still need a persistent 44pt entry because the immersive terminal has no top bar.
+    struct TerminalSessionActionsBar: View {
+        let onShowSessionActions: () -> Void
+        @State private var pressCount = 0
+
+        var body: some View {
+            HStack(spacing: 0) {
+                Button {
+                    pressCount &+= 1
+                    onShowSessionActions()
+                } label: {
+                    Image(systemName: "rectangle.stack")
+                        .font(.system(size: 15, weight: .medium))
+                        .foregroundStyle(Color.connInk)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: TerminalKeybarMetrics.capVisualHeight)
+                        .background(
+                            Color.connKey,
+                            in: .rect(cornerRadius: ConnRadius.key, style: .continuous)
+                        )
+                        .overlay {
+                            RoundedRectangle(cornerRadius: ConnRadius.key, style: .continuous)
+                                .strokeBorder(Color.connKeyline, lineWidth: 1)
+                        }
+                        .frame(
+                            width: TerminalKeybarMetrics.sessionActionsCapWidth,
+                            height: TerminalKeybarMetrics.hitTargetHeight
+                        )
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(Text(L("会话操作")))
+                .accessibilityIdentifier("terminal.keybar.session-actions")
+                .frame(
+                    width: TerminalKeybarMetrics.sessionActionsCapWidth,
+                    height: TerminalKeybarMetrics.hitTargetHeight
+                )
+
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, 6)
+            .padding(.vertical, 1)
+            .frame(maxWidth: .infinity)
+            .background(Color.connBar.ignoresSafeArea(edges: .bottom))
+            .overlay(alignment: .top) {
+                Rectangle().fill(Color.connLine).frame(height: 1)
+            }
+            .sensoryFeedback(ConnHapticFeedback.highImpact, trigger: pressCount)
         }
     }
 #endif

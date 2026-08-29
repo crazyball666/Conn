@@ -90,8 +90,7 @@ struct ConnApp: App {
             } else if ProcessInfo.processInfo.environment["CONN_SMOKE_NEW_TERMINAL_PICKER"] != nil {
                 NewTerminalSheetSmokeView(terminalSessions: dependencies.terminalSessions)
             } else if ProcessInfo.processInfo.environment["CONN_SMOKE_TERMINAL"] != nil {
-                // `TerminalScreen` 现在自己包了一层 `NavigationStack`（配合 6 个调用点
-                // 都改成 `.fullScreenCover`），这里不再外包一层，否则嵌两层导航栈。
+                // 终端采用沉浸式全屏布局，页面级操作由底部固定入口承载。
                 TerminalSmokeLaunchView(
                     host: smokeTerminalHost(dependencies: dependencies),
                     dependencies: dependencies,

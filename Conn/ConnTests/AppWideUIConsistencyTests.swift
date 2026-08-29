@@ -330,12 +330,20 @@ struct AppWideUIConsistencyTests {
         #expect(source.contains("Button(L(\"重试\")) { model.start() }"))
     }
 
-    @Test("终端导航栏主标题显示主机，会话名显示副标题")
-    func terminalNavigationUsesHostTitleAndSessionSubtitle() throws {
+    @Test("终端使用沉浸布局并从底部快捷栏打开会话操作")
+    func terminalUsesImmersiveLayoutAndKeybarSessionActions() throws {
         let source = try appSource("Terminal/TerminalScreen.swift")
-        #expect(source.contains(".navigationTitle(hostTitle)"))
-        #expect(source.contains("Text(hostTitle)"))
-        #expect(source.contains("Text(sessionSubtitle)"))
+        let host = try packageSource("Sources/ConnTerminal/TerminalHostingView.swift")
+        let keybar = try packageSource("Sources/ConnTerminal/TerminalKeybar.swift")
+
+        #expect(!source.contains(".navigationTitle(hostTitle)"))
+        #expect(!source.contains("terminalToolbar"))
+        #expect(source.contains("TerminalSessionActionsSheet("))
+        #expect(source.contains("onShowSessionActions:"))
+        #expect(source.contains("isSessionActionsPresented"))
+        #expect(host.contains("onShowSessionActions"))
+        #expect(keybar.contains("sessionActionsCap"))
+        #expect(keybar.contains("terminal.keybar.session-actions"))
     }
 
     @Test("终端主题使用自定义列表展示完整预览而不是系统 Picker 文本降级")
@@ -385,9 +393,8 @@ struct AppWideUIConsistencyTests {
 
         #expect(source.contains("settings.terminalConfiguration.theme.appearance"))
         #expect(source.contains("private var terminalColorScheme: ColorScheme"))
-        #expect(source.contains(".toolbarColorScheme(terminalColorScheme, for: .navigationBar)"))
         #expect(source.contains(".preferredColorScheme(terminalColorScheme)"))
-        #expect(!source.contains(".toolbarColorScheme(.dark, for: .navigationBar)"))
+        #expect(!source.contains(".toolbarColorScheme("))
         #expect(!source.contains(".preferredColorScheme(.dark)"))
     }
 

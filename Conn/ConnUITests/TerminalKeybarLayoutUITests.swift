@@ -6,6 +6,100 @@ final class TerminalKeybarLayoutUITests: XCTestCase {
     }
 
     @MainActor
+    func testTerminalUsesImmersiveLayoutAndPresentsSessionActionsFromKeybar() {
+        let app = XCUIApplication()
+        app.launchEnvironment["CONN_DEMO"] = "1"
+        app.launchEnvironment["CONN_SMOKE_TERMINAL"] = "1"
+        app.launchArguments += ["-conn.settings.terminalCursorBlinking", "NO"]
+        app.launch()
+
+        let terminal = app.descendants(matching: .any)["terminal.viewport"].firstMatch
+        let sessionActions = app.buttons["terminal.keybar.session-actions"]
+        XCTAssertTrue(terminal.waitForExistence(timeout: 10))
+        XCTAssertTrue(sessionActions.waitForExistence(timeout: 5))
+        XCTAssertTrue(sessionActions.isHittable)
+        XCTAssertGreaterThanOrEqual(sessionActions.frame.width, 44)
+        XCTAssertGreaterThanOrEqual(sessionActions.frame.height, 44)
+        XCTAssertFalse(app.navigationBars.firstMatch.exists)
+
+        sessionActions.tap()
+
+        let actionsSheet = app.descendants(matching: .any)["terminal.session-actions"].firstMatch
+        XCTAssertTrue(actionsSheet.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["terminal.session-actions.return"].isHittable)
+        XCTAssertTrue(app.buttons["terminal.session-actions.switch"].isHittable)
+        XCTAssertTrue(app.buttons["terminal.session-actions.close"].isHittable)
+        XCTAssertEqual(app.state, .runningForeground)
+
+        let attachment = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+        attachment.name = "Terminal immersive session actions"
+        attachment.lifetime = .keepAlways
+        add(attachment)
+
+        app.buttons["terminal.session-actions.return"].tap()
+        XCTAssertTrue(terminal.waitForNonExistence(timeout: 5))
+        XCTAssertEqual(app.state, .runningForeground)
+    }
+
+    @MainActor
+    func testSessionActionsSwitchPresentsTerminalListAfterSheetDismissal() {
+        let app = launchSmokeTerminal()
+        let sessionActions = app.buttons["terminal.keybar.session-actions"]
+        XCTAssertTrue(sessionActions.waitForExistence(timeout: 10))
+        sessionActions.tap()
+
+        let switchTerminal = app.buttons["terminal.session-actions.switch"]
+        XCTAssertTrue(switchTerminal.waitForExistence(timeout: 5))
+        switchTerminal.tap()
+
+        XCTAssertTrue(app.navigationBars["终端会话"].waitForExistence(timeout: 5))
+        XCTAssertEqual(app.state, .runningForeground)
+    }
+
+    @MainActor
+    func testSessionActionsCloseClosesTerminalAfterSheetDismissal() {
+        let app = launchSmokeTerminal()
+        let terminal = app.descendants(matching: .any)["terminal.viewport"].firstMatch
+        let sessionActions = app.buttons["terminal.keybar.session-actions"]
+        XCTAssertTrue(terminal.waitForExistence(timeout: 10))
+        XCTAssertTrue(sessionActions.waitForExistence(timeout: 5))
+        sessionActions.tap()
+
+        let closeTerminal = app.buttons["terminal.session-actions.close"]
+        XCTAssertTrue(closeTerminal.waitForExistence(timeout: 5))
+        closeTerminal.tap()
+
+        XCTAssertTrue(terminal.waitForNonExistence(timeout: 5))
+        XCTAssertEqual(app.state, .runningForeground)
+    }
+
+    @MainActor
+    func testSessionActionsRemainAvailableWhenShortcutBarIsDisabled() {
+        let app = XCUIApplication()
+        app.launchEnvironment["CONN_DEMO"] = "1"
+        app.launchEnvironment["CONN_SMOKE_TERMINAL"] = "1"
+        app.launchArguments += [
+            "-conn.settings.terminalCursorBlinking", "NO",
+            "-conn.settings.terminalKeybarEnabled", "NO"
+        ]
+        app.launch()
+
+        let sessionActions = app.buttons["terminal.keybar.session-actions"]
+        XCTAssertTrue(sessionActions.waitForExistence(timeout: 10))
+        XCTAssertTrue(sessionActions.isHittable)
+        XCTAssertGreaterThanOrEqual(sessionActions.frame.width, 44)
+        XCTAssertGreaterThanOrEqual(sessionActions.frame.height, 44)
+        XCTAssertFalse(app.buttons["Esc"].exists)
+
+        sessionActions.tap()
+        XCTAssertTrue(
+            app.descendants(matching: .any)["terminal.session-actions"].firstMatch
+                .waitForExistence(timeout: 5)
+        )
+        XCTAssertEqual(app.state, .runningForeground)
+    }
+
+    @MainActor
     func testDirectionPadKeepsOriginalCompactSize() {
         let app = XCUIApplication()
         app.launchEnvironment["CONN_DEMO"] = "1"
@@ -116,8 +210,8 @@ final class TerminalKeybarLayoutUITests: XCTestCase {
         XCTAssertTrue(clearInput.waitForExistence(timeout: 5))
         XCTAssertTrue(returnKey.exists)
         XCTAssertFalse(app.buttons["Clear"].exists)
-        XCTAssertLessThan(clearInput.frame.minX, app.buttons["Esc"].frame.minX)
-        XCTAssertLessThan(returnKey.frame.minX, app.buttons["Esc"].frame.minX)
+        XCTAssertLessThan(clearInput.frame.minY, app.buttons["Esc"].frame.minY)
+        XCTAssertLessThan(returnKey.frame.minY, app.buttons["Esc"].frame.minY)
         XCTAssertEqual(app.state, .runningForeground)
     }
 
@@ -217,5 +311,15 @@ final class TerminalKeybarLayoutUITests: XCTestCase {
         XCTAssertEqual(errorToast.label, "无法建立附件上传通道。")
         XCTAssertTrue(app.buttons["terminal.keybar.upload.retry"].exists)
         XCTAssertEqual(app.state, .runningForeground)
+    }
+
+    @MainActor
+    private func launchSmokeTerminal() -> XCUIApplication {
+        let app = XCUIApplication()
+        app.launchEnvironment["CONN_DEMO"] = "1"
+        app.launchEnvironment["CONN_SMOKE_TERMINAL"] = "1"
+        app.launchArguments += ["-conn.settings.terminalCursorBlinking", "NO"]
+        app.launch()
+        return app
     }
 }

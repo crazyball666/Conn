@@ -46,11 +46,14 @@ final class TerminalTmuxRenameUITests: XCTestCase {
                 .waitForExistence(timeout: 5)
         )
         XCTAssertTrue(alert.waitForNonExistence(timeout: 5))
-        let terminalHeader = app.descendants(matching: .any)["terminal.header"]
-        XCTAssertTrue(terminalHeader.waitForExistence(timeout: 5))
+        let sessionActions = app.buttons["terminal.keybar.session-actions"]
+        XCTAssertTrue(sessionActions.waitForExistence(timeout: 5))
+        sessionActions.tap()
+        let currentTerminal = app.descendants(matching: .any)["terminal.session-actions.current"]
+        XCTAssertTrue(currentTerminal.waitForExistence(timeout: 5))
         let renamedTitle = XCTNSPredicateExpectation(
             predicate: NSPredicate(format: "label CONTAINS %@", "renamed-session"),
-            object: terminalHeader
+            object: currentTerminal
         )
         XCTAssertEqual(XCTWaiter.wait(for: [renamedTitle], timeout: 5), .completed)
         XCTAssertFalse(app.descendants(matching: .any)["conn.toast.error"].exists)

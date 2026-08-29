@@ -19,8 +19,10 @@ struct TerminalScreen: View {
     @State private var tabID: String
     @State private var isReconnecting = false
     @State private var isCommandPickerPresented = false
+    @State private var isSessionActionsPresented = false
     @State private var isSessionListPresented = false
     @State private var isNewTerminalPresented = false
+    @State private var deferredSessionAction: DeferredTerminalSessionAction?
     @State private var createAfterSessionListDismisses = false
     @State private var pendingCompletion: NewTerminalFlowCompletion?
     @StateObject private var insertionMailbox: TerminalTextInsertionMailbox
@@ -55,156 +57,154 @@ struct TerminalScreen: View {
     }
 
     var body: some View {
-        NavigationStack {
-            terminalContent
-                .navigationTitle(hostTitle)
-                .navigationBarTitleDisplayMode(.inline)
-                .toolbarBackground(.hidden, for: .navigationBar)
-                .toolbarColorScheme(terminalColorScheme, for: .navigationBar)
-                .toolbar {
-                    ToolbarItem(placement: .principal) {
-                        VStack(spacing: 0) {
-                            Text(hostTitle)
-                                .font(.headline)
-                                .foregroundStyle(.connInk)
-                                .lineLimit(1)
-                            Text(sessionSubtitle)
-                                .font(.caption2)
-                                .foregroundStyle(.connMuted)
-                                .lineLimit(1)
-                        }
-                        .frame(maxWidth: 220)
-                        .accessibilityElement(children: .combine)
-                        .accessibilityIdentifier("terminal.header")
-                    }
-                    terminalToolbar
-                }
-        }
-        .preferredColorScheme(terminalColorScheme)
-        // TerminalScreen is presented as a full-screen modal. The App-root toast
-        // overlay sits below that presentation, so terminal interaction notices need
-        // a presentation-local overlay backed by the same environment toast center.
-        .connGlobalToast()
-        .onAppear { verifyExistingTab() }
-        .onChange(of: activeTab?.id) { previousID, currentID in
-            guard previousID == tabID, currentID == nil else { return }
-            leaveClosedTab()
-        }
-        .sheet(isPresented: $isCommandPickerPresented) {
-            if let snippetRepository, let snippetGroupRepository {
-                TerminalCommandPickerView(
-                    repository: snippetRepository,
-                    groupRepository: snippetGroupRepository,
-                    onSelect: insertCommand
-                )
-                .presentationDragIndicator(.visible)
+        terminalContent
+            .preferredColorScheme(terminalColorScheme)
+            // TerminalScreen is presented as a full-screen modal. The App-root toast
+            // overlay sits below that presentation, so terminal interaction notices need
+            // a presentation-local overlay backed by the same environment toast center.
+            .connGlobalToast()
+            .onAppear { verifyExistingTab() }
+            .onChange(of: activeTab?.id) { previousID, currentID in
+                guard previousID == tabID, currentID == nil else { return }
+                leaveClosedTab()
             }
-        }
-        .sheet(
-            isPresented: $isSessionListPresented,
-            onDismiss: presentDeferredNewTerminal
-        ) {
-            TerminalSessionListSheet(
-                host: host,
-                store: terminalSessions.store,
-                selectedTabID: tabID,
-                onSelect: { selectedID in
-                    terminalSessions.store.select(selectedID)
-                    tabID = selectedID
-                    isSessionListPresented = false
-                },
-                onCreate: {
-                    createAfterSessionListDismisses = true
-                    isSessionListPresented = false
-                },
-                onRename: { id, alias in
-                    Task {
-                        if case let .failure(failure) = await terminalSessions.rename(id, to: alias),
-                           let message = terminalSessions.consumeFailure(failure) {
-                            toastCenter.show(message, style: .error)
+            .sheet(isPresented: $isCommandPickerPresented) {
+                if let snippetRepository, let snippetGroupRepository {
+                    TerminalCommandPickerView(
+                        repository: snippetRepository,
+                        groupRepository: snippetGroupRepository,
+                        onSelect: insertCommand
+                    )
+                    .presentationDragIndicator(.visible)
+                }
+            }
+            .sheet(
+                isPresented: $isSessionActionsPresented,
+                onDismiss: performDeferredSessionAction
+            ) {
+                if let tab = activeTab {
+                    TerminalSessionActionsSheet(
+                        tab: tab,
+                        onReturnToTerminalList: {
+                            deferSessionAction(.returnToTerminalList)
+                        },
+                        onSwitchTerminal: {
+                            deferSessionAction(.switchTerminal)
+                        },
+                        onCloseTerminal: {
+                            deferSessionAction(.closeTerminal)
                         }
-                    }
-                },
-                onClose: { id in
-                    Task {
-                        await terminalSessions.close(id)
-                        if tabID == id {
-                            if let recent = terminalSessions.store.recentTab(forHost: host.id) {
-                                tabID = recent.id
-                            } else {
-                                dismiss()
+                    )
+                    .presentationDetents([.height(356)])
+                    .presentationDragIndicator(.visible)
+                    .presentationBackground(Color.connBg)
+                }
+            }
+            .sheet(
+                isPresented: $isSessionListPresented,
+                onDismiss: presentDeferredNewTerminal
+            ) {
+                TerminalSessionListSheet(
+                    host: host,
+                    store: terminalSessions.store,
+                    selectedTabID: tabID,
+                    onSelect: { selectedID in
+                        terminalSessions.store.select(selectedID)
+                        tabID = selectedID
+                        isSessionListPresented = false
+                    },
+                    onCreate: {
+                        createAfterSessionListDismisses = true
+                        isSessionListPresented = false
+                    },
+                    onRename: { id, alias in
+                        Task {
+                            if case let .failure(failure) = await terminalSessions.rename(id, to: alias),
+                               let message = terminalSessions.consumeFailure(failure) {
+                                toastCenter.show(message, style: .error)
+                            }
+                        }
+                    },
+                    onClose: { id in
+                        Task {
+                            await terminalSessions.close(id)
+                            if tabID == id {
+                                if let recent = terminalSessions.store.recentTab(forHost: host.id) {
+                                    tabID = recent.id
+                                } else {
+                                    dismiss()
+                                }
                             }
                         }
                     }
-                }
+                )
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
+            }
+            .sheet(
+                isPresented: $isNewTerminalPresented,
+                onDismiss: switchToPendingCompletion
+            ) {
+                NewTerminalSheet(
+                    fixedHost: host,
+                    hostRepository: dependencies.hostRepository,
+                    terminalSessions: terminalSessions,
+                    onCompleted: { completion in
+                        pendingCompletion = completion
+                        isNewTerminalPresented = false
+                    }
+                )
+                .presentationDetents([.medium, .large])
+            }
+            .photosPicker(
+                isPresented: $isPhotoPickerPresented,
+                selection: $photoSelection,
+                maxSelectionCount: 10,
+                matching: .images,
+                preferredItemEncoding: .automatic
             )
-            .presentationDetents([.medium, .large])
-            .presentationDragIndicator(.visible)
-        }
-        .sheet(
-            isPresented: $isNewTerminalPresented,
-            onDismiss: switchToPendingCompletion
-        ) {
-            NewTerminalSheet(
-                fixedHost: host,
-                hostRepository: dependencies.hostRepository,
-                terminalSessions: terminalSessions,
-                onCompleted: { completion in
-                    pendingCompletion = completion
-                    isNewTerminalPresented = false
-                }
-            )
-            .presentationDetents([.medium, .large])
-        }
-        .photosPicker(
-            isPresented: $isPhotoPickerPresented,
-            selection: $photoSelection,
-            maxSelectionCount: 10,
-            matching: .images,
-            preferredItemEncoding: .automatic
-        )
-        .onChange(of: photoSelection.count) { _, count in
-            guard count > 0 else { return }
-            let selected = photoSelection
-            photoSelection = []
-            attachmentCoordinator.uploadPhotos(
-                selected,
-                providerWorkingDirectory: pendingAttachmentWorkingDirectory,
-                insertionContext: pendingAttachmentContext,
-                insertionMailbox: insertionMailbox
-            )
-            pendingAttachmentContext = nil
-            pendingAttachmentWorkingDirectory = nil
-        }
-        .onChange(of: isPhotoPickerPresented) { _, isPresented in
-            if !isPresented, photoSelection.isEmpty {
+            .onChange(of: photoSelection.count) { _, count in
+                guard count > 0 else { return }
+                let selected = photoSelection
+                photoSelection = []
+                attachmentCoordinator.uploadPhotos(
+                    selected,
+                    providerWorkingDirectory: pendingAttachmentWorkingDirectory,
+                    insertionContext: pendingAttachmentContext,
+                    insertionMailbox: insertionMailbox
+                )
                 pendingAttachmentContext = nil
                 pendingAttachmentWorkingDirectory = nil
             }
-        }
-        .fileImporter(
-            isPresented: $isFileImporterPresented,
-            allowedContentTypes: [.item],
-            allowsMultipleSelection: true
-        ) { result in
-            defer {
-                pendingAttachmentContext = nil
-                pendingAttachmentWorkingDirectory = nil
+            .onChange(of: isPhotoPickerPresented) { _, isPresented in
+                if !isPresented, photoSelection.isEmpty {
+                    pendingAttachmentContext = nil
+                    pendingAttachmentWorkingDirectory = nil
+                }
             }
-            guard case let .success(urls) = result, !urls.isEmpty else { return }
-            attachmentCoordinator.uploadFiles(
-                urls,
-                providerWorkingDirectory: pendingAttachmentWorkingDirectory,
-                insertionContext: pendingAttachmentContext,
-                insertionMailbox: insertionMailbox
-            )
-        }
-        .onDisappear { attachmentCoordinator.cancel() }
-        .onChange(of: attachmentCoordinator.panelState.phase) { _, phase in
-            presentAttachmentResult(phase)
-        }
+            .fileImporter(
+                isPresented: $isFileImporterPresented,
+                allowedContentTypes: [.item],
+                allowsMultipleSelection: true
+            ) { result in
+                defer {
+                    pendingAttachmentContext = nil
+                    pendingAttachmentWorkingDirectory = nil
+                }
+                guard case let .success(urls) = result, !urls.isEmpty else { return }
+                attachmentCoordinator.uploadFiles(
+                    urls,
+                    providerWorkingDirectory: pendingAttachmentWorkingDirectory,
+                    insertionContext: pendingAttachmentContext,
+                    insertionMailbox: insertionMailbox
+                )
+            }
+            .onDisappear { attachmentCoordinator.cancel() }
+            .onChange(of: attachmentCoordinator.panelState.phase) { _, phase in
+                presentAttachmentResult(phase)
+            }
         #if DEBUG
-        .overlay(alignment: .topLeading) {
+            .overlay(alignment: .topLeading) {
                 if ProcessInfo.processInfo.environment["CONN_SMOKE_TERMINAL_ATTACHMENTS"] != nil,
                    let lastInsertedText = insertionMailbox.lastConsumedText {
                     Text(lastInsertedText)
@@ -229,15 +229,6 @@ private extension TerminalScreen {
         }
     }
 
-    private var hostTitle: String {
-        let name = host.name.trimmingCharacters(in: .whitespacesAndNewlines)
-        return name.isEmpty ? host.address : name
-    }
-
-    private var sessionSubtitle: String {
-        activeTab?.displayName ?? L("终端")
-    }
-
     @ViewBuilder
     private var terminalContent: some View {
         let configuration = settings.terminalConfiguration
@@ -254,6 +245,9 @@ private extension TerminalScreen {
                     terminalGeneration: tab.generation,
                     insertionMailbox: insertionMailbox,
                     configuration: configuration,
+                    onShowSessionActions: {
+                        isSessionActionsPresented = true
+                    },
                     onChooseCommand: showCommandPicker,
                     onReconnect: { Task { await reconnect(tab.id) } },
                     onPersistentWorkspaceRenamed: { name in
@@ -283,27 +277,6 @@ private extension TerminalScreen {
                 )
                 .foregroundStyle(.connMuted)
             }
-        }
-    }
-
-    @ToolbarContentBuilder
-    private var terminalToolbar: some ToolbarContent {
-        ToolbarItem(placement: .topBarLeading) {
-            Button { dismiss() } label: {
-                Image(systemName: "chevron.backward")
-            }
-            .accessibilityLabel(L("返回"))
-        }
-        ToolbarItemGroup(placement: .topBarTrailing) {
-            Button(action: closeTerminalAndDismiss) {
-                Image(systemName: "xmark.circle")
-            }
-            .accessibilityLabel(L("退出终端"))
-
-            Button { isSessionListPresented = true } label: {
-                Image(systemName: "rectangle.stack")
-            }
-            .accessibilityLabel(L("会话列表"))
         }
     }
 
@@ -377,6 +350,24 @@ private extension TerminalScreen {
         toastCenter.show(L("终端会话不存在"), style: .error)
     }
 
+    private func deferSessionAction(_ action: DeferredTerminalSessionAction) {
+        deferredSessionAction = action
+        isSessionActionsPresented = false
+    }
+
+    private func performDeferredSessionAction() {
+        guard let action = deferredSessionAction else { return }
+        deferredSessionAction = nil
+        switch action {
+        case .returnToTerminalList:
+            dismiss()
+        case .switchTerminal:
+            isSessionListPresented = true
+        case .closeTerminal:
+            closeTerminalAndDismiss()
+        }
+    }
+
     private func presentDeferredNewTerminal() {
         guard createAfterSessionListDismisses else { return }
         createAfterSessionListDismisses = false
@@ -444,6 +435,178 @@ private extension TerminalScreen {
             toastCenter.show(message, style: .error)
         case .idle, .preparing, .uploading:
             break
+        }
+    }
+}
+
+private enum DeferredTerminalSessionAction {
+    case returnToTerminalList
+    case switchTerminal
+    case closeTerminal
+}
+
+private struct TerminalSessionActionsSheet: View {
+    let tab: TerminalTab
+    let onReturnToTerminalList: () -> Void
+    let onSwitchTerminal: () -> Void
+    let onCloseTerminal: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: ConnSpacing.sm) {
+            Text(L("会话操作"))
+                .font(.title2.weight(.bold))
+                .foregroundStyle(.connInk)
+
+            Text(L("当前终端"))
+                .font(.connFootnote)
+                .foregroundStyle(.connMuted)
+
+            currentTerminalCard
+
+            actionRow(
+                title: L("返回终端列表"),
+                systemName: "arrow.left",
+                identifier: "terminal.session-actions.return",
+                action: onReturnToTerminalList
+            )
+            actionRow(
+                title: L("切换终端"),
+                systemName: "rectangle.stack",
+                identifier: "terminal.session-actions.switch",
+                showsDisclosure: true,
+                action: onSwitchTerminal
+            )
+            actionRow(
+                title: L("关闭当前终端"),
+                systemName: "xmark.circle",
+                identifier: "terminal.session-actions.close",
+                destructive: true,
+                action: onCloseTerminal
+            )
+        }
+        .padding(.horizontal, ConnSpacing.page)
+        .padding(.top, ConnSpacing.sm)
+        .padding(.bottom, ConnSpacing.page)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("terminal.session-actions")
+    }
+
+    private var currentTerminalCard: some View {
+        HStack(spacing: ConnSpacing.sm) {
+            Image(systemName: sourceIcon)
+                .font(.system(size: 19, weight: .medium))
+                .foregroundStyle(.connAccent)
+                .frame(width: 28)
+            VStack(alignment: .leading, spacing: 3) {
+                Text(tab.displayName)
+                    .font(.connSubheadline)
+                    .foregroundStyle(.connInk)
+                    .lineLimit(1)
+                Text(sourceDescription)
+                    .font(.connFootnote)
+                    .foregroundStyle(.connMuted)
+                    .lineLimit(1)
+            }
+            Spacer(minLength: 0)
+            statusIndicator
+        }
+        .padding(.horizontal, ConnSpacing.sm)
+        .frame(maxWidth: .infinity)
+        .frame(height: 64)
+        .background(
+            Color.connSurface,
+            in: RoundedRectangle(cornerRadius: ConnRadius.control, style: .continuous)
+        )
+        .overlay {
+            RoundedRectangle(cornerRadius: ConnRadius.control, style: .continuous)
+                .strokeBorder(Color.connLine, lineWidth: 1)
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("terminal.session-actions.current")
+    }
+
+    private func actionRow(
+        title: String,
+        systemName: String,
+        identifier: String,
+        showsDisclosure: Bool = false,
+        destructive: Bool = false,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(role: destructive ? .destructive : nil, action: action) {
+            HStack(spacing: ConnSpacing.sm) {
+                Image(systemName: systemName)
+                    .font(.system(size: 18, weight: .medium))
+                    .frame(width: 24)
+                Text(title)
+                    .font(.connBody.weight(.semibold))
+                Spacer(minLength: 0)
+                if showsDisclosure {
+                    Image(systemName: "chevron.forward")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(.connMuted)
+                }
+            }
+            .foregroundStyle(destructive ? Color.connCrit : .connInk)
+            .padding(.horizontal, ConnSpacing.sm)
+            .frame(maxWidth: .infinity)
+            .frame(height: 50)
+            .background(
+                destructive ? Color.connCritFill : Color.connSurface,
+                in: RoundedRectangle(cornerRadius: ConnRadius.control, style: .continuous)
+            )
+            .overlay {
+                RoundedRectangle(cornerRadius: ConnRadius.control, style: .continuous)
+                    .strokeBorder(
+                        destructive ? Color.connCrit.opacity(0.35) : Color.connLine,
+                        lineWidth: 1
+                    )
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier(identifier)
+    }
+
+    private var sourceIcon: String {
+        switch tab.source {
+        case .shell: "terminal"
+        case .docker: "shippingbox"
+        case .script: "command"
+        case .persistent: "rectangle.connected.to.line.below"
+        }
+    }
+
+    private var sourceDescription: String {
+        switch tab.source {
+        case .shell:
+            L("普通终端")
+        case let .docker(containerName):
+            String(format: L("容器：%@"), containerName)
+        case let .script(title):
+            String(format: L("脚本：%@"), title)
+        case let .persistent(providerID):
+            String(format: L("持久终端：%@"), providerID)
+        }
+    }
+
+    @ViewBuilder
+    private var statusIndicator: some View {
+        switch tab.status {
+        case .connected:
+            Circle()
+                .fill(Color.connGood)
+                .frame(width: 10, height: 10)
+                .accessibilityLabel(L("已连接"))
+        case .reconnecting:
+            ProgressView()
+                .controlSize(.small)
+                .accessibilityLabel(L("正在重新连接…"))
+        case .disconnected:
+            Image(systemName: "wifi.exclamationmark")
+                .foregroundStyle(.connWarn)
+                .accessibilityLabel(L("终端连接已断开"))
         }
     }
 }
