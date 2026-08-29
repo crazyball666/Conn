@@ -142,13 +142,38 @@ struct TerminalInteractionControllerTests {
         #expect(controller.review == nil)
     }
 
+    @Test("history capture publishes only while its provider-history route remains current")
+    func historyCapturePublicationIsRouteGuarded() throws {
+        let controller = TerminalInteractionController()
+        controller.update(context(protocolRevision: 1, targetID: "pane-a"))
+        let action = controller.beginScroll()
+        guard case let .providerHistory(token) = action else {
+            Issue.record("expected provider-history route")
+            return
+        }
+
+        controller.update(context(protocolRevision: 2, targetID: "pane-a"))
+        #expect(controller.canPublishHistory(capturedWith: token))
+
+        controller.update(context(protocolRevision: 3, targetID: "pane-b"))
+        #expect(!controller.canPublishHistory(capturedWith: token))
+
+        controller.update(context(
+            protocolRevision: 4,
+            targetID: "pane-a",
+            modeCapability: .scrollable
+        ))
+        #expect(!controller.canPublishHistory(capturedWith: token))
+    }
+
     private func context(
         protocolRevision: UInt64 = 1,
         terminalGeneration: UInt64 = 1,
         columns: Int = 80,
         alternate: Bool = false,
         mouse: TerminalMouseTracking = .off,
-        targetID: String? = nil
+        targetID: String? = nil,
+        modeCapability: TerminalPersistentModeCapability = .none
     ) -> TerminalScrollRouteInput {
         TerminalScrollRouteInput(
             mode: .live,
@@ -170,7 +195,7 @@ struct TerminalInteractionControllerTests {
                     revision: 1,
                     freshness: .fresh,
                     isAlternateBuffer: false,
-                    modeCapability: .none,
+                    modeCapability: modeCapability,
                     historyAvailable: true,
                     targetID: $0
                 )

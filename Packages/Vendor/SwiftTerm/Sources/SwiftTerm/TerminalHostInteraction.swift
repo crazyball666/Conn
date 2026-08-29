@@ -64,6 +64,7 @@ public struct TerminalHostProtocolState: Sendable, Equatable {
     public let focusReportingEnabled: Bool
     public let synchronizedOutputEnabled: Bool
     public let applicationCursorEnabled: Bool
+    public let alternateScrollEnabled: Bool
     public let columns: Int
     public let rows: Int
 }
@@ -76,6 +77,7 @@ struct TerminalHostProtocolSignature: Equatable {
     let focusReportingEnabled: Bool
     let synchronizedOutputEnabled: Bool
     let applicationCursorEnabled: Bool
+    let alternateScrollEnabled: Bool
     let columns: Int
     let rows: Int
 }
@@ -172,6 +174,7 @@ extension Terminal {
             focusReportingEnabled: sendFocus,
             synchronizedOutputEnabled: synchronizedOutputActive,
             applicationCursorEnabled: applicationCursor,
+            alternateScrollEnabled: alternateScrollMode,
             columns: cols,
             rows: rows
         )
@@ -202,6 +205,7 @@ extension Terminal {
             focusReportingEnabled: signature.focusReportingEnabled,
             synchronizedOutputEnabled: signature.synchronizedOutputEnabled,
             applicationCursorEnabled: signature.applicationCursorEnabled,
+            alternateScrollEnabled: signature.alternateScrollEnabled,
             columns: signature.columns,
             rows: signature.rows
         )

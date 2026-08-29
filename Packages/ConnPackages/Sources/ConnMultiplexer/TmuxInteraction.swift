@@ -944,6 +944,7 @@ package actor TmuxOneShotInteractionBackend {
         pinned: TmuxResolvedInteractionState
     ) async throws -> PersistentTerminalHistorySnapshot {
         try validate(request, against: pinned.state)
+        try validateHistoryRoute(pinned.state)
         let historySize = max(pinned.historySize ?? 0, 0)
         let historyLimit = max(pinned.historyLimit ?? historySize, 0)
         let availableHistory = min(historySize, historyLimit)
@@ -970,6 +971,8 @@ package actor TmuxOneShotInteractionBackend {
         else {
             throw TmuxInteractionError.activePaneUnavailable
         }
+        try validate(request, against: current.state)
+        try validateHistoryRoute(current.state)
         let visibleCount = min(pinned.paneRows, parsed.lines.count)
         let visibleStart = parsed.lines.count - visibleCount
         return PersistentTerminalHistorySnapshot(
@@ -995,6 +998,18 @@ package actor TmuxOneShotInteractionBackend {
         }
         guard request.attachmentGeneration == state.attachmentGeneration else {
             throw PersistentTerminalInteractionError.staleAttachmentGeneration
+        }
+    }
+
+    private func validateHistoryRoute(
+        _ state: PersistentTerminalInteractionState
+    ) throws {
+        guard state.freshness != .stale,
+              state.isAlternateBuffer == false,
+              state.modeCapability == .none,
+              state.historyAvailable
+        else {
+            throw PersistentTerminalInteractionError.unavailable
         }
     }
 }

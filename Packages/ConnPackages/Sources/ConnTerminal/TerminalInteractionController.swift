@@ -141,6 +141,12 @@ public final class TerminalInteractionController {
         return action
     }
 
+    /// A completed capture can be published only if the same route still owns scrolling.
+    public func canPublishHistory(capturedWith token: TerminalRouteToken) -> Bool {
+        guard let context, token.matches(context) else { return false }
+        return router.route(context).kind == .providerHistory
+    }
+
     public func endScroll() {
         scrollIsActive = false
         pinnedScrollAction = nil

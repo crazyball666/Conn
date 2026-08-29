@@ -74,8 +74,11 @@
 
         private let continuation: AsyncStream<PersistentTerminalInteractionState>.Continuation
         private var state: PersistentTerminalInteractionState
+        private let exposesHistory: Bool
 
         init(generation: UInt64) {
+            let historyEnabled = ProcessInfo.processInfo.environment["CONN_SMOKE_TMUX_HISTORY"] != nil
+            exposesHistory = historyEnabled
             let target = PersistentTerminalInteractionTarget(
                 providerID: "tmux",
                 workspaceID: "$smoke",
@@ -88,7 +91,7 @@
                 freshness: .live,
                 isAlternateBuffer: false,
                 modeCapability: .none,
-                historyAvailable: false,
+                historyAvailable: historyEnabled,
                 observedAt: .now
             )
             let stream = PersistentTerminalInteractionStreams.makeStateStream()
@@ -219,7 +222,36 @@
         func captureHistory(
             _ request: PersistentTerminalHistoryRequest
         ) async throws -> PersistentTerminalHistorySnapshot {
-            throw PersistentTerminalInteractionError.unavailable
+            guard exposesHistory else {
+                throw PersistentTerminalInteractionError.unavailable
+            }
+            guard request.target == state.target else {
+                throw PersistentTerminalInteractionError.targetMismatch
+            }
+            guard request.attachmentGeneration == state.attachmentGeneration else {
+                throw PersistentTerminalInteractionError.staleAttachmentGeneration
+            }
+
+            // Reproduce the real Control Mode race: unrelated observations can advance
+            // while capture-pane is in flight without changing the active route.
+            advanceStateRevision()
+            try await Task.sleep(for: .milliseconds(180))
+            let text = "tmux history smoke"
+            let line = PersistentTerminalHistoryLine(
+                text: text,
+                cellColumnToUTF16Offset: Array(0 ... text.utf16.count),
+                isWrapped: false
+            )
+            return PersistentTerminalHistorySnapshot(
+                target: state.target,
+                attachmentGeneration: state.attachmentGeneration,
+                stateRevision: state.revision,
+                capturedAt: .now,
+                lines: [line],
+                visibleLineRange: 0 ..< 1,
+                isTruncated: false,
+                byteCount: text.utf8.count
+            )
         }
 
         func scrollProviderMode(_ request: PersistentTerminalModeScrollRequest) async throws {

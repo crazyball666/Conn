@@ -458,6 +458,8 @@
         private var renderTask: Task<Void, Never>?
         private var persistentStateTask: Task<Void, Never>?
         private var historyCaptureTask: Task<Void, Never>?
+        private var historyCaptureID: UUID?
+        private var historyCaptureToken: TerminalRouteToken?
         private var stateResolutionTask: Task<Void, Never>?
         private var providerScrollTask: Task<Void, Never>?
         private var quickActionDiscoveryTask: Task<Void, Never>?
@@ -593,6 +595,8 @@
             renderTask = nil
             persistentStateTask = nil
             historyCaptureTask = nil
+            historyCaptureID = nil
+            historyCaptureToken = nil
             stateResolutionTask = nil
             providerScrollTask = nil
             quickActionDiscoveryTask = nil
@@ -964,6 +968,10 @@
                 persistent: persistentRoute,
                 localHistoryAvailable: terminalView?.canScroll == true
             ))
+            if let historyCaptureToken,
+               !interactionController.canPublishHistory(capturedWith: historyCaptureToken) {
+                cancelHistoryCapture()
+            }
             syncInteractionPresentation()
         }
 
@@ -1048,7 +1056,7 @@
             // A provider-history request may still be in flight when the user resumes
             // interacting with the live terminal. Cancel it even before a review exists,
             // otherwise its late completion can cover the renderer after input has resumed.
-            historyCaptureTask?.cancel()
+            cancelHistoryCapture()
             guard isReviewActive else { return }
             interactionController.dismissReview()
             syncInteractionPresentation()
@@ -1115,8 +1123,8 @@
                 enqueueProviderScroll(rows)
             case .providerKeyDrivenMode, .providerAlternateKeys, .plainAlternateKeys:
                 terminalView.sendHostCursorKey(direction, count: abs(rows))
-            case .providerHistory:
-                capturePersistentHistory()
+            case let .providerHistory(token):
+                capturePersistentHistory(routeToken: token)
             case .resolvePersistentState:
                 resolvePersistentState(replayingRows: rows)
             case .selection, .pointer, .providerUnsupportedBoundary,
@@ -1200,8 +1208,9 @@
             }
         }
 
-        private func capturePersistentHistory() {
+        private func capturePersistentHistory(routeToken: TerminalRouteToken) {
             guard historyCaptureTask == nil,
+                  interactionController.canPublishHistory(capturedWith: routeToken),
                   let persistentInteraction,
                   let state = persistentState,
                   let request = try? PersistentTerminalHistoryRequest(
@@ -1212,12 +1221,23 @@
                   )
             else { return }
             let generation = terminalGeneration
+            let captureID = UUID()
+            historyCaptureID = captureID
+            historyCaptureToken = routeToken
             historyCaptureTask = Task { @MainActor [weak self] in
-                defer { self?.historyCaptureTask = nil }
+                defer {
+                    if self?.historyCaptureID == captureID {
+                        self?.historyCaptureTask = nil
+                        self?.historyCaptureID = nil
+                        self?.historyCaptureToken = nil
+                    }
+                }
                 do {
                     let captured = try await persistentInteraction.captureHistory(request)
                     guard !Task.isCancelled,
                           let self,
+                          historyCaptureID == captureID,
+                          interactionController.canPublishHistory(capturedWith: routeToken),
                           terminalGeneration == generation,
                           persistentState?.target == captured.target,
                           persistentState?.attachmentGeneration == captured.attachmentGeneration
@@ -1232,6 +1252,13 @@
                     self?.showNotice(L("远程历史记录暂不可用，请重试"), style: .warning)
                 }
             }
+        }
+
+        private func cancelHistoryCapture() {
+            historyCaptureTask?.cancel()
+            historyCaptureTask = nil
+            historyCaptureID = nil
+            historyCaptureToken = nil
         }
 
         private func presentReview(
@@ -1393,6 +1420,7 @@
                 revision: state.revision,
                 isAlternateBuffer: state.isAlternateBuffer,
                 mouseTracking: mouseTracking,
+                alternateScrollEnabled: state.alternateScrollEnabled,
                 bracketedPasteEnabled: state.bracketedPasteEnabled,
                 focusReportingEnabled: state.focusReportingEnabled,
                 synchronizedOutputEnabled: state.synchronizedOutputEnabled,

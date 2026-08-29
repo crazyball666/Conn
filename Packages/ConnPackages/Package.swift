@@ -28,7 +28,7 @@ let package = Package(
         // 需要 Citadel 暴露“PTY + exec”而不是“PTY + login shell”，用于 tmux -CC
         // 和普通 attach 的长驻进程通道。协议层 ConnSSH 仍不依赖 Citadel。
         .package(path: "../Vendor/Citadel"),
-        // 终端模拟（S2）。固定到经 Conn 验证的 SwiftTerm v1.15.0 源码，并仅在
+        // 终端模拟（S2）。固定到经 Conn 验证的 SwiftTerm v1.19.0 源码，并仅在
         // 仓库内 vendor 边界暴露主机交互能力，避免依赖上游未承诺的内部实现。
         .package(path: "../Vendor/SwiftTerm"),
         // 代码高亮（文件编辑器）。封装 highlight.js（JavaScriptCore 内运行，全离线、

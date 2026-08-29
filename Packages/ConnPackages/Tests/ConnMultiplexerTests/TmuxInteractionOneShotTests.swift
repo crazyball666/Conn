@@ -106,6 +106,49 @@ struct TmuxInteractionOneShotTests {
         #expect(!request.command.contains(" -M "))
     }
 
+    @Test(
+        "history capture rejects same-pane drift away from the history route",
+        arguments: [InteractionHistoryRouteDrift.copyMode, .alternateBuffer]
+    )
+    func rejectsHistoryRouteDriftDuringCapture(
+        _ drift: InteractionHistoryRouteDrift
+    ) async throws {
+        let fixture = try OneShotInteractionFixture(nonce: "history-drift")
+        let snapshotNonce = try TmuxInvocationNonce("history-snapshot")
+        let readExecutor = try InteractionSnapshotReadExecutor(
+            scope: fixture.scope,
+            nonce: snapshotNonce
+        )
+        let backend = TmuxOneShotInteractionBackend(
+            executor: readExecutor,
+            captureExecutor: InteractionStateChangingCaptureExecutor(
+                readExecutor: readExecutor,
+                drift: drift
+            ),
+            scope: fixture.scope,
+            dialect: .init(commandGuardShape: .threeFields, snapshotCodec: .quoted),
+            attachmentID: "attachment-1",
+            attachmentGeneration: 9,
+            tty: "/dev/ttys001",
+            processID: 501,
+            nonceFactory: { snapshotNonce }
+        )
+        let pinned = try await backend.resolve()
+        #expect(pinned.state.modeCapability == .none)
+        #expect(pinned.state.isAlternateBuffer == false)
+        #expect(pinned.state.historyAvailable)
+        let request = try PersistentTerminalHistoryRequest(
+            target: pinned.state.target,
+            attachmentGeneration: pinned.state.attachmentGeneration,
+            maxLines: 100,
+            maxBytes: 4_096
+        )
+
+        await #expect(throws: PersistentTerminalInteractionError.unavailable) {
+            try await backend.captureHistory(request, pinned: pinned)
+        }
+    }
+
     @Test("Control Mode 不可用时保留操作入口但拒绝执行，不做 one-shot 降级")
     func rejectsQuickActionsWhenControlModeIsUnavailable() async throws {
         let fixture = try OneShotInteractionFixture(nonce: "fallback-op")
@@ -217,11 +260,28 @@ private enum InteractionTestError: Error {
 
 private actor InteractionSnapshotReadExecutor: TmuxReadOnlyCommandExecuting {
     private let scope: TmuxOperationScope
-    private let output: [Data]
+    private let nonce: TmuxInvocationNonce
+    private var paneAlternateOn = false
+    private var paneInMode = false
+    private var paneMode = ""
     private(set) var executionCount = 0
 
     init(scope: TmuxOperationScope, nonce: TmuxInvocationNonce) throws {
         self.scope = scope
+        self.nonce = nonce
+    }
+
+    func apply(_ drift: InteractionHistoryRouteDrift) {
+        switch drift {
+        case .copyMode:
+            paneInMode = true
+            paneMode = "copy-mode"
+        case .alternateBuffer:
+            paneAlternateOn = true
+        }
+    }
+
+    private func snapshotOutput() throws -> [Data] {
         let plan = try TmuxSnapshotQueryRenderer().renderPlan(codec: .quoted, nonce: nonce)
         let step = try #require(plan.steps.first)
         let records: [TmuxSnapshotSection: [Data]] = [
@@ -232,7 +292,7 @@ private actor InteractionSnapshotReadExecutor: TmuxReadOnlyCommandExecuting {
             .windowLinks: [interactionLine(#""$1" "@1" "0" "1""#)],
             .windows: [interactionLine(#""@1" "editor" "layout" "0""#)],
             .panes: [interactionLine(
-                #""@1" "%1" "0" "editor" "sh" "/repo" "80" "24" "0" "1" "0" "0" "" "0" "120" "2000""#
+                #""@1" "%1" "0" "editor" "sh" "/repo" "80" "24" "0" "1" "\#(paneAlternateOn ? 1 : 0)" "\#(paneInMode ? 1 : 0)" "\#(paneMode)" "0" "120" "2000""#
             )],
             .clients: [interactionLine(
                 #""/dev/ttys001" "/dev/ttys001" "501" "1001" "$1" "@1" "%1" "ignore-size" "0""#
@@ -241,7 +301,7 @@ private actor InteractionSnapshotReadExecutor: TmuxReadOnlyCommandExecuting {
                 #""/tmp/tmux/default" "100" "200" "3.5a""#
             )],
         ]
-        output = step.frames.flatMap { frame in
+        return step.frames.flatMap { frame in
             [interactionLine(frame.beginMarker)]
                 + (records[frame.section] ?? [])
                 + [interactionLine(frame.endMarker)]
@@ -256,7 +316,27 @@ private actor InteractionSnapshotReadExecutor: TmuxReadOnlyCommandExecuting {
         executionCount += 1
         #expect(request.semantics == .readOnly)
         #expect(requestedScope == scope)
-        return .init(scope: scope, output: output)
+        return .init(scope: scope, output: try snapshotOutput())
+    }
+}
+
+enum InteractionHistoryRouteDrift: Sendable {
+    case copyMode
+    case alternateBuffer
+}
+
+private struct InteractionStateChangingCaptureExecutor: TmuxPaneHistoryCaptureExecuting {
+    let readExecutor: InteractionSnapshotReadExecutor
+    let drift: InteractionHistoryRouteDrift
+
+    func capture(
+        paneID: TmuxPaneID,
+        startLine: Int,
+        maximumBytes: Int,
+        timeout: Duration
+    ) async throws -> TmuxPaneCaptureResult {
+        await readExecutor.apply(drift)
+        return .init(data: Data("history\n".utf8), isTruncated: false)
     }
 }
 

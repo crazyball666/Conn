@@ -51,7 +51,16 @@ struct TerminalHostInteractionTests {
         #expect(changed.bracketedPasteEnabled)
         #expect(changed.focusReportingEnabled)
         #expect(changed.applicationCursorEnabled)
+        #expect(changed.alternateScrollEnabled)
         #expect(callbacks.last == changed)
+
+        let beforeAlternateScroll = changed.revision
+        terminal.feed(text: "\u{1b}[?1007l")
+        #expect(!terminal.hostProtocolState.alternateScrollEnabled)
+        #expect(terminal.hostProtocolState.revision > beforeAlternateScroll)
+
+        terminal.feed(text: "\u{1b}[?1007h")
+        #expect(terminal.hostProtocolState.alternateScrollEnabled)
 
         terminal.resize(cols: 100, rows: 40)
         #expect(terminal.hostProtocolState.revision > changed.revision)

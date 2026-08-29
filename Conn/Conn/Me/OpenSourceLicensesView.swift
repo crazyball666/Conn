@@ -24,7 +24,7 @@ GRDB.swift 7.11.1 — MIT
 https://github.com/groue/GRDB.swift
 Citadel 0.12.1 — MIT
 https://github.com/orlandos-nl/Citadel
-SwiftTerm 1.15.0 — MIT
+SwiftTerm 1.19.0 — MIT
 https://github.com/migueldeicaza/SwiftTerm
 Highlightr 2.3.0 — MIT
 https://github.com/raspu/Highlightr
