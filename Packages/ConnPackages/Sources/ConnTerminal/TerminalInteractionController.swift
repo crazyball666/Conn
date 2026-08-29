@@ -251,6 +251,7 @@ public final class TerminalInteractionController {
             revision: 0,
             isAlternateBuffer: false,
             mouseTracking: .off,
+            alternateScrollEnabled: true,
             bracketedPasteEnabled: false,
             focusReportingEnabled: false,
             applicationCursorEnabled: false,

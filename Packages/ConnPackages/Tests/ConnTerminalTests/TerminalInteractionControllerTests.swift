@@ -37,7 +37,7 @@ struct TerminalInteractionControllerTests {
         ) == .left)
     }
 
-    @Test("one route remains pinned for a gesture and is invalidated by protocol change")
+    @Test("one route remains pinned across observational revisions and invalidates on routing change")
     func pinsRouteAcrossGesture() {
         let controller = TerminalInteractionController()
         controller.update(context(protocolRevision: 4, alternate: true))
@@ -47,10 +47,13 @@ struct TerminalInteractionControllerTests {
         #expect(controller.continueScroll().kind == .plainAlternateKeys)
 
         controller.update(context(protocolRevision: 5, alternate: true))
+        #expect(controller.continueScroll().kind == .plainAlternateKeys)
+
+        controller.update(context(protocolRevision: 6, alternate: false))
         #expect(controller.continueScroll().kind == .boundary)
 
         controller.endScroll()
-        #expect(controller.beginScroll().kind == .plainAlternateKeys)
+        #expect(controller.beginScroll().kind == .localNormalBuffer)
     }
 
     @Test("review and selection are frozen local states with native tap granularities")
@@ -153,6 +156,7 @@ struct TerminalInteractionControllerTests {
                 revision: protocolRevision,
                 isAlternateBuffer: alternate,
                 mouseTracking: mouse,
+                alternateScrollEnabled: true,
                 bracketedPasteEnabled: false,
                 focusReportingEnabled: false,
                 applicationCursorEnabled: false,

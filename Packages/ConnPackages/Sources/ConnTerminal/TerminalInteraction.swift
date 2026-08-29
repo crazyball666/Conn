@@ -12,6 +12,7 @@ public struct TerminalProtocolState: Sendable, Equatable {
     public let revision: UInt64
     public let isAlternateBuffer: Bool
     public let mouseTracking: TerminalMouseTracking
+    public let alternateScrollEnabled: Bool
     public let bracketedPasteEnabled: Bool
     public let focusReportingEnabled: Bool
     public let synchronizedOutputEnabled: Bool
@@ -23,6 +24,7 @@ public struct TerminalProtocolState: Sendable, Equatable {
         revision: UInt64,
         isAlternateBuffer: Bool,
         mouseTracking: TerminalMouseTracking,
+        alternateScrollEnabled: Bool = true,
         bracketedPasteEnabled: Bool,
         focusReportingEnabled: Bool,
         synchronizedOutputEnabled: Bool = false,
@@ -33,12 +35,45 @@ public struct TerminalProtocolState: Sendable, Equatable {
         self.revision = revision
         self.isAlternateBuffer = isAlternateBuffer
         self.mouseTracking = mouseTracking
+        self.alternateScrollEnabled = alternateScrollEnabled
         self.bracketedPasteEnabled = bracketedPasteEnabled
         self.focusReportingEnabled = focusReportingEnabled
         self.synchronizedOutputEnabled = synchronizedOutputEnabled
         self.applicationCursorEnabled = applicationCursorEnabled
         self.columns = columns
         self.rows = rows
+    }
+}
+
+public struct TerminalHostScrollSignature: Sendable, Equatable {
+    public let isAlternateBuffer: Bool
+    public let mouseTracking: TerminalMouseTracking
+    public let alternateScrollEnabled: Bool
+    public let columns: Int
+    public let rows: Int
+
+    public init(_ state: TerminalProtocolState) {
+        isAlternateBuffer = state.isAlternateBuffer
+        mouseTracking = state.mouseTracking
+        alternateScrollEnabled = state.alternateScrollEnabled
+        columns = state.columns
+        rows = state.rows
+    }
+}
+
+public struct TerminalPersistentScrollSignature: Sendable, Equatable {
+    public let freshness: TerminalPersistentStateFreshness
+    public let isAlternateBuffer: Bool
+    public let modeCapability: TerminalPersistentModeCapability
+    public let historyAvailable: Bool
+    public let targetID: String?
+
+    public init(_ state: TerminalPersistentRouteState) {
+        freshness = state.freshness
+        isAlternateBuffer = state.isAlternateBuffer
+        modeCapability = state.modeCapability
+        historyAvailable = state.historyAvailable
+        targetID = state.targetID
     }
 }
 
@@ -113,22 +148,22 @@ public struct TerminalScrollRouteInput: Sendable, Equatable {
 
 public struct TerminalRouteToken: Sendable, Equatable {
     public let terminalGeneration: UInt64
-    public let protocolRevision: UInt64
     public let attachmentGeneration: UInt64
-    public let persistentRevision: UInt64?
+    public let host: TerminalHostScrollSignature
+    public let persistent: TerminalPersistentScrollSignature?
 
     public init(_ input: TerminalScrollRouteInput) {
         terminalGeneration = input.terminalGeneration
-        protocolRevision = input.protocolState.revision
         attachmentGeneration = input.attachmentGeneration
-        persistentRevision = input.persistent?.revision
+        host = TerminalHostScrollSignature(input.protocolState)
+        persistent = input.persistent.map(TerminalPersistentScrollSignature.init)
     }
 
     public func matches(_ input: TerminalScrollRouteInput) -> Bool {
         terminalGeneration == input.terminalGeneration
-            && protocolRevision == input.protocolState.revision
             && attachmentGeneration == input.attachmentGeneration
-            && persistentRevision == input.persistent?.revision
+            && host == TerminalHostScrollSignature(input.protocolState)
+            && persistent == input.persistent.map(TerminalPersistentScrollSignature.init)
     }
 }
 
@@ -248,7 +283,8 @@ public struct TerminalScrollRouter: Sendable {
             return .boundary(token)
         }
 
-        if input.protocolState.isAlternateBuffer {
+        if input.protocolState.isAlternateBuffer,
+           input.protocolState.alternateScrollEnabled {
             return .plainAlternateKeys(token)
         }
         if input.localHistoryAvailable {
