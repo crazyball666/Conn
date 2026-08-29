@@ -975,7 +975,7 @@ package actor TmuxOneShotInteractionBackend {
         return PersistentTerminalHistorySnapshot(
             target: request.target,
             attachmentGeneration: request.attachmentGeneration,
-            stateRevision: request.expectedStateRevision,
+            stateRevision: pinned.state.revision,
             capturedAt: clock(),
             lines: parsed.lines,
             visibleLineRange: visibleStart ..< parsed.lines.count,
@@ -995,9 +995,6 @@ package actor TmuxOneShotInteractionBackend {
         }
         guard request.attachmentGeneration == state.attachmentGeneration else {
             throw PersistentTerminalInteractionError.staleAttachmentGeneration
-        }
-        guard request.expectedStateRevision == state.revision else {
-            throw PersistentTerminalInteractionError.staleStateRevision
         }
     }
 }

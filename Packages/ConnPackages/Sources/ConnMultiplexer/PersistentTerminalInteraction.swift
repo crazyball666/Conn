@@ -87,14 +87,12 @@ public struct PersistentTerminalHistoryRequest: Sendable, Equatable {
 
     public let target: PersistentTerminalInteractionTarget
     public let attachmentGeneration: UInt64
-    public let expectedStateRevision: UInt64
     public let maxLines: Int
     public let maxBytes: Int
 
     public init(
         target: PersistentTerminalInteractionTarget,
         attachmentGeneration: UInt64,
-        expectedStateRevision: UInt64,
         maxLines: Int,
         maxBytes: Int
     ) throws {
@@ -106,7 +104,6 @@ public struct PersistentTerminalHistoryRequest: Sendable, Equatable {
         }
         self.target = target
         self.attachmentGeneration = attachmentGeneration
-        self.expectedStateRevision = expectedStateRevision
         self.maxLines = maxLines
         self.maxBytes = maxBytes
     }
@@ -165,14 +162,12 @@ public struct PersistentTerminalModeScrollRequest: Sendable, Equatable {
 
     public let target: PersistentTerminalInteractionTarget
     public let attachmentGeneration: UInt64
-    public let expectedStateRevision: UInt64
     public let direction: PersistentTerminalScrollDirection
     public let rows: Int
 
     public init(
         target: PersistentTerminalInteractionTarget,
         attachmentGeneration: UInt64,
-        expectedStateRevision: UInt64,
         direction: PersistentTerminalScrollDirection,
         rows: Int
     ) throws {
@@ -181,7 +176,6 @@ public struct PersistentTerminalModeScrollRequest: Sendable, Equatable {
         }
         self.target = target
         self.attachmentGeneration = attachmentGeneration
-        self.expectedStateRevision = expectedStateRevision
         self.direction = direction
         self.rows = rows
     }

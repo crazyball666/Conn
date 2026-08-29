@@ -411,7 +411,6 @@ actor TmuxProviderControlRuntimeRegistry {
             lease: hubLease,
             target: request.target,
             attachmentGeneration: registration.attachmentGeneration,
-            expectedRevision: request.expectedStateRevision,
             direction: request.direction,
             rows: request.rows,
             timeout: .seconds(5)

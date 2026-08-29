@@ -106,6 +106,83 @@ struct TmuxControlHubTests {
         await hub.releaseLease(observation.lease)
     }
 
+    @Test("mode scroll resolves the current pane after unrelated revision drift")
+    func modeScrollIgnoresUnrelatedRevisionDrift() async throws {
+        let fixture = try ControlHubFixture()
+        let adapter = ScriptedControlHubAdapter()
+        let attachmentID = "attachment-mode-scroll"
+        let clientID = TmuxClientID(
+            targetName: "/dev/pts/31",
+            processID: 31,
+            createdAt: 31
+        )
+        let client = TmuxClientSnapshot(
+            id: clientID,
+            sessionID: fixture.session,
+            currentWindowID: fixture.window,
+            activePaneID: fixture.pane,
+            flags: [],
+            role: .connInteractive(attachmentID: attachmentID),
+            kind: .interactiveTerminal,
+            sizeParticipation: .participating,
+            observedAt: fixture.now
+        )
+        let interaction = TmuxPaneInteractionSnapshot(
+            alternateOn: .init(value: false, freshness: .snapshot(observedAt: fixture.now)),
+            paneInMode: .init(value: true, freshness: .snapshot(observedAt: fixture.now)),
+            mode: .init(value: "copy-mode", freshness: .snapshot(observedAt: fixture.now)),
+            mouseAnyFlag: .init(value: false, freshness: .snapshot(observedAt: fixture.now)),
+            historySize: .init(value: 100, freshness: .snapshot(observedAt: fixture.now)),
+            historyLimit: .init(value: 2_000, freshness: .snapshot(observedAt: fixture.now))
+        )
+        let hub = try TmuxControlHub(
+            scope: try fixture.scope(),
+            initialSnapshot: try fixture.snapshot(
+                clients: [clientID: client],
+                paneInteraction: interaction
+            ),
+            adapter: adapter,
+            clock: { fixture.later }
+        )
+        let observation = try await hub.acquireInteractionLease(
+            identity: .init(
+                attachmentID: attachmentID,
+                clientID: clientID,
+                requestedSessionID: fixture.session
+            ),
+            target: .session(fixture.session)
+        )
+        _ = try await hub.apply(fixture.envelope(
+            event: .paneMetadataChanged(
+                fixture.pane,
+                field: .title,
+                value: .init(value: "unrelated", freshness: .snapshot(observedAt: fixture.later))
+            )
+        ))
+
+        _ = try await hub.executeModeScroll(
+            lease: observation.lease,
+            target: .init(
+                providerID: TmuxProvider.providerID,
+                workspaceID: fixture.session.rawValue,
+                targetID: fixture.pane.rawValue
+            ),
+            attachmentGeneration: 3,
+            direction: .up,
+            rows: 7,
+            timeout: .seconds(1)
+        )
+
+        #expect(await adapter.executedRequests.map(\.operation) == [
+            .scrollPaneMode(
+                fixture.pane,
+                direction: .up,
+                rows: try TmuxScrollRowCount(7)
+            ),
+        ])
+        await hub.releaseLease(observation.lease)
+    }
+
     @Test("reconciliation is loaded through the adapter only for current events")
     func loadsSnapshotsAtTheAdapterSeam() async throws {
         let fixture = try ControlHubFixture()
@@ -1488,6 +1565,7 @@ private struct ControlHubFixture: Sendable {
         additionalWindow: TmuxWindowID? = nil,
         activePane: TmuxPaneID? = nil,
         additionalPanes: [TmuxPaneID] = [],
+        paneInteraction: TmuxPaneInteractionSnapshot = .unavailable,
         paneSize: TermSize = .init(cols: 80, rows: 24)
     ) throws -> TmuxServerSnapshot {
         let effectiveActivePane = activePane ?? pane
@@ -1516,6 +1594,7 @@ private struct ControlHubFixture: Sendable {
             title: .unavailable,
             currentCommand: .unavailable,
             currentPath: .unavailable,
+            interaction: paneInteraction,
             size: paneSize,
             isDead: false
         )]

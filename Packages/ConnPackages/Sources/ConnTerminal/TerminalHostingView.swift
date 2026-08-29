@@ -1162,7 +1162,6 @@
             guard let request = try? PersistentTerminalModeScrollRequest(
                 target: state.target,
                 attachmentGeneration: state.attachmentGeneration,
-                expectedStateRevision: state.revision,
                 direction: rows > 0 ? .up : .down,
                 rows: abs(rows)
             ) else { return }
@@ -1208,7 +1207,6 @@
                   let request = try? PersistentTerminalHistoryRequest(
                       target: state.target,
                       attachmentGeneration: state.attachmentGeneration,
-                      expectedStateRevision: state.revision,
                       maxLines: 20000,
                       maxBytes: 1_048_576
                   )

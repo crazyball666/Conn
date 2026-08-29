@@ -83,7 +83,6 @@ struct TmuxProviderControlRuntimeRegistryTests {
         let request = try PersistentTerminalModeScrollRequest(
             target: target,
             attachmentGeneration: 3,
-            expectedStateRevision: state.revision,
             direction: .up,
             rows: 7
         )
@@ -203,7 +202,6 @@ struct TmuxProviderControlRuntimeRegistryTests {
         let staleGeneration = try PersistentTerminalModeScrollRequest(
             target: target,
             attachmentGeneration: 2,
-            expectedStateRevision: state.revision,
             direction: .up,
             rows: 1
         )
@@ -217,7 +215,6 @@ struct TmuxProviderControlRuntimeRegistryTests {
                 targetID: "%999"
             ),
             attachmentGeneration: 3,
-            expectedStateRevision: state.revision,
             direction: .up,
             rows: 1
         )

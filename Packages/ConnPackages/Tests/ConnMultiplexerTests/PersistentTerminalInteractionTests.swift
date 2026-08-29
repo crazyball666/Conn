@@ -73,7 +73,6 @@ struct PersistentTerminalInteractionTests {
         let request = try historyRequest(maxLines: 50, maxBytes: 4_096)
         #expect(request.target == target)
         #expect(request.attachmentGeneration == 7)
-        #expect(request.expectedStateRevision == 9)
 
         let action = PersistentTerminalQuickActionRequest(
             actionID: "provider.action",
@@ -156,7 +155,6 @@ struct PersistentTerminalInteractionTests {
         try PersistentTerminalHistoryRequest(
             target: target,
             attachmentGeneration: 7,
-            expectedStateRevision: 9,
             maxLines: maxLines,
             maxBytes: maxBytes
         )
@@ -166,7 +164,6 @@ struct PersistentTerminalInteractionTests {
         try PersistentTerminalModeScrollRequest(
             target: target,
             attachmentGeneration: 7,
-            expectedStateRevision: 9,
             direction: .up,
             rows: rows
         )

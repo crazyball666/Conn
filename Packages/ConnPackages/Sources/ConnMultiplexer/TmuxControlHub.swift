@@ -642,7 +642,6 @@ package actor TmuxControlHub {
         lease: TmuxControlHubLease,
         target: PersistentTerminalInteractionTarget,
         attachmentGeneration: UInt64,
-        expectedRevision: UInt64,
         direction: PersistentTerminalScrollDirection,
         rows: Int,
         timeout: Duration
@@ -661,18 +660,15 @@ package actor TmuxControlHub {
         else {
             throw TmuxInteractionError.clientUnavailable
         }
-        guard snapshot.revision == expectedRevision else {
-            throw TmuxInteractionError.staleState(
-                expectedRevision: expectedRevision,
-                actualRevision: snapshot.revision
-            )
-        }
         let resolved = try TmuxInteractionStateProjector().resolve(
             snapshot: snapshot,
             identity: interactionLease.identity,
             expectedTarget: target,
             attachmentGeneration: attachmentGeneration
         )
+        guard resolved.state.freshness != .stale else {
+            throw PersistentTerminalInteractionError.unavailable
+        }
         guard resolved.state.modeCapability == .scrollable else {
             throw TmuxInteractionError.unsupportedMode
         }
