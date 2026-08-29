@@ -50,7 +50,7 @@ Bracketed Paste、Focus Reporting、Synchronized Output、Application Cursor 等
 
 手势只固定“滚动应该走哪条路径”和“目标 Pane 是谁”，不固定后台命令使用的快照版本。`PersistentTerminalModeScrollRequest` 不再携带易过期的全局 `expectedStateRevision`。真正执行 Copy Mode 滚动时，Hub 在命令进入串行执行槽后重新取得最新快照，并原子校验 attachment、目标 Pane 和最新 mode capability；无关 revision 漂移不阻止操作，Pane、attachment 或 mode 改变仍会拒绝操作。
 
-历史读取是只读操作，`PersistentTerminalHistoryRequest` 同样不携带 `expectedStateRevision`：开始前使用最新快照校验目标 Pane 和 attachment，并把实际读取快照的 revision 写入结果；完成后再次解析当前交互目标并确认 Pane 未切换。它不再因无关 revision 更新失败。若读取期间 Pane 已改变，结果仍丢弃，不会覆盖新 Pane 的终端画面。
+历史读取是只读操作，`PersistentTerminalHistoryRequest` 同样不携带 `expectedStateRevision`：开始前使用最新快照校验目标 Pane 和 attachment，并把实际读取快照的 revision 写入结果。每个读取任务同时绑定开始时的完整滚动路由签名；签名中的 freshness、Mouse Tracking、Alternate Buffer、1007、Pane、attachment、mode capability、历史可用性、尺寸或终端代次变化时立即取消任务。完成后再次解析当前交互目标，并通过 Router 确认最新路由仍是同一目标的 `providerHistory` 后才发布 Review。它不再因无关 revision 更新失败，也不会在读取期间进入 Copy Mode/TUI 后用旧历史覆盖当前画面。
 
 ### DECSET 1007
 
@@ -68,7 +68,8 @@ tmux Pane 自身的 Copy Mode 和其他 provider mode 仍优先于 1007，不改
 - 同一手势内的路由保持稳定；方向反转继续由现有 accumulator 清理反向余量。
 - tmux provider 命令继续进入已有串行队列，不新增并发通道。
 - stale provider state 只触发一次解析，并在解析后重放已累计行数。
-- attachment、目标 Pane 或终端代次变化时立即取消未完成历史读取和滚动任务。
+- Copy Mode 命令进入 Hub 执行槽后要求最新解析状态 freshness 可用且 mode capability 仍为 `.scrollable`；排队期间变为 stale 时拒绝旧操作，由 Coordinator 重新解析状态，不使用旧 mode 值发送命令。
+- 完整滚动路由签名变化时立即取消未完成历史读取；attachment、目标 Pane、模式或终端代次变化时取消对应滚动任务。
 - 不新增用户可见文案；现有错误提示与本地化目录不变。
 
 ## 测试与验收
@@ -86,6 +87,8 @@ tmux Pane 自身的 Copy Mode 和其他 provider mode 仍优先于 1007，不改
 - freshness、Mouse Tracking、Alternate Buffer、1007、Pane、attachment、mode capability、尺寸或终端代次变化时，路由立即失效或重新解析。
 - 只读历史请求允许无关 snapshot revision 更新，但拒绝目标 Pane 或 attachment 变化。
 - Copy Mode 请求在 Hub 队列等待期间允许无关 revision 漂移，但拒绝目标 Pane、attachment 或 mode capability 变化。
+- 历史读取期间进入 Copy Mode、Alternate Buffer、Mouse Tracking 或关闭 1007 时，旧结果不得发布 Review。
+- Copy Mode 请求排队期间 freshness 变为 stale 时不发送旧 mode 命令。
 - 1007 开启与关闭时的 Alternate Buffer 路由符合预期。
 - 普通终端本地 scrollback 行为不回归。
 - vendor BuildInfo 始终为 `v1.19.0` / `464df5207fc2432e16c9a23abe538187196daf5f`，且不受 Conn 工作区 dirty 状态影响。
