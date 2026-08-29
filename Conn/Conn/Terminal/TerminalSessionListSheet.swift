@@ -54,7 +54,7 @@ struct TerminalSessionListSheet: View {
                 } header: {
                     Text(host.displayAddress)
                 } footer: {
-                    Text(L("返回不会关闭会话。仅“退出终端”或在会话列表中关闭时，才会终止该 PTY。"))
+                    Text(L("关闭终端页面不会结束会话；仅在会话列表中删除时才会终止该 PTY。"))
                 }
             }
             .scrollContentBackground(.hidden)

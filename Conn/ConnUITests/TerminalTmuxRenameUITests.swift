@@ -89,6 +89,48 @@ final class TerminalTmuxRenameUITests: XCTestCase {
     }
 
     @MainActor
+    func testCloseSessionUsesSystemAlertAndClosesWorkspace() {
+        let app = XCUIApplication()
+        app.launchEnvironment["CONN_DEMO"] = "1"
+        app.launchEnvironment["CONN_SMOKE_TERMINAL"] = "1"
+        app.launchEnvironment["CONN_SMOKE_TERMINAL_EXPANDED"] = "1"
+        app.launchEnvironment["CONN_SMOKE_TMUX_ACTIONS"] = "1"
+        app.launchArguments += ["-conn.settings.terminalCursorBlinking", "NO"]
+        app.launch()
+
+        let providerTab = app.buttons["terminal.keybar.tab.tmux"]
+        XCTAssertTrue(providerTab.waitForExistence(timeout: 10))
+        providerTab.tap()
+
+        let closeSession = app.buttons["terminal.keybar.tmux.tmux.session.close"]
+        XCTAssertTrue(closeSession.waitForExistence(timeout: 5))
+        XCTAssertTrue(closeSession.isHittable)
+        closeSession.tap()
+
+        let alert = app.alerts["关闭当前 Session？"]
+        XCTAssertTrue(alert.waitForExistence(timeout: 5))
+        XCTAssertFalse(alert.textFields.firstMatch.exists)
+        let confirm = alert.buttons["关闭 Session"]
+        XCTAssertTrue(confirm.exists)
+        XCTAssertTrue(alert.buttons["取消"].exists)
+
+        let attachment = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+        attachment.name = "tmux close Session confirmation"
+        attachment.lifetime = .keepAlways
+        add(attachment)
+
+        confirm.tap()
+
+        XCTAssertTrue(
+            app.descendants(matching: .any)["terminal.viewport"].firstMatch
+                .waitForNonExistence(timeout: 5)
+        )
+        XCTAssertFalse(app.descendants(matching: .any)["conn.toast.error"].exists)
+        XCTAssertFalse(app.staticTexts["持久终端操作失败，请重试"].exists)
+        XCTAssertEqual(app.state, .runningForeground)
+    }
+
+    @MainActor
     func testClosePaneCompletesAfterKeyboardDrivenAlertResize() {
         let app = XCUIApplication()
         app.launchEnvironment["CONN_DEMO"] = "1"

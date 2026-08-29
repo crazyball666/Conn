@@ -112,7 +112,8 @@ struct ServersView: View {
             TerminalScreen(
                 host: route.host,
                 tabID: route.tabID,
-                dependencies: dependencies
+                dependencies: dependencies,
+                settings: settings
             )
         }
         .sheet(item: $newTerminalHost, onDismiss: openPendingTerminal) { host in

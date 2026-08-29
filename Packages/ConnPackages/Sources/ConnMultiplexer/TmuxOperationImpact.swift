@@ -328,7 +328,7 @@ public struct TmuxOperationImpactAnalyzer: Sendable {
             analysis.clientScope = .sessions(sessions)
             analysis.sharedStateEffects = [.windowPaneLayout]
 
-        case let .enterCopyMode(paneID):
+        case let .chooseTree(paneID, _), let .enterCopyMode(paneID):
             let pane = try requirePane(paneID, in: snapshot)
             let window = try requireWindow(pane.windowID, in: snapshot)
             analysis.target = paneTarget(pane, window: window)

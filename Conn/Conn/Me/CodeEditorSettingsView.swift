@@ -28,9 +28,10 @@ struct CodeEditorSettingsView: View {
                         Text("\(Int(settings.codeFontSize)) pt")
                             .foregroundStyle(.secondary)
                     } label: {
-                        Label(L("字体大小"), systemImage: "textformat.size")
+                        Label(L("字体大小"), systemImage: "ruler")
                     }
                 }
+                .accessibilityIdentifier("settings.editor.font-size")
 
                 Toggle(isOn: $settings.codeShowsLineNumbers) {
                     Label(L("显示行号"), systemImage: "list.number")

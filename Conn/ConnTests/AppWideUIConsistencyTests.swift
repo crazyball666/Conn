@@ -454,17 +454,57 @@ struct AppWideUIConsistencyTests {
         #expect(!keybar.contains("Button(L(\"执行\"))"))
     }
 
-    @Test("终端关闭先退出页面再异步释放会话")
-    func terminalCloseDismissesBeforeCleanup() throws {
+    @Test("终端会话操作仅保留切换与关闭页面，关闭页面不释放会话")
+    func terminalSessionActionsClosePageWithoutClosingSession() throws {
         let source = try appSource("Terminal/TerminalScreen.swift")
-        let helperStart = try #require(source.range(of: "private func closeTerminalAndDismiss()"))
-        let helper = source[helperStart.lowerBound...]
-        let dismissIndex = try #require(helper.range(of: "dismiss()")?.lowerBound)
-        let taskIndex = try #require(helper.range(of: "Task {")?.lowerBound)
 
-        #expect(dismissIndex < taskIndex)
-        #expect(helper.contains("await terminalSessions.close(closingID)"))
-        #expect(!helper.prefix(500).contains("tmux"))
+        #expect(!source.contains("onReturnToTerminalList"))
+        #expect(!source.contains("terminal.session-actions.return"))
+        #expect(!source.contains("closeTerminalAndDismiss"))
+        #expect(source.contains("case .closeTerminal:\n            dismiss()"))
+        #expect(source.contains("terminal.session-actions.switch"))
+        #expect(source.contains("terminal.session-actions.close"))
+    }
+
+    @Test("终端会话操作使用紧凑常规字重且仅图标使用主题色")
+    func terminalSessionActionsUseConsistentTypographyAndAccentIcons() throws {
+        let source = try appSource("Terminal/TerminalScreen.swift")
+
+        #expect(source.contains("Text(title)\n                    .font(.connSubheadline)\n                    .foregroundStyle(.connInk)"))
+        #expect(!source.contains("Text(title)\n                    .font(.connBody.weight(.semibold))"))
+        #expect(source.contains("Image(systemName: systemName)\n                    .font(.system(size: 18, weight: .medium))\n                    .foregroundStyle(.connAccent)"))
+        #expect(!source.contains(".foregroundStyle(destructive ? Color.connCrit : .connInk)"))
+    }
+
+    @Test("终端会话操作与会话列表统一居中标题和连接地址")
+    func terminalSessionActionsMatchSessionListHeader() throws {
+        let source = try appSource("Terminal/TerminalScreen.swift")
+
+        #expect(source.contains("TerminalSessionActionsSheet(\n                        host: host,"))
+        #expect(source.contains("NavigationStack"))
+        #expect(source.contains(".navigationTitle(L(\"会话操作\"))"))
+        #expect(source.contains(".navigationBarTitleDisplayMode(.inline)"))
+        #expect(source.contains("Text(host.displayAddress)"))
+        #expect(!source.contains("Text(host.name.isEmpty ? host.address : host.name)"))
+        #expect(!source.contains("Text(L(\"当前终端\"))"))
+    }
+
+    @Test("编辑器与终端字号设置使用一致默认值和语言无关图标")
+    func editorAndTerminalFontSettingsAreConsistent() throws {
+        let settings = try appSource("Settings/SettingsStore.swift")
+        let editorSettings = try appSource("Me/CodeEditorSettingsView.swift")
+        let terminalSettings = try appSource("Me/TerminalSettingsView.swift")
+        let editorConfiguration = try packageSource(
+            "Sources/ConnEditor/CodeEditorConfiguration.swift"
+        )
+
+        #expect(settings.contains("? CodeEditorConfiguration.defaultFontSize"))
+        #expect(settings.contains(": CodeEditorConfiguration.defaultFontSize"))
+        #expect(editorConfiguration.contains("public static let defaultFontSize: Double = 10"))
+        #expect(editorSettings.contains("Label(L(\"字体大小\"), systemImage: \"ruler\")"))
+        #expect(terminalSettings.contains("Label(L(\"字体大小\"), systemImage: \"ruler\")"))
+        #expect(!editorSettings.contains("systemImage: \"textformat.size\""))
+        #expect(!terminalSettings.contains("systemImage: \"textformat.size\""))
     }
 
     @Test("终端真实重连提示立即居中显示并使用紧凑实色背景")
@@ -709,6 +749,22 @@ struct AppWideUIConsistencyTests {
         #expect(!hosting.contains("providerNavigationTask"))
         #expect(!hosting.contains("providerNavigationQueue"))
         #expect(!keybar.contains(".disabled(performingProviderQuickActionID != nil)"))
+    }
+
+    @Test("tmux 快捷键通过系统确认关闭当前 Session 并结束 Workspace")
+    func tmuxQuickActionsCloseCurrentSessionThroughConfirmedQueue() throws {
+        let interaction = try packageSource("Sources/ConnMultiplexer/TmuxInteraction.swift")
+        let hub = try packageSource("Sources/ConnMultiplexer/TmuxControlHub.swift")
+        let hosting = try packageSource("Sources/ConnTerminal/TerminalHostingView.swift")
+
+        #expect(interaction.contains("case closeSession = \"tmux.session.close\""))
+        #expect(interaction.contains("descriptor(\n                    .closeSession,\n                    \"关闭 Session\""))
+        #expect(interaction.contains("confirmation: .init(titleKey: \"关闭当前 Session？\")"))
+        #expect(interaction.contains("case .closeSession:\n            .killSession(state.sessionID)"))
+        #expect(hub.contains("case .closeSession:\n            true"))
+        #expect(hosting.contains("confirmsDestructiveAction: true"))
+        #expect(hosting.contains("resolution: .currentAtExecution"))
+        #expect(hosting.contains("case .workspaceClosed:"))
     }
 
     @Test("创建 Docker 命令保存成功后锁定按钮并防止重复保存")

@@ -80,10 +80,19 @@ struct TmuxInteractionTests {
         #expect(TmuxTerminalQuickAction.group.title == "tmux")
         let client = try TmuxClientTarget(fixture.client.targetName)
         #expect(TmuxTerminalQuickAction.group.sections.count == 5)
-        #expect(TmuxTerminalQuickAction.group.actions.count == 26)
+        #expect(TmuxTerminalQuickAction.group.actions.count == 29)
+        #expect(TmuxTerminalQuickAction.group.sections.first {
+            $0.id == "session"
+        }?.actions.first?.id == TmuxTerminalQuickAction.sessionList.rawValue)
+        #expect(TmuxTerminalQuickAction.group.sections.first {
+            $0.id == "window"
+        }?.actions.first?.id == TmuxTerminalQuickAction.windowList.rawValue)
         #expect(TmuxTerminalQuickAction.group.actions.first {
             $0.id == TmuxTerminalQuickAction.renameSession.rawValue
         }?.completionEffect == .workspaceRenamed)
+        #expect(TmuxTerminalQuickAction.group.actions.first {
+            $0.id == TmuxTerminalQuickAction.closeSession.rawValue
+        }?.confirmation != nil)
         #expect(TmuxTerminalQuickAction.group.swipeAction(for: .left)?.actionID
             == TmuxTerminalQuickAction.nextWindow.rawValue)
         #expect(TmuxTerminalQuickAction.group.swipeAction(for: .left)?.unavailableNoticeKey
@@ -92,6 +101,18 @@ struct TmuxInteractionTests {
             == TmuxTerminalQuickAction.previousWindow.rawValue)
         #expect(TmuxTerminalQuickAction.group.swipeAction(for: .right)?.unavailableNoticeKey
             == "没有可切换的 Window")
+        #expect(try TmuxTerminalQuickAction.sessionList.operation(
+            for: resolved,
+            client: client
+        ) == .chooseTree(fixture.pane, scope: .sessions))
+        #expect(try TmuxTerminalQuickAction.closeSession.operation(
+            for: resolved,
+            client: client
+        ) == .killSession(fixture.session))
+        #expect(try TmuxTerminalQuickAction.windowList.operation(
+            for: resolved,
+            client: client
+        ) == .chooseTree(fixture.pane, scope: .windows))
         #expect(try TmuxTerminalQuickAction.nextWindow.operation(
             for: resolved,
             client: client,
@@ -186,6 +207,24 @@ struct TmuxInteractionTests {
         }
     }
 
+    @Test("projection follows an owned client after the native session chooser switches it")
+    func followsOwnedClientSessionSwitch() throws {
+        let fixture = try InteractionFixture()
+        let switchedSession = try #require(TmuxSessionID(rawValue: "$2"))
+        let state = try TmuxInteractionStateProjector().project(
+            snapshot: fixture.snapshot(
+                freshness: .snapshot(observedAt: fixture.now),
+                sessionID: switchedSession,
+                sessionName: "secondary"
+            ),
+            identity: fixture.identity,
+            attachmentGeneration: 9
+        )
+
+        #expect(state.target.workspaceID == switchedSession.rawValue)
+        #expect(state.workspaceName == "secondary")
+    }
+
     @Test("history parsing strips terminal side effects and returns immutable bounded lines")
     func sanitizesCapturedHistory() {
         let bytes = Data([
@@ -251,11 +290,16 @@ private struct InteractionFixture {
         .init(providerID: "tmux", workspaceID: session.rawValue, targetID: pane.rawValue)
     }
 
-    func snapshot(freshness: TmuxMetadataFreshness) throws -> TmuxServerSnapshot {
-        try TmuxServerSnapshot(
+    func snapshot(
+        freshness: TmuxMetadataFreshness,
+        sessionID: TmuxSessionID? = nil,
+        sessionName: String = "main"
+    ) throws -> TmuxServerSnapshot {
+        let activeSession = sessionID ?? session
+        return try TmuxServerSnapshot(
             instance: .init(token: token, version: "3.5a"),
-            sessions: [session: .init(
-                id: session, name: "main", groupName: nil, currentWindowID: window
+            sessions: [activeSession: .init(
+                id: activeSession, name: sessionName, groupName: nil, currentWindowID: window
             )],
             sessionGroups: [:],
             windows: [window: .init(
@@ -279,10 +323,10 @@ private struct InteractionFixture {
                 size: .init(cols: 80, rows: 24),
                 isDead: false
             )],
-            windowLinks: [.init(sessionID: session, windowID: window, index: 0)],
+            windowLinks: [.init(sessionID: activeSession, windowID: window, index: 0)],
             clients: [client: .init(
                 id: client,
-                sessionID: session,
+                sessionID: activeSession,
                 currentWindowID: window,
                 activePaneID: pane,
                 flags: [.ignoreSize, .activePane],

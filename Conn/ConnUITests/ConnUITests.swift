@@ -74,6 +74,80 @@ final class ConnUITests: XCTestCase {
     }
 
     @MainActor
+    func testEditorAndTerminalUseTenPointFontSettingInKorean() {
+        let app = XCUIApplication()
+        app.launchEnvironment["CONN_DEMO"] = "1"
+        app.launchEnvironment["CONN_SMOKE_ME"] = "1"
+        app.launchArguments += [
+            "-conn.language", "ko",
+            "-conn.settings.codeFontSize", "10",
+            "-conn.settings.terminalFontSize", "10",
+        ]
+        app.launch()
+
+        let editorLink = app.staticTexts["편집기 설정"]
+        XCTAssertTrue(editorLink.waitForExistence(timeout: 10))
+        editorLink.tap()
+        XCTAssertTrue(app.navigationBars["편집기 설정"].waitForExistence(timeout: 5))
+        let editorSize = app.steppers["settings.editor.font-size"]
+        XCTAssertTrue(editorSize.waitForExistence(timeout: 5))
+        XCTAssertTrue(editorSize.label.contains("글꼴 크기"))
+        XCTAssertTrue(editorSize.label.contains("10 pt"))
+        XCTAssertFalse(app.staticTexts["大小"].exists)
+
+        let editorAttachment = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+        editorAttachment.name = "Korean editor 10pt font setting"
+        editorAttachment.lifetime = .keepAlways
+        add(editorAttachment)
+
+        app.navigationBars["편집기 설정"].buttons.firstMatch.tap()
+        let terminalLink = app.staticTexts["터미널 설정"]
+        XCTAssertTrue(terminalLink.waitForExistence(timeout: 5))
+        terminalLink.tap()
+        XCTAssertTrue(app.navigationBars["터미널 설정"].waitForExistence(timeout: 5))
+        let terminalSize = app.steppers["settings.terminal.font-size"]
+        XCTAssertTrue(terminalSize.waitForExistence(timeout: 5))
+        XCTAssertTrue(terminalSize.label.contains("글꼴 크기"))
+        XCTAssertTrue(terminalSize.label.contains("10 pt"))
+        XCTAssertFalse(app.staticTexts["大小"].exists)
+
+        let attachment = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+        attachment.name = "Korean terminal 10pt font setting"
+        attachment.lifetime = .keepAlways
+        add(attachment)
+        XCTAssertEqual(app.state, .runningForeground)
+    }
+
+    @MainActor
+    func testDatabaseFailureIsCenteredAndRetryShowsProgress() {
+        let app = XCUIApplication()
+        app.launchEnvironment["CONN_SMOKE_DATABASE_FAILURE"] = "smoke database failure"
+        app.launchEnvironment["CONN_SMOKE_DATABASE_RECOVER_ON_RETRY"] = "1"
+        app.launch()
+
+        let content = app.descendants(matching: .any)["database.failure.content"].firstMatch
+        XCTAssertTrue(content.waitForExistence(timeout: 10))
+        let window = app.windows.firstMatch
+        XCTAssertEqual(content.frame.midY, window.frame.midY, accuracy: 60)
+
+        let retry = app.buttons["database.failure.retry"]
+        XCTAssertTrue(retry.isHittable)
+        retry.tap()
+        XCTAssertTrue(content.waitForNonExistence(timeout: 10))
+        XCTAssertTrue(app.buttons["主机"].waitForExistence(timeout: 10))
+        XCTAssertEqual(app.state, .runningForeground)
+
+        app.terminate()
+        let loadingApp = XCUIApplication()
+        loadingApp.launchEnvironment["CONN_SMOKE_DATABASE_LOADING"] = "1"
+        loadingApp.launch()
+        let loading = loadingApp.descendants(matching: .any)["database.initialization.loading"].firstMatch
+        XCTAssertTrue(loading.waitForExistence(timeout: 10))
+        XCTAssertEqual(loading.frame.midY, loadingApp.windows.firstMatch.frame.midY, accuracy: 60)
+        XCTAssertEqual(loadingApp.state, .runningForeground)
+    }
+
+    @MainActor
     func testTerminalKeyboardViewportRestoresAfterDismissAndReopen() {
         let app = XCUIApplication()
         app.launchEnvironment["CONN_DEMO"] = "1"

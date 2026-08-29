@@ -12,6 +12,7 @@ import UniformTypeIdentifiers
 struct TerminalScreen: View {
     let host: Host
     let dependencies: AppDependencies
+    private let settings: SettingsStore
     private let terminalSessions: TerminalSessionCoordinator
     private let snippetRepository: (any SnippetRepository)?
     private let snippetGroupRepository: (any SnippetGroupRepository)?
@@ -33,7 +34,6 @@ struct TerminalScreen: View {
     @State private var providerWorkingDirectory: String?
     @State private var pendingAttachmentContext: TerminalTextInsertionContext?
     @State private var pendingAttachmentWorkingDirectory: String?
-    @Environment(SettingsStore.self) private var settings
     @Environment(\.connToastCenter) private var toastCenter
     @Environment(\.dismiss) private var dismiss
 
@@ -41,10 +41,12 @@ struct TerminalScreen: View {
         host: Host,
         tabID: String,
         dependencies: AppDependencies,
+        settings: SettingsStore,
         terminalSessions: TerminalSessionCoordinator? = nil
     ) {
         self.host = host
         self.dependencies = dependencies
+        self.settings = settings
         self.terminalSessions = terminalSessions ?? dependencies.terminalSessions
         snippetRepository = dependencies.snippetRepository
         snippetGroupRepository = dependencies.snippetGroupRepository
@@ -84,10 +86,8 @@ struct TerminalScreen: View {
             ) {
                 if let tab = activeTab {
                     TerminalSessionActionsSheet(
+                        host: host,
                         tab: tab,
-                        onReturnToTerminalList: {
-                            deferSessionAction(.returnToTerminalList)
-                        },
                         onSwitchTerminal: {
                             deferSessionAction(.switchTerminal)
                         },
@@ -95,7 +95,7 @@ struct TerminalScreen: View {
                             deferSessionAction(.closeTerminal)
                         }
                     )
-                    .presentationDetents([.height(356)])
+                    .presentationDetents([.height(296)])
                     .presentationDragIndicator(.visible)
                     .presentationBackground(Color.connBg)
                 }
@@ -253,6 +253,13 @@ private extension TerminalScreen {
                     onPersistentWorkspaceRenamed: { name in
                         terminalSessions.store.updatePersistentWorkspaceName(tab.id, to: name)
                     },
+                    onPersistentWorkspaceChanged: { workspaceID, workspaceName in
+                        terminalSessions.updatePersistentWorkspaceBinding(
+                            tab.id,
+                            workspaceID: workspaceID,
+                            workspaceName: workspaceName
+                        )
+                    },
                     onPersistentWorkspaceClosed: {
                         closePersistentWorkspace(tab.id)
                     },
@@ -277,14 +284,6 @@ private extension TerminalScreen {
                 )
                 .foregroundStyle(.connMuted)
             }
-        }
-    }
-
-    private func closeTerminalAndDismiss() {
-        let closingID = tabID
-        dismiss()
-        Task {
-            await terminalSessions.close(closingID)
         }
     }
 
@@ -359,12 +358,10 @@ private extension TerminalScreen {
         guard let action = deferredSessionAction else { return }
         deferredSessionAction = nil
         switch action {
-        case .returnToTerminalList:
-            dismiss()
         case .switchTerminal:
             isSessionListPresented = true
         case .closeTerminal:
-            closeTerminalAndDismiss()
+            dismiss()
         }
     }
 
@@ -440,54 +437,48 @@ private extension TerminalScreen {
 }
 
 private enum DeferredTerminalSessionAction {
-    case returnToTerminalList
     case switchTerminal
     case closeTerminal
 }
 
 private struct TerminalSessionActionsSheet: View {
+    let host: Host
     let tab: TerminalTab
-    let onReturnToTerminalList: () -> Void
     let onSwitchTerminal: () -> Void
     let onCloseTerminal: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: ConnSpacing.sm) {
-            Text(L("会话操作"))
-                .font(.title2.weight(.bold))
-                .foregroundStyle(.connInk)
+        NavigationStack {
+            VStack(alignment: .leading, spacing: ConnSpacing.sm) {
+                Text(host.displayAddress)
+                    .font(.connData(.subheadline))
+                    .foregroundStyle(.connMuted)
+                    .lineLimit(1)
 
-            Text(L("当前终端"))
-                .font(.connFootnote)
-                .foregroundStyle(.connMuted)
+                currentTerminalCard
 
-            currentTerminalCard
-
-            actionRow(
-                title: L("返回终端列表"),
-                systemName: "arrow.left",
-                identifier: "terminal.session-actions.return",
-                action: onReturnToTerminalList
-            )
-            actionRow(
-                title: L("切换终端"),
-                systemName: "rectangle.stack",
-                identifier: "terminal.session-actions.switch",
-                showsDisclosure: true,
-                action: onSwitchTerminal
-            )
-            actionRow(
-                title: L("关闭当前终端"),
-                systemName: "xmark.circle",
-                identifier: "terminal.session-actions.close",
-                destructive: true,
-                action: onCloseTerminal
-            )
+                actionRow(
+                    title: L("切换终端"),
+                    systemName: "rectangle.stack",
+                    identifier: "terminal.session-actions.switch",
+                    showsDisclosure: true,
+                    action: onSwitchTerminal
+                )
+                actionRow(
+                    title: L("关闭终端"),
+                    systemName: "xmark.circle",
+                    identifier: "terminal.session-actions.close",
+                    action: onCloseTerminal
+                )
+            }
+            .padding(.horizontal, ConnSpacing.page)
+            .padding(.top, ConnSpacing.xs)
+            .padding(.bottom, ConnSpacing.page)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .navigationTitle(L("会话操作"))
+            .navigationBarTitleDisplayMode(.inline)
+            .background(Color.connBg.ignoresSafeArea())
         }
-        .padding(.horizontal, ConnSpacing.page)
-        .padding(.top, ConnSpacing.sm)
-        .padding(.bottom, ConnSpacing.page)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("terminal.session-actions")
     }
@@ -538,9 +529,11 @@ private struct TerminalSessionActionsSheet: View {
             HStack(spacing: ConnSpacing.sm) {
                 Image(systemName: systemName)
                     .font(.system(size: 18, weight: .medium))
+                    .foregroundStyle(.connAccent)
                     .frame(width: 24)
                 Text(title)
-                    .font(.connBody.weight(.semibold))
+                    .font(.connSubheadline)
+                    .foregroundStyle(.connInk)
                 Spacer(minLength: 0)
                 if showsDisclosure {
                     Image(systemName: "chevron.forward")
@@ -548,7 +541,6 @@ private struct TerminalSessionActionsSheet: View {
                         .foregroundStyle(.connMuted)
                 }
             }
-            .foregroundStyle(destructive ? Color.connCrit : .connInk)
             .padding(.horizontal, ConnSpacing.sm)
             .frame(maxWidth: .infinity)
             .frame(height: 50)

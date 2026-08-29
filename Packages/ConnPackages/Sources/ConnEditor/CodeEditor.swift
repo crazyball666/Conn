@@ -214,7 +214,10 @@ public final class GutterTextView: UITextView {
     }
 
     func applyTabStops(in requestedRange: NSRange? = nil) {
-        let font = font ?? UIFont.monospacedSystemFont(ofSize: 13, weight: .regular)
+        let font = font ?? UIFont.monospacedSystemFont(
+            ofSize: CGFloat(CodeEditorConfiguration.defaultFontSize),
+            weight: .regular
+        )
         let spaceWidth = (" " as NSString).size(withAttributes: [.font: font]).width
         let paragraphStyle = NSMutableParagraphStyle()
         paragraphStyle.tabStops = []
@@ -253,7 +256,13 @@ public final class GutterTextView: UITextView {
     }
 
     private func drawLineNumbers(_ rect: CGRect) {
-        let numberFont = UIFont.monospacedSystemFont(ofSize: max(9, (font?.pointSize ?? 13) - 2), weight: .regular)
+        let numberFont = UIFont.monospacedSystemFont(
+            ofSize: max(
+                9,
+                (font?.pointSize ?? CGFloat(CodeEditorConfiguration.defaultFontSize)) - 2
+            ),
+            weight: .regular
+        )
         let attributes: [NSAttributedString.Key: Any] = [.font: numberFont, .foregroundColor: gutterTextColor]
         let string = text as NSString
 

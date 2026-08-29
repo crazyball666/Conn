@@ -1084,6 +1084,34 @@ struct TerminalSessionCoordinatorTests {
         #expect(try repository.allRecords().first?.displayName == "production")
     }
 
+    @Test("持久终端切换 Workspace 后同步更新本地恢复记录")
+    func persistentWorkspaceSwitchUpdatesResumeRecord() throws {
+        let host = Host(id: "host-1", name: "web", address: "10.0.0.1", username: "root")
+        let recorder = PersistentRenameRecorder()
+        let provider = RenamePersistentProvider(recorder: recorder)
+        let repository = InMemoryTerminalResumeRepository()
+        let coordinator = TerminalSessionCoordinator(
+            hostRepository: TerminalHostRepository(hosts: [host]),
+            connectionManager: ConnectionManager(transport: MockSSHTransport()),
+            providerRegistry: try PersistentTerminalProviderRegistry(providers: [provider]),
+            resumeRepository: repository
+        )
+        let tab = makePersistentRenameTab(host: host, descriptor: provider.attachmentDescriptor)
+        coordinator.store.add(tab)
+
+        coordinator.updatePersistentWorkspaceBinding(
+            tab.id,
+            workspaceID: "$2",
+            workspaceName: "secondary"
+        )
+
+        let record = try #require(repository.allRecords().first)
+        #expect(record.id == tab.id)
+        #expect(record.workspaceID == "$2")
+        #expect(record.automaticAlias == "secondary")
+        #expect(coordinator.store.tab(id: tab.id)?.displayName == "secondary")
+    }
+
     @Test("持久终端远端重命名失败时保留本地名称")
     func failedPersistentRenameKeepsLocalName() async throws {
         let host = Host(id: "host-1", name: "web", address: "10.0.0.1", username: "root")

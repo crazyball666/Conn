@@ -23,6 +23,8 @@ struct SettingsStoreTests {
 
         #expect(settings.appearance == .dark)
         #expect(settings.accent == .purple)
+        #expect(settings.codeFontSize == 10)
+        #expect(settings.codeEditorConfiguration.fontSize == 10)
         #expect(settings.terminalFontSize == 10)
         #expect(settings.terminalConfiguration.fontSize == 10)
     }
@@ -83,7 +85,7 @@ struct SettingsStoreTests {
 
         let settings = SettingsStore(defaults: defaults)
 
-        #expect(settings.codeFontSize == 13)
+        #expect(settings.codeFontSize == 10)
         #expect(settings.codeTabWidth == 4)
     }
 }

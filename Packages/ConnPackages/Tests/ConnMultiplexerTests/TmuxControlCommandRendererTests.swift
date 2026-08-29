@@ -89,6 +89,8 @@ struct TmuxControlCommandRendererTests {
                 "resize-pane -L -t '%3' '5'"
             ),
             (.swapPane(pane, direction: .previous), "swap-pane -U -t '%3'"),
+            (.chooseTree(pane, scope: .sessions), "choose-tree -s -t '%3'"),
+            (.chooseTree(pane, scope: .windows), "choose-tree -w -t '%3'"),
             (.enterCopyMode(pane), "copy-mode -t '%3'"),
             (.killPane(pane), "kill-pane -t '%3'"),
             (

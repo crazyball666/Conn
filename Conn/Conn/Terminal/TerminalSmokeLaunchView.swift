@@ -12,6 +12,7 @@ struct TerminalSmokeLaunchView: View {
 
     @State private var launcher: TerminalLaunchPresentation
     @State private var didStart = false
+    @Environment(SettingsStore.self) private var settings
 
     init(
         host: Host,
@@ -46,7 +47,8 @@ struct TerminalSmokeLaunchView: View {
                     host: route.host,
                     tabID: route.tabID,
                     dependencies: dependencies,
-                    terminalSessions: terminalSessions
+                    terminalSessions: terminalSessions,
+                    settings: settings
                 )
             }
     }
@@ -86,6 +88,7 @@ private struct TerminalSmokeDestination: View {
     let tabID: String
     let dependencies: AppDependencies
     let terminalSessions: TerminalSessionCoordinator
+    let settings: SettingsStore
 
     @State private var isPrepared = false
 
@@ -96,6 +99,7 @@ private struct TerminalSmokeDestination: View {
                     host: host,
                     tabID: tabID,
                     dependencies: dependencies,
+                    settings: settings,
                     terminalSessions: terminalSessions
                 )
             } else {

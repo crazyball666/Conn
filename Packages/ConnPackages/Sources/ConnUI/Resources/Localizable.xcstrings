@@ -404,6 +404,35 @@
         }
       }
     },
+    "Session 列表" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Session List"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "セッション一覧"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Session 목록"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Session 列表"
+          }
+        }
+      }
+    },
     "Session 名称" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -487,6 +516,35 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Window"
+          }
+        }
+      }
+    },
+    "Window 列表" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Window List"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ウィンドウ一覧"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Window 목록"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Window 列表"
           }
         }
       }
@@ -868,6 +926,35 @@
         }
       }
     },
+    "会话与上下文" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Session & Context"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "セッションとコンテキスト"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "세션 및 컨텍스트"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "工作階段與上下文"
+          }
+        }
+      }
+    },
     "会话操作" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -899,35 +986,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "工作階段操作"
-          }
-        }
-      }
-    },
-    "会话与上下文" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Session & Context"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "セッションとコンテキスト"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "세션 및 컨텍스트"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "工作階段與上下文"
           }
         }
       }
@@ -1019,6 +1077,35 @@
         }
       }
     },
+    "关闭 Session" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Close Session"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Session を閉じる"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Session 닫기"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "關閉 Session"
+          }
+        }
+      }
+    },
     "关闭 Window" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -1073,6 +1160,35 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "關閉目前 Pane？"
+          }
+        }
+      }
+    },
+    "关闭当前 Session？" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Close the current Session?"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "現在の Session を閉じますか？"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "현재 Session을 닫을까요?"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "關閉目前 Session？"
           }
         }
       }

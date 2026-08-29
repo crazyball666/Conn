@@ -107,6 +107,11 @@
                         titleKey: "Session",
                         actions: [
                             PersistentTerminalQuickActionDescriptor(
+                                id: "tmux.session.list",
+                                titleKey: "Session 列表",
+                                systemImageName: "rectangle.stack"
+                            ),
+                            PersistentTerminalQuickActionDescriptor(
                                 id: "tmux.session.rename",
                                 titleKey: "重命名 Session",
                                 systemImageName: "pencil",
@@ -115,6 +120,14 @@
                                     placeholderKey: "Session 名称"
                                 ),
                                 completionEffect: .workspaceRenamed
+                            ),
+                            PersistentTerminalQuickActionDescriptor(
+                                id: "tmux.session.close",
+                                titleKey: "关闭 Session",
+                                systemImageName: "xmark.circle",
+                                confirmation: PersistentTerminalActionConfirmation(
+                                    titleKey: "关闭当前 Session？"
+                                )
                             )
                         ]
                     ),
@@ -122,6 +135,11 @@
                         id: "window",
                         titleKey: "Window",
                         actions: [
+                            PersistentTerminalQuickActionDescriptor(
+                                id: "tmux.window.list",
+                                titleKey: "Window 列表",
+                                systemImageName: "rectangle.on.rectangle"
+                            ),
                             PersistentTerminalQuickActionDescriptor(
                                 id: "tmux.window.new",
                                 titleKey: "新建 Window",
@@ -226,10 +244,20 @@
                 || request.actionID == "tmux.window.previous" {
                 return .unavailable
             }
+            if request.actionID == "tmux.session.list"
+                || request.actionID == "tmux.window.list" {
+                return .performed
+            }
             if request.actionID == "tmux.pane.close" {
                 return ProcessInfo.processInfo.environment[
                     "CONN_SMOKE_TMUX_LAST_WORKSPACE"
                 ] == nil ? .performed : .workspaceClosed
+            }
+            if request.actionID == "tmux.session.close" {
+                guard request.confirmsDestructiveAction else {
+                    throw PersistentTerminalInteractionError.unavailable
+                }
+                return .workspaceClosed
             }
             if request.actionID == "tmux.window.new"
                 || request.actionID == "tmux.pane.split-horizontal"

@@ -26,6 +26,7 @@ struct TerminalSessionCenterView: View {
     @State private var isCreatingReplacement = false
     @State private var replacementAttemptID: UUID?
     @State private var replacementTask: Task<Void, Never>?
+    @Environment(SettingsStore.self) private var settings
     @Environment(\.connToastCenter) private var toastCenter
 
     private var sessions: TerminalSessionStore { dependencies.terminalSessions.store }
@@ -105,7 +106,8 @@ struct TerminalSessionCenterView: View {
             TerminalScreen(
                 host: route.host,
                 tabID: route.tabID,
-                dependencies: dependencies
+                dependencies: dependencies,
+                settings: settings
             )
         }
         .alert(

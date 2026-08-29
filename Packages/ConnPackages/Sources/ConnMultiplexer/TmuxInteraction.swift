@@ -5,7 +5,6 @@ package enum TmuxInteractionError: Error, Sendable, Equatable {
     case targetMismatch
     case clientUnavailable
     case clientOwnershipMismatch
-    case sessionMismatch
     case activePaneUnavailable
     case staleState(expectedRevision: UInt64, actualRevision: UInt64)
     case unsupportedMode
@@ -52,7 +51,10 @@ package enum TmuxInteractionModeClassifier {
 /// Provider-owned command palette for an attached tmux terminal. IDs are stable API values;
 /// the terminal renderer only sees the provider-neutral descriptors below.
 package enum TmuxTerminalQuickAction: String, CaseIterable, Sendable {
+    case sessionList = "tmux.session.list"
     case renameSession = "tmux.session.rename"
+    case closeSession = "tmux.session.close"
+    case windowList = "tmux.window.list"
     case newWindow = "tmux.window.new"
     case previousWindow = "tmux.window.previous"
     case nextWindow = "tmux.window.next"
@@ -87,6 +89,7 @@ package enum TmuxTerminalQuickAction: String, CaseIterable, Sendable {
         self == .previousWindow
             || self == .nextWindow
             || self == .renameSession
+            || self == .closeSession
             || self == .renameWindow
             || self == .closeWindow
             || self == .closePane
@@ -108,15 +111,23 @@ package enum TmuxTerminalQuickAction: String, CaseIterable, Sendable {
         title: "tmux",
         sections: [
             .init(id: "session", titleKey: "Session", actions: [
+                descriptor(.sessionList, "Session 列表", "rectangle.stack"),
                 descriptor(
                     .renameSession,
                     "重命名 Session",
                     "pencil",
                     textInput: .init(titleKey: "重命名 Session", placeholderKey: "Session 名称"),
                     completionEffect: .workspaceRenamed
+                ),
+                descriptor(
+                    .closeSession,
+                    "关闭 Session",
+                    "xmark.circle",
+                    confirmation: .init(titleKey: "关闭当前 Session？")
                 )
             ]),
             .init(id: "window", titleKey: "Window", actions: [
+                descriptor(.windowList, "Window 列表", "rectangle.on.rectangle"),
                 descriptor(.newWindow, "新建 Window", "plus.rectangle"),
                 descriptor(.previousWindow, "上一个 Window", "arrow.left.to.line"),
                 descriptor(.nextWindow, "下一个 Window", "arrow.right.to.line"),
@@ -196,8 +207,14 @@ package enum TmuxTerminalQuickAction: String, CaseIterable, Sendable {
             throw PersistentTerminalInteractionError.invalidQuickActionRepeatCount(repeatCount)
         }
         return switch self {
+        case .sessionList:
+            .chooseTree(state.paneID, scope: .sessions)
         case .renameSession:
             try .renameSession(state.sessionID, to: TmuxName(argument ?? ""))
+        case .closeSession:
+            .killSession(state.sessionID)
+        case .windowList:
+            .chooseTree(state.paneID, scope: .windows)
         case .newWindow:
             .createWindow(in: state.sessionID, name: nil)
         case .previousWindow:
@@ -332,10 +349,8 @@ package struct TmuxInteractionStateProjector: Sendable {
         guard client.role == .connInteractive(attachmentID: identity.attachmentID) else {
             throw TmuxInteractionError.clientOwnershipMismatch
         }
-        guard client.sessionID == identity.requestedSessionID else {
-            throw TmuxInteractionError.sessionMismatch
-        }
-        guard let paneID = client.activePaneID,
+        guard let session = snapshot.sessions[client.sessionID],
+              let paneID = client.activePaneID,
               let pane = snapshot.panes[paneID],
               client.currentWindowID == pane.windowID
         else {
@@ -343,7 +358,7 @@ package struct TmuxInteractionStateProjector: Sendable {
         }
         let target = PersistentTerminalInteractionTarget(
             providerID: TmuxProvider.providerID,
-            workspaceID: identity.requestedSessionID.rawValue,
+            workspaceID: client.sessionID.rawValue,
             targetID: paneID.rawValue
         )
         if let expectedTarget, expectedTarget != target {
@@ -360,6 +375,7 @@ package struct TmuxInteractionStateProjector: Sendable {
         ])
         let state = PersistentTerminalInteractionState(
             target: target,
+            workspaceName: session.name,
             attachmentGeneration: attachmentGeneration,
             revision: snapshot.revision,
             freshness: freshness,
@@ -857,7 +873,6 @@ package actor TmuxOneShotInteractionBackend {
     private let dialect: TmuxProtocolDialect
     private let attachmentID: String
     private let attachmentGeneration: UInt64
-    private let requestedSessionID: TmuxSessionID
     private let tty: String
     private let processID: Int32
     private let clock: @Sendable () -> Date
@@ -868,7 +883,6 @@ package actor TmuxOneShotInteractionBackend {
         dialect: TmuxProtocolDialect,
         attachmentID: String,
         attachmentGeneration: UInt64,
-        requestedSessionID: TmuxSessionID,
         tty: String,
         processID: Int32,
         nonceFactory: @escaping TmuxSnapshotLoader.NonceFactory,
@@ -884,7 +898,6 @@ package actor TmuxOneShotInteractionBackend {
         self.dialect = dialect
         self.attachmentID = attachmentID
         self.attachmentGeneration = attachmentGeneration
-        self.requestedSessionID = requestedSessionID
         self.tty = tty
         self.processID = processID
         self.clock = clock
@@ -901,7 +914,6 @@ package actor TmuxOneShotInteractionBackend {
         let matches = unowned.clients.values.filter {
             $0.tty == tty
                 && $0.id.processID == processID
-                && $0.sessionID == requestedSessionID
                 && $0.kind == .interactiveTerminal
         }
         guard matches.count == 1, let client = matches.first else {
@@ -910,7 +922,7 @@ package actor TmuxOneShotInteractionBackend {
         let identity = TmuxControlInteractiveIdentity(
             attachmentID: attachmentID,
             clientID: client.id,
-            requestedSessionID: requestedSessionID
+            requestedSessionID: client.sessionID
         )
         let owned = try await loader.load(
             scope: scope,

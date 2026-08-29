@@ -354,6 +354,22 @@ struct TmuxSnapshotAssemblerTests {
             )
         }
     }
+
+    @Test("an owned interactive client keeps its attachment identity after switching sessions")
+    func preservesOwnershipAcrossSessionSwitch() throws {
+        let fixture = try SnapshotAssemblerFixture()
+        let snapshot = try fixture.assemble(fixture.records(clients: [
+            fixture.interactiveClientRecord(sessionID: fixture.session2.rawValue),
+            fixture.controlClientRecord(),
+            fixture.externalClientRecord(),
+        ]))
+
+        #expect(snapshot.clients[fixture.interactiveClientID]?.sessionID == fixture.session2)
+        #expect(
+            snapshot.clients[fixture.interactiveClientID]?.role
+                == .connInteractive(attachmentID: "attachment-1")
+        )
+    }
 }
 
 private struct SnapshotAssemblerFixture {
@@ -469,13 +485,16 @@ private struct SnapshotAssemblerFixture {
         )
     }
 
-    func interactiveClientRecord(controlMode: String = "0") -> TmuxDecodedClientRecord {
+    func interactiveClientRecord(
+        controlMode: String = "0",
+        sessionID: String = "$1"
+    ) -> TmuxDecodedClientRecord {
         .init(
             targetName: interactiveClientID.targetName,
             tty: .value("/dev/ttys001"),
             processID: "501",
             createdAt: "1001",
-            sessionID: "$1",
+            sessionID: sessionID,
             currentWindowID: "@1",
             activePaneID: "%1",
             flags: .value("attached,focused,UTF-8,ignore-size"),

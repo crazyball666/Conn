@@ -34,6 +34,7 @@
         private let onChooseCommand: () -> Void
         private let onReconnect: () -> Void
         private let onPersistentWorkspaceRenamed: (String) -> Void
+        private let onPersistentWorkspaceChanged: (String, String?) -> Void
         private let onPersistentWorkspaceClosed: () -> Void
         private let attachmentState: TerminalAttachmentPanelState
         private let onAttachmentAction: (TerminalAttachmentAction) -> Void
@@ -51,6 +52,7 @@
             onChooseCommand: @escaping () -> Void = {},
             onReconnect: @escaping () -> Void = {},
             onPersistentWorkspaceRenamed: @escaping (String) -> Void = { _ in },
+            onPersistentWorkspaceChanged: @escaping (String, String?) -> Void = { _, _ in },
             onPersistentWorkspaceClosed: @escaping () -> Void = {},
             attachmentState: TerminalAttachmentPanelState = .idle,
             onAttachmentAction: @escaping (TerminalAttachmentAction) -> Void = { _ in },
@@ -67,6 +69,7 @@
             self.onChooseCommand = onChooseCommand
             self.onReconnect = onReconnect
             self.onPersistentWorkspaceRenamed = onPersistentWorkspaceRenamed
+            self.onPersistentWorkspaceChanged = onPersistentWorkspaceChanged
             self.onPersistentWorkspaceClosed = onPersistentWorkspaceClosed
             self.attachmentState = attachmentState
             self.onAttachmentAction = onAttachmentAction
@@ -86,6 +89,7 @@
                 onChooseCommand: onChooseCommand,
                 onReconnect: onReconnect,
                 onPersistentWorkspaceRenamed: onPersistentWorkspaceRenamed,
+                onPersistentWorkspaceChanged: onPersistentWorkspaceChanged,
                 onPersistentWorkspaceClosed: onPersistentWorkspaceClosed,
                 attachmentState: attachmentState,
                 onAttachmentAction: onAttachmentAction,
@@ -132,6 +136,7 @@
             onChooseCommand: @escaping () -> Void,
             onReconnect: @escaping () -> Void,
             onPersistentWorkspaceRenamed: @escaping (String) -> Void,
+            onPersistentWorkspaceChanged: @escaping (String, String?) -> Void,
             onPersistentWorkspaceClosed: @escaping () -> Void,
             attachmentState: TerminalAttachmentPanelState,
             onAttachmentAction: @escaping (TerminalAttachmentAction) -> Void,
@@ -143,6 +148,7 @@
                 persistentInteraction: persistentInteraction,
                 terminalGeneration: terminalGeneration,
                 onPersistentWorkspaceRenamed: onPersistentWorkspaceRenamed,
+                onPersistentWorkspaceChanged: onPersistentWorkspaceChanged,
                 onPersistentWorkspaceClosed: onPersistentWorkspaceClosed,
                 onPersistentWorkingDirectoryChanged: onPersistentWorkingDirectoryChanged
             ))
@@ -442,6 +448,7 @@
         private let persistentInteraction: (any PersistentTerminalInteractionFacet)?
         private let terminalGeneration: UInt64
         private let onPersistentWorkspaceRenamed: (String) -> Void
+        private let onPersistentWorkspaceChanged: (String, String?) -> Void
         private let onPersistentWorkspaceClosed: () -> Void
         private let onPersistentWorkingDirectoryChanged: (String?) -> Void
         private let replayOutboundGate = TerminalReplayOutboundGate()
@@ -486,6 +493,7 @@
             persistentInteraction: (any PersistentTerminalInteractionFacet)?,
             terminalGeneration: UInt64,
             onPersistentWorkspaceRenamed: @escaping (String) -> Void,
+            onPersistentWorkspaceChanged: @escaping (String, String?) -> Void,
             onPersistentWorkspaceClosed: @escaping () -> Void,
             onPersistentWorkingDirectoryChanged: @escaping (String?) -> Void
         ) {
@@ -494,6 +502,7 @@
             self.persistentInteraction = persistentInteraction
             self.terminalGeneration = terminalGeneration
             self.onPersistentWorkspaceRenamed = onPersistentWorkspaceRenamed
+            self.onPersistentWorkspaceChanged = onPersistentWorkspaceChanged
             self.onPersistentWorkspaceClosed = onPersistentWorkspaceClosed
             self.onPersistentWorkingDirectoryChanged = onPersistentWorkingDirectoryChanged
         }
@@ -775,6 +784,7 @@
         private func acceptPersistentState(_ state: PersistentTerminalInteractionState) {
             persistentState = state
             persistentTarget = state.target
+            onPersistentWorkspaceChanged(state.target.workspaceID, state.workspaceName)
             persistentWorkingDirectory = state.workingDirectory
             onPersistentWorkingDirectoryChanged(
                 state.freshness == .live ? state.workingDirectory : nil

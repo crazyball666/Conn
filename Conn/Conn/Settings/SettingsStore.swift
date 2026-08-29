@@ -176,9 +176,11 @@ final class SettingsStore {
             id: defaults.string(forKey: Key.codeTheme) ?? CodeEditorCatalog.defaultThemeID
         ).id
         let storedCodeFontSize = defaults.object(forKey: Key.codeFontSize) == nil
-            ? 13
+            ? CodeEditorConfiguration.defaultFontSize
             : defaults.double(forKey: Key.codeFontSize)
-        codeFontSize = (10 ... 24).contains(storedCodeFontSize) ? storedCodeFontSize : 13
+        codeFontSize = (10 ... 24).contains(storedCodeFontSize)
+            ? storedCodeFontSize
+            : CodeEditorConfiguration.defaultFontSize
         codeShowsLineNumbers = defaults.object(forKey: Key.codeShowsLineNumbers) == nil
             ? true
             : defaults.bool(forKey: Key.codeShowsLineNumbers)

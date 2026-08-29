@@ -38,6 +38,11 @@ final class SnippetPlatformRemovalUITests: XCTestCase {
         app.launch()
 
         XCTAssertTrue(app.navigationBars["脚本"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons["系统"].exists)
+        XCTAssertTrue(app.buttons["网络"].exists)
+        XCTAssertFalse(app.buttons["磁盘"].exists)
+        XCTAssertFalse(app.buttons["日志"].exists)
+        XCTAssertFalse(app.buttons["Docker"].exists)
         XCTAssertFalse(app.staticTexts["macOS"].exists)
         XCTAssertFalse(app.staticTexts["Linux"].exists)
         XCTAssertFalse(app.staticTexts["Windows"].exists)
@@ -50,6 +55,22 @@ final class SnippetPlatformRemovalUITests: XCTestCase {
         let firstTitle = app.staticTexts["系统概览"].firstMatch
         XCTAssertTrue(firstTitle.waitForExistence(timeout: 5))
         XCTAssertLessThan(firstTitle.frame.height, 20)
+
+        app.buttons["全部"].tap()
+        XCTAssertEqual(app.staticTexts.matching(NSPredicate(format: "label == %@", "系统概览")).count, 1)
+        XCTAssertEqual(app.staticTexts.matching(NSPredicate(format: "label == %@", "CPU 占用 Top 10")).count, 1)
+        XCTAssertEqual(app.staticTexts.matching(NSPredicate(format: "label == %@", "内存占用 Top 10")).count, 1)
+        XCTAssertEqual(app.staticTexts.matching(NSPredicate(format: "label == %@", "服务状态")).count, 1)
+        XCTAssertFalse(app.staticTexts.matching(
+            NSPredicate(format: "label CONTAINS %@", "sw_vers")
+        ).firstMatch.exists)
+        XCTAssertFalse(app.staticTexts.matching(
+            NSPredicate(format: "label CONTAINS %@", "launchctl")
+        ).firstMatch.exists)
+        XCTAssertFalse(app.staticTexts["磁盘使用"].exists)
+        XCTAssertFalse(app.staticTexts["系统日志尾部"].exists)
+        XCTAssertFalse(app.staticTexts["容器列表"].exists)
+        XCTAssertFalse(app.staticTexts["容器资源占用"].exists)
         XCTAssertEqual(app.state, .runningForeground)
     }
 

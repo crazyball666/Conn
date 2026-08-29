@@ -152,6 +152,41 @@ struct TerminalSessionStoreTests {
         #expect(store.tabs.first?.displayName == "production")
     }
 
+    @Test("持久终端切换 Workspace 后更新恢复描述并保留 provider 载荷")
+    func updatesPersistentWorkspaceBinding() {
+        let store = TerminalSessionStore()
+        let original = makeResumeRecord(workspaceID: "$1", name: "main")
+        let tab = TerminalTab(
+            id: original.id,
+            hostID: original.hostID,
+            hostName: original.hostName,
+            session: TerminalSession(channel: InertShellChannel()),
+            source: .persistent(providerID: original.providerID),
+            reconnectDescriptor: .persistent(original.descriptor),
+            automaticAlias: original.automaticAlias,
+            alias: "旧别名"
+        )
+        store.add(tab)
+
+        let changed = store.updatePersistentWorkspaceBinding(
+            tab.id,
+            workspaceID: "$2",
+            workspaceName: "secondary"
+        )
+
+        #expect(changed)
+        guard case let .persistent(descriptor) = store.tabs.first?.reconnectDescriptor else {
+            Issue.record("expected persistent reconnect descriptor")
+            return
+        }
+        #expect(descriptor.workspace.workspaceID == "$2")
+        #expect(descriptor.workspace.instancePayloadVersion == original.descriptor.workspace.instancePayloadVersion)
+        #expect(descriptor.workspace.providerInstancePayload == original.descriptor.workspace.providerInstancePayload)
+        #expect(descriptor.providerPayload == original.descriptor.providerPayload)
+        #expect(store.tabs.first?.automaticAlias == "secondary")
+        #expect(store.tabs.first?.alias == nil)
+    }
+
     @Test("按主机分组只保留有会话的主机")
     func groupsTabsByHost() {
         let store = TerminalSessionStore()

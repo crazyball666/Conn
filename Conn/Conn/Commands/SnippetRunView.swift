@@ -9,6 +9,7 @@ import SwiftUI
 struct SnippetRunView: View {
     let snippet: Snippet
     let dependencies: AppDependencies
+    @Environment(SettingsStore.self) private var settings
     @Environment(\.dismiss) private var dismiss
 
     @State private var hosts: [Host] = []
@@ -62,7 +63,8 @@ struct SnippetRunView: View {
                 TerminalScreen(
                     host: route.host,
                     tabID: route.tabID,
-                    dependencies: dependencies
+                    dependencies: dependencies,
+                    settings: settings
                 )
             }
             .overlay { terminalLaunchProgress }

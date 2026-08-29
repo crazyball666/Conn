@@ -36,9 +36,10 @@ struct TerminalSettingsView: View {
                         Text("\(Int(settings.terminalFontSize)) pt")
                             .foregroundStyle(.secondary)
                     } label: {
-                        Label(L("字体大小"), systemImage: "textformat.size")
+                        Label(L("字体大小"), systemImage: "ruler")
                     }
                 }
+                .accessibilityIdentifier("settings.terminal.font-size")
             }
 
             Section(L("光标")) {

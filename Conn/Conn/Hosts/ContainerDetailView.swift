@@ -17,6 +17,7 @@ struct ContainerDetailView: View {
     @State private var errorMessage: String?
     @State private var route: Route?
     @State private var terminalLauncher: TerminalLaunchPresentation
+    @Environment(SettingsStore.self) private var settings
     @Environment(\.connToastCenter) private var toastCenter
 
     init(
@@ -100,7 +101,12 @@ struct ContainerDetailView: View {
         .task { await viewModel.networks.loadIfNeeded() }
         .navigationDestination(item: $route, destination: routeDestination)
         .fullScreenCover(item: $terminalLauncher.route) { route in
-            TerminalScreen(host: route.host, tabID: route.tabID, dependencies: dependencies)
+            TerminalScreen(
+                host: route.host,
+                tabID: route.tabID,
+                dependencies: dependencies,
+                settings: settings
+            )
         }
         .overlay { terminalLaunchProgress }
         .onDisappear { terminalLauncher.cancel() }

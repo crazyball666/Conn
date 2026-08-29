@@ -76,6 +76,12 @@ public enum BuiltinSnippets {
         else { return false }
 
         var knownGroups = try groupStore.allGroups()
+        try removeRetiredCatalogEntries(
+            library: library,
+            store: store,
+            groupStore: groupStore,
+            knownGroups: &knownGroups
+        )
         let inferredGroupIDs = inferLegacyGroupIDs(
             library: library,
             snippets: try store.allSnippets(),
@@ -141,6 +147,40 @@ public enum BuiltinSnippets {
         return true
     }
 
+    /// 目录升级时只清理带稳定内置 key、且已不在当前目录中的记录。
+    /// 用户创建的脚本没有内置 key，不会进入清理范围。若用户脚本仍引用旧内置
+    /// 分组，则仅解除该分组的内置身份，保留分组名称和成员关系。
+    private static func removeRetiredCatalogEntries(
+        library: LibraryDTO,
+        store: any SnippetRepository,
+        groupStore: any SnippetGroupRepository,
+        knownGroups: inout [SnippetGroup]
+    ) throws {
+        let activeCommandKeys = Set(library.commands.map(\.key))
+        for snippet in try store.allSnippets() {
+            guard let key = snippet.builtinKey,
+                  !activeCommandKeys.contains(key)
+            else { continue }
+            try store.delete(id: snippet.id)
+        }
+
+        let referencedGroupIDs = Set(try store.allSnippets().flatMap(\.groupIDs))
+        let activeGroupKeys = Set(library.groups.map(\.key))
+        for index in knownGroups.indices.reversed() {
+            guard let key = knownGroups[index].builtinKey,
+                  !activeGroupKeys.contains(key)
+            else { continue }
+
+            if referencedGroupIDs.contains(knownGroups[index].id) {
+                knownGroups[index].builtinKey = nil
+                try groupStore.save(knownGroups[index])
+            } else {
+                try groupStore.delete(id: knownGroups[index].id)
+                knownGroups.remove(at: index)
+            }
+        }
+    }
+
     /// 从 v2 已有内置片段的成员关系推断原内置分组。只有全部可见成员的分组交集
     /// 恰好得到一个已存在分组时才认领；有歧义时退回名称匹配，避免误标用户分组。
     private static func inferLegacyGroupIDs(
@@ -173,8 +213,10 @@ public enum BuiltinSnippets {
 
     /// 从旧 UserDefaults 一次性标记迁移：v1 已导入的十条命令没有稳定 key，不能按
     /// 标题/脚本反推所有权。将它们对应的 key 记为 suppression，避免生成重复项；
-    /// macOS 新增等价项仍可由随后一次版本化导入补齐。
+    /// 空数据库（例如用户重建本地数据或 UI 测试内存库）不能沿用这个标记，否则会
+    /// 错误跳过全部默认脚本。
     public static func adoptLegacyImport(in store: any SnippetRepository) throws {
+        guard try !store.allSnippets().isEmpty else { return }
         for key in legacyBuiltinKeys {
             try store.suppressBuiltin(key)
         }

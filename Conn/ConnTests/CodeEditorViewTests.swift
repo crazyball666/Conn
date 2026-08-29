@@ -5,6 +5,12 @@ import UIKit
 @Suite("GutterTextView — 编辑器显示设置")
 @MainActor
 struct CodeEditorViewTests {
+    @Test("编辑器默认字号为 10pt")
+    func defaultFontSizeIsTenPoints() {
+        #expect(CodeEditorConfiguration.defaultFontSize == 10)
+        #expect(CodeEditorConfiguration().fontSize == 10)
+    }
+
     @Test("关闭行号与自动换行会释放 gutter 并允许水平滚动")
     func displayConfiguration() {
         let view = GutterTextView(frame: CGRect(x: 0, y: 0, width: 320, height: 480))

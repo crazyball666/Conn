@@ -51,7 +51,6 @@ package enum TmuxSnapshotAssemblerError: Error, Sendable, Equatable {
     case invalidClientFlags
     case conflictingClientOwnership(TmuxClientID)
     case interactiveClientMissing(TmuxClientID)
-    case interactiveClientSessionMismatch(TmuxClientID)
     case interactiveClientKindMismatch(TmuxClientID)
     case controlClientMissing(TmuxClientID)
     case controlClientKindMismatch(TmuxClientID)
@@ -554,9 +553,6 @@ package struct TmuxSnapshotAssembler: Sendable {
             let sizeParticipation: TmuxClientSizeParticipation
             let kind: TmuxClientKind
             if let identity = identityByClient[id] {
-                guard identity.requestedSessionID == sessionID else {
-                    throw TmuxSnapshotAssemblerError.interactiveClientSessionMismatch(id)
-                }
                 guard observedKind != .controlMode else {
                     throw TmuxSnapshotAssemblerError.interactiveClientKindMismatch(id)
                 }

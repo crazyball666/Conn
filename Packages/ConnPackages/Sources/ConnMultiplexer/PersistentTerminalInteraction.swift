@@ -40,6 +40,8 @@ public enum PersistentTerminalModeCapability: Sendable, Equatable {
 
 public struct PersistentTerminalInteractionState: Sendable, Equatable {
     public let target: PersistentTerminalInteractionTarget
+    /// Current provider workspace name from the same verified state snapshot, when available.
+    public let workspaceName: String?
     public let attachmentGeneration: UInt64
     public let revision: UInt64
     public let freshness: PersistentTerminalInteractionFreshness
@@ -54,6 +56,7 @@ public struct PersistentTerminalInteractionState: Sendable, Equatable {
 
     public init(
         target: PersistentTerminalInteractionTarget,
+        workspaceName: String? = nil,
         attachmentGeneration: UInt64,
         revision: UInt64,
         freshness: PersistentTerminalInteractionFreshness,
@@ -65,6 +68,7 @@ public struct PersistentTerminalInteractionState: Sendable, Equatable {
         workingDirectory: String? = nil
     ) {
         self.target = target
+        self.workspaceName = workspaceName
         self.attachmentGeneration = attachmentGeneration
         self.revision = revision
         self.freshness = freshness

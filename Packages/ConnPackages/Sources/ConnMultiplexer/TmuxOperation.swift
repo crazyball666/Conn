@@ -138,6 +138,12 @@ public struct TmuxScrollRowCount: Sendable, Equatable, Hashable {
     }
 }
 
+/// Scope shown by tmux's native `choose-tree` selector.
+public enum TmuxTreeScope: Sendable, Equatable, Hashable {
+    case sessions
+    case windows
+}
+
 /// Closed AST for operations against an already identified tmux server instance.
 ///
 /// Executors must wrap these in a request carrying the expected server token and control
@@ -167,6 +173,7 @@ public enum TmuxOperation: Sendable, Equatable {
     case setPaneZoom(TmuxPaneID, zoomed: Bool)
     case resizePane(TmuxPaneID, direction: TmuxPaneResizeDirection, cells: TmuxResizeCellCount)
     case swapPane(TmuxPaneID, direction: TmuxPaneSwapDirection)
+    case chooseTree(TmuxPaneID, scope: TmuxTreeScope)
     case enterCopyMode(TmuxPaneID)
     case killPane(TmuxPaneID)
     case scrollPaneMode(TmuxPaneID, direction: TmuxScrollDirection, rows: TmuxScrollRowCount)
@@ -192,7 +199,7 @@ public extension TmuxOperation {
     var semantics: TmuxOperationSemantics {
         switch self {
         case .renameSession, .detachClient, .selectWindow, .renameWindow, .selectPane,
-             .applyPaneLayout, .setPaneZoom, .enterCopyMode:
+             .applyPaneLayout, .setPaneZoom, .chooseTree, .enterCopyMode:
             .idempotentMutation
         case .createSession, .selectRelativeWindow, .createWindow, .splitPane, .cyclePaneLayout,
              .toggleSynchronizePanes, .resizePane, .swapPane, .scrollPaneMode:

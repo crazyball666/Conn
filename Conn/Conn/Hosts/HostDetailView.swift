@@ -21,6 +21,7 @@ struct HostDetailView: View {
     @State private var terminalRoute: ExistingTerminalRoute?
     @State private var isNewTerminalPresented = false
     @State private var pendingTerminalCompletion: NewTerminalFlowCompletion?
+    @Environment(SettingsStore.self) private var settings
     @Environment(\.connToastCenter) private var toastCenter
 
     init(host: Host, dependencies: AppDependencies, initialSegment: Segment = .overview) {
@@ -77,7 +78,8 @@ struct HostDetailView: View {
             TerminalScreen(
                 host: route.host,
                 tabID: route.tabID,
-                dependencies: dependencies
+                dependencies: dependencies,
+                settings: settings
             )
         }
     }

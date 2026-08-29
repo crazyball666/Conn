@@ -46,13 +46,16 @@ private final class StubBuiltinGroupRepository: SnippetGroupRepository, @uncheck
 }
 
 struct BuiltinSnippetsTests {
-    @Test("内置库提供不同系统工具的等价命令但不声明目标平台")
+    @Test("内置库仅提供系统和网络常用命令")
     func loadsLibrary() {
         let snippets = BuiltinSnippets.load()
-        #expect(snippets.count > 10)
+        #expect(snippets.count == 6)
         #expect(snippets.contains { $0.builtinKey == "service-status-linux" && $0.script.contains("systemctl") })
-        #expect(snippets.contains { $0.builtinKey == "system-overview-macos" && $0.script.contains("sysctl") })
-        #expect(snippets.contains { $0.builtinKey == "system-log-macos" && $0.script.contains("log show") })
+        #expect(snippets.contains { $0.builtinKey == "connectivity-test" && $0.script.contains("ping") })
+        #expect(snippets.allSatisfy { !($0.builtinKey ?? "").hasSuffix("-macos") })
+        #expect(snippets.allSatisfy { !$0.script.hasPrefix("docker ") })
+        #expect(snippets.allSatisfy { $0.builtinKey != "disk-usage" })
+        #expect(snippets.allSatisfy { !($0.builtinKey ?? "").hasPrefix("system-log-") })
     }
 
     @Test("每条内置命令都有唯一稳定 key")
@@ -61,29 +64,21 @@ struct BuiltinSnippetsTests {
         let keys = try snippets.map { try #require($0.builtinKey) }
 
         #expect(Set(keys).count == snippets.count)
-        #expect(BuiltinSnippets.catalogVersion > 0)
-    }
-
-    @Test("Docker 片段只声明运行时 Docker 能力")
-    func dockerEntriesRequireCapability() {
-        let docker = BuiltinSnippets.load().filter { $0.script.hasPrefix("docker ") }
-
-        #expect(!docker.isEmpty)
-        #expect(docker.allSatisfy { $0.requiredCapabilities == [.docker] })
+        #expect(BuiltinSnippets.catalogVersion == 1)
     }
 
     @Test("通用片段不携带平台声明")
     func commonEntriesHaveNoPlatformDeclaration() throws {
-        let disk = try #require(BuiltinSnippets.load().first { $0.builtinKey == "disk-usage" })
+        let overview = try #require(BuiltinSnippets.load().first { $0.builtinKey == "system-overview-linux" })
         let ping = try #require(BuiltinSnippets.load().first { $0.builtinKey == "connectivity-test" })
 
-        #expect(!disk.script.isEmpty)
+        #expect(!overview.script.isEmpty)
         #expect(!ping.script.isEmpty)
     }
 
     @Test("内置 JSON 同时声明有序分组")
     func loadsOrderedGroupNames() {
-        #expect(BuiltinSnippets.loadGroupNames() == ["系统", "磁盘", "网络", "日志", "Docker"])
+        #expect(BuiltinSnippets.loadGroupNames() == ["系统", "网络"])
     }
 
     /// 「是否需要导入」的判定已上移到调用方（`SettingsStore.builtinSnippetsImported`）——
@@ -126,8 +121,8 @@ struct BuiltinSnippetsTests {
         #expect(groups.groups.count == BuiltinSnippets.loadGroupNames().count)
     }
 
-    @Test("v2 内置分组被重命名后按片段成员关系认领，不创建重复分组")
-    func adoptsRenamedV2GroupFromBuiltinMemberships() throws {
+    @Test("未标记的内置分组被重命名后按片段成员关系认领，不创建重复分组")
+    func adoptsRenamedGroupFromBuiltinMemberships() throws {
         let store = StubBuiltinSnippetRepository()
         let groups = StubBuiltinGroupRepository()
         try BuiltinSnippets.importIfNeeded(into: store, groups: groups)
@@ -140,7 +135,7 @@ struct BuiltinSnippetsTests {
             if legacy.id == original.id { legacy.name = "运维" }
             return legacy
         }
-        store.catalogVersion = 2
+        store.catalogVersion = 0
 
         try BuiltinSnippets.importIfNeeded(into: store, groups: groups)
 
@@ -171,27 +166,38 @@ struct BuiltinSnippetsTests {
         let store = StubBuiltinSnippetRepository()
         let groups = StubBuiltinGroupRepository()
         try BuiltinSnippets.importIfNeeded(into: store, groups: groups)
-        let removed = try #require(store.snippets.first { $0.builtinKey == "container-list" })
+        let removed = try #require(store.snippets.first { $0.builtinKey == "connectivity-test" })
         try store.delete(id: removed.id)
 
         store.catalogVersion = 0
         try BuiltinSnippets.importIfNeeded(into: store, groups: groups)
 
-        #expect(store.snippets.allSatisfy { $0.builtinKey != "container-list" })
-        #expect(store.suppressedKeys.contains("container-list"))
+        #expect(store.snippets.allSatisfy { $0.builtinKey != "connectivity-test" })
+        #expect(store.suppressedKeys.contains("connectivity-test"))
     }
 
-    @Test("旧导入标记只抑制原十条，仍补入 macOS 等价片段")
-    func adoptsLegacyImportWithoutDuplicates() throws {
+    @Test("旧导入标记不会阻止空数据库导入 Linux 内置项")
+    func legacyImportMarkerDoesNotSuppressFreshDatabase() throws {
         let store = StubBuiltinSnippetRepository()
         let groups = StubBuiltinGroupRepository()
 
         try BuiltinSnippets.adoptLegacyImport(in: store)
         try BuiltinSnippets.importIfNeeded(into: store, groups: groups)
 
-        #expect(store.snippets.allSatisfy { $0.builtinKey?.hasSuffix("-macos") == true })
-        #expect(store.snippets.contains { $0.builtinKey == "system-overview-macos" })
-        #expect(store.snippets.allSatisfy { $0.builtinKey != "system-overview-linux" })
+        #expect(store.snippets.count == BuiltinSnippets.load().count)
+        #expect(store.snippets.allSatisfy { !($0.builtinKey ?? "").hasSuffix("-macos") })
+        #expect(store.catalogVersion == BuiltinSnippets.catalogVersion)
+    }
+
+    @Test("旧数据库已有脚本时仍采用旧导入标记避免重复")
+    func adoptsLegacyImportWhenLegacyContentExists() throws {
+        let store = StubBuiltinSnippetRepository()
+        store.snippets = [Snippet(title: "旧脚本", script: "uname -a")]
+
+        try BuiltinSnippets.adoptLegacyImport(in: store)
+
+        #expect(store.suppressedKeys.contains("system-overview-linux"))
+        #expect(store.suppressedKeys.contains("connectivity-test"))
     }
 
     @Test("每条都有标题与命令，排序权重递增")
@@ -220,12 +226,50 @@ struct BuiltinSnippetsTests {
         #expect(variableSnippet?.variables.contains { $0.name == "host" } == true)
     }
 
-    @Test("Docker 片段不把 Go 模板误判为变量")
-    func dockerTemplatesNotVariables() {
-        // 内置 docker 片段用 `docker ps -a`（无 {{json .}}），确保无误判变量
-        let snippets = BuiltinSnippets.load()
-        for snippet in snippets where snippet.script.hasPrefix("docker") {
-            #expect(snippet.variables.allSatisfy { !$0.name.contains(".") })
-        }
+    @Test("目录升级会删除废弃内置脚本和空分组")
+    func catalogUpgradeRemovesRetiredBuiltins() throws {
+        let store = StubBuiltinSnippetRepository()
+        let groups = StubBuiltinGroupRepository()
+        store.catalogVersion = BuiltinSnippets.catalogVersion - 1
+        store.snippets = [Snippet(
+            id: "builtin.container-list",
+            title: "容器列表",
+            script: "docker ps -a",
+            groupIDs: ["builtin-group.docker"],
+            builtinKey: "container-list"
+        )]
+        groups.groups = [SnippetGroup(
+            id: "builtin-group.docker",
+            name: "Docker",
+            builtinKey: "docker"
+        )]
+
+        #expect(try BuiltinSnippets.importIfNeeded(into: store, groups: groups))
+        #expect(store.snippets.allSatisfy { $0.builtinKey != "container-list" })
+        #expect(groups.groups.allSatisfy { $0.builtinKey != "docker" })
+    }
+
+    @Test("废弃内置分组被用户脚本引用时转为普通分组")
+    func catalogUpgradePreservesUserContentInRetiredGroup() throws {
+        let store = StubBuiltinSnippetRepository()
+        let groups = StubBuiltinGroupRepository()
+        store.catalogVersion = BuiltinSnippets.catalogVersion - 1
+        store.snippets = [Snippet(
+            id: "custom",
+            title: "我的脚本",
+            script: "echo custom",
+            groupIDs: ["builtin-group.logs"]
+        )]
+        groups.groups = [SnippetGroup(
+            id: "builtin-group.logs",
+            name: "我的日志工具",
+            builtinKey: "logs"
+        )]
+
+        #expect(try BuiltinSnippets.importIfNeeded(into: store, groups: groups))
+        #expect(store.snippets.contains { $0.id == "custom" })
+        let preservedGroup = try #require(groups.groups.first { $0.id == "builtin-group.logs" })
+        #expect(preservedGroup.name == "我的日志工具")
+        #expect(preservedGroup.builtinKey == nil)
     }
 }

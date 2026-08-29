@@ -19,7 +19,9 @@ package enum TmuxControlHubError: Error, Sendable, Equatable {
     case operationOutcomeUnknown(TmuxOperationRequest)
 }
 
-/// A verified interactive tmux client identity owned by a data attachment. These facts are
+/// A verified interactive tmux client identity owned by a data attachment. The requested
+/// Session is the startup binding, while the stable client identity remains authoritative if
+/// tmux later moves that same client through its native Session chooser. These facts are
 /// generation-local and are supplied to the adapter when it classifies `list-clients` output.
 /// Holding this identity does not by itself keep a Control Mode process alive.
 package struct TmuxControlInteractiveIdentity: Sendable, Equatable, Hashable {
@@ -712,9 +714,7 @@ package actor TmuxControlHub {
         else {
             throw TmuxInteractionError.clientUnavailable
         }
-        guard target.providerID == TmuxProvider.providerID,
-              target.workspaceID == interactionLease.identity.requestedSessionID.rawValue
-        else {
+        guard target.providerID == TmuxProvider.providerID else {
             throw TmuxInteractionError.targetMismatch
         }
         if resolution == .exactObservedState, !action.toleratesStateRevisionDrift {
@@ -735,6 +735,10 @@ package actor TmuxControlHub {
                 : target,
             attachmentGeneration: attachmentGeneration
         )
+        if resolution == .exactObservedState,
+           target.workspaceID != resolved.state.target.workspaceID {
+            throw TmuxInteractionError.targetMismatch
+        }
         let client = try TmuxClientTarget(interactionLease.identity.clientID.targetName)
         let operation = try action.operation(
             for: resolved,
@@ -750,6 +754,8 @@ package actor TmuxControlHub {
             return .unavailable
         }
         let closesWorkspace = switch action {
+        case .closeSession:
+            true
         case .closeWindow:
             resolved.windowIDs.count == 1
         case .closePane:
@@ -781,7 +787,8 @@ package actor TmuxControlHub {
                 timeout: timeout,
                 identities: activeIdentities
             )
-        case .renameSession, .previousWindow, .nextWindow, .renameWindow, .closeWindow,
+        case .sessionList, .renameSession, .closeSession, .windowList,
+             .previousWindow, .nextWindow, .renameWindow, .closeWindow,
              .previousPane, .nextPane, .toggleZoom, .swapPanePrevious, .swapPaneNext,
              .resizeLeft, .resizeRight, .resizeUp, .resizeDown,
              .toggleSynchronizePanes, .copyMode, .closePane, .cycleLayout, .tiledLayout,

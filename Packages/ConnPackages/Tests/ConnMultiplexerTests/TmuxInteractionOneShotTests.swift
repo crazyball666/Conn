@@ -114,7 +114,6 @@ struct TmuxInteractionOneShotTests {
             scope: fixture.scope,
             nonce: snapshotNonce
         )
-        let sessionID = try #require(TmuxSessionID(rawValue: "$1"))
         let backend = TmuxOneShotInteractionBackend(
             executor: readExecutor,
             captureExecutor: UnusedInteractionCaptureExecutor(),
@@ -122,7 +121,6 @@ struct TmuxInteractionOneShotTests {
             dialect: .init(commandGuardShape: .threeFields, snapshotCodec: .quoted),
             attachmentID: "attachment-1",
             attachmentGeneration: 9,
-            requestedSessionID: sessionID,
             tty: "/dev/ttys001",
             processID: 501,
             nonceFactory: { snapshotNonce }

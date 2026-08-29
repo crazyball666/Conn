@@ -26,9 +26,20 @@ final class TerminalKeybarLayoutUITests: XCTestCase {
 
         let actionsSheet = app.descendants(matching: .any)["terminal.session-actions"].firstMatch
         XCTAssertTrue(actionsSheet.waitForExistence(timeout: 5))
-        XCTAssertTrue(app.buttons["terminal.session-actions.return"].isHittable)
-        XCTAssertTrue(app.buttons["terminal.session-actions.switch"].isHittable)
-        XCTAssertTrue(app.buttons["terminal.session-actions.close"].isHittable)
+        let navigationBar = app.navigationBars["会话操作"]
+        let title = navigationBar.staticTexts["会话操作"]
+        XCTAssertTrue(navigationBar.waitForExistence(timeout: 5))
+        XCTAssertTrue(title.exists)
+        XCTAssertEqual(title.frame.midX, actionsSheet.frame.midX, accuracy: 3)
+        XCTAssertTrue(app.staticTexts["deploy@127.0.0.1:2202"].exists)
+        XCTAssertFalse(app.staticTexts["ops-node-01"].exists)
+        XCTAssertFalse(app.staticTexts["当前终端"].exists)
+        XCTAssertFalse(app.buttons["terminal.session-actions.return"].exists)
+        let switchTerminal = app.buttons["terminal.session-actions.switch"]
+        let closeTerminal = app.buttons["terminal.session-actions.close"]
+        XCTAssertTrue(switchTerminal.isHittable)
+        XCTAssertTrue(closeTerminal.isHittable)
+        XCTAssertEqual(switchTerminal.frame.height, closeTerminal.frame.height, accuracy: 1)
         XCTAssertEqual(app.state, .runningForeground)
 
         let attachment = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
@@ -36,7 +47,7 @@ final class TerminalKeybarLayoutUITests: XCTestCase {
         attachment.lifetime = .keepAlways
         add(attachment)
 
-        app.buttons["terminal.session-actions.return"].tap()
+        app.buttons["terminal.session-actions.close"].tap()
         XCTAssertTrue(terminal.waitForNonExistence(timeout: 5))
         XCTAssertEqual(app.state, .runningForeground)
     }
@@ -57,7 +68,7 @@ final class TerminalKeybarLayoutUITests: XCTestCase {
     }
 
     @MainActor
-    func testSessionActionsCloseClosesTerminalAfterSheetDismissal() {
+    func testSessionActionsCloseDismissesTerminalPageAfterSheetDismissal() {
         let app = launchSmokeTerminal()
         let terminal = app.descendants(matching: .any)["terminal.viewport"].firstMatch
         let sessionActions = app.buttons["terminal.keybar.session-actions"]
@@ -149,6 +160,17 @@ final class TerminalKeybarLayoutUITests: XCTestCase {
         XCTAssertLessThanOrEqual(keybar.frame.height, 260)
         XCTAssertTrue(providerTab.waitForExistence(timeout: 5))
         providerTab.tap()
+
+        let sessionList = app.buttons[
+            "terminal.keybar.tmux.tmux.session.list"
+        ]
+        let windowList = app.buttons[
+            "terminal.keybar.tmux.tmux.window.list"
+        ]
+        XCTAssertTrue(sessionList.waitForExistence(timeout: 5))
+        XCTAssertTrue(windowList.waitForExistence(timeout: 5))
+        XCTAssertTrue(sessionList.isHittable)
+        XCTAssertTrue(windowList.isHittable)
 
         let secondSectionLastAction = app.buttons[
             "terminal.keybar.tmux.tmux.window.close"

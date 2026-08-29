@@ -40,6 +40,12 @@ struct ConnApp: App {
     /// 否则走生产（Citadel + GRDB 落盘）。Phase 10 会把演示开关搬到设置页。
     private static func makeDependencies() -> BootstrapState {
         #if DEBUG
+            if ProcessInfo.processInfo.environment["CONN_SMOKE_DATABASE_LOADING"] != nil {
+                return .loading
+            }
+            if let forcedFailure = ProcessInfo.processInfo.environment["CONN_SMOKE_DATABASE_FAILURE"] {
+                return .failed(forcedFailure)
+            }
             if ProcessInfo.processInfo.environment["CONN_DEMO"] != nil {
                 return .ready(AppDependencies.demo())
             }
@@ -62,10 +68,10 @@ struct ConnApp: App {
                         rootView(dependencies: dependencies)
                             .id("\(localization.language.rawValue)-\(settings.accent.rawValue)")
                     }
+                case .loading:
+                    DatabaseInitializationLoadingView()
                 case .failed(let message):
-                    DatabaseInitializationFailureView(message: message) {
-                        bootstrap = Self.makeDependencies()
-                    }
+                    DatabaseInitializationFailureView(message: message, retry: retryBootstrap)
                 }
             }
             .environment(localization)
@@ -79,6 +85,30 @@ struct ConnApp: App {
             .environment(\.connToastCenter, toastCenter)
             // 全局「点击空白处收起键盘」。
             .onAppear { KeyboardDismisser.shared.installIfNeeded() }
+        }
+    }
+
+    private func retryBootstrap() {
+        bootstrap = .loading
+        Task { @MainActor in
+            // 先让 SwiftUI 提交 loading 状态，避免同步初始化失败时看起来没有响应。
+            await Task.yield()
+            #if DEBUG
+                if let rawDelay = ProcessInfo.processInfo.environment["CONN_SMOKE_DATABASE_RETRY_DELAY"],
+                   let seconds = Double(rawDelay), seconds > 0 {
+                    try? await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000))
+                }
+                if ProcessInfo.processInfo.environment["CONN_SMOKE_DATABASE_RECOVER_ON_RETRY"] != nil {
+                    bootstrap = .ready(AppDependencies.demo())
+                    return
+                }
+            #endif
+            do {
+                try AppDependencies.resetLocalDatabase()
+                bootstrap = Self.makeDependencies()
+            } catch {
+                bootstrap = .failed(error.friendlyDiagnosis)
+            }
         }
     }
 
@@ -204,7 +234,27 @@ struct ConnApp: App {
 /// 生产依赖的启动状态。数据库初始化失败时保留在可恢复页面，避免 Release 直接崩溃。
 private enum BootstrapState {
     case ready(AppDependencies)
+    case loading
     case failed(String)
+}
+
+/// 重试本地数据初始化时的明确反馈，避免同步失败造成按钮看似无响应。
+private struct DatabaseInitializationLoadingView: View {
+    var body: some View {
+        GeometryReader { geometry in
+            VStack(spacing: 14) {
+                ProgressView()
+                    .controlSize(.large)
+                Text(L("正在重新加载本地数据…"))
+                    .font(.body)
+                    .foregroundStyle(.secondary)
+            }
+            .frame(maxWidth: .infinity, minHeight: geometry.size.height)
+            .accessibilityElement(children: .combine)
+            .accessibilityIdentifier("database.initialization.loading")
+        }
+        .background(Color(uiColor: .systemGroupedBackground).ignoresSafeArea())
+    }
 }
 
 /// 本地数据无法打开时的恢复页。
@@ -214,40 +264,45 @@ private struct DatabaseInitializationFailureView: View {
     @State private var isShowingDetails = false
 
     var body: some View {
-        ScrollView {
-            VStack(spacing: 24) {
-                Image(systemName: "externaldrive.badge.xmark")
-                    .font(.system(size: 54, weight: .medium))
-                    .foregroundStyle(.red)
+        GeometryReader { geometry in
+            ScrollView {
+                VStack(spacing: 24) {
+                    Image(systemName: "externaldrive.badge.xmark")
+                        .font(.system(size: 54, weight: .medium))
+                        .foregroundStyle(.red)
 
-                VStack(spacing: 8) {
-                    Text(L("无法打开本地数据"))
-                        .font(.title2.weight(.semibold))
-                    Text(L("无法读取本地配置，请重试。本地数据不会上传。"))
-                        .font(.body)
-                        .foregroundStyle(.secondary)
-                        .multilineTextAlignment(.center)
-                }
+                    VStack(spacing: 8) {
+                        Text(L("无法打开本地数据"))
+                            .font(.title2.weight(.semibold))
+                        Text(L("无法读取本地配置，请重试。本地数据不会上传。"))
+                            .font(.body)
+                            .foregroundStyle(.secondary)
+                            .multilineTextAlignment(.center)
+                    }
 
-                Button(action: retry) {
-                    Label(L("重试"), systemImage: "arrow.clockwise")
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.borderedProminent)
+                    Button(action: retry) {
+                        Label(L("重试"), systemImage: "arrow.clockwise")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .accessibilityIdentifier("database.failure.retry")
 
-                DisclosureGroup(L("错误详情"), isExpanded: $isShowingDetails) {
-                    Text(message)
-                        .font(.footnote.monospaced())
-                        .foregroundStyle(.secondary)
-                        .textSelection(.enabled)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.top, 8)
+                    DisclosureGroup(L("错误详情"), isExpanded: $isShowingDetails) {
+                        Text(message)
+                            .font(.footnote.monospaced())
+                            .foregroundStyle(.secondary)
+                            .textSelection(.enabled)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.top, 8)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(24)
+                .frame(maxWidth: 520)
+                .accessibilityElement(children: .contain)
+                .accessibilityIdentifier("database.failure.content")
+                .frame(maxWidth: .infinity, minHeight: geometry.size.height)
             }
-            .padding(24)
-            .frame(maxWidth: 520)
-            .frame(maxWidth: .infinity, minHeight: 420)
         }
         .background(Color(uiColor: .systemGroupedBackground).ignoresSafeArea())
     }
@@ -402,6 +457,10 @@ struct AppDependencies {
                         || ProcessInfo.processInfo.environment["CONN_SMOKE_APPLOCK"] != nil
                 )
             )
+    }
+
+    static func resetLocalDatabase() throws {
+        try AppDatabase.removeOnDiskStore(at: databaseURL())
     }
 
     #if DEBUG

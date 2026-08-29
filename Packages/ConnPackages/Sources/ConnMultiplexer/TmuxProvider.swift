@@ -489,7 +489,6 @@ public struct TmuxProvider: PersistentTerminalCatalogProvider {
                             dialect: dialect,
                             attachmentID: runtimeAttachmentID,
                             attachmentGeneration: attachmentGeneration,
-                            requestedSessionID: sessionID,
                             tty: tty,
                             processID: processID,
                             nonceFactory: { try Self.makeNonce() }

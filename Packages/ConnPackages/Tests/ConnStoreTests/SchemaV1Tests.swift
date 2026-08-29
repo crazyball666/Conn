@@ -8,9 +8,9 @@ import Testing
 /// 与领域模型 `Host` 同名，host 端跑测试时需显式消歧。
 private typealias DomainHost = ConnKit.Host
 
-@Suite("GRDB Schema v1")
+@Suite("GRDB 当前完整 Schema")
 struct SchemaV1Tests {
-    @Test("迁移后全部表建成")
+    @Test("建库后全部表一次性创建")
     func createsAllTables() throws {
         let db = try AppDatabase.inMemory()
         let tables = try db.writer.read { database in
@@ -26,6 +26,15 @@ struct SchemaV1Tests {
             "persistent_terminal_resume_record", "run_history", "snippet", "snippet_group",
             "snippet_group_membership", "ssh_key"
         ])
+    }
+
+    @Test("建库只记录一份完整 Schema")
+    func registersSingleSchema() throws {
+        let database = try AppDatabase.inMemory()
+        let identifiers = try database.writer.read { db in
+            try String.fetchAll(db, sql: "SELECT identifier FROM grdb_migrations ORDER BY identifier")
+        }
+        #expect(identifiers == ["v1_initial_schema"])
     }
 
     @Test("初始 schema 的 run_history 包含状态列及已知默认值")
@@ -48,13 +57,78 @@ struct SchemaV1Tests {
         #expect(state == RunHistoryState.known.rawValue)
     }
 
-    @Test("迁移可重复执行且幂等")
-    func migrationIsIdempotent() throws {
+    @Test("建库可重复执行且幂等")
+    func schemaInitializationIsIdempotent() throws {
         let queue = try DatabaseQueue()
         _ = try AppDatabase(queue)
         let second = try AppDatabase(queue) // 同一 writer 再跑一次迁移
         let count = try second.writer.read { try Int.fetchOne($0, sql: "SELECT COUNT(*) FROM host") }
         #expect(count == 0)
+    }
+
+    @Test("片段目录字段和默认状态由初始 Schema 直接创建")
+    func initialSchemaIncludesSnippetCatalogMetadata() throws {
+        let database = try AppDatabase.inMemory()
+        let store = SnippetStore(database: database)
+        let snippet = Snippet(title: "Uptime", script: "uptime")
+        try store.save(snippet)
+
+        let loaded = try #require(try store.snippet(id: snippet.id))
+        #expect(loaded.requiredCapabilities.isEmpty)
+        #expect(loaded.builtinKey == nil)
+        #expect(try store.builtinCatalogVersion() == 0)
+    }
+
+    @Test("内置片段 key 唯一且删除后写入 suppression")
+    func enforcesKeyAndSuppressesDeletedBuiltin() throws {
+        let database = try AppDatabase.inMemory()
+        let store = SnippetStore(database: database)
+        let snippet = Snippet(
+            title: "系统概览",
+            script: "uname -a",
+            builtinKey: "system-overview-linux"
+        )
+        try store.save(snippet)
+
+        try store.delete(id: snippet.id)
+
+        #expect(try store.isBuiltinSuppressed("system-overview-linux"))
+        #expect(try store.snippet(builtinKey: "system-overview-linux") == nil)
+    }
+
+    @Test("内置目录版本可持久化")
+    func persistsCatalogVersion() throws {
+        let store = try SnippetStore(database: .inMemory())
+
+        #expect(try store.builtinCatalogVersion() == 0)
+        try store.setBuiltinCatalogVersion(2)
+        #expect(try store.builtinCatalogVersion() == 2)
+    }
+
+    @Test("内置分组 key 可持久化且唯一")
+    func persistsUniqueBuiltinGroupKey() throws {
+        let database = try AppDatabase.inMemory()
+        let groups = SnippetGroupStore(database: database)
+        try groups.save(SnippetGroup(name: "系统", builtinKey: "system"))
+
+        let loaded = try #require(groups.allGroups().first)
+        #expect(loaded.builtinKey == "system")
+        #expect(throws: (any Error).self) {
+            try groups.save(SnippetGroup(name: "另一个系统", builtinKey: "system"))
+        }
+    }
+
+    @Test("完整 Schema 不包含已废弃的终端配置表")
+    func doesNotContainObsoleteTerminalProfileTable() throws {
+        let database = try AppDatabase.inMemory()
+        let exists = try database.writer.read { db in
+            try Bool.fetchOne(
+                db,
+                sql: "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?)",
+                arguments: ["terminal_backend_profile"]
+            )
+        }
+        #expect(exists == false)
     }
 
     @Test("host 表可写入并读回，字段无损")

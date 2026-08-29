@@ -121,6 +121,32 @@ struct TmuxShellInvocationRendererTests {
         ))
     }
 
+    @Test("tmux 原生选择器使用当前 Pane 显示 Session 与 Window 列表")
+    func rendersNativeTreeSelectors() throws {
+        let pane = try #require(TmuxPaneID(rawValue: "%3"))
+        let renderer = TmuxShellInvocationRenderer()
+        let executable = try TmuxExecutablePath("/usr/bin/tmux")
+        let token = try makeToken()
+
+        let sessions = try renderer.render(
+            .chooseTree(pane, scope: .sessions),
+            executable: executable,
+            locator: .default,
+            expectedInstance: token,
+            nonce: TmuxInvocationNonce("sessions")
+        )
+        let windows = try renderer.render(
+            .chooseTree(pane, scope: .windows),
+            executable: executable,
+            locator: .default,
+            expectedInstance: token,
+            nonce: TmuxInvocationNonce("windows")
+        )
+
+        #expect(sessions.arguments[3].contains("choose-tree -s -t '%3'"))
+        #expect(windows.arguments[3].contains("choose-tree -w -t '%3'"))
+    }
+
     @Test("相对 Window 导航使用 tmux 原生偏移在单条命令中合并多步")
     func rendersBatchedRelativeWindowNavigation() throws {
         let session = try #require(TmuxSessionID(rawValue: "$7"))

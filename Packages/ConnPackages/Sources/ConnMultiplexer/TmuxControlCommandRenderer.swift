@@ -142,6 +142,12 @@ package struct TmuxControlCommandRenderer: Sendable {
                 "-t", encode(paneID.rawValue)
             )
 
+        case let .chooseTree(paneID, scope):
+            command = join(
+                "choose-tree", scope == .sessions ? "-s" : "-w",
+                "-t", encode(paneID.rawValue)
+            )
+
         case let .enterCopyMode(paneID):
             command = join("copy-mode", "-t", encode(paneID.rawValue))
 

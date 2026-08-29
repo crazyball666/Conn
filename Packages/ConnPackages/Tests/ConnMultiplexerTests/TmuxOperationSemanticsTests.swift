@@ -42,6 +42,8 @@ struct TmuxOperationSemanticsTests {
                 .nonIdempotentMutation
             ),
             (.swapPane(pane, direction: .next), .nonIdempotentMutation),
+            (.chooseTree(pane, scope: .sessions), .idempotentMutation),
+            (.chooseTree(pane, scope: .windows), .idempotentMutation),
             (.enterCopyMode(pane), .idempotentMutation),
             (.killPane(pane), .destructive),
             (
@@ -50,7 +52,7 @@ struct TmuxOperationSemanticsTests {
             ),
         ]
 
-        #expect(fixtures.count == 20)
+        #expect(fixtures.count == 22)
         for (operation, expected) in fixtures {
             #expect(operation.semantics == expected)
             #expect(operation.isDestructive == (expected == .destructive))

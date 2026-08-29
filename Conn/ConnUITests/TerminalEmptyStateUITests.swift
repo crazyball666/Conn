@@ -55,6 +55,58 @@ final class TerminalEmptyStateUITests: XCTestCase {
     }
 
     @MainActor
+    func testCreatingPlainTerminalFromCenterOpensWithoutMissingSettingsEnvironment() throws {
+        let app = XCUIApplication()
+        app.launchEnvironment["CONN_DEMO"] = "1"
+        app.launchArguments += ["-conn.settings.terminalCursorBlinking", "false"]
+        app.launch()
+
+        let terminalTab = app.tabBars.buttons["终端"]
+        XCTAssertTrue(terminalTab.waitForExistence(timeout: 10))
+        terminalTab.tap()
+        let newTerminal = app.buttons["新建终端"].firstMatch
+        XCTAssertTrue(newTerminal.waitForExistence(timeout: 5))
+        newTerminal.tap()
+
+        let host = app.buttons.matching(
+            NSPredicate(format: "label CONTAINS %@", "web-01")
+        ).firstMatch
+        XCTAssertTrue(host.waitForExistence(timeout: 10))
+        host.tap()
+
+        let plainTerminal = app.buttons.matching(
+            NSPredicate(format: "label CONTAINS %@", "普通终端")
+        ).firstMatch
+        XCTAssertTrue(plainTerminal.waitForExistence(timeout: 5))
+        plainTerminal.tap()
+
+        let terminal = app.descendants(matching: .any)["terminal.viewport"].firstMatch
+        XCTAssertTrue(terminal.waitForExistence(timeout: 10))
+
+        let sessionActions = app.buttons["terminal.keybar.session-actions"]
+        XCTAssertTrue(sessionActions.waitForExistence(timeout: 5))
+        sessionActions.tap()
+        XCTAssertFalse(app.buttons["terminal.session-actions.return"].exists)
+        let closePage = app.buttons["terminal.session-actions.close"]
+        XCTAssertTrue(closePage.waitForExistence(timeout: 5))
+        closePage.tap()
+
+        XCTAssertTrue(terminal.waitForNonExistence(timeout: 5))
+        let hostCard = app.descendants(matching: .any).matching(
+            NSPredicate(format: "identifier BEGINSWITH %@", "terminal.host.")
+        ).firstMatch
+        XCTAssertTrue(hostCard.waitForExistence(timeout: 5))
+        hostCard.tap()
+        XCTAssertTrue(
+            app.buttons.matching(
+                NSPredicate(format: "identifier BEGINSWITH %@", "terminal.session.")
+            ).firstMatch.waitForExistence(timeout: 5),
+            "关闭终端页面后，本地会话应继续保留在终端列表中"
+        )
+        XCTAssertEqual(app.state, .runningForeground)
+    }
+
+    @MainActor
     func testPersistedTmuxEntryRestoresWithoutOpeningWorkspacePicker() throws {
         let app = XCUIApplication()
         app.launchEnvironment["CONN_DEMO"] = "1"

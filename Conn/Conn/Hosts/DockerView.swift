@@ -61,7 +61,12 @@ struct DockerView: View {
                 launchConsole(container)
             }
             .fullScreenCover(item: $terminalLauncher.route) { route in
-                TerminalScreen(host: route.host, tabID: route.tabID, dependencies: dependencies)
+                TerminalScreen(
+                    host: route.host,
+                    tabID: route.tabID,
+                    dependencies: dependencies,
+                    settings: settings
+                )
             }
             .onChange(of: terminalLauncher.errorMessage) { _, message in
                 if let message { viewModel.actionMessage = message }

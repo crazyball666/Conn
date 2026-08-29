@@ -99,6 +99,25 @@ struct TmuxProviderControlRuntimeRegistryTests {
         _ = try await registry.performQuickAction(
             attachmentLease,
             request: .init(
+                actionID: TmuxTerminalQuickAction.sessionList.rawValue,
+                target: target,
+                attachmentGeneration: 3,
+                expectedStateRevision: state.revision
+            )
+        )
+        _ = try await registry.performQuickAction(
+            attachmentLease,
+            request: .init(
+                actionID: TmuxTerminalQuickAction.windowList.rawValue,
+                target: target,
+                attachmentGeneration: 3,
+                expectedStateRevision: state.revision
+            )
+        )
+
+        _ = try await registry.performQuickAction(
+            attachmentLease,
+            request: .init(
                 actionID: TmuxTerminalQuickAction.splitHorizontal.rawValue,
                 target: target,
                 attachmentGeneration: 3,
@@ -166,6 +185,8 @@ struct TmuxProviderControlRuntimeRegistryTests {
                 direction: .up,
                 rows: try TmuxScrollRowCount(7)
             ),
+            .chooseTree(fixture.pane, scope: .sessions),
+            .chooseTree(fixture.pane, scope: .windows),
             .splitPane(fixture.pane, orientation: .horizontal),
             .selectPane(createdPane, for: clientTarget),
             .applyPaneLayout(fixture.window, layout: .tiled),
@@ -203,7 +224,7 @@ struct TmuxProviderControlRuntimeRegistryTests {
         await #expect(throws: TmuxInteractionError.targetMismatch) {
             try await registry.scrollInteraction(attachmentLease, request: wrongPane)
         }
-        #expect(await firstAdapter.operations.count == 7)
+        #expect(await firstAdapter.operations.count == 9)
 
         await registry.release(attachmentLease)
         #expect(firstChannel.closeCount == 1)
@@ -245,7 +266,6 @@ struct TmuxProviderControlRuntimeRegistryTests {
                 dialect: .init(commandGuardShape: .threeFields, snapshotCodec: .quoted),
                 attachmentID: fixture.attachmentID,
                 attachmentGeneration: 3,
-                requestedSessionID: fixture.session,
                 tty: fixture.dataClient.targetName,
                 processID: dataClientProcessID,
                 nonceFactory: { try TmuxInvocationNonce("unused") }

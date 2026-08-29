@@ -229,6 +229,12 @@ package struct TmuxShellInvocationRenderer: Sendable {
                 "-t", encodeTmux(paneID.rawValue)
             )
 
+        case let .chooseTree(paneID, scope):
+            return join(
+                "choose-tree", scope == .sessions ? "-s" : "-w",
+                "-t", encodeTmux(paneID.rawValue)
+            )
+
         case let .enterCopyMode(paneID):
             return join("copy-mode", "-t", encodeTmux(paneID.rawValue))
 

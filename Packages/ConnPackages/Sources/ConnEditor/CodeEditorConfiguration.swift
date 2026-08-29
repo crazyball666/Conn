@@ -10,6 +10,8 @@ public enum CodeIndentStyle: String, CaseIterable, Identifiable, Sendable {
 
 /// 代码编辑器的显示与输入偏好。
 public struct CodeEditorConfiguration: Equatable, Sendable {
+    public static let defaultFontSize: Double = 10
+
     public let theme: String
     public let fontSize: Double
     public let showsLineNumbers: Bool
@@ -19,7 +21,7 @@ public struct CodeEditorConfiguration: Equatable, Sendable {
 
     public init(
         theme: String = CodeEditorCatalog.defaultThemeID,
-        fontSize: Double = 13,
+        fontSize: Double = CodeEditorConfiguration.defaultFontSize,
         showsLineNumbers: Bool = true,
         wrapsLines: Bool = true,
         tabWidth: Int = 4,

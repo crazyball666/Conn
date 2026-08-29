@@ -685,6 +685,21 @@ public final class TerminalSessionCoordinator {
         }
     }
 
+    /// Keeps the durable resume bookmark aligned with an in-terminal workspace switch.
+    public func updatePersistentWorkspaceBinding(
+        _ tabID: String,
+        workspaceID: String,
+        workspaceName: String?
+    ) {
+        guard store.updatePersistentWorkspaceBinding(
+            tabID,
+            workspaceID: workspaceID,
+            workspaceName: workspaceName
+        ), let updated = store.tab(id: tabID)
+        else { return }
+        persistResumeRecord(for: updated)
+    }
+
     private func launchNew(
         _ request: TerminalLaunchRequest
     ) async -> Result<TerminalTab, TerminalLaunchFailure> {

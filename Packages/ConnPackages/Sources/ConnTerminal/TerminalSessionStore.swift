@@ -78,7 +78,7 @@ public struct TerminalTab: Identifiable, Sendable {
     public var persistentAttachment: (any PersistentTerminalAttachment)?
     public let transcript: TerminalTranscript
     public let source: TerminalSessionSource
-    public let reconnectDescriptor: TerminalReconnectDescriptor
+    public var reconnectDescriptor: TerminalReconnectDescriptor
     public var automaticAlias: String
     public var alias: String?
     public var status: TerminalTabStatus
@@ -258,6 +258,42 @@ public final class TerminalSessionStore {
         guard !trimmed.isEmpty else { return }
         tabs[index].automaticAlias = trimmed
         tabs[index].alias = nil
+    }
+
+    /// Rebinds a live persistent terminal after its provider reports that the owned client
+    /// moved to another workspace. Opaque provider data remains untouched.
+    @discardableResult
+    public func updatePersistentWorkspaceBinding(
+        _ tabID: String,
+        workspaceID: String,
+        workspaceName: String?
+    ) -> Bool {
+        guard let index = tabs.firstIndex(where: { $0.id == tabID }),
+              case let .persistent(descriptor) = tabs[index].reconnectDescriptor,
+              !workspaceID.isEmpty,
+              descriptor.workspace.workspaceID != workspaceID
+        else { return false }
+
+        let workspace = RemoteWorkspaceRef(
+            workspaceID: workspaceID,
+            instancePayloadVersion: descriptor.workspace.instancePayloadVersion,
+            providerInstancePayload: descriptor.workspace.providerInstancePayload
+        )
+        tabs[index].reconnectDescriptor = .persistent(PersistentAttachmentDescriptor(
+            providerID: descriptor.providerID,
+            configuration: descriptor.configuration,
+            workspace: workspace,
+            payloadVersion: descriptor.payloadVersion,
+            providerPayload: descriptor.providerPayload
+        ))
+        if let workspaceName = workspaceName?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !workspaceName.isEmpty {
+            tabs[index].automaticAlias = workspaceName
+        }
+        // A local override labels the previous workspace and must not leak to the new one.
+        tabs[index].alias = nil
+        tabs[index].lastUsedAt = .now
+        return true
     }
 
     public func updateStatus(_ tabID: String, to status: TerminalTabStatus) {

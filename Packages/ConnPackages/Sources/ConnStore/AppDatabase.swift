@@ -34,16 +34,22 @@ public struct AppDatabase: @unchecked Sendable {
         return try AppDatabase(DatabasePool(path: url.path, configuration: baseConfiguration))
     }
 
-    /// 迁移器。即使仍处于预发布阶段也保留开发库中的主机和密钥元数据；
-    /// schema 演进统一通过显式迁移完成。
+    /// 删除 SQLite 主文件及其事务旁路文件。调用方必须先释放所有持有该数据库的 writer。
+    public static func removeOnDiskStore(at url: URL) throws {
+        let fileManager = FileManager.default
+        let candidates = ["", "-wal", "-shm", "-journal"].map {
+            URL(fileURLWithPath: url.path + $0)
+        }
+        for candidate in candidates {
+            guard fileManager.fileExists(atPath: candidate.path) else { continue }
+            try fileManager.removeItem(at: candidate)
+        }
+    }
+
+    /// 当前开发期只维护一份完整建库 Schema；旧开发库由 App 的重试流程删除后重建。
     public static var migrator: DatabaseMigrator {
         var migrator = DatabaseMigrator()
         SchemaV1.register(in: &migrator)
-        SchemaV2.register(in: &migrator)
-        SchemaV3.register(in: &migrator)
-        SchemaV4.register(in: &migrator)
-        SchemaV5.register(in: &migrator)
-        SchemaV6.register(in: &migrator)
         return migrator
     }
 
