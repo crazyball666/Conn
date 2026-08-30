@@ -129,7 +129,10 @@ struct ServersViewModelTests {
         let hostStore = StubHostRepository(hosts: [existing])
         let log = ExecLog()
         let monitor = MonitorScheduler(
-            connectionManager: ConnectionManager(transport: GatedTransport(log: log))
+            connectionManager: ConnectionManager(
+                transport: GatedTransport(log: log),
+                platformDetector: ServersFixedPlatformDetector()
+            )
         )
         let viewModel = ServersViewModel(
             hostStore: hostStore,
@@ -215,7 +218,10 @@ struct ServersViewModelTests {
         let log = ExecLog()
         await log.armGate(Gate())
         let monitor = MonitorScheduler(
-            connectionManager: ConnectionManager(transport: GatedTransport(log: log))
+            connectionManager: ConnectionManager(
+                transport: GatedTransport(log: log),
+                platformDetector: ServersFixedPlatformDetector()
+            )
         )
         let viewModel = ServersViewModel(
             hostStore: StubHostRepository(hosts: [target]),
@@ -256,15 +262,23 @@ struct ServersViewModelTests {
     /// 是这条通路上**唯一**的一环，而其余测试只断言非重连态：把映射里的
     /// `.reconnecting` 分支错写成 `.collecting`，它们仍会全绿。
     ///
-    /// 制造 `.reconnecting` 的办法：先成功采一轮建立读数，再让下一次 exec 抛
+    /// 制造 `.reconnecting` 的办法：先成功采两轮建立完整读数，再让下一次 exec 抛
     /// `SSHError.channelClosed`（失败会触发 `invalidate(host:)` 清空连接池），
     /// 随后的同轮重试就处于「有读数 + 池空」= `.reconnecting`。
     @Test("重连中（有读数 + 会话被驱逐）映射到卡片 collectPhase")
     func mapsReconnectingPhaseToCard() async throws {
         let target = Host(name: "web", address: "10.0.0.1", username: "root")
         let log = ExecLog()
+        await log.setStdoutSamples([
+            completeLinuxMetricsOutput(),
+            completeLinuxMetricsOutput(cpu: "cpu  110 10 60 1010 20 0 5 0 0 0"),
+            completeLinuxMetricsOutput(cpu: "cpu  120 10 70 1020 20 0 5 0 0 0")
+        ])
         let monitor = MonitorScheduler(
-            connectionManager: ConnectionManager(transport: GatedTransport(log: log))
+            connectionManager: ConnectionManager(
+                transport: GatedTransport(log: log),
+                platformDetector: ServersFixedPlatformDetector()
+            )
         )
         let viewModel = ServersViewModel(
             hostStore: StubHostRepository(hosts: [target]),
@@ -273,7 +287,8 @@ struct ServersViewModelTests {
         )
         viewModel.load()
 
-        // 第一轮放行，建立「已知可用」的读数。
+        // Linux 第一轮只建立 CPU jiffies 基线；第二轮才得到完整健康度。
+        await monitor.scanNow(hosts: [target])
         await monitor.scanNow(hosts: [target])
         #expect(viewModel.cards.first?.collectPhase == .idle)
         #expect(viewModel.cards.first?.connectionPhase == .connected)
@@ -285,10 +300,10 @@ struct ServersViewModelTests {
         await log.armGate(Gate())
         let scan = Task { await monitor.scanNow(hosts: [target]) }
 
-        // 等到第 3 次 exec 已开始（首轮 1 次 + 本轮失败 1 次 + 重试 1 次）。
+        // 等到第 4 次 exec 已开始（两轮基线 + 本轮失败 1 次 + 重试 1 次）。
         // 直接轮询卡片状态可能撞上失败那次 attempt 的瞬时值；用单调递增的 exec
         // 计数定位，才能保证读到的是「重试那次 attempt」写下的、稳定不再变的值。
-        await waitUntilExecCount(log, atLeast: 3)
+        await waitUntilExecCount(log, atLeast: 4)
         // `.reconnecting` 同时蕴含「转圈亮着」（`isCollecting` 为真），
         // 不必再单独断言一次忙碌位——枚举已经把两者绑成一个值。
         #expect(viewModel.cards.first?.collectPhase == .reconnecting)
@@ -326,6 +341,13 @@ struct ServersViewModelTests {
     }
 }
 
+private struct ServersFixedPlatformDetector: RemotePlatformDetecting {
+    func detect(on session: any SSHSession) async throws -> RemotePlatformProfile {
+        _ = session
+        return RemotePlatformProfile(kind: .linux)
+    }
+}
+
 /// 由测试控制开合的闸门：`exec` 在此挂起，直到测试放行。
 ///
 /// 用数组而非单个 `CheckedContinuation?` 存等待者：单槽位的版本在第二个等待者到来时
@@ -354,9 +376,19 @@ private actor ExecLog {
     private(set) var execs = 0
     private var failuresRemaining = 0
     private var gate: Gate?
+    private var stdoutSamples: [Data] = []
 
     /// 追加 n 次待失败的 exec。
     func failNext(_ count: Int) { failuresRemaining += count }
+
+    func setStdoutSamples(_ outputs: [String]) {
+        stdoutSamples = outputs.map { Data($0.utf8) }
+    }
+
+    func stdoutData() -> Data {
+        guard !stdoutSamples.isEmpty else { return Data() }
+        return stdoutSamples.removeFirst()
+    }
 
     /// 装闸门：此后「成功」的 exec 会挂起等放行。失败路径不受闸门影响，保持即时确定。
     func armGate(_ gate: Gate) { self.gate = gate }
@@ -402,7 +434,7 @@ private final class GatedSession: SSHSession {
     func exec(_ command: String, timeout: Duration) async throws -> ExecResult {
         if await log.shouldFailExec() { throw SSHError.channelClosed }
         await log.waitIfGated()
-        return ExecResult(exitCode: 0, stdout: Data(), stderr: Data())
+        return ExecResult(exitCode: 0, stdout: await log.stdoutData(), stderr: Data())
     }
 
     func execStream(_ command: String) async throws -> AsyncThrowingStream<Data, Error> {
@@ -417,4 +449,20 @@ private final class GatedSession: SSHSession {
     func sftp() async throws -> any RemoteFileSystem { throw SSHError.channelClosed }
     func openTunnel(to target: SSHEndpoint) async throws -> any SSHTunnel { throw SSHError.channelClosed }
     func close() async { continuation.finish() }
+}
+
+private func completeLinuxMetricsOutput(
+    cpu: String = "cpu  100 10 50 1000 20 0 5 0 0 0"
+) -> String {
+    """
+    __CONN_STAT__
+    \(cpu)
+    __CONN_MEM__
+    MemTotal:        4096000 kB
+    MemAvailable:    2048000 kB
+    __CONN_DISK__
+    Filesystem     1024-blocks     Used Available Capacity Mounted on
+    /dev/vda1         41152000 18000000  21000000      47% /
+    __CONN_END__
+    """
 }

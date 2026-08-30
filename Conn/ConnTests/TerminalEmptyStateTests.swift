@@ -19,7 +19,7 @@ final class TerminalEmptyStateTests: XCTestCase {
         XCTAssertTrue(source.contains(".accessibilityLabel(L(\"新建终端\"))"))
     }
 
-    func testTerminalAndSnippetListsShareCardRadiusAndVerticalSpacing() throws {
+    func testTerminalAndSnippetListsUseCompactSurfaceCards() throws {
         let terminal = try source("Conn/Terminal/TerminalSessionCenterView.swift")
         let snippets = try source("Conn/Commands/SnippetsView.swift")
         let metrics = try source("../Packages/ConnPackages/Sources/ConnUI/Tokens/ConnMetrics.swift")
@@ -27,8 +27,8 @@ final class TerminalEmptyStateTests: XCTestCase {
         XCTAssertTrue(metrics.contains("public static let listCard: CGFloat = 20"))
         XCTAssertTrue(terminal.contains("top: ConnSpacing.xs"))
         XCTAssertTrue(terminal.contains("bottom: ConnSpacing.xs"))
-        XCTAssertTrue(terminal.contains(".connSurface(cornerRadius: ConnRadius.listCard)"))
-        XCTAssertTrue(terminal.contains(".listRowBackground(Color.clear)"))
+        XCTAssertTrue(terminal.contains(".listStyle(.insetGrouped)"))
+        XCTAssertTrue(terminal.contains(".listRowBackground(Color.connSurface)"))
         XCTAssertTrue(snippets.contains(".connSurface(cornerRadius: ConnRadius.listCard)"))
     }
 

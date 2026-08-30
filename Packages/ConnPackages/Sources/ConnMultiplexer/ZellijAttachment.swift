@@ -1,6 +1,13 @@
 import ConnSSH
 import Foundation
 
+package let zellijTerminalEnvironmentBootstrap = """
+if [ -z "${TERM:-}" ]; then
+    TERM=xterm-256color
+    export TERM
+fi
+"""
+
 package func zellijAttachmentScript(
     executable: String,
     sessionName: ZellijSessionName,
@@ -13,6 +20,7 @@ package func zellijAttachmentScript(
     zellij_path=\(executable)
     session_name=\(sessionName)
     nonce=\(nonce)
+    \(zellijTerminalEnvironmentBootstrap)
     if ! sessions=$("$zellij_path" list-sessions --short --no-formatting 2>/dev/null); then
         printf '__CONN_ZELLIJ_UNAVAILABLE_v1__ nonce=%s\n' "$nonce"
         exit 70

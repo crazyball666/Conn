@@ -53,7 +53,7 @@ struct ConnectionTesterTests {
         #expect(tester.steps[0].state == .ok)
         #expect(tester.steps[1].state == .ok)
         #expect(tester.steps[2].state == .failed)
-        #expect(tester.steps[2].detail?.contains("ed25519") == true)
+        #expect(tester.steps[2].detail?.localizedCaseInsensitiveContains("ed25519") == true)
     }
 
     @Test("指纹不符 → 前三步过、指纹步失败")

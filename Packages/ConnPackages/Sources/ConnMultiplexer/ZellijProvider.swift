@@ -283,9 +283,13 @@ public struct ZellijProvider: PersistentTerminalProvider {
         arguments: [String],
         in context: PersistentTerminalContext
     ) async throws -> ExecResult {
-        let command = ([runtime.executable] + arguments)
+        let invocation = ([runtime.executable] + arguments)
             .map(POSIXShellArgument.encode)
             .joined(separator: " ")
+        let command = """
+        \(zellijTerminalEnvironmentBootstrap)
+        exec \(invocation)
+        """
         return try await context.session.exec(command, timeout: .seconds(30))
     }
 

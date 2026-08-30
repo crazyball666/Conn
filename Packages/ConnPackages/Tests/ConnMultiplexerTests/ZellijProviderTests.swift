@@ -135,6 +135,9 @@ struct ZellijProviderTests {
         let createCommand = try #require(recorder.values.first {
             $0.contains("attach --create-background")
         })
+        #expect(createCommand.contains("if [ -z \"${TERM:-}\" ]; then"))
+        #expect(createCommand.contains("TERM=xterm-256color"))
+        #expect(createCommand.contains("export TERM"))
         #expect(!createCommand.contains("attach --create-background --"))
         #expect(createCommand.contains("'ops team'\\''s'"))
     }
@@ -246,6 +249,9 @@ struct ZellijProviderTests {
         #expect(script.contains("grep -Fqx -- \"$session_name\""))
         #expect(script.contains("__CONN_ZELLIJ_MISSING_v1__ nonce=%s"))
         #expect(script.contains("__CONN_ZELLIJ_ATTACH_v1__ nonce=%s"))
+        #expect(script.contains("if [ -z \"${TERM:-}\" ]; then"))
+        #expect(script.contains("TERM=xterm-256color"))
+        #expect(script.contains("export TERM"))
         #expect(script.contains("exec \"$zellij_path\" attach \"$session_name\""))
         #expect(!script.contains("attach -- \"$session_name\""))
         #expect(script.contains("session_name='team ops'"))
