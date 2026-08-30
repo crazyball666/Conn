@@ -45,6 +45,31 @@ struct ZellijProviderTests {
         #expect(availability.issue == .executableMissing)
     }
 
+    @Test("macOS 探测包含 Homebrew 与用户级可执行目录")
+    func macOSProbeFindsHomebrewExecutableOutsideSSHPath() async throws {
+        let recorder = ZellijCommandRecorder()
+        let context = try await makeZellijContext(
+            platform: .macOS,
+            recorder: recorder,
+            responder: { command in
+                guard command.contains("/opt/homebrew/bin") else {
+                    return .init(stderr: "zellij: not found", exitCode: 127)
+                }
+                return .init(stdout: "/opt/homebrew/bin/zellij\n")
+            }
+        )
+
+        let availability = try await ZellijProvider().probe(in: context)
+
+        #expect(availability.state == .available)
+        #expect(availability.issue == nil)
+        let command = try #require(recorder.values.first)
+        #expect(command.contains("/opt/homebrew/bin"))
+        #expect(command.contains("/usr/local/bin"))
+        #expect(command.contains("$HOME/.cargo/bin"))
+        #expect(!command.contains("--version"))
+    }
+
     @Test("Session 列表使用名称作为稳定 workspace identity")
     func listsSessionsByName() async throws {
         let context = try await makeZellijContext { command in
@@ -389,6 +414,7 @@ struct ZellijProviderTests {
 }
 
 private func makeZellijContext(
+    platform: RemotePlatformKind = .linux,
     recorder: ZellijCommandRecorder? = nil,
     processFactory: MockSSHTransport.ProcessFactory? = nil,
     responder: @escaping @Sendable (String) -> MockSSHTransport.CommandResponse?
@@ -409,7 +435,7 @@ private func makeZellijContext(
     )
     let manager = ConnectionManager(
         transport: MockSSHTransport(behavior: behavior),
-        platformDetector: ZellijFixedPlatformDetector(kind: .linux)
+        platformDetector: ZellijFixedPlatformDetector(kind: platform)
     )
     let remote = try await manager.platformContext(for: host)
     return PersistentTerminalContext(

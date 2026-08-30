@@ -255,7 +255,10 @@ public struct ZellijProvider: PersistentTerminalProvider {
             return cached
         }
 
-        let result = try await context.session.exec("command -v zellij", timeout: .seconds(10))
+        let result = try await context.session.exec(
+            executableDiscoveryCommand(for: context.platformProfile.kind),
+            timeout: .seconds(10)
+        )
         guard result.isSuccess else { throw PersistentTerminalError.executableMissing }
         var bytes = result.stdout
         if bytes.last == UInt8(ascii: "\n") {
@@ -276,6 +279,15 @@ public struct ZellijProvider: PersistentTerminalProvider {
         let runtime = ZellijRuntime(executable: path)
         await Self.runtimeCache.insert(runtime, session: context.session, for: key)
         return runtime
+    }
+
+    private func executableDiscoveryCommand(for platform: RemotePlatformKind) -> String {
+        guard platform == .macOS else { return "command -v zellij" }
+        return """
+        PATH="${PATH:-}:/opt/homebrew/bin:/usr/local/bin:/opt/local/bin:$HOME/.cargo/bin:$HOME/.local/bin"
+        export PATH
+        command -v zellij
+        """
     }
 
     private func execute(

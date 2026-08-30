@@ -225,8 +225,47 @@ final class ConnUITests: XCTestCase {
         XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 5))
     }
 
-    /// 使用测试设备里用户已经配置好的真实主机做 opt-in 验收。默认跳过，避免 CI 依赖
-    /// 私有凭据；手工验收时设置 CONN_LIVE_TMUX_UI_ACCEPTANCE=1。
+    /// 使用测试设备里用户已经配置好的真实 Mac 主机做 opt-in 验收。默认跳过，避免
+    /// CI 依赖私有凭据；手工验收时设置 CONN_LIVE_ZELLIJ_UI_ACCEPTANCE=1。
+    @MainActor
+    func testLiveMacZellijInstalledByHomebrewIsAvailable() throws {
+        guard ProcessInfo.processInfo.environment["CONN_LIVE_ZELLIJ_UI_ACCEPTANCE"] == "1" else {
+            throw XCTSkip("需要测试设备内已有 192.168.31.195 凭据与 Homebrew Zellij")
+        }
+
+        let app = XCUIApplication()
+        app.launch()
+
+        let terminalTab = app.tabBars.buttons["终端"]
+        XCTAssertTrue(terminalTab.waitForExistence(timeout: 10))
+        terminalTab.tap()
+        let newTerminal = app.buttons["新建终端"].firstMatch
+        XCTAssertTrue(newTerminal.waitForExistence(timeout: 5))
+        newTerminal.tap()
+
+        let host = app.buttons.matching(
+            NSPredicate(format: "label CONTAINS %@", "192.168.31.195")
+        ).firstMatch
+        XCTAssertTrue(host.waitForExistence(timeout: 10))
+        host.tap()
+
+        let persistentChoice = app.buttons["持久终端"]
+        XCTAssertTrue(persistentChoice.waitForExistence(timeout: 5))
+        persistentChoice.tap()
+
+        let zellijChoice = app.buttons.matching(
+            NSPredicate(format: "label BEGINSWITH[c] %@", "Zellij")
+        ).firstMatch
+        XCTAssertTrue(zellijChoice.waitForExistence(timeout: 20))
+        zellijChoice.tap()
+
+        XCTAssertTrue(
+            app.textFields["Session 名称（可选）"].waitForExistence(timeout: 20),
+            "Homebrew 安装的 Zellij 应被 SSH 非交互命令探测到"
+        )
+        XCTAssertFalse(app.staticTexts["Zellij 不可用，已改用普通终端"].exists)
+    }
+
     @MainActor
     func testLiveTmuxWindowNavigationShowsSuccessAndDoesNotMisreportFailure() throws {
         guard ProcessInfo.processInfo.environment["CONN_LIVE_TMUX_UI_ACCEPTANCE"] == "1" else {
