@@ -24,6 +24,34 @@ struct TerminalTranscriptTests {
         ])
     }
 
+    @Test("远端权威视口重新绑定时不回放旧 ANSI")
+    func authoritativeRemoteAttachmentStartsCleanAndThenReceivesLiveOutput() async {
+        let transcript = TerminalTranscript()
+        await transcript.activateGeneration(1)
+        await transcript.append(Array("stale\n".utf8), generation: 1)
+
+        let attachment = await transcript.attach(replayPolicy: .authoritativeRemote)
+        await transcript.append(Array("fresh\n".utf8), generation: 1)
+
+        var iterator = attachment.events.makeAsyncIterator()
+        #expect(await iterator.next() == .replayStarted(requiresReset: true))
+        #expect(await iterator.next() == .replayFinished(.default))
+        #expect(await iterator.next() == .liveBytes(Array("fresh\n".utf8)))
+    }
+
+    @Test("远端权威视口积压恢复时不回放本地快照")
+    func authoritativeRemoteBackpressureRequestsCleanRedraw() async {
+        let transcript = TerminalTranscript(maxPendingLiveBytes: 3)
+        await transcript.activateGeneration(1)
+        let attachment = await transcript.attach(replayPolicy: .authoritativeRemote)
+
+        await transcript.append(Array("1234".utf8), generation: 1)
+
+        var iterator = attachment.events.makeAsyncIterator()
+        #expect(await iterator.next() == .replayStarted(requiresReset: true))
+        #expect(await iterator.next() == .replayFinished(.default))
+    }
+
     @Test("丢弃旧 generation 迟到的输出")
     func ignoresStaleGenerationOutput() async {
         let transcript = TerminalTranscript()

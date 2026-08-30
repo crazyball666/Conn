@@ -366,13 +366,16 @@ package struct TmuxInteractionStateProjector: Sendable {
         }
 
         let interaction = pane.interaction
-        let freshness = effectiveFreshness([
+        var routingFreshness = [
             interaction.alternateOn.freshness,
             interaction.paneInMode.freshness,
-            interaction.mode.freshness,
             interaction.historySize.freshness,
             interaction.historyLimit.freshness
-        ])
+        ]
+        if interaction.paneInMode.value == true {
+            routingFreshness.append(interaction.mode.freshness)
+        }
+        let freshness = effectiveFreshness(routingFreshness)
         let state = PersistentTerminalInteractionState(
             target: target,
             workspaceName: session.name,
@@ -635,7 +638,17 @@ package struct TmuxOneShotReadOnlyCommandExecutor: TmuxReadOnlyCommandExecuting,
             guard execution.isSuccess else {
                 throw TmuxInteractionOneShotError.commandRejected(execution.exitCode)
             }
-            return .init(scope: scope, output: splitLines(remainder))
+            var output = splitLines(remainder)
+            if let completionMarker = request.completionMarker {
+                guard output.last == completionMarker else {
+                    throw TmuxInteractionOneShotError.malformedResponse
+                }
+                output.removeLast()
+                guard !output.contains(completionMarker) else {
+                    throw TmuxInteractionOneShotError.malformedResponse
+                }
+            }
+            return .init(scope: scope, output: output)
         }
         if let remainder = consumeLeadingLine(changed, from: execution.stdout), remainder.isEmpty {
             throw TmuxInteractionOneShotError.staleInstance
@@ -1016,6 +1029,7 @@ package actor TmuxOneShotInteractionBackend {
 
 package actor TmuxInteractionFacet: PersistentTerminalInteractionFacet {
     package nonisolated let states: AsyncStream<PersistentTerminalInteractionState>
+    package nonisolated let historyOwnership: PersistentTerminalHistoryOwnership = .provider
     private nonisolated let continuation:
         AsyncStream<PersistentTerminalInteractionState>.Continuation
     private let historyBackend: TmuxOneShotInteractionBackend
@@ -1058,6 +1072,17 @@ package actor TmuxInteractionFacet: PersistentTerminalInteractionFacet {
                 await self?.accept(snapshot, from: lease)
             }
         }
+    }
+
+    package func setViewportVisible(_ isVisible: Bool) async throws {
+        guard !closed else { throw TmuxInteractionError.closed }
+        guard let controlLease else {
+            throw PersistentTerminalError.controlModeUnavailable
+        }
+        try await controlLease.registry.updateViewport(
+            controlLease,
+            isVisible: isVisible
+        )
     }
 
     public func resolveState() async throws -> PersistentTerminalInteractionState {

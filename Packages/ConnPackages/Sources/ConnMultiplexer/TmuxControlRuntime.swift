@@ -11,64 +11,6 @@ package struct TmuxControlProcessIdentity: Sendable, Equatable {
     }
 }
 
-package enum TmuxDataClientSizePolicyDecision: Sendable, Equatable {
-    case enableIgnoreSize
-    case disableIgnoreSize
-    case unchanged
-}
-
-/// tmux lets every participating client influence window size. Conn starts conservatively
-/// isolated, then participates only when its verified data client is the sole size voter.
-package enum TmuxDataClientSizePolicy {
-    package static func decision(
-        for identity: TmuxControlInteractiveIdentity,
-        clients: [TmuxClientID: TmuxClientSnapshot],
-        supportsIgnoreSize: Bool
-    ) -> TmuxDataClientSizePolicyDecision {
-        guard supportsIgnoreSize,
-              let dataClient = clients[identity.clientID],
-              case let .connInteractive(attachmentID) = dataClient.role,
-              attachmentID == identity.attachmentID,
-              dataClient.kind == .interactiveTerminal
-        else { return .unchanged }
-
-        let connDataClients: [(attachmentID: String, client: TmuxClientSnapshot)] = clients.values
-            .compactMap { candidate in
-                guard case let .connInteractive(candidateAttachmentID) = candidate.role,
-                      candidate.kind == .interactiveTerminal
-                else { return nil }
-                return (candidateAttachmentID, candidate)
-            }
-        let hasExternalSizeVoter = clients.values.contains { candidate in
-            switch candidate.role {
-            case .connControl, .connInteractive:
-                return false
-            case .external:
-                return candidate.sizeParticipation == .participating
-                    || candidate.sizeParticipation == .unknown
-            }
-        }
-        let participatingConnClients = connDataClients.filter {
-            $0.client.sizeParticipation == .participating
-        }
-        let participant = (participatingConnClients.isEmpty
-            ? connDataClients
-            : participatingConnClients
-        ).min { lhs, rhs in
-            lhs.attachmentID == rhs.attachmentID
-                ? lhs.client.id.targetName < rhs.client.id.targetName
-                : lhs.attachmentID < rhs.attachmentID
-        }
-        let shouldIgnoreSize = hasExternalSizeVoter
-            || participant?.attachmentID != attachmentID
-        let isIgnoringSize = dataClient.flags?.contains(.ignoreSize)
-        if shouldIgnoreSize {
-            return isIgnoringSize == true ? .unchanged : .enableIgnoreSize
-        }
-        return isIgnoringSize == true ? .disableIgnoreSize : .unchanged
-    }
-}
-
 package enum TmuxDataClientFocusPolicy {
     package static func shouldEnableActivePane(
         for identity: TmuxControlInteractiveIdentity,
@@ -257,7 +199,7 @@ package actor TmuxControlRuntime {
             controlClientID: controlClientID,
             timeout: timeout
         )
-        let changed = await reconcileDataClientPolicies(
+        let changed = await reconcileDataClientFocusPolicies(
             identities: identities,
             snapshot: snapshot
         )
@@ -275,6 +217,36 @@ package actor TmuxControlRuntime {
 
     package func setControlClientID(_ clientID: TmuxClientID) {
         controlClientID = clientID
+    }
+
+    /// Visibility, not attachment count, decides whether this exact interactive client
+    /// participates in tmux size arbitration. A visible client is redrawn only after its
+    /// PTY has been resized by the attachment.
+    package func updateDataClientViewport(
+        _ identity: TmuxControlInteractiveIdentity,
+        isVisible: Bool
+    ) async throws {
+        let target = try TmuxClientTarget(identity.clientID.targetName)
+        if negotiatedCapabilities.supportedClientFlags.contains(.ignoreSize) {
+            let update = TmuxClientFlagUpdate(
+                client: target,
+                flag: .ignoreSize,
+                enabled: !isVisible
+            )
+            let request = try TmuxControlRequest(
+                renderedCommand: TmuxControlCommandRenderer().render(update),
+                semantics: .idempotentMutation
+            )
+            guard try await client.execute(request, timeout: .seconds(2)).status == .succeeded
+            else { throw TmuxInteractionError.clientUnavailable }
+        }
+        guard isVisible else { return }
+        let redraw = try TmuxControlRequest(
+            renderedCommand: TmuxControlCommandRenderer().renderClientRedraw(target),
+            semantics: .idempotentMutation
+        )
+        guard try await client.execute(redraw, timeout: .seconds(2)).status == .succeeded
+        else { throw TmuxInteractionError.clientUnavailable }
     }
 
     package func demandChanged(_ demand: TmuxControlHubDemand) async {
@@ -364,11 +336,10 @@ package actor TmuxControlRuntime {
         }
     }
 
-    private func reconcileDataClientPolicies(
+    private func reconcileDataClientFocusPolicies(
         identities: Set<TmuxControlInteractiveIdentity>,
         snapshot: TmuxServerSnapshot
     ) async -> Bool {
-        let supportsIgnoreSize = negotiatedCapabilities.supportedClientFlags.contains(.ignoreSize)
         let supportsActivePane = negotiatedCapabilities.supportedClientFlags.contains(.activePane)
         var changed = false
         for identity in identities.sorted(by: { $0.attachmentID < $1.attachmentID }) {
@@ -383,22 +354,6 @@ package actor TmuxControlRuntime {
                     to: identity
                 ) || changed
             }
-            let decision = TmuxDataClientSizePolicy.decision(
-                for: identity,
-                clients: snapshot.clients,
-                supportsIgnoreSize: supportsIgnoreSize
-            )
-            let enabled: Bool
-            switch decision {
-            case .enableIgnoreSize: enabled = true
-            case .disableIgnoreSize: enabled = false
-            case .unchanged: continue
-            }
-            changed = await applyDataClientFlag(
-                .ignoreSize,
-                enabled: enabled,
-                to: identity
-            ) || changed
         }
         return changed
     }
@@ -429,6 +384,7 @@ package actor TmuxControlRuntime {
 }
 
 extension TmuxControlRuntime: TmuxReadyControlClientLocating {}
+extension TmuxControlRuntime: TmuxDataClientViewportUpdating {}
 extension TmuxControlRuntime: TmuxControlHubSnapshotLoading {
     package func loadSnapshot(
         scope requestedScope: TmuxOperationScope,

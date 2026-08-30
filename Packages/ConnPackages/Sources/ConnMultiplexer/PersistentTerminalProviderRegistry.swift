@@ -31,14 +31,14 @@ public struct PersistentTerminalProviderRegistry: Sendable {
     /// property is only the composition-root default and does not add fallback routing.
     public static let `default`: Self = {
         do {
-            return try Self(providers: [TmuxProvider()])
+            return try Self(providers: [TmuxProvider(), ZellijProvider()])
         } catch {
             preconditionFailure("built-in persistent-terminal providers must have unique IDs")
         }
     }()
 
     public init(providers: [any PersistentTerminalProvider]) throws {
-        if providers.contains(where: { $0.descriptor.id.isEmpty }) {
+        if providers.contains(where: \.descriptor.id.isEmpty) {
             throw PersistentTerminalProviderRegistryError.emptyProviderID
         }
 

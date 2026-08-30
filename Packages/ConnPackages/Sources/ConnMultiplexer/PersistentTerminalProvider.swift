@@ -51,7 +51,23 @@ public struct PersistentTerminalAttachmentFailure: Sendable, Equatable {
 }
 
 public enum PersistentTerminalAttachmentLifecycleEvent: Sendable, Equatable {
+    /// The attached remote workspace ended normally. Consumers should retire the local
+    /// terminal and its durable resume bookmark instead of offering an impossible reconnect.
+    case workspaceClosed
     case failed(PersistentTerminalAttachmentFailure)
+}
+
+/// Defines which side owns the visible terminal image and its effective PTY size.
+/// Ordinary shells keep using the local transcript. Providers such as tmux can instead
+/// rebuild the screen from their authoritative remote state whenever a view is attached.
+public enum PersistentTerminalViewportAuthority: Sendable, Equatable {
+    case localTranscript
+    case remoteProvider
+}
+
+public enum PersistentTerminalViewportState: Sendable, Equatable {
+    case hidden
+    case visible(TermSize)
 }
 
 /// Runtime ownership handle for an opened persistent terminal attachment.
@@ -62,6 +78,8 @@ public protocol PersistentTerminalAttachment: AnyObject, Sendable {
     var descriptor: PersistentAttachmentDescriptor { get }
     var presentation: PersistentAttachmentPresentation { get }
     var lifecycleEvents: AsyncStream<PersistentTerminalAttachmentLifecycleEvent> { get }
+    var viewportAuthority: PersistentTerminalViewportAuthority { get }
+    func updateViewport(_ state: PersistentTerminalViewportState) async throws
     func close() async
 }
 
@@ -71,6 +89,10 @@ public extension PersistentTerminalAttachment {
     var lifecycleEvents: AsyncStream<PersistentTerminalAttachmentLifecycleEvent> {
         AsyncStream { $0.finish() }
     }
+
+    var viewportAuthority: PersistentTerminalViewportAuthority { .localTranscript }
+
+    func updateViewport(_: PersistentTerminalViewportState) async throws {}
 }
 
 /// Provider-neutral projection of a remote workspace catalog. The provider owns the

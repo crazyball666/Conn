@@ -91,7 +91,7 @@ struct TmuxControlCommandRendererTests {
             (.swapPane(pane, direction: .previous), "swap-pane -U -t '%3'"),
             (.chooseTree(pane, scope: .sessions), "choose-tree -s -t '%3'"),
             (.chooseTree(pane, scope: .windows), "choose-tree -w -t '%3'"),
-            (.enterCopyMode(pane), "copy-mode -t '%3'"),
+            (.enterCopyMode(pane), "copy-mode -e -t '%3'"),
             (.killPane(pane), "kill-pane -t '%3'"),
             (
                 .scrollPaneMode(pane, direction: .up, rows: try TmuxScrollRowCount(12)),
@@ -99,7 +99,7 @@ struct TmuxControlCommandRendererTests {
             ),
             (
                 .scrollPaneMode(pane, direction: .down, rows: try TmuxScrollRowCount(1)),
-                "send-keys -t '%3' -X -N '1' 'scroll-down'"
+                "send-keys -t '%3' -X -N '1' 'scroll-down-and-cancel'"
             ),
         ]
 
@@ -153,6 +153,13 @@ struct TmuxControlCommandRendererTests {
             flag: .ignoreSize,
             enabled: false
         )).value == "refresh-client -t '/dev/pts/9' -f '!ignore-size'")
+    }
+
+    @Test("完整重绘只定向到绑定 client")
+    func rendersTargetedClientRedraw() throws {
+        #expect(TmuxControlCommandRenderer().renderClientRedraw(
+            try TmuxClientTarget("/dev/pts/9")
+        ).value == "refresh-client -t '/dev/pts/9'")
     }
 
     @Test("Conn 主动创建的名称按 UTF-8 字节限制并拒绝空白及控制字符")

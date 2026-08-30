@@ -78,6 +78,10 @@ struct TerminalHostInteractionTests {
         terminal.feed(text: "\u{1b}[?1h")
         terminal.sendHostCursorKey(.down, count: 1)
         #expect(String(bytes: delegate.sent, encoding: .utf8) == "\u{1b}OB")
+
+        delegate.sent.removeAll()
+        terminal.sendHostCursorKey(.up, count: 2, modifiers: .control)
+        #expect(String(bytes: delegate.sent, encoding: .utf8) == "\u{1b}[1;5A\u{1b}[1;5A")
     }
 
     @Test("typed mouse uses active SGR encoding and clamps coordinates")

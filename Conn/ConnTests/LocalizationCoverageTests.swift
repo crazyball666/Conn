@@ -25,22 +25,23 @@ struct LocalizationCoverageTests {
 
         let uiCatalog = try loadCatalog("../Packages/ConnPackages/Sources/ConnUI/Resources/Localizable.xcstrings")
         let tmuxKeys = try tmuxInteractionKeys()
+            .union(zellijInteractionKeys())
             .union(tmuxSmokeInteractionKeys())
             .union(["主机", "终端", "脚本", "设置"])
         try validate(keys: tmuxKeys, in: uiCatalog, surface: "ConnUI dynamic terminal UI")
 
         let runnerCatalog = try loadCatalog("../Packages/ConnPackages/Sources/ConnRunner/Resources/Localizable.xcstrings")
-        try validate(keys: try builtinSnippetKeys(), in: runnerCatalog, surface: "ConnRunner built-ins")
+        try validate(keys: builtinSnippetKeys(), in: runnerCatalog, surface: "ConnRunner built-ins")
 
         let sshCatalog = try loadCatalog("../Packages/ConnPackages/Sources/ConnSSH/Resources/Localizable.xcstrings")
-        try validate(keys: try dangerReasonKeys(), in: sshCatalog, surface: "ConnSSH danger reasons")
+        try validate(keys: dangerReasonKeys(), in: sshCatalog, surface: "ConnSSH danger reasons")
     }
 
     @Test("production UI does not bypass the localization entry point")
     func visibleChineseLiteralsUseLocalization() throws {
         let visibleAPIs = [
             "Text", "Button", "Label", "Section", "TextField", "SecureField", "ConnButton",
-            "navigationTitle", "accessibilityLabel", "accessibilityHint", "alert", "confirmationDialog",
+            "navigationTitle", "accessibilityLabel", "accessibilityHint", "alert", "confirmationDialog"
         ].joined(separator: "|")
         let expression = try NSRegularExpression(
             pattern: #"\b(?:\#(visibleAPIs))\(\s*(?:verbatim:\s*)?\"((?:\\.|[^\"\\])*)\""#
@@ -72,15 +73,16 @@ struct LocalizationCoverageTests {
     func localizedCopyUsesProfessionalTerminology() throws {
         let retiredFragments = [
             "还没有", "没有匹配的", "先去", "进终端", "会让你", "生成一把",
-            "密钥管家", "片段", "服务器",
+            "密钥管家", "片段", "服务器"
         ]
         var keys = Set<String>()
         for surface in sourceSurfaces {
-            keys.formUnion(try localizedKeys(inDirectory: surface.sourcePath))
+            try keys.formUnion(localizedKeys(inDirectory: surface.sourcePath))
         }
-        keys.formUnion(try tmuxInteractionKeys())
-        keys.formUnion(try tmuxSmokeInteractionKeys())
-        keys.formUnion(try dangerReasonKeys())
+        try keys.formUnion(tmuxInteractionKeys())
+        try keys.formUnion(zellijInteractionKeys())
+        try keys.formUnion(tmuxSmokeInteractionKeys())
+        try keys.formUnion(dangerReasonKeys())
 
         let violations = keys.filter { key in
             retiredFragments.contains { key.contains($0) }
@@ -97,13 +99,41 @@ struct LocalizationCoverageTests {
     private var sourceSurfaces: [SourceSurface] {
         [
             .init(name: "App", sourcePath: "Conn", catalogPath: "Conn/Localizable.xcstrings"),
-            .init(name: "ConnCrypto", sourcePath: "../Packages/ConnPackages/Sources/ConnCrypto", catalogPath: "../Packages/ConnPackages/Sources/ConnCrypto/Resources/Localizable.xcstrings"),
-            .init(name: "ConnKit", sourcePath: "../Packages/ConnPackages/Sources/ConnKit", catalogPath: "../Packages/ConnPackages/Sources/ConnKit/Resources/Localizable.xcstrings"),
-            .init(name: "ConnOps", sourcePath: "../Packages/ConnPackages/Sources/ConnOps", catalogPath: "../Packages/ConnPackages/Sources/ConnOps/Resources/Localizable.xcstrings"),
-            .init(name: "ConnRunner", sourcePath: "../Packages/ConnPackages/Sources/ConnRunner", catalogPath: "../Packages/ConnPackages/Sources/ConnRunner/Resources/Localizable.xcstrings"),
-            .init(name: "ConnSSH", sourcePath: "../Packages/ConnPackages/Sources/ConnSSH", catalogPath: "../Packages/ConnPackages/Sources/ConnSSH/Resources/Localizable.xcstrings"),
-            .init(name: "ConnUI", sourcePath: "../Packages/ConnPackages/Sources/ConnUI", catalogPath: "../Packages/ConnPackages/Sources/ConnUI/Resources/Localizable.xcstrings"),
-            .init(name: "ConnTerminal", sourcePath: "../Packages/ConnPackages/Sources/ConnTerminal", catalogPath: "../Packages/ConnPackages/Sources/ConnUI/Resources/Localizable.xcstrings"),
+            .init(
+                name: "ConnCrypto",
+                sourcePath: "../Packages/ConnPackages/Sources/ConnCrypto",
+                catalogPath: "../Packages/ConnPackages/Sources/ConnCrypto/Resources/Localizable.xcstrings"
+            ),
+            .init(
+                name: "ConnKit",
+                sourcePath: "../Packages/ConnPackages/Sources/ConnKit",
+                catalogPath: "../Packages/ConnPackages/Sources/ConnKit/Resources/Localizable.xcstrings"
+            ),
+            .init(
+                name: "ConnOps",
+                sourcePath: "../Packages/ConnPackages/Sources/ConnOps",
+                catalogPath: "../Packages/ConnPackages/Sources/ConnOps/Resources/Localizable.xcstrings"
+            ),
+            .init(
+                name: "ConnRunner",
+                sourcePath: "../Packages/ConnPackages/Sources/ConnRunner",
+                catalogPath: "../Packages/ConnPackages/Sources/ConnRunner/Resources/Localizable.xcstrings"
+            ),
+            .init(
+                name: "ConnSSH",
+                sourcePath: "../Packages/ConnPackages/Sources/ConnSSH",
+                catalogPath: "../Packages/ConnPackages/Sources/ConnSSH/Resources/Localizable.xcstrings"
+            ),
+            .init(
+                name: "ConnUI",
+                sourcePath: "../Packages/ConnPackages/Sources/ConnUI",
+                catalogPath: "../Packages/ConnPackages/Sources/ConnUI/Resources/Localizable.xcstrings"
+            ),
+            .init(
+                name: "ConnTerminal",
+                sourcePath: "../Packages/ConnPackages/Sources/ConnTerminal",
+                catalogPath: "../Packages/ConnPackages/Sources/ConnUI/Resources/Localizable.xcstrings"
+            )
         ]
     }
 
@@ -196,6 +226,12 @@ struct LocalizationCoverageTests {
         try descriptorKeys(in: "../Packages/ConnPackages/Sources/ConnMultiplexer/TmuxInteraction.swift")
     }
 
+    private func zellijInteractionKeys() throws -> Set<String> {
+        try descriptorKeys(
+            in: "../Packages/ConnPackages/Sources/ConnMultiplexer/ZellijInteraction.swift"
+        )
+    }
+
     private func tmuxSmokeInteractionKeys() throws -> Set<String> {
         try descriptorKeys(in: "Conn/Terminal/TerminalTmuxQuickActionSmokeSupport.swift")
     }
@@ -228,9 +264,13 @@ struct LocalizationCoverageTests {
         let groups = try #require(root["groups"] as? [[String: Any]])
         var keys = Set<String>()
         for group in groups {
-            if let title = group["title"] as? String { keys.insert(title) }
+            if let title = group["title"] as? String {
+                keys.insert(title)
+            }
             for snippet in group["snippets"] as? [[String: Any]] ?? [] {
-                if let title = snippet["title"] as? String { keys.insert(title) }
+                if let title = snippet["title"] as? String {
+                    keys.insert(title)
+                }
             }
         }
         return keys

@@ -33,6 +33,18 @@ struct TerminalLayoutTests {
         #expect(view.getTerminal().cols < unpaddedColumns)
     }
 
+    @Test("内容边距触发布局缩放时不重置远端终端模式")
+    func contentPaddingResizePreservesTerminalModes() {
+        let view = KeybarTerminalView(frame: CGRect(x: 0, y: 0, width: 320, height: 480))
+        view.feed(byteArray: ArraySlice("\u{1B}[?1h".utf8))
+        #expect(view.getTerminal().applicationCursor)
+
+        view.configureContentPadding(horizontal: 12)
+        view.layoutIfNeeded()
+
+        #expect(view.getTerminal().applicationCursor)
+    }
+
     @Test("终端纵向不注入额外 inset，键盘避让交给真实可见视口")
     func verticalInsetsStayEmpty() {
         let view = KeybarTerminalView(frame: CGRect(x: 0, y: 0, width: 320, height: 480))

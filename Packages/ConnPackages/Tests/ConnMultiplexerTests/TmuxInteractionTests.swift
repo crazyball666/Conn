@@ -67,6 +67,24 @@ struct TmuxInteractionTests {
         #expect(stale.workingDirectory == nil)
     }
 
+    @Test("normal mode does not require a pane mode identifier")
+    func projectsNormalModeWithoutModeIdentifier() throws {
+        let fixture = try InteractionFixture()
+        let state = try TmuxInteractionStateProjector().project(
+            snapshot: fixture.snapshot(
+                freshness: .snapshot(observedAt: fixture.now),
+                paneInMode: false,
+                mode: .unavailable
+            ),
+            identity: fixture.identity,
+            attachmentGeneration: 9
+        )
+
+        #expect(state.freshness == .snapshot)
+        #expect(state.modeCapability == .none)
+        #expect(state.historyAvailable)
+    }
+
     @Test("tmux quick actions map to typed operations against the verified active topology")
     func mapsQuickActionsToVerifiedTargets() throws {
         let fixture = try InteractionFixture()
@@ -293,7 +311,9 @@ private struct InteractionFixture {
     func snapshot(
         freshness: TmuxMetadataFreshness,
         sessionID: TmuxSessionID? = nil,
-        sessionName: String = "main"
+        sessionName: String = "main",
+        paneInMode: Bool = true,
+        mode: TmuxObservedValue<String>? = nil
     ) throws -> TmuxServerSnapshot {
         let activeSession = sessionID ?? session
         return try TmuxServerSnapshot(
@@ -314,8 +334,8 @@ private struct InteractionFixture {
                 currentPath: observed("/repo/conn", freshness: freshness),
                 interaction: .init(
                     alternateOn: observed(false, freshness: freshness),
-                    paneInMode: observed(true, freshness: freshness),
-                    mode: observed("copy-mode", freshness: freshness),
+                    paneInMode: observed(paneInMode, freshness: freshness),
+                    mode: mode ?? observed("copy-mode", freshness: freshness),
                     mouseAnyFlag: observed(false, freshness: freshness),
                     historySize: observed(120, freshness: freshness),
                     historyLimit: observed(2000, freshness: freshness)

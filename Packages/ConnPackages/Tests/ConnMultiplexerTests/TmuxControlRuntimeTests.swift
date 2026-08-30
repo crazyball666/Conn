@@ -47,11 +47,43 @@ struct TmuxControlRuntimeTests {
         await runtime.close()
     }
 
-    @Test("size policy participates only when the verified data client is alone")
-    func arbitratesDataClientSizeParticipation() throws {
+    @Test("视口可见性只更新绑定 data client 并在显示时完整重绘")
+    func updatesExactDataClientViewport() async throws {
+        let channel = NegotiatingControlProcessChannel { _ in true }
+        let runtime = try TmuxControlRuntime(
+            channel: channel,
+            scope: try makeRuntimeScope(),
+            dialect: .init(commandGuardShape: .threeFields, snapshotCodec: .quoted),
+            processIdentity: .init(tty: "/dev/pts/9", processID: 900)
+        )
+        channel.startProtocol()
+        try await runtime.start(timeout: .seconds(2))
+        let identity = TmuxControlInteractiveIdentity(
+            attachmentID: "attachment-1",
+            clientID: TmuxClientID(targetName: "/dev/pts/1", processID: 1, createdAt: 1),
+            requestedSessionID: try #require(TmuxSessionID(rawValue: "$1"))
+        )
+
+        try await runtime.updateDataClientViewport(identity, isVisible: false)
+        try await runtime.updateDataClientViewport(identity, isVisible: true)
+
+        let commands = channel.commands
+        #expect(commands.contains("refresh-client -t '/dev/pts/1' -f 'ignore-size'"))
+        let participateIndex = try #require(
+            commands.firstIndex(of: "refresh-client -t '/dev/pts/1' -f '!ignore-size'")
+        )
+        let redrawIndex = try #require(
+            commands.firstIndex(of: "refresh-client -t '/dev/pts/1'")
+        )
+        #expect(participateIndex < redrawIndex)
+        #expect(!commands.contains("refresh-client -t '/dev/pts/2' -f 'ignore-size'"))
+        await runtime.close()
+    }
+
+    @Test("active Pane flag remains scoped to the verified data client")
+    func enablesActivePaneForVerifiedDataClient() throws {
         let session = try #require(TmuxSessionID(rawValue: "$1"))
         let dataID = TmuxClientID(targetName: "/dev/pts/1", processID: 1, createdAt: 1)
-        let externalID = TmuxClientID(targetName: "/dev/pts/2", processID: 2, createdAt: 2)
         let identity = TmuxControlInteractiveIdentity(
             attachmentID: "attachment-1",
             clientID: dataID,
@@ -77,106 +109,6 @@ struct TmuxControlRuntimeTests {
                 observedAt: now
             )
         }
-
-        #expect(TmuxDataClientSizePolicy.decision(
-            for: identity,
-            clients: [dataID: client(
-                id: dataID,
-                flags: [.ignoreSize],
-                role: .connInteractive(attachmentID: "attachment-1"),
-                participation: .ignored
-            )],
-            supportsIgnoreSize: true
-        ) == .disableIgnoreSize)
-
-        #expect(TmuxDataClientSizePolicy.decision(
-            for: identity,
-            clients: [
-                dataID: client(
-                    id: dataID,
-                    flags: [],
-                    role: .connInteractive(attachmentID: "attachment-1"),
-                    participation: .participating
-                ),
-                externalID: client(
-                    id: externalID,
-                    flags: nil,
-                    role: .external,
-                    participation: .unknown
-                ),
-            ],
-            supportsIgnoreSize: true
-        ) == .enableIgnoreSize)
-
-        #expect(TmuxDataClientSizePolicy.decision(
-            for: identity,
-            clients: [dataID: client(
-                id: dataID,
-                flags: [.ignoreSize],
-                role: .connInteractive(attachmentID: "attachment-1"),
-                participation: .ignored
-            )],
-            supportsIgnoreSize: false
-        ) == .unchanged)
-
-        let secondDataID = TmuxClientID(
-            targetName: "/dev/pts/3",
-            processID: 3,
-            createdAt: 3
-        )
-        let secondIdentity = TmuxControlInteractiveIdentity(
-            attachmentID: "attachment-2",
-            clientID: secondDataID,
-            requestedSessionID: session
-        )
-        let twoIgnoredConnClients = [
-            dataID: client(
-                id: dataID,
-                flags: [.ignoreSize],
-                role: .connInteractive(attachmentID: "attachment-1"),
-                participation: .ignored
-            ),
-            secondDataID: client(
-                id: secondDataID,
-                flags: [.ignoreSize],
-                role: .connInteractive(attachmentID: "attachment-2"),
-                participation: .ignored
-            ),
-        ]
-        #expect(TmuxDataClientSizePolicy.decision(
-            for: identity,
-            clients: twoIgnoredConnClients,
-            supportsIgnoreSize: true
-        ) == .disableIgnoreSize)
-        #expect(TmuxDataClientSizePolicy.decision(
-            for: secondIdentity,
-            clients: twoIgnoredConnClients,
-            supportsIgnoreSize: true
-        ) == .unchanged)
-        let convergedConnClients = [
-            dataID: client(
-                id: dataID,
-                flags: [],
-                role: .connInteractive(attachmentID: "attachment-1"),
-                participation: .participating
-            ),
-            secondDataID: client(
-                id: secondDataID,
-                flags: [.ignoreSize],
-                role: .connInteractive(attachmentID: "attachment-2"),
-                participation: .ignored
-            ),
-        ]
-        #expect(TmuxDataClientSizePolicy.decision(
-            for: identity,
-            clients: convergedConnClients,
-            supportsIgnoreSize: true
-        ) == .unchanged)
-        #expect(TmuxDataClientSizePolicy.decision(
-            for: secondIdentity,
-            clients: convergedConnClients,
-            supportsIgnoreSize: true
-        ) == .unchanged)
 
         #expect(TmuxDataClientFocusPolicy.shouldEnableActivePane(
             for: identity,

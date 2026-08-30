@@ -22,6 +22,168 @@
         }
     }
 
+    @MainActor
+    enum TerminalZellijQuickActionSmokeSupport {
+        static func install(in store: TerminalSessionStore, tabID: String) {
+            guard let tab = store.tab(id: tabID), tab.persistentAttachment == nil else { return }
+            let attachment = TerminalZellijQuickActionSmokeAttachment(generation: tab.generation)
+            store.replaceSession(
+                tabID,
+                session: tab.session,
+                generation: tab.generation,
+                status: tab.status,
+                persistentAttachment: attachment
+            )
+        }
+    }
+
+    private final class TerminalZellijQuickActionSmokeAttachment:
+        PersistentTerminalInteractiveAttachment,
+        @unchecked Sendable {
+        let descriptor = PersistentAttachmentDescriptor(
+            providerID: "zellij",
+            configuration: PersistentTerminalConfiguration(
+                providerID: "zellij",
+                configurationKey: "smoke",
+                payloadVersion: 1,
+                providerPayload: Data()
+            ),
+            workspace: RemoteWorkspaceRef(
+                workspaceID: "smoke",
+                instancePayloadVersion: 1,
+                providerInstancePayload: Data()
+            ),
+            payloadVersion: 1,
+            providerPayload: Data()
+        )
+        let presentation: PersistentAttachmentPresentation
+        let interaction: any PersistentTerminalInteractionFacet
+
+        private let channel = TerminalTmuxQuickActionSmokeChannel()
+        private let smokeInteraction: TerminalZellijQuickActionSmokeInteraction
+
+        init(generation: UInt64) {
+            smokeInteraction = TerminalZellijQuickActionSmokeInteraction(generation: generation)
+            interaction = smokeInteraction
+            presentation = .byteTerminal(channel)
+        }
+
+        func close() async {
+            await smokeInteraction.close()
+            await channel.close()
+        }
+    }
+
+    private actor TerminalZellijQuickActionSmokeInteraction:
+        PersistentTerminalInteractionFacet {
+        nonisolated let states: AsyncStream<PersistentTerminalInteractionState>
+        private let continuation: AsyncStream<PersistentTerminalInteractionState>.Continuation
+        private var state: PersistentTerminalInteractionState
+
+        init(generation: UInt64) {
+            state = PersistentTerminalInteractionState(
+                target: PersistentTerminalInteractionTarget(
+                    providerID: "zellij",
+                    workspaceID: "smoke",
+                    targetID: "smoke"
+                ),
+                workspaceName: "smoke",
+                attachmentGeneration: generation,
+                revision: 0,
+                freshness: .snapshot,
+                isAlternateBuffer: nil,
+                modeCapability: .none,
+                historyAvailable: false,
+                observedAt: .now
+            )
+            let stream = PersistentTerminalInteractionStreams.makeStateStream()
+            states = stream.stream
+            continuation = stream.continuation
+            continuation.yield(state)
+        }
+
+        var quickActionGroup: PersistentTerminalQuickActionGroup? {
+            PersistentTerminalQuickActionGroup(
+                id: "zellij",
+                title: "Zellij",
+                sections: [
+                    .init(id: "session", titleKey: "Session", actions: [
+                        action(
+                            "zellij.session.close",
+                            "关闭 Session",
+                            "xmark.circle",
+                            confirmationTitleKey: "关闭当前 Session？"
+                        )
+                    ]),
+                    .init(id: "tab", titleKey: "Tab", actions: [
+                        action("zellij.tab.new", "新建 Tab", "plus.rectangle"),
+                        action("zellij.tab.next", "下一个 Tab", "arrow.right.to.line")
+                    ]),
+                    .init(id: "pane", titleKey: "Pane", actions: [
+                        action(
+                            "zellij.pane.split-right",
+                            "向右分屏",
+                            "rectangle.split.2x1"
+                        ),
+                        action(
+                            "zellij.pane.close",
+                            "关闭 Pane",
+                            "xmark.square",
+                            confirmationTitleKey: "关闭当前 Pane？"
+                        )
+                    ]),
+                    .init(id: "layout-mode", titleKey: "布局与模式", actions: [
+                        action("zellij.layout.next", "下一个布局", "arrow.right"),
+                        action("zellij.mode.lock", "锁定输入", "lock")
+                    ])
+                ]
+            )
+        }
+
+        func resolveState() -> PersistentTerminalInteractionState {
+            state
+        }
+
+        func captureHistory(
+            _ request: PersistentTerminalHistoryRequest
+        ) throws -> PersistentTerminalHistorySnapshot {
+            throw PersistentTerminalInteractionError.unavailable
+        }
+
+        func scrollProviderMode(_ request: PersistentTerminalModeScrollRequest) throws {
+            throw PersistentTerminalInteractionError.unsupportedMode
+        }
+
+        func performQuickAction(
+            _ request: PersistentTerminalQuickActionRequest
+        ) throws -> PersistentTerminalQuickActionOutcome {
+            guard request.target == state.target else {
+                throw PersistentTerminalInteractionError.targetMismatch
+            }
+            return .performed
+        }
+
+        func close() {
+            continuation.finish()
+        }
+
+        private func action(
+            _ id: String,
+            _ titleKey: String,
+            _ systemImageName: String,
+            confirmationTitleKey: String? = nil
+        ) -> PersistentTerminalQuickActionDescriptor {
+            .init(
+                id: id,
+                titleKey: titleKey,
+                systemImageName: systemImageName,
+                confirmation: confirmationTitleKey.map(
+                    PersistentTerminalActionConfirmation.init(titleKey:)
+                )
+            )
+        }
+    }
+
     private final class TerminalTmuxQuickActionSmokeAttachment:
         PersistentTerminalInteractiveAttachment,
         @unchecked Sendable {
@@ -75,6 +237,7 @@
         private let continuation: AsyncStream<PersistentTerminalInteractionState>.Continuation
         private var state: PersistentTerminalInteractionState
         private let exposesHistory: Bool
+        private var controlScrollCount = 0
 
         init(generation: UInt64) {
             let historyEnabled = ProcessInfo.processInfo.environment["CONN_SMOKE_TMUX_HISTORY"] != nil
@@ -255,7 +418,28 @@
         }
 
         func scrollProviderMode(_ request: PersistentTerminalModeScrollRequest) async throws {
-            throw PersistentTerminalInteractionError.unsupportedMode
+            guard request.target == state.target else {
+                throw PersistentTerminalInteractionError.targetMismatch
+            }
+            guard request.attachmentGeneration == state.attachmentGeneration else {
+                throw PersistentTerminalInteractionError.staleAttachmentGeneration
+            }
+            controlScrollCount += 1
+            guard controlScrollCount == 1 else {
+                throw PersistentTerminalError.controlModeUnavailable
+            }
+            state = PersistentTerminalInteractionState(
+                target: state.target,
+                attachmentGeneration: state.attachmentGeneration,
+                revision: state.revision + 1,
+                freshness: .live,
+                isAlternateBuffer: false,
+                modeCapability: .scrollable,
+                providerModeID: "copy-mode",
+                historyAvailable: state.historyAvailable,
+                observedAt: .now
+            )
+            continuation.yield(state)
         }
 
         func performQuickAction(
@@ -293,8 +477,7 @@
             }
             if request.actionID == "tmux.window.new"
                 || request.actionID == "tmux.pane.split-horizontal"
-                || request.actionID == "tmux.pane.split-vertical"
-            {
+                || request.actionID == "tmux.pane.split-vertical" {
                 try await Task.sleep(for: .milliseconds(120))
                 advanceStateRevision()
                 return .performed

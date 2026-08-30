@@ -236,7 +236,7 @@ package struct TmuxShellInvocationRenderer: Sendable {
             )
 
         case let .enterCopyMode(paneID):
-            return join("copy-mode", "-t", encodeTmux(paneID.rawValue))
+            return join("copy-mode", "-e", "-t", encodeTmux(paneID.rawValue))
 
         case let .killPane(paneID):
             return join("kill-pane", "-t", encodeTmux(paneID.rawValue))
@@ -245,7 +245,7 @@ package struct TmuxShellInvocationRenderer: Sendable {
             return join(
                 "send-keys", "-t", encodeTmux(paneID.rawValue),
                 "-X", "-N", encodeTmux(String(rows.value)),
-                encodeTmux(direction == .up ? "scroll-up" : "scroll-down")
+                encodeTmux(direction == .up ? "scroll-up" : "scroll-down-and-cancel")
             )
         }
     }

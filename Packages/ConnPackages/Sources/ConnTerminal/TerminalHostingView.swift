@@ -25,6 +25,7 @@
     public struct TerminalHostingView: View {
         private let session: TerminalSession
         private let transcript: TerminalTranscript
+        private let persistentAttachment: (any PersistentTerminalAttachment)?
         private let persistentInteraction: (any PersistentTerminalInteractionFacet)?
         private let tabID: String
         private let terminalGeneration: UInt64
@@ -43,6 +44,7 @@
         public init(
             session: TerminalSession,
             transcript: TerminalTranscript,
+            persistentAttachment: (any PersistentTerminalAttachment)? = nil,
             persistentInteraction: (any PersistentTerminalInteractionFacet)? = nil,
             tabID: String = "",
             terminalGeneration: UInt64 = 0,
@@ -60,6 +62,7 @@
         ) {
             self.session = session
             self.transcript = transcript
+            self.persistentAttachment = persistentAttachment
             self.persistentInteraction = persistentInteraction
             self.tabID = tabID
             self.terminalGeneration = terminalGeneration
@@ -80,6 +83,7 @@
             TerminalHostContent(
                 session: session,
                 transcript: transcript,
+                persistentAttachment: persistentAttachment,
                 persistentInteraction: persistentInteraction,
                 tabID: tabID,
                 terminalGeneration: terminalGeneration,
@@ -127,6 +131,7 @@
         init(
             session: TerminalSession,
             transcript: TerminalTranscript,
+            persistentAttachment: (any PersistentTerminalAttachment)?,
             persistentInteraction: (any PersistentTerminalInteractionFacet)?,
             tabID: String,
             terminalGeneration: UInt64,
@@ -145,6 +150,7 @@
             _controller = StateObject(wrappedValue: TerminalInputController(
                 session: session,
                 transcript: transcript,
+                persistentAttachment: persistentAttachment,
                 persistentInteraction: persistentInteraction,
                 terminalGeneration: terminalGeneration,
                 onPersistentWorkspaceRenamed: onPersistentWorkspaceRenamed,
@@ -445,6 +451,7 @@
     private final class TerminalInputController: NSObject, @preconcurrency TerminalViewDelegate, ObservableObject {
         private let session: TerminalSession
         private let transcript: TerminalTranscript
+        private let persistentAttachment: (any PersistentTerminalAttachment)?
         private let persistentInteraction: (any PersistentTerminalInteractionFacet)?
         private let terminalGeneration: UInt64
         private let onPersistentWorkspaceRenamed: (String) -> Void
@@ -465,6 +472,7 @@
         private var quickActionDiscoveryTask: Task<Void, Never>?
         private var quickActionExecutionTask: Task<Void, Never>?
         private var noticeTask: Task<Void, Never>?
+        private var viewportTask: Task<Void, Never>?
         private var attachmentID: UUID?
         private var protocolState: TerminalProtocolState?
         private var persistentState: PersistentTerminalInteractionState?
@@ -475,6 +483,12 @@
         private var clipboardPolicy = TerminalClipboardPolicy()
         private var focusState = TerminalFocusState()
         private var isTypedPaste = false
+        private var isHostProtocolEmission = false
+        private var applicationActive = true
+        private var rendererReadyForRemoteViewport = false
+        private var lastViewportSize: TermSize?
+        private var requestedProviderViewport: PersistentTerminalViewportState?
+        private var viewportRequestID: UUID?
         weak var terminalView: KeybarTerminalView?
 
         @Published var ctrlActive = false
@@ -492,6 +506,7 @@
         init(
             session: TerminalSession,
             transcript: TerminalTranscript,
+            persistentAttachment: (any PersistentTerminalAttachment)?,
             persistentInteraction: (any PersistentTerminalInteractionFacet)?,
             terminalGeneration: UInt64,
             onPersistentWorkspaceRenamed: @escaping (String) -> Void,
@@ -501,6 +516,7 @@
         ) {
             self.session = session
             self.transcript = transcript
+            self.persistentAttachment = persistentAttachment
             self.persistentInteraction = persistentInteraction
             self.terminalGeneration = terminalGeneration
             self.onPersistentWorkspaceRenamed = onPersistentWorkspaceRenamed
@@ -512,6 +528,8 @@
         func attach(_ terminalView: KeybarTerminalView) {
             detach()
             self.terminalView = terminalView
+            rendererReadyForRemoteViewport = false
+            requestedProviderViewport = nil
             terminalView.onHostProtocolStateChanged = { [weak self] state in
                 Task { @MainActor in self?.acceptHostProtocolState(state) }
             }
@@ -592,6 +610,7 @@
             quickActionDiscoveryTask?.cancel()
             quickActionExecutionTask?.cancel()
             noticeTask?.cancel()
+            viewportTask?.cancel()
             renderTask = nil
             persistentStateTask = nil
             historyCaptureTask = nil
@@ -602,6 +621,7 @@
             quickActionDiscoveryTask = nil
             quickActionExecutionTask = nil
             noticeTask = nil
+            viewportTask = nil
             providerPendingRows = 0
             providerActionQueue.removeAll()
             interactionController.invalidate()
@@ -617,6 +637,15 @@
             persistentTarget = nil
             persistentWorkingDirectory = nil
             onPersistentWorkingDirectoryChanged(nil)
+            rendererReadyForRemoteViewport = false
+            requestedProviderViewport = .hidden
+            viewportRequestID = nil
+            lastViewportSize = nil
+            if persistentAttachment?.viewportAuthority == .remoteProvider {
+                Task { [persistentAttachment] in
+                    try? await persistentAttachment?.updateViewport(.hidden)
+                }
+            }
             guard let attachmentID else { return }
             self.attachmentID = nil
             Task { [transcript] in
@@ -632,7 +661,11 @@
                 }
             }
 
-            let attachment = await transcript.attach()
+            let replayPolicy: TerminalTranscriptReplayPolicy =
+                persistentAttachment?.viewportAuthority == .remoteProvider
+                    ? .authoritativeRemote
+                    : .buffered
+            let attachment = await transcript.attach(replayPolicy: replayPolicy)
             attachmentID = attachment.id
             guard !Task.isCancelled else {
                 await transcript.detach(attachment.id)
@@ -644,6 +677,9 @@
                 guard let terminalView else { continue }
                 switch event {
                 case let .replayStarted(requiresReset):
+                    if replayPolicy == .authoritativeRemote {
+                        rendererReadyForRemoteViewport = false
+                    }
                     if requiresReset {
                         terminalView.getTerminal().resetToInitialState()
                     }
@@ -659,6 +695,10 @@
                     replayOutboundGate.finishReplay()
                     isReplayGateActive = false
                     terminalView.scroll(toPosition: viewport.followsLiveOutput ? 1 : viewport.scrollPosition)
+                    if replayPolicy == .authoritativeRemote {
+                        rendererReadyForRemoteViewport = true
+                        scheduleProviderViewport(force: true)
+                    }
                 case .generationBoundary:
                     replayOutboundGate.withFeed(.generationBoundary) {
                         terminalView.feedFollowingLiveOutput(
@@ -681,18 +721,24 @@
             // event to vim/tmux/Claude Code merely because the user selected text.
             let hasTerminalScreenFocus = isFocused || isReviewActive
             if let report = focusState.setFirstResponder(hasTerminalScreenFocus) {
-                terminalView?.setHostFocus(report)
+                emitHostProtocolOutput {
+                    terminalView?.setHostFocus(report)
+                }
             }
         }
 
         func setApplicationActive(_ isActive: Bool) {
+            applicationActive = isActive
             if !isActive {
                 interactionController.deactivatePointer()
                 syncInteractionPresentation()
             }
             if let report = focusState.setApplicationActive(isActive) {
-                terminalView?.setHostFocus(report)
+                emitHostProtocolOutput {
+                    terminalView?.setHostFocus(report)
+                }
             }
+            scheduleProviderViewport(force: isActive)
         }
 
         /// SwiftTerm uses this delegate for user input and live protocol responses. Replay and
@@ -700,12 +746,14 @@
         /// user input outside a terminal feed.
         func send(source: TerminalView, data: ArraySlice<UInt8>) {
             guard replayOutboundGate.allowsTerminalDelegateOutput else { return }
-            if replayOutboundGate.currentFeedProvenance == .outsideFeed {
+            let isUserInput = replayOutboundGate.currentFeedProvenance == .outsideFeed
+                && !isHostProtocolEmission
+            if isUserInput {
                 dismissHistoryReviewIfNeeded()
                 source.clearSelection()
             }
             let bytes = [UInt8](data)
-            if replayOutboundGate.currentFeedProvenance == .outsideFeed,
+            if isUserInput,
                !isTypedPaste,
                bytes == TerminalKey.esc.bytes,
                interactionController.handleEscape() == .consumedLocally {
@@ -714,7 +762,7 @@
             }
 
             let encoded: [UInt8]
-            if replayOutboundGate.currentFeedProvenance == .outsideFeed, !isTypedPaste {
+            if isUserInput, !isTypedPaste {
                 inputEpoch &+= 1
                 let result = TerminalKeyEncoder.encode(bytes, ctrlActive: ctrlActive)
                 encoded = result.bytes
@@ -722,12 +770,72 @@
             } else {
                 encoded = bytes
             }
-            session.enqueue(encoded)
+            if isUserInput {
+                enqueueUserInput(encoded)
+            } else {
+                session.enqueue(encoded)
+            }
+        }
+
+        private func emitHostProtocolOutput(_ body: () -> Void) {
+            let previous = isHostProtocolEmission
+            isHostProtocolEmission = true
+            body()
+            isHostProtocolEmission = previous
         }
 
         func sizeChanged(source: TerminalView, newCols: Int, newRows: Int) {
-            Task { try? await session.resize(cols: newCols, rows: newRows) }
+            let size = TermSize(cols: newCols, rows: newRows)
+            lastViewportSize = size
+            if persistentAttachment?.viewportAuthority == .remoteProvider {
+                scheduleProviderViewport()
+            } else {
+                Task { try? await session.resize(cols: newCols, rows: newRows) }
+            }
             acceptHostProtocolState(source.hostProtocolState)
+        }
+
+        private func scheduleProviderViewport(force: Bool = false) {
+            guard let persistentAttachment,
+                  persistentAttachment.viewportAuthority == .remoteProvider
+            else { return }
+
+            let state: PersistentTerminalViewportState
+            if applicationActive,
+               rendererReadyForRemoteViewport,
+               terminalView != nil,
+               let lastViewportSize {
+                state = .visible(lastViewportSize)
+            } else {
+                state = .hidden
+            }
+            guard force || requestedProviderViewport != state else { return }
+            requestedProviderViewport = state
+            viewportTask?.cancel()
+            let requestID = UUID()
+            viewportRequestID = requestID
+            viewportTask = Task { [weak self, persistentAttachment] in
+                if case .visible = state {
+                    try? await Task.sleep(for: .milliseconds(60))
+                }
+                guard !Task.isCancelled else { return }
+                var didSucceed = false
+                do {
+                    try await persistentAttachment.updateViewport(state)
+                    didSucceed = true
+                } catch is CancellationError {
+                    return
+                } catch {
+                    terminalInteractionLogger.error(
+                        "Persistent viewport update failed; type=\(String(reflecting: type(of: error)), privacy: .public)"
+                    )
+                }
+                guard self?.viewportRequestID == requestID else { return }
+                self?.viewportTask = nil
+                if !didSucceed || Task.isCancelled {
+                    self?.requestedProviderViewport = nil
+                }
+            }
         }
 
         func handleKey(_ key: TerminalKey) {
@@ -744,7 +852,14 @@
             inputEpoch &+= 1
             let (encoded, stillActive) = TerminalKeyEncoder.encode(key.bytes, ctrlActive: ctrlActive)
             ctrlActive = stillActive
-            session.enqueue(encoded)
+            enqueueUserInput(encoded)
+        }
+
+        private func enqueueUserInput(_ bytes: [UInt8]) {
+            guard !bytes.isEmpty else { return }
+            // Provider modes such as tmux copy mode consume their own keyboard input on
+            // the attached PTY. Typed bytes must never be coupled to Control Mode.
+            session.enqueue(bytes)
         }
 
         func handlePaste(_ text: String, source: TerminalPasteSource = .keybar) {
@@ -948,13 +1063,17 @@
         private func updateInteractionContext() {
             guard let protocolState else { return }
             let persistentRoute: TerminalPersistentRouteState? = if let persistentState {
-                TerminalPersistentRouteState(persistentState)
+                TerminalPersistentRouteState(
+                    persistentState,
+                    historyOwnership: persistentInteraction?.historyOwnership ?? .local
+                )
             } else if persistentInteraction != nil {
                 .init(
                     revision: 0,
                     freshness: .stale,
                     isAlternateBuffer: protocolState.isAlternateBuffer,
                     modeCapability: .none,
+                    historyOwnership: persistentInteraction?.historyOwnership ?? .local,
                     historyAvailable: false
                 )
             } else {
@@ -1111,7 +1230,7 @@
         ) {
             guard rows != 0 else { return }
             let direction: TerminalCursorDirection = rows > 0 ? .up : .down
-            switch action {
+            switch action.transport {
             case .remoteMouse:
                 terminalView.sendHostWheel(
                     direction: rows > 0 ? .up : .down,
@@ -1119,16 +1238,19 @@
                     at: scrollHit,
                     modifiers: []
                 )
-            case .providerScrollableMode:
-                enqueueProviderScroll(rows)
-            case .providerKeyDrivenMode, .providerAlternateKeys, .plainAlternateKeys:
+            case .terminalCursorKeys:
                 terminalView.sendHostCursorKey(direction, count: abs(rows))
-            case let .providerHistory(token):
-                capturePersistentHistory(routeToken: token)
+            case .terminalScrollKeys:
+                terminalView.sendHostCursorKey(
+                    direction,
+                    count: abs(rows),
+                    modifiers: .control
+                )
+            case .providerControl:
+                enqueueProviderScroll(rows)
             case .resolvePersistentState:
                 resolvePersistentState(replayingRows: rows)
-            case .selection, .pointer, .providerUnsupportedBoundary,
-                 .localNormalBuffer, .boundary:
+            case .none:
                 break
             }
         }
@@ -1173,15 +1295,35 @@
                 direction: rows > 0 ? .up : .down,
                 rows: abs(rows)
             ) else { return }
+            terminalInteractionLogger.info(
+                "Provider scroll started: mode=\(String(describing: state.modeCapability), privacy: .public), alternate=\(String(describing: state.isAlternateBuffer), privacy: .public), history=\(state.historyAvailable, privacy: .public), rows=\(rows, privacy: .public)"
+            )
             providerScrollTask = Task { @MainActor [weak self] in
                 do {
                     try await persistentInteraction.scrollProviderMode(request)
+                    // The first provider command has now entered copy mode. Motion that
+                    // accumulated while it was in flight must use the attached terminal
+                    // channel; issuing more Control Mode commands for one finger gesture
+                    // overloads the management lane and can turn a harmless scroll into a
+                    // terminal reconnect.
+                    if let pendingRows = self?.providerPendingRows,
+                       pendingRows != 0,
+                       let terminalView = self?.terminalView {
+                        self?.providerPendingRows = 0
+                        terminalView.sendHostCursorKey(
+                            pendingRows > 0 ? .up : .down,
+                            count: abs(pendingRows),
+                            modifiers: .control
+                        )
+                    }
                 } catch {
+                    terminalInteractionLogger.error(
+                        "Provider scroll failed: error=\(String(reflecting: error), privacy: .public)"
+                    )
                     self?.providerPendingRows = 0
                     self?.showNotice(L("当前远程模式不支持滚动"), style: .warning)
                 }
                 self?.providerScrollTask = nil
-                self?.drainProviderScroll()
             }
         }
 
@@ -1432,7 +1574,10 @@
     }
 
     private extension TerminalPersistentRouteState {
-        init(_ state: PersistentTerminalInteractionState) {
+        init(
+            _ state: PersistentTerminalInteractionState,
+            historyOwnership: PersistentTerminalHistoryOwnership
+        ) {
             let mode: TerminalPersistentModeCapability = switch state.modeCapability {
             case .none: .none
             case .scrollable: .scrollable
@@ -1446,6 +1591,7 @@
                 freshness: freshness,
                 isAlternateBuffer: state.isAlternateBuffer ?? false,
                 modeCapability: mode,
+                historyOwnership: historyOwnership,
                 historyAvailable: state.historyAvailable,
                 targetID: state.target.targetID
             )
@@ -1786,6 +1932,7 @@
         func configureContentPadding(horizontal padding: CGFloat) {
             let padding = max(0, padding)
             horizontalContentPadding = padding
+            terminalHorizontalContentInset = padding
             contentInset = UIEdgeInsets(
                 top: contentInset.top,
                 left: padding,
@@ -1864,23 +2011,6 @@
         }
 
         private func applyContentLayout() {
-            let usableWidth = bounds.width - horizontalContentPadding * 2
-            let terminal = getTerminal()
-            guard horizontalContentPadding > 0,
-                  usableWidth > 0,
-                  terminal.cols > 0
-            else {
-                return
-            }
-
-            let cellWidth = getOptimalFrameSize().width / CGFloat(terminal.cols)
-            guard cellWidth > 0 else { return }
-
-            let targetColumns = max(1, Int(usableWidth / cellWidth))
-            if targetColumns != terminal.cols {
-                resize(cols: targetColumns, rows: terminal.rows)
-            }
-
             let targetX = -horizontalContentPadding
             if abs(contentOffset.x - targetX) > 0.01 {
                 contentOffset = CGPoint(x: targetX, y: contentOffset.y)

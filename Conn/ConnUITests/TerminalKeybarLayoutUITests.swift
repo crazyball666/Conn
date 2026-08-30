@@ -190,6 +190,48 @@ final class TerminalKeybarLayoutUITests: XCTestCase {
     }
 
     @MainActor
+    func testExpandedZellijPanelUsesProviderOwnedNativeActions() {
+        let app = XCUIApplication()
+        app.launchEnvironment["CONN_DEMO"] = "1"
+        app.launchEnvironment["CONN_SMOKE_TERMINAL"] = "1"
+        app.launchEnvironment["CONN_SMOKE_TERMINAL_EXPANDED"] = "1"
+        app.launchEnvironment["CONN_SMOKE_ZELLIJ_ACTIONS"] = "1"
+        app.launchArguments += ["-conn.settings.terminalCursorBlinking", "NO"]
+        app.launch()
+
+        let providerTab = app.buttons["terminal.keybar.tab.zellij"]
+        XCTAssertTrue(providerTab.waitForExistence(timeout: 10))
+        providerTab.tap()
+
+        XCTAssertFalse(app.buttons["terminal.keybar.zellij.zellij.session.manager"].exists)
+        XCTAssertTrue(app.buttons["terminal.keybar.zellij.zellij.tab.new"].exists)
+        XCTAssertTrue(app.buttons["terminal.keybar.zellij.zellij.pane.split-right"].exists)
+        let nextLayout = app.buttons["terminal.keybar.zellij.zellij.layout.next"]
+        let keybar = app.descendants(matching: .any)["terminal.keybar"].firstMatch
+        let providerScroll = keybar.scrollViews.element(boundBy: 1)
+        XCTAssertTrue(providerScroll.waitForExistence(timeout: 5))
+        for _ in 0 ..< 4 where !nextLayout.exists || !nextLayout.isHittable {
+            providerScroll.swipeUp()
+        }
+        XCTAssertTrue(nextLayout.waitForExistence(timeout: 5))
+        XCTAssertTrue(nextLayout.isHittable)
+        XCTAssertFalse(app.buttons["terminal.keybar.zellij.tmux.window.next"].exists)
+
+        let closePane = app.buttons["terminal.keybar.zellij.zellij.pane.close"]
+        for _ in 0 ..< 4 where !closePane.exists || !closePane.isHittable {
+            providerScroll.swipeDown()
+        }
+        XCTAssertTrue(closePane.waitForExistence(timeout: 5))
+        XCTAssertTrue(closePane.isHittable)
+        closePane.tap()
+        let alert = app.alerts["关闭当前 Pane？"]
+        XCTAssertTrue(alert.waitForExistence(timeout: 5))
+        XCTAssertTrue(alert.buttons["关闭 Pane"].exists)
+        alert.buttons["取消"].tap()
+        XCTAssertEqual(app.state, .runningForeground)
+    }
+
+    @MainActor
     func testExpandedKeybarUsesProviderToolUploadOrder() {
         let app = XCUIApplication()
         app.launchEnvironment["CONN_DEMO"] = "1"

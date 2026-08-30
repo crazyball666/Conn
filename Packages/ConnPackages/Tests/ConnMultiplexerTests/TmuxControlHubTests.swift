@@ -135,12 +135,13 @@ struct TmuxControlHubTests {
             historySize: .init(value: 100, freshness: .snapshot(observedAt: fixture.now)),
             historyLimit: .init(value: 2_000, freshness: .snapshot(observedAt: fixture.now))
         )
+        let initialSnapshot = try fixture.snapshot(
+            clients: [clientID: client],
+            paneInteraction: interaction
+        )
         let hub = try TmuxControlHub(
             scope: try fixture.scope(),
-            initialSnapshot: try fixture.snapshot(
-                clients: [clientID: client],
-                paneInteraction: interaction
-            ),
+            initialSnapshot: initialSnapshot,
             adapter: adapter,
             clock: { fixture.later }
         )
@@ -180,6 +181,189 @@ struct TmuxControlHubTests {
                 rows: try TmuxScrollRowCount(7)
             ),
         ])
+
+        await hub.releaseLease(observation.lease)
+    }
+
+    @Test("scrolling tmux history enters copy mode before scrolling the active pane")
+    func historyScrollEntersCopyMode() async throws {
+        let fixture = try ControlHubFixture()
+        let adapter = ScriptedControlHubAdapter()
+        let attachmentID = "attachment-history-scroll"
+        let clientID = TmuxClientID(
+            targetName: "/dev/pts/32",
+            processID: 32,
+            createdAt: 32
+        )
+        let client = TmuxClientSnapshot(
+            id: clientID,
+            sessionID: fixture.session,
+            currentWindowID: fixture.window,
+            activePaneID: fixture.pane,
+            flags: [],
+            role: .connInteractive(attachmentID: attachmentID),
+            kind: .interactiveTerminal,
+            sizeParticipation: .participating,
+            observedAt: fixture.now
+        )
+        let interaction = TmuxPaneInteractionSnapshot(
+            alternateOn: .init(value: false, freshness: .snapshot(observedAt: fixture.now)),
+            paneInMode: .init(value: false, freshness: .snapshot(observedAt: fixture.now)),
+            mode: .init(value: nil, freshness: .snapshot(observedAt: fixture.now)),
+            mouseAnyFlag: .init(value: false, freshness: .snapshot(observedAt: fixture.now)),
+            historySize: .init(value: 100, freshness: .snapshot(observedAt: fixture.now)),
+            historyLimit: .init(value: 2_000, freshness: .snapshot(observedAt: fixture.now))
+        )
+        let initialSnapshot = try fixture.snapshot(
+            clients: [clientID: client],
+            paneInteraction: interaction
+        )
+        let hub = try TmuxControlHub(
+            scope: try fixture.scope(),
+            initialSnapshot: initialSnapshot,
+            adapter: adapter,
+            clock: { fixture.later }
+        )
+        let observation = try await hub.acquireInteractionLease(
+            identity: .init(
+                attachmentID: attachmentID,
+                clientID: clientID,
+                requestedSessionID: fixture.session
+            ),
+            target: .session(fixture.session)
+        )
+
+        _ = try await hub.executeModeScroll(
+            lease: observation.lease,
+            target: .init(
+                providerID: TmuxProvider.providerID,
+                workspaceID: fixture.session.rawValue,
+                targetID: fixture.pane.rawValue
+            ),
+            attachmentGeneration: 3,
+            direction: .up,
+            rows: 7,
+            timeout: .seconds(1)
+        )
+
+        _ = try await hub.executeModeScroll(
+            lease: observation.lease,
+            target: .init(
+                providerID: TmuxProvider.providerID,
+                workspaceID: fixture.session.rawValue,
+                targetID: fixture.pane.rawValue
+            ),
+            attachmentGeneration: 3,
+            direction: .up,
+            rows: 3,
+            timeout: .seconds(1)
+        )
+
+        #expect(await adapter.executedRequests.map(\.operation) == [
+            .enterCopyMode(fixture.pane),
+            .scrollPaneMode(
+                fixture.pane,
+                direction: .up,
+                rows: try TmuxScrollRowCount(7)
+            ),
+            .scrollPaneMode(
+                fixture.pane,
+                direction: .up,
+                rows: try TmuxScrollRowCount(3)
+            ),
+        ])
+
+        #expect(try await hub.reconcile(
+            with: initialSnapshot,
+            generation: (try fixture.scope()).generation
+        ) == .unchanged)
+        _ = try await hub.executeModeScroll(
+            lease: observation.lease,
+            target: .init(
+                providerID: TmuxProvider.providerID,
+                workspaceID: fixture.session.rawValue,
+                targetID: fixture.pane.rawValue
+            ),
+            attachmentGeneration: 3,
+            direction: .down,
+            rows: 2,
+            timeout: .seconds(1)
+        )
+        #expect(await adapter.executedRequests.map(\.operation).suffix(2) == [
+            .enterCopyMode(fixture.pane),
+            .scrollPaneMode(
+                fixture.pane,
+                direction: .down,
+                rows: try TmuxScrollRowCount(2)
+            ),
+        ])
+
+        await hub.releaseLease(observation.lease)
+    }
+
+    @Test("scroll does not enter copy mode when the pane has no history")
+    func historyScrollRequiresAvailableHistory() async throws {
+        let fixture = try ControlHubFixture()
+        let adapter = ScriptedControlHubAdapter()
+        let attachmentID = "attachment-stale-history-size"
+        let clientID = TmuxClientID(
+            targetName: "/dev/pts/33",
+            processID: 33,
+            createdAt: 33
+        )
+        let client = TmuxClientSnapshot(
+            id: clientID,
+            sessionID: fixture.session,
+            currentWindowID: fixture.window,
+            activePaneID: fixture.pane,
+            flags: [],
+            role: .connInteractive(attachmentID: attachmentID),
+            kind: .interactiveTerminal,
+            sizeParticipation: .participating,
+            observedAt: fixture.now
+        )
+        let interaction = TmuxPaneInteractionSnapshot(
+            alternateOn: .init(value: false, freshness: .snapshot(observedAt: fixture.now)),
+            paneInMode: .init(value: false, freshness: .snapshot(observedAt: fixture.now)),
+            mode: .init(value: nil, freshness: .snapshot(observedAt: fixture.now)),
+            mouseAnyFlag: .init(value: false, freshness: .snapshot(observedAt: fixture.now)),
+            historySize: .init(value: 0, freshness: .snapshot(observedAt: fixture.now)),
+            historyLimit: .init(value: 2_000, freshness: .snapshot(observedAt: fixture.now))
+        )
+        let hub = try TmuxControlHub(
+            scope: try fixture.scope(),
+            initialSnapshot: try fixture.snapshot(
+                clients: [clientID: client],
+                paneInteraction: interaction
+            ),
+            adapter: adapter,
+            clock: { fixture.later }
+        )
+        let observation = try await hub.acquireInteractionLease(
+            identity: .init(
+                attachmentID: attachmentID,
+                clientID: clientID,
+                requestedSessionID: fixture.session
+            ),
+            target: .session(fixture.session)
+        )
+
+        await #expect(throws: TmuxInteractionError.unsupportedMode) {
+            _ = try await hub.executeModeScroll(
+                lease: observation.lease,
+                target: .init(
+                    providerID: TmuxProvider.providerID,
+                    workspaceID: fixture.session.rawValue,
+                    targetID: fixture.pane.rawValue
+                ),
+                attachmentGeneration: 3,
+                direction: .up,
+                rows: 7,
+                timeout: .seconds(1)
+            )
+        }
+
+        #expect(await adapter.executedRequests.isEmpty)
         await hub.releaseLease(observation.lease)
     }
 
@@ -387,6 +571,79 @@ struct TmuxControlHubTests {
         let finalStatus = await hub.status
         #expect(!finalStatus.requiresControlRuntime)
         #expect(await adapter.executedRequests == [firstRequest, secondRequest])
+    }
+
+    @Test("键盘布局触发的视口更新与关闭 Window 共用同一串行通道")
+    func serializesViewportUpdatesAndInteractiveOperations() async throws {
+        let fixture = try ControlHubFixture()
+        let adapter = ScriptedControlHubAdapter(blockViewports: true)
+        let attachmentID = "attachment-keyboard-resize"
+        let clientID = TmuxClientID(
+            targetName: "/dev/pts/31",
+            processID: 31,
+            createdAt: 31
+        )
+        let identity = TmuxControlInteractiveIdentity(
+            attachmentID: attachmentID,
+            clientID: clientID,
+            requestedSessionID: fixture.session
+        )
+        let client = TmuxClientSnapshot(
+            id: clientID,
+            sessionID: fixture.session,
+            currentWindowID: fixture.window,
+            activePaneID: fixture.pane,
+            flags: [.activePane],
+            role: .connInteractive(attachmentID: attachmentID),
+            kind: .interactiveTerminal,
+            sizeParticipation: .participating,
+            observedAt: fixture.now
+        )
+        let hub = try TmuxControlHub(
+            scope: try fixture.scope(),
+            initialSnapshot: try fixture.snapshot(clients: [clientID: client]),
+            adapter: adapter,
+            clock: { fixture.now }
+        )
+        let observation = try await hub.acquireInteractionLease(
+            identity: identity,
+            target: .session(fixture.session)
+        )
+        let viewport = Task {
+            try await hub.updateDataClientViewport(
+                lease: observation.lease,
+                isVisible: true
+            )
+        }
+        #expect(await waitUntil { await adapter.viewportUpdateCount == 1 })
+
+        let closeWindow = Task {
+            try await hub.executeQuickAction(
+                lease: observation.lease,
+                target: .init(
+                    providerID: TmuxProvider.providerID,
+                    workspaceID: fixture.session.rawValue,
+                    targetID: fixture.pane.rawValue
+                ),
+                attachmentGeneration: 3,
+                expectedRevision: 0,
+                action: .closeWindow,
+                argument: nil,
+                destructiveActionConfirmed: true,
+                resolution: .currentAtExecution,
+                timeout: .seconds(1)
+            )
+        }
+        #expect(await waitUntil { await hub.status.pendingOperationCount == 2 })
+        #expect(await adapter.executionCount == 0)
+
+        await adapter.releaseNextViewport()
+        try await viewport.value
+        #expect(try await closeWindow.value == .workspaceClosed)
+        #expect(await adapter.executedRequests.map(\.operation) == [
+            .killWindow(fixture.window),
+        ])
+        await hub.releaseLease(observation.lease)
     }
 
     @Test("cancelling queued work removes it without dispatching the mutation")
@@ -1391,13 +1648,21 @@ private actor ScriptedControlHubAdapter: TmuxControlHubAdapter {
     private var executions: [TmuxOperationRequest] = []
     private var operationWaiters: [CheckedContinuation<Void, Never>] = []
     private var snapshotWaiters: [CheckedContinuation<Void, Never>] = []
+    private var viewportWaiters: [CheckedContinuation<Void, Never>] = []
     private var operationOutputs: [[Data]] = []
     private let blockOperations: Bool
     private let blockSnapshots: Bool
+    private let blockViewports: Bool
+    private(set) var viewportUpdateCount = 0
 
-    init(blockOperations: Bool = false, blockSnapshots: Bool = false) {
+    init(
+        blockOperations: Bool = false,
+        blockSnapshots: Bool = false,
+        blockViewports: Bool = false
+    ) {
         self.blockOperations = blockOperations
         self.blockSnapshots = blockSnapshots
+        self.blockViewports = blockViewports
     }
 
     var snapshotRequestCount: Int { demandsSnapshotRequestCount }
@@ -1439,6 +1704,22 @@ private actor ScriptedControlHubAdapter: TmuxControlHubAdapter {
         return snapshot
     }
 
+    func updateDataClientViewport(
+        scope: TmuxOperationScope,
+        identity: TmuxControlInteractiveIdentity,
+        isVisible: Bool
+    ) async throws {
+        _ = scope
+        _ = identity
+        _ = isVisible
+        viewportUpdateCount += 1
+        if blockViewports {
+            await withCheckedContinuation { continuation in
+                viewportWaiters.append(continuation)
+            }
+        }
+    }
+
     func demandChanged(_ demand: TmuxControlHubDemand) async {
         demands.append(demand)
     }
@@ -1459,6 +1740,11 @@ private actor ScriptedControlHubAdapter: TmuxControlHubAdapter {
     func releaseNextSnapshot() {
         guard !snapshotWaiters.isEmpty else { return }
         snapshotWaiters.removeFirst().resume()
+    }
+
+    func releaseNextViewport() {
+        guard !viewportWaiters.isEmpty else { return }
+        viewportWaiters.removeFirst().resume()
     }
 
     func latestDemand() -> TmuxControlHubDemand? {
@@ -1492,6 +1778,16 @@ private actor OutOfOrderSnapshotAdapter: TmuxControlHubAdapter {
         return try await withCheckedThrowingContinuation { continuation in
             snapshotWaiters[request] = continuation
         }
+    }
+
+    func updateDataClientViewport(
+        scope: TmuxOperationScope,
+        identity: TmuxControlInteractiveIdentity,
+        isVisible: Bool
+    ) async throws {
+        _ = scope
+        _ = identity
+        _ = isVisible
     }
 
     func demandChanged(_ demand: TmuxControlHubDemand) async {}

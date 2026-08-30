@@ -116,7 +116,8 @@ enum JumpChain {
                     policy: hostKeyPolicy
                 ),
                 reconnect: .never,
-                algorithms: .all
+                algorithms: .all,
+                connectTimeout: CitadelConnectionPolicy.tcpConnectTimeout
             )
         } catch {
             throw AuthMapping.mapConnectError(error, endpoint: hop.endpoint, auth: hop.auth)

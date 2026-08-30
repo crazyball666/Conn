@@ -1,9 +1,26 @@
 @testable import ConnSSHCitadel
 import Foundation
+import NIOCore
 import Testing
 
 @Suite("Citadel remote process lifecycle")
 struct CitadelRemoteProcessChannelTests {
+    @Test("server close racing local cleanup remains a successful process exit")
+    func remoteCloseRaceAfterExitIsNotFailure() {
+        #expect(CitadelRemoteProcessChannel.normalizedProcessError(
+            ChannelError.alreadyClosed,
+            after: .exited(0)
+        ) == nil)
+        #expect(CitadelRemoteProcessChannel.normalizedProcessError(
+            ChannelError.alreadyClosed,
+            after: .stopped
+        ) != nil)
+        #expect(CitadelRemoteProcessChannel.normalizedProcessError(
+            ProcessLifecycleTestError.failed,
+            after: .exited(0)
+        ) != nil)
+    }
+
     @Test("local stop cancels and joins the process output pump")
     func localStopCancelsPump() async {
         let (pumpStarted, pumpStartedContinuation) = AsyncStream<Void>.makeStream()
@@ -62,6 +79,10 @@ struct CitadelRemoteProcessChannelTests {
             Issue.record("remote completion must win the process race")
         }
     }
+}
+
+private enum ProcessLifecycleTestError: Error {
+    case failed
 }
 
 private actor PumpCancellationRecorder {

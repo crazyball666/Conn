@@ -222,7 +222,7 @@ struct TmuxProviderTests {
 
     @Test("openAttachment 走 RemoteProcessChannel 并保留 descriptor 生命周期")
     func opensPassthroughAttachmentThroughProcessChannel() async throws {
-        let recorder = ProcessRequestRecorder()
+        let recorder = ProcessRequestListRecorder()
         let processFactory: MockSSHTransport.ProcessFactory = { request in
             await recorder.record(request)
             if request.command.contains("-CC") {
@@ -282,9 +282,10 @@ struct TmuxProviderTests {
         await attachment.close()
         await attachment.close()
 
-        let request = try #require(await recorder.value)
+        let request = try #require(await recorder.values.first { !$0.command.contains("-CC") })
         #expect(request.command.contains("attach-session"))
         #expect(request.command.contains("$1"))
+        #expect(!request.command.contains(" -f "))
         #expect(request.terminal?.size == .init(cols: 100, rows: 30))
 
         #expect(
@@ -294,9 +295,10 @@ struct TmuxProviderTests {
         )
     }
 
-    @Test("Control Mode 未就绪时不创建数据 PTY，也不发布 tmux attachment")
+    @Test("Control Mode 未就绪时回滚并行创建的数据 PTY 且不发布 attachment")
     func controlModeIsARequiredStartupStage() async throws {
         let recorder = ProcessRequestListRecorder()
+        let dataChannelBox = ProcessChannelBox()
         let processFactory: MockSSHTransport.ProcessFactory = { request in
             await recorder.record(request)
             if request.command.contains("-CC") {
@@ -308,9 +310,11 @@ struct TmuxProviderTests {
                 .split(whereSeparator: { $0 == " " || $0 == "'" })
                 .first
                 .map(String.init) ?? "test"
-            return RecordingProcessChannel(outputs: [.stdout(Data(
+            let channel = RecordingProcessChannel(outputs: [.stdout(Data(
                 "__CONN_TMUX_ATTACH_v1__ nonce=\(nonce) tty=/dev/pts/1 pid=100\n".utf8
             ))])
+            await dataChannelBox.store(channel)
+            return channel
         }
         let context = try await makeContext(behavior: behavior(processFactory: processFactory))
         let token = try TmuxServerInstanceToken(
@@ -338,15 +342,16 @@ struct TmuxProviderTests {
             )
             Issue.record("Control Mode 未就绪时不得发布 tmux attachment")
         } catch let failure as TerminalStartupFailure {
-            #expect(failure.stageID == .controlPlane)
+            #expect(failure.stageID == .runtimeComponents)
         }
         let requests = await recorder.values
-        #expect(requests.count == 2)
-        #expect(requests.allSatisfy { $0.command.contains("-CC") })
+        #expect(requests.filter { $0.command.contains("-CC") }.count == 2)
+        #expect(requests.filter { !$0.command.contains("-CC") }.count == 1)
+        #expect(await dataChannelBox.value?.closeCount == 1)
     }
 
-    @Test("Control Mode 首次瞬时失败时在创建数据 PTY 前重建一次")
-    func transientControlModeFailureRetriesBeforeOpeningDataPTY() async throws {
+    @Test("Control Mode 首次瞬时失败时与数据 PTY 并行重建一次")
+    func transientControlModeFailureRetriesAlongsideDataPTY() async throws {
         let recorder = ProcessRequestListRecorder()
         let controlAttempts = ProcessAttemptCounter()
         let processFactory: MockSSHTransport.ProcessFactory = { request in
@@ -395,9 +400,8 @@ struct TmuxProviderTests {
 
         let requests = await recorder.values
         #expect(requests.count == 3)
-        #expect(requests[0].command.contains("-CC"))
-        #expect(requests[1].command.contains("-CC"))
-        #expect(!requests[2].command.contains("-CC"))
+        #expect(requests.filter { $0.command.contains("-CC") }.count == 2)
+        #expect(requests.filter { !$0.command.contains("-CC") }.count == 1)
         await attachment.close()
     }
 
@@ -438,7 +442,7 @@ struct TmuxProviderTests {
             )
             Issue.record("目录中无目标 Session 时不得发布 attachment")
         } catch let failure as TerminalStartupFailure {
-            #expect(failure.stageID == .controlPlane)
+            #expect(failure.stageID == .runtimeComponents)
             #expect(failure.underlyingError as? PersistentTerminalError == .remoteObjectMissing)
         }
     }
@@ -718,7 +722,7 @@ struct TmuxProviderTests {
             )
             Issue.record("身份绑定失败的 tmux attachment 不得发布")
         } catch let failure as TerminalStartupFailure {
-            #expect(failure.stageID == .byteTerminal)
+            #expect(failure.stageID == .runtimeComponents)
             #expect(failure.underlyingError is TmuxProviderError)
         }
         #expect(dataProcess.closeCount == 1)
@@ -1029,6 +1033,9 @@ private final class RecordingProcessChannel: RemoteProcessChannel, @unchecked Se
     private var commandNumber: UInt64 = 0
     private var snapshotNumber = 0
     private var didClose = false
+    private var _closeCount = 0
+
+    var closeCount: Int { lock.withLock { _closeCount } }
 
     init(
         outputs: [RemoteProcessOutput] = [],
@@ -1079,6 +1086,7 @@ private final class RecordingProcessChannel: RemoteProcessChannel, @unchecked Se
         guard lock.withLock({
             guard !didClose else { return false }
             didClose = true
+            _closeCount += 1
             return true
         }) else { return }
         continuation.finish()

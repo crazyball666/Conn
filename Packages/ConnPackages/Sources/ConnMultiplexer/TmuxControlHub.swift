@@ -126,6 +126,12 @@ package protocol TmuxControlHubAdapter: Sendable {
         identities: Set<TmuxControlInteractiveIdentity>
     ) async throws -> TmuxServerSnapshot
 
+    func updateDataClientViewport(
+        scope: TmuxOperationScope,
+        identity: TmuxControlInteractiveIdentity,
+        isVisible: Bool
+    ) async throws
+
     func demandChanged(_ demand: TmuxControlHubDemand) async
 }
 
@@ -165,6 +171,10 @@ package actor TmuxControlHub {
     private var stateRevision = UUID()
     private var latestRefreshID: UUID?
     private var invalidationReason: TmuxControlHubInvalidationReason?
+    /// A successful `copy-mode` command is authoritative before tmux's asynchronous
+    /// pane-mode notification has been reconciled. This prevents rapid gesture segments
+    /// from re-entering copy mode and resetting the history position.
+    private var confirmedCopyModePanes: Set<TmuxPaneID>
 
     private var identityLeases: [TmuxControlHubLease: TmuxControlInteractiveIdentity] = [:]
     private var observationLeases: [TmuxControlHubLease: ObservationLeaseRecord] = [:]
@@ -197,6 +207,7 @@ package actor TmuxControlHub {
         self.confirmationGuard = confirmationGuard
         self.operationImpactContext = operationImpactContext
         self.clock = clock
+        confirmedCopyModePanes = Self.copyModePanes(in: initialSnapshot)
         eventTask = nil
     }
 
@@ -519,6 +530,9 @@ package actor TmuxControlHub {
         let reduction = try reducer.reconcile(with: snapshot, generation: generation)
         switch reduction {
         case .applied:
+            if let currentSnapshot = reducer.snapshot {
+                confirmedCopyModePanes = Self.copyModePanes(in: currentSnapshot)
+            }
             stateRevision = UUID()
             if reducer.generation > previousGeneration {
                 scope = try TmuxOperationScope(
@@ -536,7 +550,11 @@ package actor TmuxControlHub {
             publishSnapshot()
         case .serverInstanceChanged:
             invalidate(.serverInstanceChanged)
-        case .unchanged, .discardedStaleGeneration, .reconcile:
+        case .unchanged:
+            if let currentSnapshot = reducer.snapshot {
+                confirmedCopyModePanes = Self.copyModePanes(in: currentSnapshot)
+            }
+        case .discardedStaleGeneration, .reconcile:
             break
         }
         return reduction
@@ -638,6 +656,28 @@ package actor TmuxControlHub {
         )
     }
 
+    /// Viewport changes are emitted by keyboard and page-layout transitions, but they use
+    /// the same single-command Control Mode client as interactive tmux actions. Keep them
+    /// in the Hub lane so a resize/redraw cannot race a Window or Pane mutation.
+    package func updateDataClientViewport(
+        lease: TmuxControlHubLease,
+        isVisible: Bool
+    ) async throws {
+        _ = try await acquireOperationSlot(priority: .background)
+        defer { releaseOperationSlot() }
+        try Task.checkCancellation()
+        try requireActive()
+        guard let interactionLease = interactionLeases[lease] else {
+            throw TmuxInteractionError.clientUnavailable
+        }
+        try await adapter.updateDataClientViewport(
+            scope: scope,
+            identity: interactionLease.identity,
+            isVisible: isVisible
+        )
+        try requireActive()
+    }
+
     package func executeModeScroll(
         lease: TmuxControlHubLease,
         target: PersistentTerminalInteractionTarget,
@@ -669,19 +709,39 @@ package actor TmuxControlHub {
         guard resolved.state.freshness != .stale else {
             throw PersistentTerminalInteractionError.unavailable
         }
-        guard resolved.state.modeCapability == .scrollable else {
+        let tmuxDirection: TmuxScrollDirection = direction == .up ? .up : .down
+        let rowCount = try TmuxScrollRowCount(rows)
+        let scrollOperation = TmuxOperation.scrollPaneMode(
+            resolved.paneID,
+            direction: tmuxDirection,
+            rows: rowCount
+        )
+        if resolved.state.modeCapability == .scrollable
+            || confirmedCopyModePanes.contains(resolved.paneID)
+        {
+            return try await dispatch(
+                .init(scope: scope, operation: scrollOperation),
+                timeout: timeout,
+                identities: activeIdentities
+            )
+        }
+        switch resolved.state.modeCapability {
+        case .none where resolved.state.isAlternateBuffer == false
+            && resolved.state.historyAvailable:
+            _ = try await dispatch(
+                .init(scope: scope, operation: .enterCopyMode(resolved.paneID)),
+                timeout: timeout,
+                identities: activeIdentities
+            )
+            confirmedCopyModePanes.insert(resolved.paneID)
+            return try await dispatch(
+                .init(scope: scope, operation: scrollOperation),
+                timeout: timeout,
+                identities: activeIdentities
+            )
+        case .scrollable, .none, .keyDriven, .unsupported:
             throw TmuxInteractionError.unsupportedMode
         }
-        let operation = TmuxOperation.scrollPaneMode(
-            resolved.paneID,
-            direction: direction == .up ? .up : .down,
-            rows: try TmuxScrollRowCount(rows)
-        )
-        return try await dispatch(
-            .init(scope: scope, operation: operation),
-            timeout: timeout,
-            identities: activeIdentities
-        )
     }
 
     /// Executes one provider-owned quick action in the Hub's serial command lane. Direct
@@ -765,6 +825,8 @@ package actor TmuxControlHub {
             identities: activeIdentities
         )
         switch action {
+        case .copyMode:
+            confirmedCopyModePanes.insert(resolved.paneID)
         case .newWindow:
             guard let windowID = createdWindowID(from: receipt.output) else {
                 throw TmuxInteractionError.createdWindowIdentityUnavailable
@@ -787,7 +849,7 @@ package actor TmuxControlHub {
              .previousWindow, .nextWindow, .renameWindow, .closeWindow,
              .previousPane, .nextPane, .toggleZoom, .swapPanePrevious, .swapPaneNext,
              .resizeLeft, .resizeRight, .resizeUp, .resizeDown,
-             .toggleSynchronizePanes, .copyMode, .closePane, .cycleLayout, .tiledLayout,
+             .toggleSynchronizePanes, .closePane, .cycleLayout, .tiledLayout,
              .evenHorizontalLayout, .evenVerticalLayout, .mainHorizontalLayout,
              .mainVerticalLayout:
             break
@@ -1164,6 +1226,15 @@ package actor TmuxControlHub {
 
     private var activeIdentities: Set<TmuxControlInteractiveIdentity> {
         Set(identityLeases.values).union(interactionLeases.values.map(\.identity))
+    }
+
+    private static func copyModePanes(in snapshot: TmuxServerSnapshot) -> Set<TmuxPaneID> {
+        Set(snapshot.panes.values.compactMap { pane in
+            TmuxInteractionModeClassifier.classify(
+                paneInMode: pane.interaction.paneInMode.value,
+                mode: pane.interaction.mode.value
+            ) == .scrollable ? pane.id : nil
+        })
     }
 
     private func finishInteractionLeases() {

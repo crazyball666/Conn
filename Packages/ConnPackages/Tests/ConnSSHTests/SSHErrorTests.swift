@@ -24,10 +24,10 @@ struct SSHErrorTests {
         }
     }
 
-    @Test("RSA 连现代服务器失败，诊断建议改用 ed25519（S1 结论）")
+    @Test("RSA 连现代服务器失败，诊断建议改用 Ed25519（S1 结论）")
     func rsaModernServerDiagnosis() {
         let error = SSHError.authFailed(reason: .rsaSha2Unsupported)
-        #expect(error.diagnosis.contains("ed25519"))
+        #expect(error.diagnosis.localizedCaseInsensitiveContains("Ed25519"))
     }
 
     @Test("keyboard-interactive 不支持时给出明确说明")
@@ -54,7 +54,7 @@ struct SSHErrorTests {
         #expect(connectTimeout.diagnosis.contains("防火墙"))
         #expect(!commandTimeout.diagnosis.contains("防火墙"))
         // 必须告诉用户超时不终止远端命令（见 CitadelSession.exec）
-        #expect(commandTimeout.diagnosis.contains("仍在服务器上"))
+        #expect(commandTimeout.diagnosis.contains("仍在远程主机上运行"))
         // 带上主机与实际用的秒数，用户才知道是哪台、卡了多久
         #expect(commandTimeout.diagnosis.contains("10.0.0.1"))
         #expect(commandTimeout.diagnosis.contains("600"))

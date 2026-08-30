@@ -149,7 +149,7 @@ package struct TmuxControlCommandRenderer: Sendable {
             )
 
         case let .enterCopyMode(paneID):
-            command = join("copy-mode", "-t", encode(paneID.rawValue))
+            command = join("copy-mode", "-e", "-t", encode(paneID.rawValue))
 
         case let .killPane(paneID):
             command = join("kill-pane", "-t", encode(paneID.rawValue))
@@ -158,7 +158,7 @@ package struct TmuxControlCommandRenderer: Sendable {
             command = join(
                 "send-keys", "-t", encode(paneID.rawValue),
                 "-X", "-N", encode(String(rows.value)),
-                encode(direction == .up ? "scroll-up" : "scroll-down")
+                encode(direction == .up ? "scroll-up" : "scroll-down-and-cancel")
             )
         }
         return TmuxRenderedControlCommand(value: command)
@@ -170,6 +170,15 @@ package struct TmuxControlCommandRenderer: Sendable {
             "refresh-client",
             "-t", encode(update.client.value),
             "-f", encode(flag)
+        ))
+    }
+
+    package func renderClientRedraw(
+        _ client: TmuxClientTarget
+    ) -> TmuxRenderedControlCommand {
+        TmuxRenderedControlCommand(value: join(
+            "refresh-client",
+            "-t", encode(client.value)
         ))
     }
 

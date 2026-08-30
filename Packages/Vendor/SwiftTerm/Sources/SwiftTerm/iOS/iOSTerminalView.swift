@@ -163,6 +163,18 @@ open class TerminalView: UIScrollView, UITextInputTraits, UIKeyInput, UIScrollVi
             updateHostManagedTouchGestures()
         }
     }
+
+    /// Horizontal width reserved by the embedding view for terminal content padding.
+    /// It participates in the normal pixel-to-cell calculation so hosts do not need to
+    /// call the public cell-based `resize` API after layout (that API intentionally
+    /// performs a terminal soft reset).
+    public var terminalHorizontalContentInset: CGFloat = 0 {
+        didSet {
+            terminalHorizontalContentInset = max(0, terminalHorizontalContentInset)
+            guard oldValue != terminalHorizontalContentInset, didFinishSetup else { return }
+            processSizeChange(newSize: bounds.size)
+        }
+    }
     private var builtInTouchGestures: [UIGestureRecognizer] = []
 
     /// Controls how link tracking resolves hovered links:
@@ -1334,7 +1346,7 @@ open class TerminalView: UIScrollView, UITextInputTraits, UIKeyInput, UIScrollVi
     
     func setupOptions ()
     {
-        setupOptions(width: bounds.width, height: bounds.height)
+        setupOptions(width: getEffectiveWidth(size: bounds.size), height: bounds.height)
         layer.backgroundColor = nativeBackgroundColor.cgColor
         nativeBackgroundColor = UIColor.clear
         // The terminal background is provided by `layer.backgroundColor`, and
@@ -1547,8 +1559,12 @@ open class TerminalView: UIScrollView, UITextInputTraits, UIKeyInput, UIScrollVi
         terminal.sendHostPointer(event, at: hit, modifiers: modifiers)
     }
 
-    public func sendHostCursorKey(_ direction: TerminalCursorDirection, count: Int) {
-        terminal.sendHostCursorKey(direction, count: count)
+    public func sendHostCursorKey(
+        _ direction: TerminalCursorDirection,
+        count: Int,
+        modifiers: TerminalModifiers = []
+    ) {
+        terminal.sendHostCursorKey(direction, count: count, modifiers: modifiers)
     }
 
     public func makeHostSnapshot(_ scope: TerminalSnapshotScope) -> TerminalBufferSnapshot {
@@ -1638,7 +1654,7 @@ open class TerminalView: UIScrollView, UITextInputTraits, UIKeyInput, UIScrollVi
     
     func getEffectiveWidth (size: CGSize) -> CGFloat
     {
-        return size.width
+        max(0, size.width - terminalHorizontalContentInset * 2)
     }
     
     func updateDebugDisplay ()

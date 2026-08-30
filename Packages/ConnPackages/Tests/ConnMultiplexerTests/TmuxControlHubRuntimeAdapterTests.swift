@@ -110,6 +110,22 @@ struct TmuxControlHubRuntimeAdapterTests {
         #expect(await snapshots.identities == [[identity]])
     }
 
+    @Test("viewport updates stay bound to the exact runtime scope and identity")
+    func delegatesViewportUpdates() async throws {
+        let fixture = try RuntimeAdapterFixture()
+        let viewport = RecordingViewportUpdater()
+        let adapter = fixture.adapter(viewport: viewport)
+
+        try await adapter.updateDataClientViewport(
+            scope: fixture.scope,
+            identity: fixture.identity,
+            isVisible: true
+        )
+
+        #expect(await viewport.identities == [fixture.identity])
+        #expect(await viewport.visibilities == [true])
+    }
+
     @Test("demands are monotonic and identity-only demand cannot request Control Mode")
     func forwardsMonotonicDemand() async throws {
         let fixture = try RuntimeAdapterFixture()
@@ -191,13 +207,15 @@ private struct RuntimeAdapterFixture: Sendable {
         snapshots: any TmuxControlHubSnapshotLoading = RecordingRuntimeSnapshotLoader(
             snapshots: []
         ),
-        lifecycle: any TmuxControlRuntimeLifecycleDriving = RecordingRuntimeLifecycle()
+        lifecycle: any TmuxControlRuntimeLifecycleDriving = RecordingRuntimeLifecycle(),
+        viewport: any TmuxDataClientViewportUpdating = RecordingViewportUpdater()
     ) -> TmuxControlHubRuntimeAdapter {
         TmuxControlHubRuntimeAdapter(
             initialScope: scope,
             controlClients: locator,
             snapshots: snapshots,
-            lifecycle: lifecycle
+            lifecycle: lifecycle,
+            viewport: viewport
         )
     }
 
@@ -320,5 +338,18 @@ private actor RecordingRuntimeLifecycle: TmuxControlRuntimeLifecycleDriving {
 
     func demandChanged(_ demand: TmuxControlHubDemand) async {
         demands.append(demand)
+    }
+}
+
+private actor RecordingViewportUpdater: TmuxDataClientViewportUpdating {
+    private(set) var identities: [TmuxControlInteractiveIdentity] = []
+    private(set) var visibilities: [Bool] = []
+
+    func updateDataClientViewport(
+        _ identity: TmuxControlInteractiveIdentity,
+        isVisible: Bool
+    ) async throws {
+        identities.append(identity)
+        visibilities.append(isVisible)
     }
 }

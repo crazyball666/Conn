@@ -89,7 +89,7 @@ struct NewTerminalSheet: View {
         case .terminalTypeSelection:
             terminalTypeSelection
         case .providerLoading:
-            TerminalCreationLoadingView(title: L("正在检测 tmux…"))
+            TerminalCreationLoadingView(title: L("正在检测持久终端…"))
         case .providerSelection:
             providerSelection
         case .workspaceSelection:
@@ -155,7 +155,7 @@ struct NewTerminalSheet: View {
                 }
                 Button { Task { await model.selectPersistent() } } label: {
                     launchChoice(
-                        title: "tmux",
+                        title: L("持久终端"),
                         systemImage: "rectangle.connected.to.line.below"
                     )
                 }
@@ -169,7 +169,7 @@ struct NewTerminalSheet: View {
                 errorSection(errorMessage)
             }
             if model.options.isEmpty {
-                Section(L("tmux 不可用")) {
+                Section(L("持久终端不可用")) {
                     Text(L("当前版本未配置可用的持久终端 Provider"))
                         .foregroundStyle(.connMuted)
                 }
@@ -277,8 +277,8 @@ struct NewTerminalSheet: View {
         switch model.phase {
         case .hostSelection: L("选择主机")
         case .terminalTypeSelection: L("新建终端")
-        case .providerLoading, .providerSelection: "tmux"
-        case .workspaceSelection: model.selectedOption?.displayName ?? "tmux"
+        case .providerLoading, .providerSelection: L("持久终端")
+        case .workspaceSelection: model.selectedOption?.displayName ?? L("持久终端")
         case .creating: L("新建终端")
         }
     }
@@ -295,7 +295,9 @@ struct NewTerminalSheet: View {
     }
 
     private var isWorkspaceSelection: Bool {
-        if case .workspaceSelection = model.phase { return true }
+        if case .workspaceSelection = model.phase {
+            return true
+        }
         return false
     }
 

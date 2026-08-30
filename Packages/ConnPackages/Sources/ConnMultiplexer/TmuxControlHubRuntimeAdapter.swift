@@ -54,6 +54,13 @@ package protocol TmuxControlRuntimeLifecycleDriving: Sendable {
     func demandChanged(_ demand: TmuxControlHubDemand) async
 }
 
+package protocol TmuxDataClientViewportUpdating: Sendable {
+    func updateDataClientViewport(
+        _ identity: TmuxControlInteractiveIdentity,
+        isVisible: Bool
+    ) async throws
+}
+
 /// Concrete bridge from an exact ready Control Mode client to the Hub runtime seam.
 package struct TmuxControlClientOperationExecutor: TmuxControlOperationExecuting {
     private let client: TmuxControlClient
@@ -106,17 +113,20 @@ package actor TmuxControlHubRuntimeAdapter: TmuxControlHubAdapter {
     private let controlClients: any TmuxReadyControlClientLocating
     private let snapshots: any TmuxControlHubSnapshotLoading
     private let lifecycle: any TmuxControlRuntimeLifecycleDriving
+    private let viewport: any TmuxDataClientViewportUpdating
 
     package init(
         initialScope: TmuxOperationScope,
         controlClients: any TmuxReadyControlClientLocating,
         snapshots: any TmuxControlHubSnapshotLoading,
-        lifecycle: any TmuxControlRuntimeLifecycleDriving
+        lifecycle: any TmuxControlRuntimeLifecycleDriving,
+        viewport: any TmuxDataClientViewportUpdating
     ) {
         currentScope = initialScope
         self.controlClients = controlClients
         self.snapshots = snapshots
         self.lifecycle = lifecycle
+        self.viewport = viewport
     }
 
     package func execute(
@@ -158,6 +168,16 @@ package actor TmuxControlHubRuntimeAdapter: TmuxControlHubAdapter {
         }
         try ensureCurrent(scope: scope)
         return snapshot
+    }
+
+    package func updateDataClientViewport(
+        scope: TmuxOperationScope,
+        identity: TmuxControlInteractiveIdentity,
+        isVisible: Bool
+    ) async throws {
+        try accept(scope: scope)
+        try await viewport.updateDataClientViewport(identity, isVisible: isVisible)
+        try ensureCurrent(scope: scope)
     }
 
     package func demandChanged(_ demand: TmuxControlHubDemand) async {

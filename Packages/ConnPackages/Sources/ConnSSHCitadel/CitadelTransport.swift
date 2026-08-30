@@ -3,6 +3,13 @@ import ConnSSH
 import Foundation
 import NIOCore
 
+/// SSH 传输层统一的连接策略。
+///
+/// 显式覆盖 Citadel 的 30 秒默认值，避免不可达的内网主机长时间停留在连接中。
+enum CitadelConnectionPolicy {
+    static let tcpConnectTimeout: TimeAmount = .seconds(10)
+}
+
 /// 基于 Citadel（SwiftNIO SSH）的 `SSHTransport` 实现。
 ///
 /// S1 结论指导的实现要点：
@@ -37,7 +44,8 @@ public final class CitadelTransport: SSHTransport {
                     policy: hostKeyPolicy
                 ),
                 reconnect: .never,
-                algorithms: .all
+                algorithms: .all,
+                connectTimeout: CitadelConnectionPolicy.tcpConnectTimeout
             )
             return CitadelSession(client: client, endpoint: endpoint)
         } catch {

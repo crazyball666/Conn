@@ -33,6 +33,11 @@ public enum TerminalRenderEvent: Sendable, Equatable {
     case liveBytes([UInt8])
 }
 
+public enum TerminalTranscriptReplayPolicy: Sendable, Equatable {
+    case buffered
+    case authoritativeRemote
+}
+
 /// A lossless single-consumer stream backed by a coalescing mailbox. Adjacent live byte
 /// frames are merged while rendering is busy, avoiding one retained allocation per PTY frame.
 public struct TerminalRenderEventStream: AsyncSequence, Sendable {
@@ -250,20 +255,32 @@ public actor TerminalTranscript {
         _ = attachment?.mailbox.enqueue(.generationBoundary)
     }
 
-    public func attach() -> TerminalAttachment {
+    public func attach(
+        replayPolicy: TerminalTranscriptReplayPolicy = .buffered
+    ) -> TerminalAttachment {
         let mailbox = TerminalRenderMailbox(maxPendingLiveBytes: maxPendingLiveBytes)
         let id = UUID()
         attachment?.mailbox.finish()
-        attachment = ActiveAttachment(id: id, mailbox: mailbox)
+        attachment = ActiveAttachment(id: id, mailbox: mailbox, replayPolicy: replayPolicy)
 
-        let snapshot = replayBuffer.snapshot
-        var initialEvents: [TerminalRenderEvent] = [
-            .replayStarted(requiresReset: snapshot.wasTruncated),
-        ]
-        if !snapshot.bytes.isEmpty {
-            initialEvents.append(.replayBytes(snapshot.bytes))
+        let initialEvents: [TerminalRenderEvent]
+        switch replayPolicy {
+        case .buffered:
+            let snapshot = replayBuffer.snapshot
+            var events: [TerminalRenderEvent] = [
+                .replayStarted(requiresReset: snapshot.wasTruncated),
+            ]
+            if !snapshot.bytes.isEmpty {
+                events.append(.replayBytes(snapshot.bytes))
+            }
+            events.append(.replayFinished(viewport))
+            initialEvents = events
+        case .authoritativeRemote:
+            initialEvents = [
+                .replayStarted(requiresReset: true),
+                .replayFinished(.default),
+            ]
         }
-        initialEvents.append(.replayFinished(viewport))
         mailbox.replacePending(with: initialEvents)
 
         return TerminalAttachment(id: id, events: TerminalRenderEventStream(mailbox: mailbox))
@@ -282,9 +299,18 @@ public actor TerminalTranscript {
     private struct ActiveAttachment {
         let id: UUID
         let mailbox: TerminalRenderMailbox
+        let replayPolicy: TerminalTranscriptReplayPolicy
     }
 
     private func resynchronize(_ mailbox: TerminalRenderMailbox) {
+        if attachment?.mailbox === mailbox,
+           attachment?.replayPolicy == .authoritativeRemote {
+            mailbox.replacePending(with: [
+                .replayStarted(requiresReset: true),
+                .replayFinished(.default),
+            ])
+            return
+        }
         let snapshot = replayBuffer.snapshot
         var events: [TerminalRenderEvent] = [.replayStarted(requiresReset: true)]
         if !snapshot.bytes.isEmpty {

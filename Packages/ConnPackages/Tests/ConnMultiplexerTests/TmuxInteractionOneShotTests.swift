@@ -32,6 +32,34 @@ struct TmuxInteractionOneShotTests {
         #expect(command.contains("display-message -p"))
     }
 
+    @Test("one-shot snapshot requests consume their Control Mode completion marker")
+    func consumesSnapshotCompletionMarker() async throws {
+        let fixture = try OneShotInteractionFixture(nonce: "read-marker")
+        let completionMarker = "__CONN_TMUX_SNAPSHOT_marker_REQUEST_END__"
+        let session = InteractionSSHSession(execResult: .init(
+            exitCode: 0,
+            stdout: Data(
+                "__CONN_TMUX_READ_ACCEPTED_read-marker__\nvalue\n\(completionMarker)\n".utf8
+            ),
+            stderr: Data()
+        ))
+        let request = try TmuxControlRequest(
+            renderedCommand: .init(
+                value: "display-message -p 'value' ; display-message -p '\(completionMarker)'"
+            ),
+            semantics: .readOnly,
+            completionMarker: completionMarker
+        )
+
+        let execution = try await fixture.readExecutor(session: session).execute(
+            request,
+            scope: fixture.scope,
+            timeout: .seconds(2)
+        )
+
+        #expect(execution.output == [Data("value".utf8)])
+    }
+
     @Test("changed identity, malformed framing and output overflow fail closed")
     func rejectsUntrustedReadResponses() async throws {
         let fixture = try OneShotInteractionFixture(nonce: "read-2")

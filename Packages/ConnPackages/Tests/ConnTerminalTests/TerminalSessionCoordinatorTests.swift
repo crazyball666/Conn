@@ -417,6 +417,10 @@ private final class RecoveryAttachment: PersistentTerminalAttachment, @unchecked
         )))
     }
 
+    func closeWorkspace() {
+        continuation.yield(.workspaceClosed)
+    }
+
     func close() async {
         guard lock.withLock({
             guard !didClose else { return false }
@@ -944,6 +948,43 @@ struct TerminalSessionCoordinatorTests {
         }
         let attachment = try #require(await recorder.attachments.first)
         attachment.fail(issue: .remoteObjectMissing, recovery: .manual)
+
+        for _ in 0 ..< 50 where coordinator.store.tab(id: tab.id) != nil {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+
+        #expect(coordinator.store.tab(id: tab.id) == nil)
+        #expect(try repository.allRecords().isEmpty)
+    }
+
+    @Test("Provider 正常结束远端 Workspace 时淘汰活动终端与恢复记录")
+    func closedRemoteWorkspaceRetiresActiveTabAndBookmark() async throws {
+        let host = Host(id: "host-1", name: "web", address: "10.0.0.1", username: "root")
+        let recorder = RecoveryAttachmentRecorder()
+        let provider = RecoveryPersistentProvider(recorder: recorder)
+        let repository = InMemoryTerminalResumeRepository()
+        let coordinator = TerminalSessionCoordinator(
+            hostRepository: TerminalHostRepository(hosts: [host]),
+            connectionManager: ConnectionManager(
+                transport: MockSSHTransport(),
+                platformDetector: RenamePlatformDetector()
+            ),
+            providerRegistry: try PersistentTerminalProviderRegistry(providers: [provider]),
+            resumeRepository: repository
+        )
+
+        guard case let .success(tab) = await coordinator.launch(.init(
+            host: host,
+            policy: .createNew,
+            source: .persistent(providerID: provider.descriptor.id),
+            backend: .persistent(provider.attachmentDescriptor),
+            automaticAlias: "ops"
+        )) else {
+            Issue.record("持久终端应启动成功")
+            return
+        }
+        let attachment = try #require(await recorder.attachments.first)
+        attachment.closeWorkspace()
 
         for _ in 0 ..< 50 where coordinator.store.tab(id: tab.id) != nil {
             try await Task.sleep(for: .milliseconds(10))

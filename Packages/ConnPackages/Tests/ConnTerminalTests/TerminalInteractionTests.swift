@@ -1,4 +1,5 @@
 import Testing
+import ConnMultiplexer
 @testable import ConnTerminal
 
 @Suite("Terminal interaction routing")
@@ -34,6 +35,18 @@ struct TerminalInteractionTests {
         ))
 
         #expect(decision.kind == .remoteMouse)
+    }
+
+    @Test("provider-owned history refreshes before entering mode when history is unavailable")
+    func providerOwnedHistoryRefreshesBeforeEnteringMode() {
+        let decision = router.route(input(
+            persistent: persistent(
+                historyOwnership: .provider,
+                historyAvailable: false
+            )
+        ))
+
+        #expect(decision.kind == .resolvePersistentState)
     }
 
     @Test("stale provider state resolves once before provider routing")
@@ -178,6 +191,19 @@ struct TerminalInteractionTests {
         )).kind == .boundary)
     }
 
+    @Test("provider copy mode scroll stays on the terminal data channel")
+    func providerCopyModeUsesTerminalDataChannel() {
+        let copyMode = router.route(input(
+            persistent: persistent(mode: .scrollable)
+        ))
+        let historyEntry = router.route(input(
+            persistent: persistent(historyAvailable: true)
+        ))
+
+        #expect(copyMode.transport == .terminalScrollKeys)
+        #expect(historyEntry.transport == .providerControl)
+    }
+
     private func protocolState(
         revision: UInt64 = 1,
         isAlternateBuffer: Bool = false,
@@ -209,6 +235,7 @@ struct TerminalInteractionTests {
         freshness: TerminalPersistentStateFreshness = .fresh,
         isAlternateBuffer: Bool = false,
         mode: TerminalPersistentModeCapability = .none,
+        historyOwnership: PersistentTerminalHistoryOwnership = .provider,
         historyAvailable: Bool = false,
         targetID: String? = nil
     ) -> TerminalPersistentRouteState {
@@ -217,6 +244,7 @@ struct TerminalInteractionTests {
             freshness: freshness,
             isAlternateBuffer: isAlternateBuffer,
             modeCapability: mode,
+            historyOwnership: historyOwnership,
             historyAvailable: historyAvailable,
             targetID: targetID
         )

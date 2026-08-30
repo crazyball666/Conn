@@ -234,7 +234,11 @@ extension Terminal {
         tdel?.send(source: self, data: bytes[...])
     }
 
-    public func sendHostCursorKey(_ direction: TerminalCursorDirection, count: Int) {
+    public func sendHostCursorKey(
+        _ direction: TerminalCursorDirection,
+        count: Int,
+        modifiers: TerminalModifiers = []
+    ) {
         let repeatCount = min(max(count, 0), 64)
         guard repeatCount > 0 else { return }
         let final: UInt8
@@ -244,8 +248,17 @@ extension Terminal {
         case .right: final = UInt8(ascii: "C")
         case .left: final = UInt8(ascii: "D")
         }
-        let prefix = applicationCursor ? [UInt8(0x1b), UInt8(ascii: "O")] : cc.CSI
-        let sequence = prefix + [final]
+        let sequence: [UInt8]
+        if modifiers.isEmpty {
+            let prefix = applicationCursor ? [UInt8(0x1b), UInt8(ascii: "O")] : cc.CSI
+            sequence = prefix + [final]
+        } else {
+            var modifier = 1
+            if modifiers.contains(.shift) { modifier += 1 }
+            if modifiers.contains(.meta) { modifier += 2 }
+            if modifiers.contains(.control) { modifier += 4 }
+            sequence = cc.CSI + Array("1;\(modifier)".utf8) + [final]
+        }
         var bytes: [UInt8] = []
         bytes.reserveCapacity(sequence.count * repeatCount)
         for _ in 0..<repeatCount {

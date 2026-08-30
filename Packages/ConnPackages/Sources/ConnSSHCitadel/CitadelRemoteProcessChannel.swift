@@ -101,9 +101,14 @@ final class CitadelRemoteProcessChannel: RemoteProcessChannel, @unchecked Sendab
             }
         } catch {
             writerBox.withLockedValue { $0 = nil }
-            bridge.finish(throwing: error)
-            lifecycle.markOpenFailed(error)
-            throw error
+            if let processError = Self.normalizedProcessError(
+                error,
+                after: outcomeBox.get()
+            ) {
+                bridge.finish(throwing: processError)
+                lifecycle.markOpenFailed(processError)
+                throw processError
+            }
         }
 
         writerBox.withLockedValue { $0 = nil }
@@ -119,6 +124,21 @@ final class CitadelRemoteProcessChannel: RemoteProcessChannel, @unchecked Sendab
             bridge.finish(throwing: error)
             throw error
         }
+    }
+
+    /// A short-lived exec commonly reaches remote EOF before `withProcess` performs
+    /// its local cleanup. NIO then reports `.alreadyClosed` for that redundant close;
+    /// once the output pump has recorded a real process exit, this is successful
+    /// completion rather than a transport failure.
+    static func normalizedProcessError(
+        _ error: any Error,
+        after outcome: PumpOutcome?
+    ) -> (any Error)? {
+        guard case .exited = outcome,
+              let channelError = error as? ChannelError,
+              channelError == .alreadyClosed
+        else { return error }
+        return nil
     }
 
     private func pump(_ inbound: TTYOutput) async -> PumpOutcome {

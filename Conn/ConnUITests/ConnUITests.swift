@@ -251,10 +251,14 @@ final class ConnUITests: XCTestCase {
         XCTAssertTrue(host.waitForExistence(timeout: 10))
         host.tap()
 
+        let persistentChoice = app.buttons["持久终端"]
+        XCTAssertTrue(persistentChoice.waitForExistence(timeout: 5))
+        persistentChoice.tap()
+
         let tmuxChoice = app.buttons.matching(
             NSPredicate(format: "label BEGINSWITH %@", "tmux")
         ).firstMatch
-        XCTAssertTrue(tmuxChoice.waitForExistence(timeout: 5))
+        XCTAssertTrue(tmuxChoice.waitForExistence(timeout: 20))
         tmuxChoice.tap()
 
         // Keep live acceptance isolated from the user's existing tmux topology. Cleanup
@@ -280,10 +284,46 @@ final class ConnUITests: XCTestCase {
             terminal.typeText("tmux kill-session -t \(sessionName)\n")
         }
 
+        // Generate enough real tmux history to verify that a vertical swipe is consumed
+        // by copy mode rather than SwiftTerm's local UIScrollView.
+        terminal.tap()
+        terminal.typeText("seq 1 120\n")
+        terminal.swipeDown(velocity: .fast)
+        XCTAssertFalse(
+            app.descendants(matching: .any)["terminal.review.text"].firstMatch
+                .waitForExistence(timeout: 1)
+        )
+        XCTAssertFalse(app.descendants(matching: .any)["conn.toast.warning"].firstMatch.exists)
+        XCTAssertFalse(app.descendants(matching: .any)["conn.toast.error"].firstMatch.exists)
+
+        // tmux copy mode is entered with scroll-exit enabled. Repeated downward history
+        // navigation must return to the live bottom and release subsequent typing to the
+        // shell instead of leaving the client stuck at the [0/…] position indicator.
+        for _ in 0 ..< 8 {
+            terminal.swipeUp(velocity: .fast)
+        }
+        let scrollExitMarker = "CONN_SCROLL_EXIT_OK"
+        terminal.tap()
+        terminal.typeText("printf '\(scrollExitMarker)\\n'\n")
+        var recognizedAfterScroll = ""
+        for _ in 0 ..< 10 {
+            recognizedAfterScroll = try recognizedText(in: XCUIScreen.main.screenshot())
+            if recognizedAfterScroll.contains(scrollExitMarker) { break }
+            Thread.sleep(forTimeInterval: 0.5)
+        }
+        XCTAssertTrue(
+            recognizedAfterScroll.contains(scrollExitMarker),
+            "滚动到实时底部后必须自动退出 tmux copy mode 并恢复 Shell 输入"
+        )
+        XCTAssertFalse(app.staticTexts["终端连接已断开"].exists)
+
         // provider Tab 的出现意味着 Control Mode 已就绪且快捷动作已经发布。
         let expand = app.buttons["terminal.keybar.expand"]
         XCTAssertTrue(expand.waitForExistence(timeout: 10))
         expand.tap()
+        let escape = app.buttons["Esc"]
+        XCTAssertTrue(escape.waitForExistence(timeout: 5))
+        escape.tap()
         let providerTab = app.buttons["terminal.keybar.tab.tmux"]
         XCTAssertTrue(providerTab.waitForExistence(timeout: 15))
         providerTab.tap()
@@ -314,18 +354,28 @@ final class ConnUITests: XCTestCase {
         expand.tap()
         XCTAssertTrue(providerTab.waitForExistence(timeout: 5))
         providerTab.tap()
+        let keyboard = app.keyboards.firstMatch
+        if !keyboard.exists {
+            app.buttons["terminal.keybar.dismissKeyboard"].tap()
+        }
+        XCTAssertTrue(keyboard.waitForExistence(timeout: 5))
         let closeWindow = app.buttons["terminal.keybar.tmux.tmux.window.close"]
         XCTAssertTrue(closeWindow.waitForExistence(timeout: 5))
+        XCTAssertTrue(keyboard.exists)
         closeWindow.tap()
         let closeAlert = app.alerts["关闭当前 Window？"]
         XCTAssertTrue(closeAlert.waitForExistence(timeout: 5))
         closeAlert.buttons["关闭 Window"].tap()
         XCTAssertTrue(closeAlert.waitForNonExistence(timeout: 5))
-        XCTAssertFalse(app.descendants(matching: .any)["conn.toast.error"].exists)
+        XCTAssertTrue(keyboard.waitForExistence(timeout: 5))
+        XCTAssertFalse(
+            app.descendants(matching: .any)["conn.toast.error"].firstMatch
+                .waitForExistence(timeout: 8),
+            "键盘布局更新与关闭 Window 串行执行，不得出现失败 Toast"
+        )
 
         // Reproduce the reported path on the real attachment: keep the terminal keyboard
         // active, create a temporary Pane, then confirm its deletion through a system Alert.
-        let keyboard = app.keyboards.firstMatch
         if !keyboard.exists {
             app.buttons["terminal.keybar.dismissKeyboard"].tap()
         }
@@ -362,6 +412,41 @@ final class ConnUITests: XCTestCase {
             "关闭 Pane 异步执行完成前不得出现失败 Toast"
         )
         XCTAssertFalse(app.staticTexts["持久终端操作失败，请重试"].exists)
+
+        // Closing the page must hide this exact tmux client without ending the Session.
+        // Reopening it must redraw from tmux instead of replaying stale local ANSI.
+        let sessionActions = app.buttons["terminal.keybar.session-actions"]
+        XCTAssertTrue(sessionActions.waitForExistence(timeout: 5))
+        sessionActions.tap()
+        let closePage = app.buttons["terminal.session-actions.close"]
+        XCTAssertTrue(closePage.waitForExistence(timeout: 5))
+        closePage.tap()
+        XCTAssertTrue(terminal.waitForNonExistence(timeout: 5))
+
+        let hostCard = app.descendants(matching: .any).matching(
+            NSPredicate(format: "identifier BEGINSWITH %@", "terminal.host.")
+        ).firstMatch
+        XCTAssertTrue(hostCard.waitForExistence(timeout: 10))
+        let sessionRow = app.buttons.matching(
+            NSPredicate(format: "label CONTAINS %@", String(sessionName))
+        ).firstMatch
+        if !sessionRow.exists {
+            hostCard.tap()
+        }
+        XCTAssertTrue(sessionRow.waitForExistence(timeout: 10))
+        sessionRow.tap()
+        XCTAssertTrue(terminal.waitForExistence(timeout: 30))
+        XCTAssertFalse(app.descendants(matching: .any)["conn.toast.error"].firstMatch.exists)
+
+        XCUIDevice.shared.press(.home)
+        XCTAssertTrue(app.wait(for: .runningBackground, timeout: 5))
+        app.activate()
+        XCTAssertTrue(terminal.waitForExistence(timeout: 30))
+        XCTAssertEqual(app.state, .runningForeground)
+        XCTAssertFalse(
+            app.descendants(matching: .any)["conn.toast.error"].firstMatch
+                .waitForExistence(timeout: 5)
+        )
     }
 
     @MainActor

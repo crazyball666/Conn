@@ -385,8 +385,14 @@ public protocol PersistentTerminalInteractiveAttachment: PersistentTerminalAttac
     var interaction: any PersistentTerminalInteractionFacet { get }
 }
 
+public enum PersistentTerminalHistoryOwnership: Sendable, Equatable {
+    case local
+    case provider
+}
+
 public protocol PersistentTerminalInteractionFacet: AnyObject, Sendable {
     var states: AsyncStream<PersistentTerminalInteractionState> { get }
+    var historyOwnership: PersistentTerminalHistoryOwnership { get }
     var quickActionGroup: PersistentTerminalQuickActionGroup? { get async }
     func resolveState() async throws -> PersistentTerminalInteractionState
     func captureHistory(
@@ -401,6 +407,8 @@ public protocol PersistentTerminalInteractionFacet: AnyObject, Sendable {
 /// Interaction facets are independently optional. A provider can support state/history while
 /// omitting quick actions, and existing providers do not need no-op implementations.
 public extension PersistentTerminalInteractionFacet {
+    var historyOwnership: PersistentTerminalHistoryOwnership { .local }
+
     var quickActionGroup: PersistentTerminalQuickActionGroup? {
         get async { nil }
     }

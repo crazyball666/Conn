@@ -147,6 +147,20 @@ struct TmuxShellInvocationRendererTests {
         #expect(windows.arguments[3].contains("choose-tree -w -t '%3'"))
     }
 
+    @Test("进入历史时启用滚动到底自动退出 copy mode")
+    func rendersCopyModeWithExitAtBottom() throws {
+        let pane = try #require(TmuxPaneID(rawValue: "%3"))
+        let invocation = try TmuxShellInvocationRenderer().render(
+            .enterCopyMode(pane),
+            executable: TmuxExecutablePath("/usr/bin/tmux"),
+            locator: .default,
+            expectedInstance: makeToken(),
+            nonce: TmuxInvocationNonce("copy-mode")
+        )
+
+        #expect(invocation.arguments[3].contains("copy-mode -e -t '%3'"))
+    }
+
     @Test("相对 Window 导航使用 tmux 原生偏移在单条命令中合并多步")
     func rendersBatchedRelativeWindowNavigation() throws {
         let session = try #require(TmuxSessionID(rawValue: "$7"))

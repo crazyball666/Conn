@@ -101,6 +101,29 @@ struct TmuxSnapshotAssemblerTests {
         #expect(snapshot.clients[fixture.externalClientID]?.sizeParticipation == .unknown)
     }
 
+    @Test("an observed empty pane mode remains fresh while tmux is in normal mode")
+    func preservesObservedNormalPaneMode() throws {
+        let fixture = try SnapshotAssemblerFixture()
+        let snapshot = try fixture.assemble(fixture.records(panes: [fixture.paneRecord(
+            alternateOn: .value("0"),
+            paneInMode: .value("0"),
+            paneMode: .value("")
+        )]))
+
+        let interaction = try #require(snapshot.panes[fixture.pane]?.interaction)
+        #expect(interaction.mode.value == nil)
+        #expect(interaction.mode.freshness == .snapshot(observedAt: fixture.observedAt))
+
+        let state = try TmuxInteractionStateProjector().project(
+            snapshot: snapshot,
+            identity: fixture.interactiveIdentity,
+            attachmentGeneration: 9
+        )
+        #expect(state.freshness == .snapshot)
+        #expect(state.modeCapability == .none)
+        #expect(state.historyAvailable)
+    }
+
     @Test("verified Conn ownership survives unavailable kind fields but rejects explicit conflicts")
     func appliesVerifiedOwnershipToUnavailableKinds() throws {
         let fixture = try SnapshotAssemblerFixture()

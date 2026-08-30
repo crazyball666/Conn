@@ -238,6 +238,7 @@ private extension TerminalScreen {
                 TerminalHostingView(
                     session: tab.session,
                     transcript: tab.transcript,
+                    persistentAttachment: tab.persistentAttachment,
                     persistentInteraction: (
                         tab.persistentAttachment as? any PersistentTerminalInteractiveAttachment
                     )?.interaction,

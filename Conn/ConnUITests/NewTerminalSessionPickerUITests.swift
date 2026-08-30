@@ -9,15 +9,25 @@ final class NewTerminalSessionPickerUITests: XCTestCase {
         app.launch()
 
         XCTAssertTrue(app.staticTexts["普通终端"].waitForExistence(timeout: 10))
-        XCTAssertTrue(app.staticTexts["tmux"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["持久终端"].waitForExistence(timeout: 10))
         XCTAssertFalse(app.staticTexts["启动独立远程 Shell"].exists)
         XCTAssertFalse(app.staticTexts["连接或创建可恢复的远程 Session"].exists)
+
+        let persistentTerminal = app.buttons.matching(
+            NSPredicate(format: "label CONTAINS[c] %@", "持久终端")
+        ).firstMatch
+        XCTAssertTrue(persistentTerminal.waitForExistence(timeout: 10))
+        persistentTerminal.tap()
 
         let tmux = app.buttons.matching(
             NSPredicate(format: "label CONTAINS[c] %@", "tmux")
         ).firstMatch
+        let zellij = app.buttons.matching(
+            NSPredicate(format: "label CONTAINS[c] %@", "Zellij")
+        ).firstMatch
         XCTAssertTrue(tmux.waitForExistence(timeout: 10))
-        tmux.tap()
+        XCTAssertTrue(zellij.waitForExistence(timeout: 10))
+        zellij.tap()
 
         let createHeader = app.staticTexts["创建 Session"]
         let existingHeader = app.staticTexts["连接现有 Session"]

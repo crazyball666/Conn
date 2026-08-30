@@ -405,103 +405,96 @@ public struct TmuxProvider: PersistentTerminalCatalogProvider {
         )
 
         let pipeline = TerminalStartupPipeline(steps: [
-            .init(id: .controlPlane) { [self] in
-                guard let lease = await preflightControlMode(
-                    sessionID: sessionID,
-                    runtime: runtime,
-                    configuration: configuration,
-                    context: context,
-                    scope: controlScope,
-                    terminalSize: terminalSize,
-                    failureBox: controlFailure,
-                    maximumAttempts: 2
-                ) else {
-                    let underlyingFailure = await controlFailure.failure
-                    // A missing target Session commonly surfaces as a short-lived Control
-                    // Mode process. Only after startup has failed do one catalog read to
-                    // distinguish that terminal condition from a transient control-plane
-                    // failure, keeping the healthy startup path free of another SSH round trip.
+            .init(id: .runtimeComponents) { [self] in
+                do {
+                    try await withThrowingTaskGroup(of: Void.self) { group in
+                        group.addTask {
+                            guard let lease = await preflightControlMode(
+                                sessionID: sessionID,
+                                runtime: runtime,
+                                configuration: configuration,
+                                context: context,
+                                scope: controlScope,
+                                terminalSize: terminalSize,
+                                failureBox: controlFailure,
+                                maximumAttempts: 2
+                            ) else {
+                                let underlyingFailure = await controlFailure.failure
+                                throw underlyingFailure
+                                    ?? PersistentTerminalError.controlModeUnavailable
+                            }
+                            await startup.storeControlPreflight(lease)
+                        }
+
+                        group.addTask {
+                            let invocation = tmuxScript(
+                                executable: runtime.executable,
+                                locator: configuration.locator,
+                                arguments: ["attach-session", "-t", sessionID.rawValue]
+                            )
+                            let script = tmuxHandshakeScript(
+                                kind: .attachment,
+                                nonce: nonce.value,
+                                invocation: invocation
+                            )
+                            let command = try runtime.runtime.invocation(for: script)
+                            let process = try await context.session.openProcess(
+                                RemoteProcessRequest(
+                                    command: command,
+                                    terminal: RemoteTerminalRequest(
+                                        type: "xterm-256color",
+                                        size: terminalSize
+                                    )
+                                )
+                            )
+                            await startup.storeProcess(process)
+                            let attachment = try await TmuxPassthroughAttachment.open(
+                                descriptor: descriptor,
+                                process: process,
+                                nonce: nonce,
+                                runtimeAttachmentID: runtimeAttachmentID,
+                                attachmentGeneration: attachmentGeneration,
+                                interactionFactory: { tty, processID in
+                                    let historyBackend = TmuxOneShotInteractionBackend(
+                                        executor: oneShotExecutor,
+                                        captureExecutor: captureExecutor,
+                                        scope: controlScope,
+                                        dialect: dialect,
+                                        attachmentID: runtimeAttachmentID,
+                                        attachmentGeneration: attachmentGeneration,
+                                        tty: tty,
+                                        processID: processID,
+                                        nonceFactory: { try Self.makeNonce() }
+                                    )
+                                    return TmuxInteractionFacet(
+                                        attachmentGeneration: attachmentGeneration,
+                                        historyBackend: historyBackend
+                                    )
+                                }
+                            )
+                            await startup.storeAttachment(attachment)
+                        }
+
+                        try await group.waitForAll()
+                    }
+                } catch {
+                    await startup.rollbackAttachment()
+                    await startup.rollbackProcess()
+                    await startup.rollbackControlPreflight()
+                    // Parallel children can fail in either order. Classify a deleted
+                    // Session after both have stopped so the surfaced error is deterministic.
                     if let workspaces = try? await listWorkspaces(in: context),
                        !workspaces.contains(where: {
                            $0.workspace.workspaceID == sessionID.rawValue
                        }) {
                         throw PersistentTerminalError.remoteObjectMissing
                     }
-                    throw underlyingFailure ?? PersistentTerminalError.controlModeUnavailable
+                    throw error
                 }
-                await startup.storeControlPreflight(lease)
-                return TerminalStartupRollback {
-                    await startup.rollbackControlPreflight()
-                }
-            },
-            .init(id: .remoteProcess) { [self] in
-                let controlLease = try await startup.controlPreflight()
-                let clientFlags = await controlLease.runtime.capabilities.supportedClientFlags
-                    .intersection([.activePane, .ignoreSize])
-                var attachArguments = ["attach-session"]
-                if !clientFlags.isEmpty {
-                    attachArguments += [
-                        "-f",
-                        clientFlags.sorted { $0.rawValue < $1.rawValue }
-                            .map(\.rawValue)
-                            .joined(separator: ","),
-                    ]
-                }
-                attachArguments += ["-t", sessionID.rawValue]
-                let invocation = tmuxScript(
-                    executable: runtime.executable,
-                    locator: configuration.locator,
-                    arguments: attachArguments
-                )
-                let script = tmuxHandshakeScript(
-                    kind: .attachment,
-                    nonce: nonce.value,
-                    invocation: invocation
-                )
-                let command = try runtime.runtime.invocation(for: script)
-                let process = try await context.session.openProcess(
-                    RemoteProcessRequest(
-                        command: command,
-                        terminal: RemoteTerminalRequest(
-                            type: "xterm-256color",
-                            size: terminalSize
-                        )
-                    )
-                )
-                await startup.storeProcess(process)
-                return TerminalStartupRollback {
-                    await startup.rollbackProcess()
-                }
-            },
-            .init(id: .byteTerminal) {
-                let process = try await startup.process()
-                let attachment = try await TmuxPassthroughAttachment.open(
-                    descriptor: descriptor,
-                    process: process,
-                    nonce: nonce,
-                    runtimeAttachmentID: runtimeAttachmentID,
-                    attachmentGeneration: attachmentGeneration,
-                    interactionFactory: { tty, processID in
-                        let historyBackend = TmuxOneShotInteractionBackend(
-                            executor: oneShotExecutor,
-                            captureExecutor: captureExecutor,
-                            scope: controlScope,
-                            dialect: dialect,
-                            attachmentID: runtimeAttachmentID,
-                            attachmentGeneration: attachmentGeneration,
-                            tty: tty,
-                            processID: processID,
-                            nonceFactory: { try Self.makeNonce() }
-                        )
-                        return TmuxInteractionFacet(
-                            attachmentGeneration: attachmentGeneration,
-                            historyBackend: historyBackend
-                        )
-                    }
-                )
-                await startup.storeAttachment(attachment)
                 return TerminalStartupRollback {
                     await startup.rollbackAttachment()
+                    await startup.rollbackProcess()
+                    await startup.rollbackControlPreflight()
                 }
             },
             .init(id: "tmux.server-identity") { [self] in
@@ -570,7 +563,7 @@ public struct TmuxProvider: PersistentTerminalCatalogProvider {
                         interactionLease,
                         refreshIfNeeded: false
                     )
-                    await attachment.installControlLease(interactionLease)
+                    try await attachment.installControlLease(interactionLease)
                     await startup.markControlBound()
                 } catch {
                     tmuxProviderLogger.error(
@@ -708,7 +701,8 @@ public struct TmuxProvider: PersistentTerminalCatalogProvider {
                     runtime: controlRuntime,
                     registry: Self.controlRuntimeRegistry,
                     scope: scope
-                )
+                ),
+                viewport: controlRuntime
             )
         let hub = try TmuxControlHub(
                 scope: scope,
@@ -803,7 +797,8 @@ public struct TmuxProvider: PersistentTerminalCatalogProvider {
                     runtime: controlRuntime,
                     registry: Self.controlRuntimeRegistry,
                     scope: scope
-                )
+                ),
+                viewport: controlRuntime
             )
             let hub = try TmuxControlHub(
                 scope: scope,
@@ -1708,6 +1703,7 @@ package final class TmuxPassthroughAttachment:
     package let runtimeAttachmentID: String
     package let attachmentGeneration: UInt64
     package var interaction: any PersistentTerminalInteractionFacet { interactionFacet }
+    package let viewportAuthority: PersistentTerminalViewportAuthority = .remoteProvider
     private let channel: TmuxProcessShellChannel
     private let interactionFacet: TmuxInteractionFacet
     private let lifecycleContinuation:
@@ -1769,12 +1765,15 @@ package final class TmuxPassthroughAttachment:
         channel.processIdentity
     }
 
-    func installControlLease(_ controlLease: TmuxProviderControlInteractionLease) async {
+    func installControlLease(
+        _ controlLease: TmuxProviderControlInteractionLease
+    ) async throws {
         guard lifecycleLock.withLock({ !didClose }) else {
             await controlLease.registry.release(controlLease)
             return
         }
         await interactionFacet.install(controlLease)
+        try await interactionFacet.setViewportVisible(false)
         let terminations = controlLease.runtime.terminationEvents()
         controlLifecycleTask = Task { [weak self] in
             for await reason in terminations {
@@ -1782,6 +1781,25 @@ package final class TmuxPassthroughAttachment:
                 await self?.controlModeTerminated(reason)
                 return
             }
+        }
+    }
+
+    package func updateViewport(
+        _ state: PersistentTerminalViewportState
+    ) async throws {
+        try Task.checkCancellation()
+        guard lifecycleLock.withLock({ !didClose }) else {
+            throw TmuxInteractionError.closed
+        }
+        switch state {
+        case .hidden:
+            try await interactionFacet.setViewportVisible(false)
+        case let .visible(size):
+            try await channel.resize(size)
+            // A page can disappear while the SSH resize is in flight. Do not let that
+            // stale request make the tmux client a size voter again after detach/background.
+            try Task.checkCancellation()
+            try await interactionFacet.setViewportVisible(true)
         }
     }
 

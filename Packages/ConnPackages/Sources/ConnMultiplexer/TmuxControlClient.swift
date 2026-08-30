@@ -391,6 +391,12 @@ package actor TmuxControlClient {
                 generation: generation,
                 uncertain
             ))
+            // This generation cannot accept another command until it has been reconciled,
+            // but an attached runtime has no second management transport with which to do
+            // that reconciliation. Leaving the channel alive therefore creates a permanent
+            // `controlClientNotReady` state. Fail the required component so the attachment
+            // lifecycle rebuilds both Control Mode and its exact-generation binding.
+            await terminalize(reason: .transportFailure, closeChannel: true)
         } catch {
             pendingExecution = nil
             pending.continuation.resume(throwing: error)

@@ -10,14 +10,17 @@ struct PersistentTerminalProviderRegistryTests {
     func registeredDefaultsAreLocalAndDeterministic() {
         let defaults = PersistentTerminalProviderRegistry.default.registeredDefaults()
 
-        #expect(defaults.map(\.descriptor.id) == [TmuxProvider.providerID])
+        #expect(defaults.map(\.descriptor.id) == [
+            TmuxProvider.providerID,
+            ZellijProvider.providerID
+        ])
         #expect(defaults.first?.configuration.providerID == TmuxProvider.providerID)
         #expect(defaults.first?.configuration.configurationKey == "default")
         #expect(defaults.first?.configuration.payloadVersion == TmuxProvider.configurationVersion)
     }
 
-    @Test("内置 registry 注册 tmux，但仍按平台精确路由")
-    func builtInRegistryRegistersTmux() throws {
+    @Test("内置 registry 注册 tmux 与 Zellij，但仍按平台精确路由")
+    func builtInRegistryRegistersPersistentProviders() throws {
         let configuration = TmuxProvider().defaultConfiguration
 
         #expect(
@@ -28,6 +31,17 @@ struct PersistentTerminalProviderRegistryTests {
         #expect(throws: PersistentTerminalError.unsupportedPlatform) {
             try PersistentTerminalProviderRegistry.default
                 .provider(for: configuration, platform: .windows)
+        }
+
+        let zellij = ZellijProvider().defaultConfiguration
+        #expect(
+            try PersistentTerminalProviderRegistry.default
+                .provider(for: zellij, platform: .linux)
+                .descriptor.id == ZellijProvider.providerID
+        )
+        #expect(throws: PersistentTerminalError.unsupportedPlatform) {
+            try PersistentTerminalProviderRegistry.default
+                .provider(for: zellij, platform: .windows)
         }
     }
 

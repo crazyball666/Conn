@@ -1021,6 +1021,10 @@ public final class TerminalSessionCoordinator {
     ) {
         guard let tab = store.tab(id: tabID), tab.generation == generation else { return }
         switch event {
+        case .workspaceClosed:
+            Task { @MainActor [weak self] in
+                await self?.close(tabID)
+            }
         case let .failed(failure):
             if failure.issue == .remoteObjectMissing {
                 // The provider has authoritatively reported that the remote workspace no

@@ -457,6 +457,25 @@ actor TmuxProviderControlRuntimeRegistry {
         )
     }
 
+    func updateViewport(
+        _ lease: TmuxProviderControlInteractionLease,
+        isVisible: Bool
+    ) async throws {
+        guard let registration = attachmentRegistrations[lease.scope]?[lease.registrationID],
+              registration.identity == lease.identity,
+              let entry = entries[lease.scope],
+              entry.runtime === lease.runtime,
+              let hub = entry.hub,
+              let hubLease = registration.hubLease
+        else {
+            throw TmuxInteractionError.closed
+        }
+        try await hub.updateDataClientViewport(
+            lease: hubLease,
+            isVisible: isVisible
+        )
+    }
+
     /// Startup validation requires an idle, command-ready client before the attachment is
     /// published. Runtime interactions intentionally do not call this: `isReady` is also
     /// false while a healthy command is in flight, and the Hub owns queuing that work.

@@ -145,17 +145,26 @@ struct TerminalInteractionControllerTests {
     @Test("history capture publishes only while its provider-history route remains current")
     func historyCapturePublicationIsRouteGuarded() throws {
         let controller = TerminalInteractionController()
-        controller.update(context(protocolRevision: 1, targetID: "pane-a"))
+        controller.update(context(
+            protocolRevision: 1,
+            targetID: "pane-a"
+        ))
         let action = controller.beginScroll()
         guard case let .providerHistory(token) = action else {
             Issue.record("expected provider-history route")
             return
         }
 
-        controller.update(context(protocolRevision: 2, targetID: "pane-a"))
+        controller.update(context(
+            protocolRevision: 2,
+            targetID: "pane-a"
+        ))
         #expect(controller.canPublishHistory(capturedWith: token))
 
-        controller.update(context(protocolRevision: 3, targetID: "pane-b"))
+        controller.update(context(
+            protocolRevision: 3,
+            targetID: "pane-b"
+        ))
         #expect(!controller.canPublishHistory(capturedWith: token))
 
         controller.update(context(
@@ -196,6 +205,7 @@ struct TerminalInteractionControllerTests {
                     freshness: .fresh,
                     isAlternateBuffer: false,
                     modeCapability: modeCapability,
+                    historyOwnership: .provider,
                     historyAvailable: true,
                     targetID: $0
                 )

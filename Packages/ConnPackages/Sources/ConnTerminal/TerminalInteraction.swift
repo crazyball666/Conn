@@ -1,3 +1,5 @@
+import ConnMultiplexer
+
 public enum TerminalMouseTracking: Sendable, Equatable {
     case off
     case pressOnly
@@ -65,6 +67,7 @@ public struct TerminalPersistentScrollSignature: Sendable, Equatable {
     public let freshness: TerminalPersistentStateFreshness
     public let isAlternateBuffer: Bool
     public let modeCapability: TerminalPersistentModeCapability
+    public let historyOwnership: PersistentTerminalHistoryOwnership
     public let historyAvailable: Bool
     public let targetID: String?
 
@@ -72,6 +75,7 @@ public struct TerminalPersistentScrollSignature: Sendable, Equatable {
         freshness = state.freshness
         isAlternateBuffer = state.isAlternateBuffer
         modeCapability = state.modeCapability
+        historyOwnership = state.historyOwnership
         historyAvailable = state.historyAvailable
         targetID = state.targetID
     }
@@ -101,6 +105,7 @@ public struct TerminalPersistentRouteState: Sendable, Equatable {
     public let freshness: TerminalPersistentStateFreshness
     public let isAlternateBuffer: Bool
     public let modeCapability: TerminalPersistentModeCapability
+    public let historyOwnership: PersistentTerminalHistoryOwnership
     public let historyAvailable: Bool
     public let targetID: String?
 
@@ -109,6 +114,7 @@ public struct TerminalPersistentRouteState: Sendable, Equatable {
         freshness: TerminalPersistentStateFreshness,
         isAlternateBuffer: Bool,
         modeCapability: TerminalPersistentModeCapability,
+        historyOwnership: PersistentTerminalHistoryOwnership = .local,
         historyAvailable: Bool,
         targetID: String? = nil
     ) {
@@ -116,6 +122,7 @@ public struct TerminalPersistentRouteState: Sendable, Equatable {
         self.freshness = freshness
         self.isAlternateBuffer = isAlternateBuffer
         self.modeCapability = modeCapability
+        self.historyOwnership = historyOwnership
         self.historyAvailable = historyAvailable
         self.targetID = targetID
     }
@@ -182,6 +189,15 @@ public enum TerminalScrollActionKind: Sendable, Equatable {
     case boundary
 }
 
+public enum TerminalScrollTransport: Sendable, Equatable {
+    case none
+    case remoteMouse
+    case terminalCursorKeys
+    case terminalScrollKeys
+    case providerControl
+    case resolvePersistentState
+}
+
 public enum TerminalScrollAction: Sendable, Equatable {
     case selection
     case pointer
@@ -231,6 +247,27 @@ public enum TerminalScrollAction: Sendable, Equatable {
         }
     }
 
+    /// High-frequency scrolling stays on the terminal data channel once the remote
+    /// provider is already in an interactive mode. Provider control is reserved for
+    /// the one transition from live output into provider-owned history.
+    public var transport: TerminalScrollTransport {
+        switch self {
+        case .remoteMouse:
+            .remoteMouse
+        case .providerScrollableMode:
+            .terminalScrollKeys
+        case .providerKeyDrivenMode, .providerAlternateKeys, .plainAlternateKeys:
+            .terminalCursorKeys
+        case .providerHistory:
+            .providerControl
+        case .resolvePersistentState:
+            .resolvePersistentState
+        case .selection, .pointer, .providerUnsupportedBoundary,
+             .localNormalBuffer, .boundary:
+            .none
+        }
+    }
+
     public var isRemoteScroll: Bool {
         switch self {
         case .remoteMouse, .providerScrollableMode, .providerKeyDrivenMode,
@@ -277,8 +314,10 @@ public struct TerminalScrollRouter: Sendable {
             if persistent.isAlternateBuffer {
                 return .providerAlternateKeys(token)
             }
-            if persistent.historyAvailable {
-                return .providerHistory(token)
+            if persistent.historyOwnership == .provider {
+                return persistent.historyAvailable
+                    ? .providerHistory(token)
+                    : .resolvePersistentState(token)
             }
             return .boundary(token)
         }

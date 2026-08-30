@@ -781,8 +781,15 @@ package struct TmuxSnapshotAssembler: Sendable {
         _ text: TmuxDecodedSnapshotText,
         observedAt: Date
     ) -> TmuxObservedValue<String> {
-        guard case let .value(value) = text, !value.isEmpty else { return .unavailable }
-        return .init(value: value, freshness: .snapshot(observedAt: observedAt))
+        switch text {
+        case let .value(value):
+            return .init(
+                value: value.isEmpty ? nil : value,
+                freshness: .snapshot(observedAt: observedAt)
+            )
+        case .unavailable:
+            return .unavailable
+        }
     }
 
     private func observedBoolean(

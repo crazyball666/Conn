@@ -80,6 +80,10 @@ struct TmuxProviderControlRuntimeRegistryTests {
         #expect(state.modeCapability == .scrollable)
         #expect(state.revision == validatedInitialSnapshot.revision)
 
+        try await registry.updateViewport(attachmentLease, isVisible: true)
+        #expect(await firstAdapter.viewportVisibilities == [true])
+        #expect(await firstAdapter.viewportIdentities == [fixture.identity])
+
         let request = try PersistentTerminalModeScrollRequest(
             target: target,
             attachmentGeneration: 3,
@@ -492,6 +496,8 @@ private actor RegistryHubAdapter: TmuxControlHubAdapter {
     let fixture: RegistryFixture
     private(set) var operations: [TmuxOperation] = []
     private(set) var snapshotLoadCount = 0
+    private(set) var viewportIdentities: [TmuxControlInteractiveIdentity] = []
+    private(set) var viewportVisibilities: [Bool] = []
 
     init(fixture: RegistryFixture) {
         self.fixture = fixture
@@ -522,6 +528,16 @@ private actor RegistryHubAdapter: TmuxControlHubAdapter {
     ) async throws -> TmuxServerSnapshot {
         snapshotLoadCount += 1
         return try fixture.snapshot(identities: identities)
+    }
+
+    func updateDataClientViewport(
+        scope: TmuxOperationScope,
+        identity: TmuxControlInteractiveIdentity,
+        isVisible: Bool
+    ) async throws {
+        _ = scope
+        viewportIdentities.append(identity)
+        viewportVisibilities.append(isVisible)
     }
 
     func demandChanged(_ demand: TmuxControlHubDemand) async {}

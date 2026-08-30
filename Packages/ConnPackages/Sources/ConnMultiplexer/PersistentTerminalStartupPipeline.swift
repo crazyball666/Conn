@@ -19,6 +19,7 @@ public struct TerminalStartupStageID:
     }
 
     public static let controlPlane: Self = "terminal.control-plane"
+    public static let runtimeComponents: Self = "terminal.runtime-components"
     public static let remoteTransport: Self = "terminal.remote-transport"
     public static let remoteProcess: Self = "terminal.remote-process"
     public static let byteTerminal: Self = "terminal.byte-terminal"

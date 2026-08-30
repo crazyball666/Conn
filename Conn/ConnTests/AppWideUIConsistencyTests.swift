@@ -16,8 +16,12 @@ struct AppWideUIConsistencyTests {
     func newTerminalTypeChoicesHideSubtitles() throws {
         let source = try appSource("Terminal/NewTerminalSheet.swift")
 
-        #expect(source.contains("launchChoice(\n                        title: L(\"普通终端\"),\n                        systemImage: \"terminal\""))
-        #expect(source.contains("launchChoice(\n                        title: \"tmux\",\n                        systemImage: \"rectangle.connected.to.line.below\""))
+        #expect(source
+            .contains("launchChoice(\n                        title: L(\"普通终端\"),\n                        systemImage: \"terminal\""))
+        #expect(source
+            .contains(
+                "launchChoice(\n                        title: L(\"持久终端\"),\n                        systemImage: \"rectangle.connected.to.line.below\""
+            ))
         #expect(!source.contains("启动独立远程 Shell"))
         #expect(!source.contains("连接或创建可恢复的远程 Session"))
         #expect(!source.contains("subtitle:"))
@@ -82,12 +86,12 @@ struct AppWideUIConsistencyTests {
 
     @Test("全 App 交互触感统一使用高强度策略")
     func appHapticsUseHighImpactPolicy() throws {
-        let sources = [
-            try appSource("Hosts/HostOverviewView.swift"),
-            try packageSource("Sources/ConnUI/Components/GroupFilterBar.swift"),
-            try packageSource("Sources/ConnTerminal/TerminalDirectionPad.swift"),
-            try packageSource("Sources/ConnTerminal/TerminalKeybar.swift"),
-            try packageSource("Sources/ConnTerminal/TerminalHostingView.swift"),
+        let sources = try [
+            appSource("Hosts/HostOverviewView.swift"),
+            packageSource("Sources/ConnUI/Components/GroupFilterBar.swift"),
+            packageSource("Sources/ConnTerminal/TerminalDirectionPad.swift"),
+            packageSource("Sources/ConnTerminal/TerminalKeybar.swift"),
+            packageSource("Sources/ConnTerminal/TerminalHostingView.swift")
         ]
         for source in sources {
             #expect(!source.contains(".sensoryFeedback(.selection"))
@@ -95,7 +99,8 @@ struct AppWideUIConsistencyTests {
             #expect(!source.contains("UISelectionFeedbackGenerator"))
         }
         #expect(sources.allSatisfy { $0.contains("ConnHapticFeedback.highImpact")
-            || $0.contains("ConnHapticFeedback.performHighImpact()") })
+                || $0.contains("ConnHapticFeedback.performHighImpact()")
+        })
 
         let overview = sources[0]
         #expect(overview.contains("@State private var cpuSelectionHapticCount = 0"))
@@ -271,7 +276,7 @@ struct AppWideUIConsistencyTests {
             "Hosts/LogCenterView.swift",
             "Hosts/DockerView.swift",
             "Hosts/DockerComposeViews.swift",
-            "Hosts/DockerDetailBuilding.swift",
+            "Hosts/DockerDetailBuilding.swift"
         ]
 
         for path in paths {
@@ -303,7 +308,7 @@ struct AppWideUIConsistencyTests {
     func terminalSessionRowsMakeEntireRowInteractive() throws {
         for path in [
             "Terminal/TerminalSessionCenterView.swift",
-            "Terminal/TerminalSessionListSheet.swift",
+            "Terminal/TerminalSessionListSheet.swift"
         ] {
             let source = try appSource(path)
             #expect(source.contains(".frame(maxWidth: .infinity, alignment: .leading)"))
@@ -472,7 +477,10 @@ struct AppWideUIConsistencyTests {
 
         #expect(source.contains("Text(title)\n                    .font(.connSubheadline)\n                    .foregroundStyle(.connInk)"))
         #expect(!source.contains("Text(title)\n                    .font(.connBody.weight(.semibold))"))
-        #expect(source.contains("Image(systemName: systemName)\n                    .font(.system(size: 18, weight: .medium))\n                    .foregroundStyle(.connAccent)"))
+        #expect(source
+            .contains(
+                "Image(systemName: systemName)\n                    .font(.system(size: 18, weight: .medium))\n                    .foregroundStyle(.connAccent)"
+            ))
         #expect(!source.contains(".foregroundStyle(destructive ? Color.connCrit : .connInk)"))
     }
 
@@ -531,9 +539,11 @@ struct AppWideUIConsistencyTests {
         #expect(!source.contains("persistentWorkspaceOptions"))
     }
 
-    @Test("当前页面 tmux 启动流程允许选择已有 Session 或新建 Session")
-    func tmuxLaunchPickerSupportsWorkspaceChoice() throws {
+    @Test("当前页面持久终端启动流程允许选择 Provider、已有 Session 或新建 Session")
+    func persistentLaunchPickerSupportsProviderAndWorkspaceChoice() throws {
         let source = try appSource("Terminal/NewTerminalSheet.swift")
+        #expect(source.contains("model.selectOption(option)"))
+        #expect(source.contains("ForEach(model.options)"))
         #expect(source.contains("model.attach(workspace)"))
         #expect(source.contains("model.createWorkspace"))
         #expect(source.contains("Task { await model.refresh() }"))
@@ -654,7 +664,7 @@ struct AppWideUIConsistencyTests {
         for path in [
             "Hosts/DockerView.swift",
             "Hosts/ContainerDetailView.swift",
-            "Commands/SnippetRunView.swift",
+            "Commands/SnippetRunView.swift"
         ] {
             let source = try appSource(path)
             #expect(source.contains("TerminalLaunchPresentation"), "\(path) 未复用显式启动协调器")
@@ -927,7 +937,7 @@ struct AppWideUIConsistencyTests {
             ("Hosts/ProcessListView.swift", "await viewModel.retryProcesses()"),
             ("Files/FileBrowserView.swift", "await viewModel.load()"),
             ("Hosts/DockerView.swift", "await viewModel.load()"),
-            ("Hosts/LogCenterView.swift", "await viewModel.load()"),
+            ("Hosts/LogCenterView.swift", "await viewModel.load()")
         ]
 
         for (path, expectedAction) in cases {

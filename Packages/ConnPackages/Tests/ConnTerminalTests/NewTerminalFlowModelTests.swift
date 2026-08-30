@@ -16,7 +16,9 @@ private actor FlowPrepareGate {
     }
 
     func waitUntilBlocked() async {
-        while !waiting { try? await Task.sleep(for: .milliseconds(5)) }
+        while !waiting {
+            try? await Task.sleep(for: .milliseconds(5))
+        }
     }
 
     func release() {
@@ -39,10 +41,14 @@ private actor FlowCancellationProbe {
     }
 
     func waitUntilStarted() async {
-        while !started { try? await Task.sleep(for: .milliseconds(5)) }
+        while !started {
+            try? await Task.sleep(for: .milliseconds(5))
+        }
     }
 
-    func wasCancelled() -> Bool { cancelled }
+    func wasCancelled() -> Bool {
+        cancelled
+    }
 }
 
 @MainActor
@@ -51,6 +57,7 @@ private final class NewTerminalOperationsRecorder {
     var hostError: (any Error)?
     var candidateCalls = 0
     var workspaceCalls = 0
+    var workspaceOptions: [PersistentBackendOption] = []
     var candidateResult: [PersistentBackendOption] = []
     var workspaceOperation: (@MainActor (Host) async throws -> [RemoteWorkspaceSummary])?
     var workspaceResult: [RemoteWorkspaceSummary] = []
@@ -69,19 +76,24 @@ private final class NewTerminalOperationsRecorder {
     var operations: NewTerminalFlowModel.Operations {
         NewTerminalFlowModel.Operations(
             loadHosts: { [weak self] in
-                if let error = self?.hostError { throw error }
+                if let error = self?.hostError {
+                    throw error
+                }
                 return self?.hostResult ?? []
             },
             persistentBackendOptions: { [weak self] in
                 self?.candidateCalls += 1
                 return self?.candidateResult ?? []
             },
-            persistentWorkspaceOptions: { [weak self] _, host in
+            persistentWorkspaceOptions: { [weak self] option, host in
                 self?.workspaceCalls += 1
+                self?.workspaceOptions.append(option)
                 if let workspaceOperation = self?.workspaceOperation {
                     return try await workspaceOperation(host)
                 }
-                if let error = self?.workspaceError { throw error }
+                if let error = self?.workspaceError {
+                    throw error
+                }
                 return self?.workspaceResult ?? []
             },
             makeExistingBackend: { [weak self] _, workspace, _ in
@@ -90,7 +102,9 @@ private final class NewTerminalOperationsRecorder {
             },
             makeCreateBackend: { [weak self] _, selection, _ in
                 self?.createSelections.append(selection)
-                if let gate = self?.createBackendGate { await gate.wait() }
+                if let gate = self?.createBackendGate {
+                    await gate.wait()
+                }
                 return self?.createLaunch
                     ?? makeLaunch(workspace: makeWorkspace(id: "$created", name: "created"))
             },
@@ -99,7 +113,9 @@ private final class NewTerminalOperationsRecorder {
             },
             prepareLaunch: { [weak self] request, _ in
                 self?.preparedRequests.append(request)
-                if let gate = self?.prepareGate { await gate.wait() }
+                if let gate = self?.prepareGate {
+                    await gate.wait()
+                }
                 return self?.prepareResult ?? .success(())
             },
             commitLaunch: { _ in .success("tab-1") },
@@ -182,7 +198,7 @@ struct NewTerminalFlowModelTests {
     }
 
     @Test("非固定主机入口先加载主机并在选择后进入类型选择")
-    func unfixedFlowSelectsHostBeforeTerminalType() async {
+    func unfixedFlowSelectsHostBeforeTerminalType() {
         let host = Host(id: "host-1", name: "web", address: "10.0.0.1", username: "root")
         let recorder = NewTerminalOperationsRecorder()
         recorder.hostResult = [host]
@@ -248,6 +264,37 @@ struct NewTerminalFlowModelTests {
         #expect(recorder.workspaceCalls == 1)
         #expect(model.selectedOption == second)
         #expect(model.workspaces == [workspace])
+    }
+
+    @Test("tmux 与 Zellij 候选通过同一 provider 选择流程按 ID 路由")
+    func zellijCandidateUsesProviderNeutralSelectionFlow() async {
+        let host = Host(id: "host-1", name: "web", address: "10.0.0.1", username: "root")
+        let recorder = NewTerminalOperationsRecorder()
+        let tmux = makeOption(key: "tmux-default", displayName: "tmux")
+        let zellij = makeOption(
+            key: "zellij-default",
+            displayName: "Zellij",
+            providerID: "zellij"
+        )
+        let workspace = makeWorkspace(id: "zellij-main", name: "main")
+        recorder.candidateResult = [tmux, zellij]
+        recorder.workspaceResult = [workspace]
+        let model = NewTerminalFlowModel(
+            fixedHost: host,
+            operations: recorder.operations,
+            onCompleted: { recorder.completion = $0 }
+        )
+
+        await model.selectPersistent()
+        #expect(model.phase == .providerSelection)
+        #expect(model.options == [tmux, zellij])
+
+        await model.selectOption(zellij)
+
+        #expect(recorder.workspaceOptions == [zellij])
+        #expect(model.selectedOption == zellij)
+        #expect(model.workspaces == [workspace])
+        #expect(model.phase == .workspaceSelection)
     }
 
     @Test("手动刷新失败保留上一份 Workspace 快照并显示错误")

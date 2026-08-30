@@ -143,8 +143,8 @@ struct TmuxControlClientTests {
         await client.close()
     }
 
-    @Test("deadline reports unknown once and late success only requests reconciliation")
-    func quarantinesDeadlineAndLateSuccess() async throws {
+    @Test("deadline reports unknown and closes the unusable control generation")
+    func closesTimedOutControlGeneration() async throws {
         let fixture = try ControlClientFixture()
         let channel = ScriptedControlProcessChannel()
         let events = ControlClientEventRecorder()
@@ -166,22 +166,14 @@ struct TmuxControlClientTests {
             #expect(uncertain.generation == 7)
         }
         #expect(await channel.recordedWrites() == [fixture.renderedKillPane])
-        #expect(await client.isRecovering)
-
-        channel.yield(.stdout(Data("%begin 12 4 0\nlate\n%end 12 4 0\n".utf8)))
         #expect(await waitUntil {
-            await events.contains(.lateCommandTerminated(
-                generation: 7,
-                commandID: .init(rawValue: 0),
-                status: .succeeded
-            ))
+            await events.contains(.closed(generation: 7, reason: .transportFailure))
         })
-        await #expect(throws: TmuxControlCommandMachineError.reconciliationRequired) {
+        #expect(await channel.closeCount() == 1)
+        #expect(!(await client.isReady))
+        await #expect(throws: TmuxControlClientError.closed) {
             try await client.execute(fixture.renameSession, timeout: .seconds(1))
         }
-
-        try await client.markReconciled()
-        #expect(await client.isReady)
         await client.close()
     }
 
