@@ -56,9 +56,14 @@ private final class NewTerminalOperationsRecorder {
     var hostResult: [Host] = []
     var hostError: (any Error)?
     var candidateCalls = 0
+    var availabilityCalls: [PersistentBackendOption] = []
     var workspaceCalls = 0
     var workspaceOptions: [PersistentBackendOption] = []
     var candidateResult: [PersistentBackendOption] = []
+    var availabilityResult = PersistentTerminalAvailability(state: .available)
+    var availabilityError: (any Error)?
+    var availabilityOperation:
+        (@MainActor (PersistentBackendOption, Host) async throws -> PersistentTerminalAvailability)?
     var workspaceOperation: (@MainActor (Host) async throws -> [RemoteWorkspaceSummary])?
     var workspaceResult: [RemoteWorkspaceSummary] = []
     var workspaceError: (any Error)?
@@ -84,6 +89,17 @@ private final class NewTerminalOperationsRecorder {
             persistentBackendOptions: { [weak self] in
                 self?.candidateCalls += 1
                 return self?.candidateResult ?? []
+            },
+            persistentAvailability: { [weak self] option, host in
+                self?.availabilityCalls.append(option)
+                if let availabilityOperation = self?.availabilityOperation {
+                    return try await availabilityOperation(option, host)
+                }
+                if let error = self?.availabilityError {
+                    throw error
+                }
+                return self?.availabilityResult
+                    ?? PersistentTerminalAvailability(state: .unavailable)
             },
             persistentWorkspaceOptions: { [weak self] option, host in
                 self?.workspaceCalls += 1
@@ -129,7 +145,7 @@ private final class NewTerminalOperationsRecorder {
 @Suite("NewTerminalFlowModel")
 @MainActor
 struct NewTerminalFlowModelTests {
-    @Test("选择普通 PTY 直接创建且不探测 persistent provider")
+    @Test("选择普通 PTY 直接创建且不执行远端 provider 检测")
     func plainPTYDoesNotProbePersistentProviders() async {
         let host = Host(id: "host-1", name: "web", address: "10.0.0.1", username: "root")
         let recorder = NewTerminalOperationsRecorder()
@@ -141,23 +157,53 @@ struct NewTerminalFlowModelTests {
 
         await model.selectPlainPTY()
 
-        #expect(recorder.candidateCalls == 0)
+        #expect(recorder.candidateCalls == 1)
+        #expect(recorder.availabilityCalls.isEmpty)
         #expect(recorder.workspaceCalls == 0)
         #expect(recorder.preparedRequests.count == 1)
         #expect(recorder.preparedRequests.first?.backend == .plainPTY)
         #expect(recorder.completion == NewTerminalFlowCompletion(host: host, tabID: "tab-1"))
     }
 
-    @Test("选中 persistent 后发现远端未安装 provider 时自动回退普通 PTY")
-    func persistentSelectionFallsBackToPlainPTYWhenExecutableIsMissing() async {
+    @Test("远端未安装 provider 时类型项置为不可用且不回退普通 PTY")
+    func unavailableProviderDoesNotFallBackToPlainPTY() async {
         let host = Host(id: "host-1", name: "web", address: "10.0.0.1", username: "root")
         let recorder = NewTerminalOperationsRecorder()
         let unavailable = makeOption(
             key: "zellij-host-1",
-            displayName: "Zellij",
+            displayName: "zellij",
             providerID: "zellij"
         )
         recorder.candidateResult = [unavailable]
+        recorder.availabilityResult = PersistentTerminalAvailability(
+            state: .unavailable,
+            issue: .executableMissing
+        )
+        let model = NewTerminalFlowModel(
+            fixedHost: host,
+            operations: recorder.operations,
+            onCompleted: { recorder.completion = $0 }
+        )
+
+        await model.checkProviderAvailability()
+        await model.selectOption(unavailable)
+
+        #expect(recorder.candidateCalls == 1)
+        #expect(recorder.availabilityCalls == [unavailable])
+        #expect(recorder.workspaceCalls == 0)
+        #expect(model.options == [unavailable])
+        #expect(model.availability(for: unavailable) == .unavailable)
+        #expect(recorder.preparedRequests.isEmpty)
+        #expect(recorder.completion == nil)
+        #expect(model.phase == .terminalTypeSelection)
+    }
+
+    @Test("可用性检测后 provider 状态变化时返回类型页并置灰")
+    func providerThatBecomesUnavailableDoesNotLaunchPlainPTY() async {
+        let host = Host(id: "host-1", name: "web", address: "10.0.0.1", username: "root")
+        let recorder = NewTerminalOperationsRecorder()
+        let option = makeOption(key: "tmux-host-1", displayName: "tmux")
+        recorder.candidateResult = [option]
         recorder.workspaceError = PersistentTerminalError.executableMissing
         let model = NewTerminalFlowModel(
             fixedHost: host,
@@ -165,17 +211,18 @@ struct NewTerminalFlowModelTests {
             onCompleted: { recorder.completion = $0 }
         )
 
-        await model.selectPersistent()
+        await model.checkProviderAvailability()
+        await model.selectOption(option)
 
-        #expect(recorder.candidateCalls == 1)
         #expect(recorder.workspaceCalls == 1)
-        #expect(model.options == [unavailable])
-        #expect(recorder.preparedRequests.last?.backend == .plainPTY)
-        #expect(recorder.completion?.notice?.contains("Zellij") == true)
+        #expect(model.availability(for: option) == .unavailable)
+        #expect(model.phase == .terminalTypeSelection)
+        #expect(recorder.preparedRequests.isEmpty)
+        #expect(recorder.completion == nil)
     }
 
-    @Test("单个可用 persistent 候选自动执行一次 Workspace 查询")
-    func singleUsablePersistentCandidateLoadsOneWorkspaceSnapshot() async {
+    @Test("直接选择可用 provider 后执行一次 Workspace 查询")
+    func selectingAvailableProviderLoadsOneWorkspaceSnapshot() async {
         let host = Host(id: "host-1", name: "web", address: "10.0.0.1", username: "root")
         let recorder = NewTerminalOperationsRecorder()
         let option = makeOption(key: "tmux-host-1", displayName: "tmux")
@@ -188,7 +235,8 @@ struct NewTerminalFlowModelTests {
             onCompleted: { recorder.completion = $0 }
         )
 
-        await model.selectPersistent()
+        await model.checkProviderAvailability()
+        await model.selectOption(option)
 
         #expect(recorder.candidateCalls == 1)
         #expect(recorder.workspaceCalls == 1)
@@ -214,6 +262,7 @@ struct NewTerminalFlowModelTests {
         #expect(model.hosts == [host])
         #expect(model.selectedHost == host)
         #expect(model.phase == .terminalTypeSelection)
+        #expect(recorder.candidateCalls == 1)
     }
 
     @Test("主机读取失败后可以在同一弹窗重试恢复")
@@ -240,8 +289,8 @@ struct NewTerminalFlowModelTests {
         #expect(model.phase == .hostSelection)
     }
 
-    @Test("多个可用候选先选择 provider 再查询所选 Workspace")
-    func multiplePersistentCandidatesRequireExplicitCandidateSelection() async {
+    @Test("多个 provider 在类型页同级展示并仅查询用户所选项")
+    func multipleProvidersAreDirectChoices() async {
         let host = Host(id: "host-1", name: "web", address: "10.0.0.1", username: "root")
         let recorder = NewTerminalOperationsRecorder()
         let first = makeOption(key: "tmux-default", displayName: "tmux default")
@@ -255,8 +304,9 @@ struct NewTerminalFlowModelTests {
             onCompleted: { recorder.completion = $0 }
         )
 
-        await model.selectPersistent()
-        #expect(model.phase == .providerSelection)
+        await model.checkProviderAvailability()
+        #expect(model.phase == .terminalTypeSelection)
+        #expect(model.options == [first, second])
         #expect(recorder.workspaceCalls == 0)
 
         await model.selectOption(second)
@@ -266,14 +316,14 @@ struct NewTerminalFlowModelTests {
         #expect(model.workspaces == [workspace])
     }
 
-    @Test("tmux 与 Zellij 候选通过同一 provider 选择流程按 ID 路由")
+    @Test("tmux 与 zellij 候选通过同一 provider 选择流程按 ID 路由")
     func zellijCandidateUsesProviderNeutralSelectionFlow() async {
         let host = Host(id: "host-1", name: "web", address: "10.0.0.1", username: "root")
         let recorder = NewTerminalOperationsRecorder()
         let tmux = makeOption(key: "tmux-default", displayName: "tmux")
         let zellij = makeOption(
             key: "zellij-default",
-            displayName: "Zellij",
+            displayName: "zellij",
             providerID: "zellij"
         )
         let workspace = makeWorkspace(id: "zellij-main", name: "main")
@@ -285,8 +335,8 @@ struct NewTerminalFlowModelTests {
             onCompleted: { recorder.completion = $0 }
         )
 
-        await model.selectPersistent()
-        #expect(model.phase == .providerSelection)
+        await model.checkProviderAvailability()
+        #expect(model.phase == .terminalTypeSelection)
         #expect(model.options == [tmux, zellij])
 
         await model.selectOption(zellij)
@@ -310,7 +360,8 @@ struct NewTerminalFlowModelTests {
             operations: recorder.operations,
             onCompleted: { recorder.completion = $0 }
         )
-        await model.selectPersistent()
+        await model.checkProviderAvailability()
+        await model.selectOption(option)
         recorder.workspaceError = PersistentTerminalError.serverUnavailable
 
         await model.refresh()
@@ -340,7 +391,8 @@ struct NewTerminalFlowModelTests {
             operations: recorder.operations,
             onCompleted: { recorder.completion = $0 }
         )
-        await model.selectPersistent()
+        await model.checkProviderAvailability()
+        await model.selectOption(option)
 
         await model.attach(workspace)
 
@@ -372,7 +424,8 @@ struct NewTerminalFlowModelTests {
             operations: recorder.operations,
             onCompleted: { recorder.completion = $0 }
         )
-        await model.selectPersistent()
+        await model.checkProviderAvailability()
+        await model.selectOption(option)
 
         await model.createWorkspace(name: "  ops  ")
 
@@ -397,7 +450,8 @@ struct NewTerminalFlowModelTests {
             operations: recorder.operations,
             onCompleted: { recorder.completion = $0 }
         )
-        await model.selectPersistent()
+        await model.checkProviderAvailability()
+        await model.selectOption(option)
 
         await model.attach(workspace)
 
@@ -436,16 +490,16 @@ struct NewTerminalFlowModelTests {
         let probe = FlowCancellationProbe()
         let recorder = NewTerminalOperationsRecorder()
         recorder.candidateResult = [makeOption()]
-        recorder.workspaceOperation = { _ in
+        recorder.availabilityOperation = { _, _ in
             await probe.run()
-            return []
+            return PersistentTerminalAvailability(state: .available)
         }
         let model = NewTerminalFlowModel(
             fixedHost: host,
             operations: recorder.operations,
             onCompleted: { recorder.completion = $0 }
         )
-        let selection = Task { await model.selectPersistent() }
+        let selection = Task { await model.checkProviderAvailability() }
         await probe.waitUntilStarted()
 
         let cleanup = model.closeImmediately()
@@ -469,7 +523,8 @@ struct NewTerminalFlowModelTests {
             operations: recorder.operations,
             onCompleted: { recorder.completion = $0 }
         )
-        await model.selectPersistent()
+        await model.checkProviderAvailability()
+        await model.selectOption(option)
         let creation = Task { await model.createWorkspace(name: "ops") }
         await gate.waitUntilBlocked()
 

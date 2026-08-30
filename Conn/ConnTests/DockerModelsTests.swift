@@ -205,32 +205,33 @@ struct DockerModelsTests {
             __CONN_END__
             """
         )
-        session.setResponse(
-            containing: "conn_docker_path=$(command -v docker 2>/dev/null || true)",
-            stdout: "docker\n"
+        session.setResolvedExecutables(["docker": "/usr/bin/docker"])
+        let resolvedDockerRuntime = DockerRuntimeContext(
+            executable: "/usr/bin/docker",
+            sudo: false
         )
         session.setResponse(
-            DockerCommand.availabilityProbe(runtime: testDockerRuntime),
+            DockerCommand.availabilityProbe(runtime: resolvedDockerRuntime),
             stdout: "__EXIT__0"
         )
         session.setResponse(
-            DockerCommand.images(runtime: testDockerRuntime),
+            DockerCommand.images(runtime: resolvedDockerRuntime),
             stdout: #"{"ID":"aaa111222333","Repository":"myapp","Tag":"1.0","Size":"10MB","CreatedSince":"1 day ago"}"#
         )
-        session.setResponse(DockerCommand.stats(runtime: testDockerRuntime), stdout: "")
-        // `docker ps -a` 一直失败——模拟容器取数持续失败（瞬时网络问题、会话半死等）。
-        session.fail(DockerCommand.list(runtime: testDockerRuntime))
+        session.setResponse(DockerCommand.stats(runtime: resolvedDockerRuntime), stdout: "")
+        session.setResponse(DockerCommand.list(runtime: resolvedDockerRuntime), stdout: "")
 
         let viewModel = DockerViewModel(host: host, dependencies: makeDependencies(session: session))
 
         await viewModel.load()
-        // 探测成功但 `containers.load(using:)` 失败：外壳的 `load()` 落到 .failed，
-        // `containers.items` 从未被赋值，仍是空的——这正是 4b 描述的前提条件。
-        guard case .failed = viewModel.loadState else {
-            Issue.record("期望 loadState 落在 .failed，实际 \(viewModel.loadState)")
+        // 首次容器加载成功但结果为空。进入镜像分段后的兜底重拉再失败，才能准确
+        // 覆盖 `loadImagesWithUsage()` 的故障分支，而不触发外壳重探测清空 runtime。
+        guard case .ready = viewModel.loadState else {
+            Issue.record("期望 loadState 落在 .ready，实际 \(viewModel.loadState)")
             return
         }
         #expect(viewModel.containers.items.isEmpty)
+        session.fail(DockerCommand.list(runtime: resolvedDockerRuntime))
 
         await viewModel.loadImagesWithUsage()
 
@@ -282,6 +283,7 @@ private final class ScriptedSession: SSHSession, @unchecked Sendable {
     private var responses: [String: String] = [:]
     private var partialResponses: [(fragment: String, stdout: String)] = []
     private var failingCommands: Set<String> = []
+    private var resolvedExecutables: [String: String] = [:]
 
     init() {
         (state, continuation) = AsyncStream.makeStream()
@@ -296,6 +298,10 @@ private final class ScriptedSession: SSHSession, @unchecked Sendable {
         lock.withLock { partialResponses.append((fragment, stdout)) }
     }
 
+    func setResolvedExecutables(_ values: [String: String]) {
+        lock.withLock { resolvedExecutables = values }
+    }
+
     /// 登记后，这条命令每次被 exec 都会抛错（模拟持续失败，而非只失败一次）。
     func fail(_ command: String) {
         lock.withLock { failingCommands.insert(command) }
@@ -304,6 +310,12 @@ private final class ScriptedSession: SSHSession, @unchecked Sendable {
     func exec(_ command: String, timeout: Duration) async throws -> ExecResult {
         let shouldFail = lock.withLock { failingCommands.contains(command) }
         if shouldFail { throw SSHError.channelClosed }
+        if let output = lock.withLock({ executableResolutionOutput(
+            for: command,
+            resolvedExecutables: resolvedExecutables
+        ) }) {
+            return ExecResult(exitCode: 0, stdout: Data(output.utf8), stderr: Data())
+        }
         let stdout = lock.withLock {
             responses[command]
                 ?? partialResponses.first(where: { command.contains($0.fragment) })?.stdout
@@ -323,6 +335,38 @@ private final class ScriptedSession: SSHSession, @unchecked Sendable {
     func sftp() async throws -> any RemoteFileSystem { throw SSHError.channelClosed }
     func openTunnel(to target: SSHEndpoint) async throws -> any SSHTunnel { throw SSHError.channelClosed }
     func close() async { continuation.finish() }
+}
+
+private func executableResolutionOutput(
+    for command: String,
+    resolvedExecutables: [String: String]
+) -> String? {
+    let beginPrefix = "__CONN_EXECUTABLES_v1_BEGIN_"
+    guard let beginRange = command.range(of: beginPrefix) else { return nil }
+    let nonceSuffix = command[beginRange.upperBound...]
+    guard let nonceEnd = nonceSuffix.range(of: "__") else { return nil }
+    let nonce = String(nonceSuffix[..<nonceEnd.lowerBound])
+    let executablePrefix = "${conn_dir}/"
+    let allowed = CharacterSet(
+        charactersIn: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._+-"
+    )
+    var names: [String] = []
+    var remainder = command[...]
+    while let range = remainder.range(of: executablePrefix) {
+        let suffix = remainder[range.upperBound...]
+        let name = String(suffix.prefix {
+            $0.unicodeScalars.allSatisfy { allowed.contains($0) }
+        })
+        if !name.isEmpty, !names.contains(name) { names.append(name) }
+        remainder = suffix.dropFirst(name.count)
+    }
+    var lines = ["__CONN_EXECUTABLES_v1_BEGIN_\(nonce)__", "/usr/bin:/bin"]
+    for (index, name) in names.enumerated() {
+        lines.append("__CONN_EXECUTABLES_v1_ITEM_\(index)_\(nonce)__")
+        lines.append(resolvedExecutables[name] ?? "")
+    }
+    lines.append("__CONN_EXECUTABLES_v1_END_\(nonce)__")
+    return lines.joined(separator: "\n")
 }
 
 private final class ScriptedTransport: SSHTransport {

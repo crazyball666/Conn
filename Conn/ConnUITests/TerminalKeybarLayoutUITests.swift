@@ -155,9 +155,9 @@ final class TerminalKeybarLayoutUITests: XCTestCase {
         let keybar = app.descendants(matching: .any)["terminal.keybar"].firstMatch
         let providerTab = app.buttons["terminal.keybar.tab.tmux"]
         XCTAssertTrue(keybar.waitForExistence(timeout: 10))
-        XCTAssertGreaterThanOrEqual(keybar.frame.height, 212)
+        XCTAssertGreaterThanOrEqual(keybar.frame.height, 256)
         // The expanded panel includes the device bottom safe area when the keyboard is hidden.
-        XCTAssertLessThanOrEqual(keybar.frame.height, 260)
+        XCTAssertLessThanOrEqual(keybar.frame.height, 320)
         XCTAssertTrue(providerTab.waitForExistence(timeout: 5))
         providerTab.tap()
 
@@ -205,7 +205,26 @@ final class TerminalKeybarLayoutUITests: XCTestCase {
 
         XCTAssertFalse(app.buttons["terminal.keybar.zellij.zellij.session.manager"].exists)
         XCTAssertTrue(app.buttons["terminal.keybar.zellij.zellij.tab.new"].exists)
+        let previousTab = app.buttons["terminal.keybar.zellij.zellij.tab.previous"]
+        let nextTab = app.buttons["terminal.keybar.zellij.zellij.tab.next"]
+        XCTAssertTrue(previousTab.exists)
+        XCTAssertTrue(nextTab.exists)
+        previousTab.tap()
+        nextTab.tap()
         XCTAssertTrue(app.buttons["terminal.keybar.zellij.zellij.pane.split-right"].exists)
+        let switchPane = app.buttons["terminal.keybar.zellij.zellij.pane.switch"]
+        XCTAssertTrue(switchPane.exists)
+        switchPane.tap()
+        let renamePane = app.buttons["terminal.keybar.zellij.zellij.pane.rename"]
+        XCTAssertTrue(renamePane.exists)
+        renamePane.tap()
+        let renameAlert = app.alerts["重命名 Pane"]
+        XCTAssertTrue(renameAlert.waitForExistence(timeout: 5))
+        let paneName = renameAlert.textFields["Pane 名称"]
+        XCTAssertTrue(paneName.exists)
+        paneName.tap()
+        paneName.typeText("editor")
+        renameAlert.buttons["保存"].tap()
         let nextLayout = app.buttons["terminal.keybar.zellij.zellij.layout.next"]
         let keybar = app.descendants(matching: .any)["terminal.keybar"].firstMatch
         let providerScroll = keybar.scrollViews.element(boundBy: 1)
@@ -244,21 +263,25 @@ final class TerminalKeybarLayoutUITests: XCTestCase {
         let common = app.buttons["terminal.keybar.tab.common"]
         let tmux = app.buttons["terminal.keybar.tab.tmux"]
         let claudeCode = app.buttons["terminal.keybar.tab.claude-code"]
+        let codex = app.buttons["terminal.keybar.tab.codex"]
         let upload = app.buttons["terminal.keybar.tab.upload"]
 
         XCTAssertTrue(common.waitForExistence(timeout: 10))
         XCTAssertTrue(tmux.waitForExistence(timeout: 5))
         XCTAssertTrue(claudeCode.waitForExistence(timeout: 5))
+        XCTAssertTrue(codex.waitForExistence(timeout: 5))
         XCTAssertTrue(upload.waitForExistence(timeout: 5))
         XCTAssertLessThan(common.frame.minX, tmux.frame.minX)
         XCTAssertLessThan(tmux.frame.minX, claudeCode.frame.minX)
-        XCTAssertLessThan(claudeCode.frame.minX, upload.frame.minX)
+        XCTAssertLessThan(claudeCode.frame.minX, codex.frame.minX)
+        XCTAssertLessThan(codex.frame.minX, upload.frame.minX)
         XCTAssertEqual(claudeCode.label, "Claude Code")
+        XCTAssertEqual(codex.label, "Codex")
         XCTAssertEqual(app.state, .runningForeground)
     }
 
     @MainActor
-    func testCommonPanelUsesIconKeysForClearInputAndReturn() {
+    func testExpandedKeybarRetainsCompactRowAboveCategoryTabs() {
         let app = XCUIApplication()
         app.launchEnvironment["CONN_DEMO"] = "1"
         app.launchEnvironment["CONN_SMOKE_TERMINAL"] = "1"
@@ -269,13 +292,42 @@ final class TerminalKeybarLayoutUITests: XCTestCase {
         let keybar = app.descendants(matching: .any)["terminal.keybar"].firstMatch
         XCTAssertTrue(keybar.waitForExistence(timeout: 10))
 
-        let clearInput = app.buttons["清除"]
-        let returnKey = app.buttons["回车"]
-        XCTAssertTrue(clearInput.waitForExistence(timeout: 5))
-        XCTAssertTrue(returnKey.exists)
+        let commonTab = app.buttons["terminal.keybar.tab.common"]
+        let directionPad = app.descendants(matching: .any)[
+            "terminal.keybar.directionPad"
+        ].firstMatch
+        let sessionActions = app.buttons["terminal.keybar.session-actions"]
+        let commands = app.buttons["terminal.keybar.commands"]
+        let keyboard = app.buttons["terminal.keybar.dismissKeyboard"]
+        let collapse = app.buttons["terminal.keybar.collapse"]
+        XCTAssertTrue(commonTab.waitForExistence(timeout: 5))
+        XCTAssertTrue(directionPad.exists)
+        XCTAssertTrue(sessionActions.exists)
+        XCTAssertTrue(commands.exists)
+        XCTAssertTrue(keyboard.exists)
+        XCTAssertTrue(collapse.exists)
         XCTAssertFalse(app.buttons["Clear"].exists)
-        XCTAssertLessThan(clearInput.frame.minY, app.buttons["Esc"].frame.minY)
-        XCTAssertLessThan(returnKey.frame.minY, app.buttons["Esc"].frame.minY)
+        for element in [sessionActions, commands, keyboard, collapse, directionPad] {
+            XCTAssertLessThanOrEqual(element.frame.maxY, commonTab.frame.minY + 2)
+        }
+        // Key caps are visually inset by 7 pt inside their 44 pt hit targets. The
+        // compact-to-category gap reports 11 pt (7 + 4), while two visually inset
+        // rows report 18 pt (7 + 4 + 7); either catches the former 58 pt spacer bug.
+        XCTAssertLessThanOrEqual(commonTab.frame.minY - sessionActions.frame.maxY, 12)
+        let clearInput = app.buttons.matching(
+            NSPredicate(format: "label == %@", "清除")
+        )
+            .allElementsBoundByIndex
+            .first { $0.frame.minY > commonTab.frame.maxY }
+        XCTAssertNotNil(clearInput)
+        guard let clearInput else { return }
+        XCTAssertLessThanOrEqual(clearInput.frame.minY - commonTab.frame.maxY, 19)
+        XCTAssertTrue(app.buttons["回车"].firstMatch.exists)
+        XCTAssertTrue(app.buttons["Esc"].firstMatch.exists)
+        XCTAssertTrue(app.buttons["Tab"].firstMatch.exists)
+        XCTAssertTrue(app.buttons["Ctrl"].firstMatch.exists)
+        XCTAssertTrue(app.buttons["^C"].firstMatch.exists)
+        XCTAssertGreaterThan(app.buttons["^D"].frame.minY, commonTab.frame.maxY)
         XCTAssertEqual(app.state, .runningForeground)
     }
 
@@ -308,6 +360,37 @@ final class TerminalKeybarLayoutUITests: XCTestCase {
 
         let attachment = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
         attachment.name = "Claude Code terminal shortcuts"
+        attachment.lifetime = .keepAlways
+        add(attachment)
+    }
+
+    @MainActor
+    func testCodexPanelInsertsCommandWithoutSubmitting() {
+        let app = XCUIApplication()
+        app.launchEnvironment["CONN_DEMO"] = "1"
+        app.launchEnvironment["CONN_SMOKE_TERMINAL"] = "1"
+        app.launchEnvironment["CONN_SMOKE_TERMINAL_EXPANDED"] = "1"
+        app.launchEnvironment["CONN_SMOKE_TERMINAL_ATTACHMENTS"] = "1"
+        app.launchArguments += ["-conn.settings.terminalCursorBlinking", "NO"]
+        app.launch()
+
+        let codexTab = app.buttons["terminal.keybar.tab.codex"]
+        XCTAssertTrue(codexTab.waitForExistence(timeout: 10))
+        XCTAssertTrue(codexTab.isHittable)
+        codexTab.tap()
+
+        let review = app.buttons["terminal.keybar.tool.codex.review"]
+        XCTAssertTrue(review.waitForExistence(timeout: 5))
+        XCTAssertTrue(review.isHittable)
+        review.tap()
+
+        let insertedText = app.staticTexts["terminal.smoke.lastInsertedText"]
+        XCTAssertTrue(insertedText.waitForExistence(timeout: 5))
+        XCTAssertEqual(insertedText.label, "/review")
+        XCTAssertEqual(app.state, .runningForeground)
+
+        let attachment = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+        attachment.name = "Codex CLI terminal shortcuts"
         attachment.lifetime = .keepAlways
         add(attachment)
     }

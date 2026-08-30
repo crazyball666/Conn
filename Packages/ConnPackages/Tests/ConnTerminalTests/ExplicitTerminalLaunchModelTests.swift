@@ -33,6 +33,7 @@ private final class ExplicitLaunchRecorder {
         .init(
             loadHosts: { [] },
             persistentBackendOptions: { [] },
+            persistentAvailability: { _, _ in throw CancellationError() },
             persistentWorkspaceOptions: { _, _ in [] },
             makeExistingBackend: { _, _, _ in throw CancellationError() },
             makeCreateBackend: { _, _, _ in throw CancellationError() },

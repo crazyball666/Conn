@@ -242,15 +242,20 @@ private struct FixtureExecutionProvider: RemoteScriptExecutionProvider {
         self.invocationError = invocationError
     }
 
-    func interpreterProbeCommand(for interpreter: ShellInterpreter) -> String {
-        "probe \(interpreter.rawValue)"
+    func resolveExecutable(
+        for interpreter: ShellInterpreter,
+        on session: any SSHSession
+    ) async throws -> String? {
+        let result = try await session.exec("probe \(interpreter.rawValue)")
+        return result.isSuccess ? result.stdoutText : nil
     }
 
     func invocation(
         for script: String,
-        interpreter: ShellInterpreter
+        interpreter: ShellInterpreter,
+        resolvedExecutablePath: String
     ) throws -> String {
-        _ = interpreter
+        _ = (interpreter, resolvedExecutablePath)
         if let invocationError { throw invocationError }
         return "prepared<\(script)>"
     }

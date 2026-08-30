@@ -38,16 +38,22 @@
         private enum ExpandedSection: String {
             case common
             case claudeCode
+            case codex
             case upload
             case provider
         }
 
         var body: some View {
-            Group {
+            VStack(spacing: isExpanded ? TerminalKeybarMetrics.gridSpacing : 0) {
+                compactPanel(expanded: isExpanded)
                 if isExpanded {
                     expandedPanel
-                } else {
-                    compactPanel
+                        .frame(
+                            height: TerminalKeybarMetrics.expandedHeight
+                                - TerminalKeybarMetrics.compactHeight
+                                - TerminalKeybarMetrics.gridSpacing,
+                            alignment: .top
+                        )
                 }
             }
             .padding(.horizontal, 6)
@@ -67,7 +73,7 @@
 
         /// 日常输入使用一行高密度快捷栏；四个方向合并为固定方向盘，其他按键横向
         /// 滚动。这样方向始终可触达，同时比四个独立箭头多显示三个常用键位。
-        private var compactPanel: some View {
+        private func compactPanel(expanded: Bool) -> some View {
             HStack(spacing: 4) {
                 sessionActionsCap
 
@@ -82,7 +88,7 @@
                 .scrollIndicators(.hidden)
 
                 fixedCommandCap
-                expansionCap(expanded: false)
+                expansionCap(expanded: expanded)
                 keyboardCap
 
                 TerminalDirectionPad(onKey: onKey)
@@ -93,62 +99,67 @@
             }
         }
 
-        /// 完整面板使用固定高度，按键区内部滚动，所以 F1-F12 等低频键再多也不会
-        /// 无限挤压终端视口。
+        /// 展开态保留完整紧凑栏，只在其下方追加分类和内容。内容区内部滚动，
+        /// 所以 F1-F12 等低频键再多也不会无限挤压终端视口。
         private var expandedPanel: some View {
             VStack(spacing: TerminalKeybarMetrics.gridSpacing) {
-                HStack(spacing: TerminalKeybarMetrics.gridSpacing) {
-                    sessionActionsCap
-                    expansionCap(expanded: true)
-
-                    ScrollView(.horizontal) {
-                        HStack(spacing: TerminalKeybarMetrics.gridSpacing) {
+                ScrollView(.horizontal) {
+                    HStack(spacing: TerminalKeybarMetrics.gridSpacing) {
+                        expandedTab(
+                            title: L("常用"),
+                            section: .common,
+                            identifier: "terminal.keybar.tab.common"
+                        )
+                        if let providerQuickActionGroup {
                             expandedTab(
-                                title: L("常用"),
-                                section: .common,
-                                identifier: "terminal.keybar.tab.common"
-                            )
-                            if let providerQuickActionGroup {
-                                expandedTab(
-                                    title: providerQuickActionGroup.title,
-                                    section: .provider,
-                                    identifier: "terminal.keybar.tab.\(providerQuickActionGroup.id)"
-                                )
-                            }
-                            expandedTab(
-                                title: L("Claude Code"),
-                                section: .claudeCode,
-                                identifier: "terminal.keybar.tab.claude-code"
-                            )
-                            expandedTab(
-                                title: L("上传"),
-                                section: .upload,
-                                identifier: "terminal.keybar.tab.upload"
+                                title: providerQuickActionGroup.title,
+                                section: .provider,
+                                identifier: "terminal.keybar.tab.\(providerQuickActionGroup.id)"
                             )
                         }
+                        expandedTab(
+                            title: L("Claude Code"),
+                            section: .claudeCode,
+                            identifier: "terminal.keybar.tab.claude-code"
+                        )
+                        expandedTab(
+                            title: L("Codex"),
+                            section: .codex,
+                            identifier: "terminal.keybar.tab.codex"
+                        )
+                        expandedTab(
+                            title: L("上传"),
+                            section: .upload,
+                            identifier: "terminal.keybar.tab.upload"
+                        )
                     }
-                    .scrollIndicators(.hidden)
-
-                    Spacer(minLength: 0)
-                    fixedCommandCap
-                    keyboardCap
                 }
+                .scrollIndicators(.hidden)
+                .frame(height: TerminalKeybarMetrics.hitTargetHeight)
 
-                if expandedSection == .provider, let providerQuickActionGroup {
-                    providerPanel(providerQuickActionGroup)
-                } else if expandedSection == .claudeCode {
-                    TerminalToolCommandPanelView(catalog: .claudeCode) { command in
-                        pressCount &+= 1
-                        onInsertToolCommand(command)
+                Group {
+                    if expandedSection == .provider, let providerQuickActionGroup {
+                        providerPanel(providerQuickActionGroup)
+                    } else if expandedSection == .claudeCode {
+                        TerminalToolCommandPanelView(catalog: .claudeCode) { command in
+                            pressCount &+= 1
+                            onInsertToolCommand(command)
+                        }
+                    } else if expandedSection == .codex {
+                        TerminalToolCommandPanelView(catalog: .codex) { command in
+                            pressCount &+= 1
+                            onInsertToolCommand(command)
+                        }
+                    } else if expandedSection == .upload {
+                        TerminalAttachmentPanelView(state: attachmentState) { action in
+                            pressCount &+= 1
+                            onAttachmentAction(action)
+                        }
+                    } else {
+                        commonPanel
                     }
-                } else if expandedSection == .upload {
-                    TerminalAttachmentPanelView(state: attachmentState) { action in
-                        pressCount &+= 1
-                        onAttachmentAction(action)
-                    }
-                } else {
-                    commonPanel
                 }
+                .frame(maxHeight: .infinity, alignment: .top)
             }
         }
 
@@ -457,7 +468,7 @@
 
         private var keyboardCap: some View {
             actionCap(
-                systemName: keyboardVisible ? "keyboard.chevron.compact.down" : "keyboard",
+                systemName: "keyboard",
                 accessibilityLabel: keyboardVisible ? L("收起键盘") : L("显示键盘"),
                 identifier: "terminal.keybar.dismissKeyboard",
                 width: TerminalKeybarMetrics.compactCapWidth,

@@ -48,6 +48,7 @@ package final class ZellijPassthroughAttachment:
     package init(
         descriptor: PersistentAttachmentDescriptor,
         channel: ZellijProcessShellChannel,
+        actionExecutor: any ZellijActionCommandExecuting,
         attachmentGeneration: UInt64,
         processExitTimeout: Duration = .seconds(3)
     ) {
@@ -60,6 +61,7 @@ package final class ZellijPassthroughAttachment:
         interactionFacet = ZellijInteractionFacet(
             descriptor: descriptor,
             channel: channel,
+            actionExecutor: actionExecutor,
             attachmentGeneration: attachmentGeneration,
             processExitTimeout: processExitTimeout
         )

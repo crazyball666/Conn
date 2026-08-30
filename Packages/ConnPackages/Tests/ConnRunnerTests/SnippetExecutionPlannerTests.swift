@@ -170,6 +170,7 @@ struct SnippetExecutionPlannerTests {
 
         #expect(preparation.platformProfile.kind == .macOS)
         #expect(preparation.interpreter == .bash)
+        #expect(preparation.resolvedInterpreterPath == "/opt/homebrew/bin/bash")
         #expect(preparation.capabilityReport[.scriptExecution] == .supported)
     }
 
@@ -721,14 +722,25 @@ private struct FixtureScriptExecutionProvider: RemoteScriptExecutionProvider {
         self.invocationError = invocationError
     }
 
-    func interpreterProbeCommand(for interpreter: ShellInterpreter) -> String {
-        "probe \(identifier) \(interpreter.rawValue)"
+    func resolveExecutable(
+        for interpreter: ShellInterpreter,
+        on session: any SSHSession
+    ) async throws -> String? {
+        let probe = try await session.exec("probe \(identifier) \(interpreter.rawValue)")
+        guard probe.isSuccess else { return nil }
+        let path = probe.stdoutText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !path.isEmpty else {
+            throw RemoteScriptExecutionError.invalidResolvedExecutablePath
+        }
+        return path
     }
 
     func invocation(
         for script: String,
-        interpreter: ShellInterpreter
+        interpreter: ShellInterpreter,
+        resolvedExecutablePath: String
     ) throws -> String {
+        _ = resolvedExecutablePath
         invocationRecorder?.append(script)
         if let invocationError { throw invocationError }
         return "\(identifier)<\(interpreter.rawValue)>[\(script)]"

@@ -130,7 +130,7 @@ public enum TerminalKey: String, CaseIterable, Identifiable, Sendable {
 enum TerminalKeybarLayout {
     /// 紧凑态横向滚动区。固定的键盘、展开、命令列表和方向盘不占用这里的位置。
     static let compactKeys: [TerminalKey] = [
-        .clearLine, .enter, .esc, .tab, .ctrl, .ctrlC
+        .esc, .tab, .ctrl, .ctrlC, .clearLine, .enter
     ]
 
     static let compactRows: [[TerminalKey]] = [

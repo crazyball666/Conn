@@ -12,34 +12,48 @@ struct AppWideUIConsistencyTests {
         #expect(!source.contains("私钥不会写入数据库，只保存在设备 Keychain。"))
     }
 
-    @Test("新建终端类型仅展示类型名称，不展示冗余说明")
+    @Test("新建终端直接展示普通终端与已注册 Provider")
     func newTerminalTypeChoicesHideSubtitles() throws {
         let source = try appSource("Terminal/NewTerminalSheet.swift")
 
         #expect(source
             .contains("launchChoice(\n                        title: L(\"普通终端\"),\n                        systemImage: \"terminal\""))
-        #expect(source
-            .contains(
-                "launchChoice(\n                        title: L(\"持久终端\"),\n                        systemImage: \"rectangle.connected.to.line.below\""
-            ))
+        #expect(source.contains("ForEach(model.options)"))
+        #expect(source.contains("model.selectOption(option)"))
+        #expect(source.contains("model.availability(for: option)"))
+        #expect(source.contains("Text(L(\"不可用\"))"))
+        #expect(!source.contains("model.selectPersistent()"))
+        #expect(!source.contains("private var providerSelection"))
+        #expect(!source.contains("title: L(\"持久终端\")"))
         #expect(!source.contains("启动独立远程 Shell"))
         #expect(!source.contains("连接或创建可恢复的远程 Session"))
         #expect(!source.contains("subtitle:"))
     }
 
-    @Test("终端快捷键分类按常用、Provider、Claude Code、上传排列")
+    @Test("终端快捷键分类按常用、Provider、Claude Code、Codex、上传排列")
     func terminalKeybarCategoriesUseProviderFirstOrder() throws {
         let source = try packageSource("Sources/ConnTerminal/TerminalKeybar.swift")
 
         let common = try #require(source.range(of: "title: L(\"常用\")"))
         let provider = try #require(source.range(of: "title: providerQuickActionGroup.title"))
         let claudeCode = try #require(source.range(of: "title: L(\"Claude Code\")"))
+        let codex = try #require(source.range(of: "title: L(\"Codex\")"))
         let upload = try #require(source.range(of: "title: L(\"上传\")"))
 
         #expect(common.lowerBound < provider.lowerBound)
         #expect(provider.lowerBound < claudeCode.lowerBound)
-        #expect(claudeCode.lowerBound < upload.lowerBound)
+        #expect(claudeCode.lowerBound < codex.lowerBound)
+        #expect(codex.lowerBound < upload.lowerBound)
         #expect(!source.contains("title: L(\"Claude\")"))
+    }
+
+    @Test("终端快捷栏展开与收起禁用布局动画")
+    func terminalKeybarExpansionDisablesLayoutAnimation() throws {
+        let source = try packageSource("Sources/ConnTerminal/TerminalHostingView.swift")
+
+        #expect(source.contains("transaction.disablesAnimations = true"))
+        #expect(source.contains("withTransaction(transaction)"))
+        #expect(source.contains("onExpansionChange: setKeybarExpanded"))
     }
 
     @Test("刷新间隔使用紧凑技术单位并保留秒数调度语义")
@@ -447,7 +461,7 @@ struct AppWideUIConsistencyTests {
         #expect(!host.contains("allowClipboardReadOnce"))
         #expect(keybar.components(separatedBy: "TerminalDirectionPad(").count == 2)
         #expect(keys.contains("static let compactKeys: [TerminalKey] = ["))
-        #expect(keys.contains(".clearLine, .enter, .esc, .tab, .ctrl, .ctrlC"))
+        #expect(keys.contains(".esc, .tab, .ctrl, .ctrlC, .clearLine, .enter"))
         #expect(keys.contains("case .clearLine: \"eraser\""))
         #expect(keys.contains("case .enter: \"return\""))
         #expect(!keys.contains("case .clearLine: \"Clear\""))
@@ -539,7 +553,7 @@ struct AppWideUIConsistencyTests {
         #expect(!source.contains("persistentWorkspaceOptions"))
     }
 
-    @Test("当前页面持久终端启动流程允许选择 Provider、已有 Session 或新建 Session")
+    @Test("当前页面 tmux 与 zellij 启动流程允许选择已有 Session 或新建 Session")
     func persistentLaunchPickerSupportsProviderAndWorkspaceChoice() throws {
         let source = try appSource("Terminal/NewTerminalSheet.swift")
         #expect(source.contains("model.selectOption(option)"))

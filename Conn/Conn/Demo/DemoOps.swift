@@ -18,22 +18,9 @@ enum DemoOps {
     // 磁盘占用、层历史、镜像详情把原本一条函数的圈复杂度顶到 19（阈值 10），
     // 按资源种类拆开是真去重（各段本就管各的命令），不是为了压数字硬拆。
     private static func dockerResponse(_ command: String) -> MockSSHTransport.CommandResponse? {
-        if let environment = environmentResponse(command) {
-            return environment
-        }
         let normalized = normalizedDockerExecutables(in: command)
         return composeResponse(normalized) ?? containerResponse(normalized) ?? volumeResponse(normalized)
             ?? networkResponse(normalized) ?? imageResponse(normalized)
-    }
-
-    /// 对齐生产 `POSIXDockerEnvironmentProbe` 的 CLI 发现协议。这个命令发生在所有
-    /// Docker 列表读取之前；若 Demo 不响应，生产模型会正确判定为未安装，后续所有
-    /// 演示资源与操作入口也会随之禁用。
-    private static func environmentResponse(_ command: String) -> MockSSHTransport.CommandResponse? {
-        guard command.contains("conn_docker_path=$(command -v docker 2>/dev/null || true)") else {
-            return nil
-        }
-        return .init(stdout: "/usr/bin/docker\n__CONN_COMPOSE_V1__/usr/bin/docker-compose\n")
     }
 
     /// 生产运行时会把探测到的绝对路径作为单个 POSIX 参数引用，例如

@@ -5,8 +5,8 @@ import CoreGraphics
 /// 视觉键帽可以更小；方向盘保持紧凑栏原有尺寸，展开面板保留 44pt 触控高度。
 public enum TerminalKeybarMetrics {
     public static let compactHeight: CGFloat = 46
-    /// Header + about three provider action rows on a compact iPhone.
-    public static let expandedHeight: CGFloat = 216
+    /// Compact row + category row + about three provider action rows on a compact iPhone.
+    public static let expandedHeight: CGFloat = 284
 
     static let hitTargetHeight: CGFloat = 44
     static let capVisualHeight: CGFloat = 30

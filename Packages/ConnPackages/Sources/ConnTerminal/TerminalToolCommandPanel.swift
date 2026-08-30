@@ -61,6 +61,42 @@ struct TerminalToolCommandCatalog: Sendable, Equatable {
             )
         ]
     )
+
+    static let codex = TerminalToolCommandCatalog(
+        id: "codex",
+        sections: [
+            .init(
+                id: "session",
+                titleKey: "会话与上下文",
+                actions: [
+                    .init(id: "new", command: "/new", systemImageName: "plus.bubble"),
+                    .init(id: "resume", command: "/resume", systemImageName: "clock.arrow.circlepath"),
+                    .init(id: "fork", command: "/fork", systemImageName: "arrow.triangle.branch"),
+                    .init(id: "compact", command: "/compact", systemImageName: "rectangle.compress.vertical")
+                ]
+            ),
+            .init(
+                id: "workflow",
+                titleKey: "开发工作流",
+                actions: [
+                    .init(id: "plan", command: "/plan", systemImageName: "list.bullet.clipboard"),
+                    .init(id: "review", command: "/review", systemImageName: "checkmark.seal"),
+                    .init(id: "diff", command: "/diff", systemImageName: "plus.forwardslash.minus"),
+                    .init(id: "mention", command: "/mention", systemImageName: "paperclip")
+                ]
+            ),
+            .init(
+                id: "configuration",
+                titleKey: "配置与诊断",
+                actions: [
+                    .init(id: "model", command: "/model", systemImageName: "cpu"),
+                    .init(id: "permissions", command: "/permissions", systemImageName: "lock.shield"),
+                    .init(id: "status", command: "/status", systemImageName: "info.circle"),
+                    .init(id: "mcp", command: "/mcp", systemImageName: "server.rack")
+                ]
+            )
+        ]
+    )
 }
 
 #if canImport(UIKit)

@@ -1,8 +1,9 @@
+import ConnSSH
 import Foundation
 
-/// Zellij quick actions are intentionally key-sequence macros. Unlike tmux, Zellij does not
-/// expose a control protocol that can provide a verified topology graph to this attachment.
-/// Keeping the catalog provider-owned lets the terminal UI remain provider-neutral.
+/// Zellij quick actions use its session-targeted CLI so the attached pane never receives
+/// provider mode prefixes or trailing command characters. Keeping the catalog provider-owned
+/// lets the terminal UI remain provider-neutral.
 package enum ZellijTerminalQuickAction: String, CaseIterable, Sendable {
     case closeSession = "zellij.session.close"
     case newTab = "zellij.tab.new"
@@ -27,33 +28,49 @@ package enum ZellijTerminalQuickAction: String, CaseIterable, Sendable {
     case searchMode = "zellij.mode.search"
     case lockInput = "zellij.mode.lock"
 
-    /// Default Zellij key bindings. A complete sequence is sent through the attachment's
-    /// shared serialized writer as one Data value so keyboard input cannot split a macro.
-    package var macroBytes: [UInt8] {
+    package enum Execution: Sendable, Equatable {
+        case command([String])
+        case deleteSession
+    }
+
+    /// Provider actions use Zellij's deterministic CLI control surface, including actions that
+    /// change the attached client's input mode.
+    package var execution: Execution {
         switch self {
-        case .closeSession: [0x11]
-        case .newTab: [0x14, 0x6E]
-        case .previousTab: [0x14, 0x68]
-        case .nextTab: [0x14, 0x6C]
-        case .renameTab: [0x14, 0x72]
-        case .closeTab: [0x14, 0x78]
-        case .syncTab: [0x14, 0x73]
-        case .newPane: [0x10, 0x6E]
-        case .splitPaneDown: [0x10, 0x64]
-        case .splitPaneRight: [0x10, 0x72]
-        case .switchPane: [0x10, 0x70]
-        case .fullscreenPane: [0x10, 0x66]
-        case .floatingPanes: [0x1B, 0x66]
-        case .renamePane: [0x10, 0x63]
-        case .closePane: [0x10, 0x78]
-        case .previousLayout: [0x1B, 0x5B]
-        case .nextLayout: [0x1B, 0x5D]
-        case .increasePaneSize: [0x1B, 0x3D]
-        case .decreasePaneSize: [0x1B, 0x2D]
-        case .scrollMode: [0x13]
-        case .searchMode: [0x13, 0x73]
-        case .lockInput: [0x07]
+        case .closeSession: .deleteSession
+        case .newTab: .command(["new-tab"])
+        case .previousTab: .command(["go-to-previous-tab"])
+        case .nextTab: .command(["go-to-next-tab"])
+        case .renameTab: .command(["rename-tab"])
+        case .closeTab: .command(["close-tab"])
+        case .syncTab: .command(["toggle-active-sync-tab"])
+        case .newPane: .command(["new-pane"])
+        case .splitPaneDown: .command(["new-pane", "--direction", "down"])
+        case .splitPaneRight: .command(["new-pane", "--direction", "right"])
+        case .switchPane: .command(["focus-next-pane"])
+        case .fullscreenPane: .command(["toggle-fullscreen"])
+        case .floatingPanes: .command(["toggle-floating-panes"])
+        case .renamePane: .command(["rename-pane"])
+        case .closePane: .command(["close-pane"])
+        case .previousLayout: .command(["previous-swap-layout"])
+        case .nextLayout: .command(["next-swap-layout"])
+        case .increasePaneSize: .command(["resize", "increase"])
+        case .decreasePaneSize: .command(["resize", "decrease"])
+        case .scrollMode: .command(["switch-mode", "scroll"])
+        case .searchMode: .command(["switch-mode", "enter-search"])
+        case .lockInput: .command(["switch-mode", "locked"])
         }
+    }
+
+    package func resolvedExecution(argument: String?) throws -> Execution {
+        guard self == .renameTab || self == .renamePane else { return execution }
+        guard let name = argument?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !name.isEmpty
+        else { throw PersistentTerminalInteractionError.unavailable }
+        guard case let .command(arguments) = execution else {
+            throw PersistentTerminalInteractionError.unavailable
+        }
+        return .command(arguments + [name])
     }
 
     package var isDestructive: Bool {
@@ -61,10 +78,56 @@ package enum ZellijTerminalQuickAction: String, CaseIterable, Sendable {
     }
 }
 
+package protocol ZellijActionCommandExecuting: Sendable {
+    func execute(arguments: [String], repeatCount: Int) async throws
+    func deleteSession() async throws
+}
+
+package actor ZellijCLIActionExecutor: ZellijActionCommandExecuting {
+    private let executable: String
+    private let sessionName: ZellijSessionName
+    private let session: any SSHSession
+
+    package init(
+        executable: String,
+        sessionName: ZellijSessionName,
+        session: any SSHSession
+    ) {
+        self.executable = executable
+        self.sessionName = sessionName
+        self.session = session
+    }
+
+    package func execute(arguments: [String], repeatCount: Int) async throws {
+        let command = ([executable, "--session", sessionName.rawValue, "action"] + arguments)
+            .map(POSIXShellArgument.encode)
+            .joined(separator: " ")
+        for _ in 0 ..< repeatCount {
+            try await execute(command, fallbackError: "Zellij action failed")
+        }
+    }
+
+    package func deleteSession() async throws {
+        let command = [executable, "delete-session", sessionName.rawValue, "--force"]
+            .map(POSIXShellArgument.encode)
+            .joined(separator: " ")
+        try await execute(command, fallbackError: "Zellij session deletion failed")
+    }
+
+    private func execute(_ command: String, fallbackError: String) async throws {
+        let result = try await session.exec(command, timeout: .seconds(15))
+        guard result.isSuccess else {
+            throw PersistentTerminalError.commandRejected(
+                result.stderrText.isEmpty ? fallbackError : result.stderrText
+            )
+        }
+    }
+}
+
 package enum ZellijInteractionCatalog {
     package static let group = PersistentTerminalQuickActionGroup(
         id: ZellijProvider.providerID,
-        title: "Zellij",
+        title: "zellij",
         sections: [
             .init(id: "session", titleKey: "Session", actions: [
                 descriptor(
@@ -78,7 +141,12 @@ package enum ZellijInteractionCatalog {
                 descriptor(.newTab, "新建 Tab", "plus.rectangle"),
                 descriptor(.previousTab, "上一个 Tab", "arrow.left.to.line"),
                 descriptor(.nextTab, "下一个 Tab", "arrow.right.to.line"),
-                descriptor(.renameTab, "重命名 Tab", "pencil"),
+                descriptor(
+                    .renameTab,
+                    "重命名 Tab",
+                    "pencil",
+                    textInput: .init(titleKey: "重命名 Tab", placeholderKey: "Tab 名称")
+                ),
                 descriptor(
                     .closeTab,
                     "关闭 Tab",
@@ -98,7 +166,12 @@ package enum ZellijInteractionCatalog {
                     "arrow.up.left.and.arrow.down.right"
                 ),
                 descriptor(.floatingPanes, "浮动 Pane", "rectangle.on.rectangle"),
-                descriptor(.renamePane, "重命名 Pane", "pencil"),
+                descriptor(
+                    .renamePane,
+                    "重命名 Pane",
+                    "pencil",
+                    textInput: .init(titleKey: "重命名 Pane", placeholderKey: "Pane 名称")
+                ),
                 descriptor(
                     .closePane,
                     "关闭 Pane",
@@ -122,12 +195,14 @@ package enum ZellijInteractionCatalog {
         _ action: ZellijTerminalQuickAction,
         _ titleKey: String,
         _ systemImageName: String,
+        textInput: PersistentTerminalQuickActionTextInput? = nil,
         confirmation: PersistentTerminalActionConfirmation? = nil
     ) -> PersistentTerminalQuickActionDescriptor {
         .init(
             id: action.rawValue,
             titleKey: titleKey,
             systemImageName: systemImageName,
+            textInput: textInput,
             confirmation: confirmation
         )
     }
@@ -138,6 +213,7 @@ package actor ZellijInteractionFacet: PersistentTerminalInteractionFacet {
     private nonisolated let continuation:
         AsyncStream<PersistentTerminalInteractionState>.Continuation
     private let channel: ZellijProcessShellChannel
+    private let actionExecutor: any ZellijActionCommandExecuting
     private let target: PersistentTerminalInteractionTarget
     private let workspaceName: String
     private let attachmentGeneration: UInt64
@@ -148,10 +224,12 @@ package actor ZellijInteractionFacet: PersistentTerminalInteractionFacet {
     package init(
         descriptor: PersistentAttachmentDescriptor,
         channel: ZellijProcessShellChannel,
+        actionExecutor: any ZellijActionCommandExecuting,
         attachmentGeneration: UInt64,
         processExitTimeout: Duration
     ) {
         self.channel = channel
+        self.actionExecutor = actionExecutor
         self.attachmentGeneration = attachmentGeneration
         self.processExitTimeout = processExitTimeout
         workspaceName = descriptor.workspace.workspaceID
@@ -211,8 +289,20 @@ package actor ZellijInteractionFacet: PersistentTerminalInteractionFacet {
             throw PersistentTerminalInteractionError.unavailable
         }
 
-        let bytes = Data(Array(repeating: action.macroBytes, count: request.repeatCount).joined())
-        try await channel.write(bytes)
+        switch try action.resolvedExecution(argument: request.argument) {
+        case let .command(arguments):
+            try await actionExecutor.execute(
+                arguments: arguments,
+                repeatCount: request.repeatCount
+            )
+        case .deleteSession:
+            guard request.repeatCount == 1 else {
+                throw PersistentTerminalInteractionError.invalidQuickActionRepeatCount(
+                    request.repeatCount
+                )
+            }
+            try await actionExecutor.deleteSession()
+        }
 
         if action == .closeSession {
             guard await processDidExitBeforeTimeout() else {

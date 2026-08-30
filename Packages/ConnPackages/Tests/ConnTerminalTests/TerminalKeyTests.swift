@@ -84,7 +84,7 @@ struct TerminalKeyTests {
     func mobileControlKeyLayout() {
         #expect(TerminalKeybarLayout.compactRows == [
             [
-                .clearLine, .enter, .esc, .tab, .ctrl, .ctrlC
+                .esc, .tab, .ctrl, .ctrlC, .clearLine, .enter
             ]
         ])
         #expect(TerminalKeybarLayout.compactKeys.count == 6)

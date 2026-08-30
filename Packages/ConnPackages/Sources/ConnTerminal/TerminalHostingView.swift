@@ -207,7 +207,7 @@
                             keepsKeybarVisible = true
                             controller.toggleKeyboard()
                         },
-                        onExpansionChange: { isKeybarExpanded = $0 },
+                        onExpansionChange: setKeybarExpanded,
                         attachmentState: attachmentState,
                         onAttachmentAction: onAttachmentAction
                     )
@@ -311,6 +311,14 @@
                 controller.setApplicationActive(phase == .active)
             }
             .onDisappear { controller.detach() }
+        }
+
+        private func setKeybarExpanded(_ expanded: Bool) {
+            var transaction = Transaction(animation: nil)
+            transaction.disablesAnimations = true
+            withTransaction(transaction) {
+                isKeybarExpanded = expanded
+            }
         }
 
         private var isProviderActionPresented: Bool {

@@ -9,24 +9,18 @@ final class NewTerminalSessionPickerUITests: XCTestCase {
         app.launch()
 
         XCTAssertTrue(app.staticTexts["普通终端"].waitForExistence(timeout: 10))
-        XCTAssertTrue(app.staticTexts["持久终端"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["tmux"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["zellij"].waitForExistence(timeout: 10))
+        XCTAssertFalse(app.staticTexts["持久终端"].exists)
         XCTAssertFalse(app.staticTexts["启动独立远程 Shell"].exists)
         XCTAssertFalse(app.staticTexts["连接或创建可恢复的远程 Session"].exists)
 
-        let persistentTerminal = app.buttons.matching(
-            NSPredicate(format: "label CONTAINS[c] %@", "持久终端")
-        ).firstMatch
-        XCTAssertTrue(persistentTerminal.waitForExistence(timeout: 10))
-        persistentTerminal.tap()
-
-        let tmux = app.buttons.matching(
-            NSPredicate(format: "label CONTAINS[c] %@", "tmux")
-        ).firstMatch
-        let zellij = app.buttons.matching(
-            NSPredicate(format: "label CONTAINS[c] %@", "Zellij")
-        ).firstMatch
+        let tmux = app.buttons["new-terminal.provider.tmux"]
+        let zellij = app.buttons["new-terminal.provider.zellij"]
         XCTAssertTrue(tmux.waitForExistence(timeout: 10))
         XCTAssertTrue(zellij.waitForExistence(timeout: 10))
+        XCTAssertTrue(tmux.isEnabled)
+        XCTAssertTrue(zellij.isEnabled)
         zellij.tap()
 
         let createHeader = app.staticTexts["创建 Session"]
@@ -58,6 +52,23 @@ final class NewTerminalSessionPickerUITests: XCTestCase {
             "创建按钮 action 应在同一次点击中离开 Session 选择页"
         )
 
+        XCTAssertEqual(app.state, .runningForeground)
+    }
+
+    @MainActor
+    func testUnavailableProviderIsDisabledAndDoesNotOpenPlainTerminal() {
+        let app = XCUIApplication()
+        app.launchEnvironment["CONN_DEMO"] = "1"
+        app.launchEnvironment["CONN_SMOKE_NEW_TERMINAL_PICKER"] = "1"
+        app.launchEnvironment["CONN_SMOKE_UNAVAILABLE_PROVIDER"] = "zellij"
+        app.launch()
+
+        let zellij = app.buttons["new-terminal.provider.zellij"]
+        XCTAssertTrue(zellij.waitForExistence(timeout: 10))
+        XCTAssertFalse(zellij.isEnabled)
+        XCTAssertTrue(app.staticTexts["不可用"].exists)
+        XCTAssertTrue(app.staticTexts["普通终端"].exists)
+        XCTAssertFalse(app.descendants(matching: .any)["terminal.viewport"].exists)
         XCTAssertEqual(app.state, .runningForeground)
     }
 }

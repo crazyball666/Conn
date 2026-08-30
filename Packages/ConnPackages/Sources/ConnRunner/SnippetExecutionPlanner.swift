@@ -70,6 +70,7 @@ public struct SnippetHostPreparation: Sendable {
     public let capabilityReport: RemoteCapabilityReport
     public let scriptPreludes: [String]
     public let interpreter: ShellInterpreter
+    public let resolvedInterpreterPath: String
     public let executionProvider: any RemoteScriptExecutionProvider
 
     init(
@@ -78,6 +79,7 @@ public struct SnippetHostPreparation: Sendable {
         capabilityReport: RemoteCapabilityReport,
         scriptPreludes: [String],
         interpreter: ShellInterpreter,
+        resolvedInterpreterPath: String,
         executionProvider: any RemoteScriptExecutionProvider
     ) {
         self.connectionIdentity = connectionIdentity
@@ -85,6 +87,7 @@ public struct SnippetHostPreparation: Sendable {
         self.capabilityReport = capabilityReport
         self.scriptPreludes = scriptPreludes
         self.interpreter = interpreter
+        self.resolvedInterpreterPath = resolvedInterpreterPath
         self.executionProvider = executionProvider
     }
 }
@@ -148,17 +151,26 @@ public struct SnippetExecutionPlanner: Sendable {
             return blockedScriptExecution(reason: .unsupportedPlatform)
         }
 
-        let probe = try await session.exec(
-            executionProvider.interpreterProbeCommand(for: snippet.interpreter)
-        )
-        guard probe.exitCode == 0 else {
+        let discoveredPath: String?
+        do {
+            discoveredPath = try await executionProvider.resolveExecutable(
+                for: snippet.interpreter,
+                on: session
+            )
+        } catch RemoteScriptExecutionError.invalidResolvedExecutablePath {
+            return blockedScriptExecution(
+                state: .unavailable(issue: .init(code: .queryFailed))
+            )
+        } catch is RemoteExecutableResolutionError {
+            return blockedScriptExecution(
+                state: .unavailable(issue: .init(code: .queryFailed))
+            )
+        }
+        guard let discoveredPath else {
             return blockedScriptExecution(
                 state: .unavailable(issue: .init(code: .executableMissing))
             )
         }
-
-        let discoveredPath = String(decoding: probe.stdout, as: UTF8.self)
-            .trimmingCharacters(in: .whitespacesAndNewlines)
         guard !discoveredPath.isEmpty else {
             return blockedScriptExecution(
                 state: .unavailable(issue: .init(code: .queryFailed))
@@ -205,6 +217,7 @@ public struct SnippetExecutionPlanner: Sendable {
             capabilityReport: report,
             scriptPreludes: scriptPreludes,
             interpreter: snippet.interpreter,
+            resolvedInterpreterPath: discoveredPath,
             executionProvider: executionProvider
         ))
     }
@@ -220,7 +233,8 @@ public struct SnippetExecutionPlanner: Sendable {
             .joined(separator: "\n")
         let preparedCommand = try preparation.executionProvider.invocation(
             for: preparedScript,
-            interpreter: preparation.interpreter
+            interpreter: preparation.interpreter,
+            resolvedExecutablePath: preparation.resolvedInterpreterPath
         )
         return SnippetExecutionPlan(
             connectionIdentity: preparation.connectionIdentity,

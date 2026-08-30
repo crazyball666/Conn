@@ -187,7 +187,7 @@ struct PersistentProviderBackendTests {
     func multipleProvidersQueryOnlyTheSelectedOptionWithoutProbe() async throws {
         let host = Host(id: "host-1", name: "Linux", address: "linux.local", username: "tester")
         let tmux = FakePersistentProvider(id: "tmux", displayName: "tmux")
-        let zellij = FakePersistentProvider(id: "zellij", displayName: "Zellij")
+        let zellij = FakePersistentProvider(id: "zellij", displayName: "zellij")
         let backend = PersistentProviderBackend(
             registry: try PersistentTerminalProviderRegistry(providers: [zellij, tmux])
         )

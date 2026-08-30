@@ -27,7 +27,9 @@ struct ZellijProviderTests {
             .workspaceCreation,
             .workspaceDestruction
         ])
-        #expect(recorder.values == ["command -v zellij"])
+        #expect(recorder.values.count == 1)
+        #expect(recorder.values[0].contains("__CONN_EXECUTABLES_v1_BEGIN_"))
+        #expect(recorder.values[0].contains("-i -l -c"))
         #expect(!recorder.values.contains { $0.contains("--version") || $0.contains(" -V") })
     }
 
@@ -45,17 +47,16 @@ struct ZellijProviderTests {
         #expect(availability.issue == .executableMissing)
     }
 
-    @Test("macOS 探测包含 Homebrew 与用户级可执行目录")
-    func macOSProbeFindsHomebrewExecutableOutsideSSHPath() async throws {
+    @Test("macOS 使用登录 Shell 环境而不猜测包管理器安装目录")
+    func macOSProbeUsesGenericLoginShellEnvironment() async throws {
         let recorder = ZellijCommandRecorder()
         let context = try await makeZellijContext(
             platform: .macOS,
             recorder: recorder,
             responder: { command in
-                guard command.contains("/opt/homebrew/bin") else {
-                    return .init(stderr: "zellij: not found", exitCode: 127)
-                }
-                return .init(stdout: "/opt/homebrew/bin/zellij\n")
+                command == "command -v zellij"
+                    ? .init(stdout: "/opt/homebrew/bin/zellij\n")
+                    : nil
             }
         )
 
@@ -64,9 +65,11 @@ struct ZellijProviderTests {
         #expect(availability.state == .available)
         #expect(availability.issue == nil)
         let command = try #require(recorder.values.first)
-        #expect(command.contains("/opt/homebrew/bin"))
-        #expect(command.contains("/usr/local/bin"))
-        #expect(command.contains("$HOME/.cargo/bin"))
+        #expect(command.contains("conn_login_shell=${SHELL:-}"))
+        #expect(command.contains("-i -l -c"))
+        #expect(!command.contains("/opt/homebrew/bin"))
+        #expect(!command.contains("/usr/local/bin"))
+        #expect(!command.contains("$HOME/.cargo/bin"))
         #expect(!command.contains("--version"))
     }
 
@@ -270,7 +273,7 @@ struct ZellijProviderTests {
         #expect(process.closeCount == 1)
     }
 
-    @Test("快捷宏与普通终端输入共享不可交错的 writer")
+    @Test("并发终端输入通过同一 writer 串行写入")
     func shellChannelSerializesConcurrentWrites() async throws {
         let process = ZellijTestProcessChannel(
             outputs: [.stdout(Data("__CONN_ZELLIJ_ATTACH_v1__ nonce=SERIAL\n".utf8))],
@@ -411,6 +414,87 @@ struct ZellijProviderTests {
         #expect(requests.values.allSatisfy { $0.command.contains("zellij_path=/opt/bin/zellij") })
         await reconnect.close()
     }
+
+    @Test("Tab 切换通过指定 Session 的 CLI action 执行")
+    func tabNavigationTargetsAttachedSessionThroughCLI() async throws {
+        let commands = ZellijCommandRecorder()
+        let context = try await makeZellijContext(
+            recorder: commands,
+            processFactory: { request in
+                let nonce = try #require(zellijNonce(in: request.command))
+                return ZellijTestProcessChannel(outputs: [
+                    .stdout(Data(
+                        "__CONN_ZELLIJ_ATTACH_v1__ nonce=\(nonce)\nready".utf8
+                    ))
+                ])
+            },
+            responder: { command in
+                if command == "command -v zellij" {
+                    return .init(stdout: "/opt/bin/zellij\n")
+                }
+                if command.contains(" action go-to-next-tab") {
+                    return .init()
+                }
+                return nil
+            }
+        )
+        let workspace = try RemoteWorkspaceRef(
+            workspaceID: "team ops",
+            instancePayloadVersion: ZellijProvider.workspaceInstancePayloadVersion,
+            providerInstancePayload: JSONEncoder().encode(ZellijWorkspaceInstancePayload())
+        )
+        let provider = ZellijProvider()
+        let descriptor = try provider.makeAttachmentDescriptor(to: workspace, in: context)
+        let attachment = try await provider.openAttachment(
+            descriptor,
+            reason: .initial,
+            terminalSize: .init(cols: 90, rows: 30),
+            in: context
+        )
+        let interactive = try #require(
+            attachment as? any PersistentTerminalInteractiveAttachment
+        )
+        let state = try await interactive.interaction.resolveState()
+
+        _ = try await interactive.interaction.performQuickAction(.init(
+            actionID: ZellijTerminalQuickAction.nextTab.rawValue,
+            target: state.target,
+            attachmentGeneration: state.attachmentGeneration,
+            expectedStateRevision: state.revision
+        ))
+
+        #expect(commands.values.contains(
+            "/opt/bin/zellij --session 'team ops' action go-to-next-tab"
+        ))
+        await attachment.close()
+    }
+
+    @Test("CLI executor 将 Pane、重命名与删除操作定向到当前 Session")
+    func cliExecutorTargetsSessionWithoutTerminalInputMacros() async throws {
+        let commands = ZellijCommandRecorder()
+        let context = try await makeZellijContext(
+            recorder: commands,
+            responder: { command in
+                command.contains("/opt/bin/zellij") ? .init() : nil
+            }
+        )
+        let sessionName = try #require(ZellijSessionName(rawValue: "team ops"))
+        let executor = ZellijCLIActionExecutor(
+            executable: "/opt/bin/zellij",
+            sessionName: sessionName,
+            session: context.session
+        )
+
+        try await executor.execute(arguments: ["focus-next-pane"], repeatCount: 1)
+        try await executor.execute(arguments: ["rename-pane", "editor pane"], repeatCount: 1)
+        try await executor.deleteSession()
+
+        #expect(commands.values.suffix(3) == [
+            "/opt/bin/zellij --session 'team ops' action focus-next-pane",
+            "/opt/bin/zellij --session 'team ops' action rename-pane 'editor pane'",
+            "/opt/bin/zellij delete-session 'team ops' --force"
+        ])
+    }
 }
 
 private func makeZellijContext(
@@ -425,6 +509,12 @@ private func makeZellijContext(
     )
     behavior.dynamicResponder = { command, _ in
         recorder?.record(command)
+        if let response = zellijExecutableResolutionResponse(
+            for: command,
+            legacyResponse: responder("command -v zellij")
+        ) {
+            return response
+        }
         return responder(command)
     }
     let host = Host(
@@ -442,6 +532,48 @@ private func makeZellijContext(
         platformContext: remote,
         backendConfiguration: ZellijProvider().defaultConfiguration
     )
+}
+
+private func zellijExecutableResolutionResponse(
+    for command: String,
+    legacyResponse: MockSSHTransport.CommandResponse?
+) -> MockSSHTransport.CommandResponse? {
+    guard let nonce = executableResolverNonce(in: command) else { return nil }
+    let executable = legacyResponse?.exitCode == 0
+        ? legacyResponse?.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
+        : nil
+    let directory = executable.flatMap { value -> String? in
+        guard value.hasPrefix("/") else { return nil }
+        return URL(fileURLWithPath: value).deletingLastPathComponent().path
+    } ?? "/fixture/bin"
+    return .init(stdout: executableResolverOutput(
+        nonce: nonce,
+        path: "\(directory):/usr/bin:/bin",
+        executables: ["/bin/sh", executable]
+    ))
+}
+
+private func executableResolverNonce(in command: String) -> String? {
+    let marker = "__CONN_EXECUTABLES_v1_BEGIN_"
+    guard let range = command.range(of: marker) else { return nil }
+    let suffix = command[range.upperBound...]
+    guard let end = suffix.range(of: "__") else { return nil }
+    let nonce = String(suffix[..<end.lowerBound])
+    return nonce.isEmpty ? nil : nonce
+}
+
+private func executableResolverOutput(
+    nonce: String,
+    path: String,
+    executables: [String?]
+) -> String {
+    var lines = ["__CONN_EXECUTABLES_v1_BEGIN_\(nonce)__", path]
+    for (index, executable) in executables.enumerated() {
+        lines.append("__CONN_EXECUTABLES_v1_ITEM_\(index)_\(nonce)__")
+        lines.append(executable ?? "")
+    }
+    lines.append("__CONN_EXECUTABLES_v1_END_\(nonce)__")
+    return lines.joined(separator: "\n")
 }
 
 private func zellijNonce(in command: String) -> String? {

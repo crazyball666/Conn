@@ -1142,11 +1142,20 @@ public struct TmuxProvider: PersistentTerminalCatalogProvider {
         configuration: TmuxProviderConfiguration,
         in context: PersistentTerminalContext
     ) async throws -> TmuxStaticRuntime {
-        let shell = try await context.session.exec("command -v sh")
-        guard shell.isSuccess else {
+        let executables: [String: String]
+        do {
+            executables = try await RemoteExecutableResolver.shared.resolve(
+                ["sh", "tmux"],
+                on: context.session
+            )
+        } catch is RemoteExecutableResolutionError {
+            throw PersistentTerminalError.invalidConfiguration
+        }
+        guard let shellPath = executables["sh"],
+              let tmuxPath = executables["tmux"]
+        else {
             throw PersistentTerminalError.executableMissing
         }
-        let shellPath = try decodeExecutablePath(shell.stdout)
         let scriptProvider = POSIXScriptExecutionProvider()
         let runtime: PreparedRemoteScriptRuntime
         do {
@@ -1163,8 +1172,7 @@ public struct TmuxProvider: PersistentTerminalCatalogProvider {
         )).joined(separator: " ")
         let staticProbe = """
         set -u
-        tmux_path=$(command -v tmux) || exit 72
-        case "$tmux_path" in /*) ;; *) exit 73 ;; esac
+        tmux_path=\(POSIXShellArgument.encode(tmuxPath))
         printf '__CONN_TMUX_EXECUTABLE__%s\\n' "$tmux_path"
         if tmux_version=$(\(tmuxPrefix) -V); then
             printf '__CONN_TMUX_VERSION__%s\\n' "$tmux_version"
@@ -1180,10 +1188,6 @@ public struct TmuxProvider: PersistentTerminalCatalogProvider {
         )
         guard staticResult.isSuccess else {
             switch staticResult.exitCode {
-            case 72, 127:
-                throw PersistentTerminalError.executableMissing
-            case 73:
-                throw PersistentTerminalError.invalidConfiguration
             case 74:
                 throw PersistentTerminalError.incompatibleVersion(staticResult.stderrText)
             default:

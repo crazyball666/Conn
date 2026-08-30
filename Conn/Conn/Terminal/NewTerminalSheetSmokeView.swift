@@ -30,7 +30,7 @@
 
         private static let zellijOption = PersistentBackendOption(
             providerID: "zellij",
-            displayName: "Zellij",
+            displayName: "zellij",
             configuration: PersistentTerminalConfiguration(
                 providerID: "zellij",
                 configurationKey: "smoke-zellij",
@@ -48,9 +48,24 @@
         }
 
         private var operations: NewTerminalFlowModel.Operations {
-            NewTerminalFlowModel.Operations(
+            let unavailableProviderID = ProcessInfo.processInfo.environment[
+                "CONN_SMOKE_UNAVAILABLE_PROVIDER"
+            ]
+            return NewTerminalFlowModel.Operations(
                 loadHosts: { [Self.host] },
                 persistentBackendOptions: { [Self.tmuxOption, Self.zellijOption] },
+                persistentAvailability: { option, _ in
+                    if option.providerID == unavailableProviderID {
+                        return PersistentTerminalAvailability(
+                            state: .unavailable,
+                            issue: .executableMissing
+                        )
+                    }
+                    return PersistentTerminalAvailability(
+                        state: .available,
+                        effectiveFeatures: [.workspaceDiscovery, .workspaceCreation]
+                    )
+                },
                 persistentWorkspaceOptions: { option, _ in
                     [Self.workspace(for: option)]
                 },

@@ -67,12 +67,17 @@ struct DockerLocalizationTests {
         #expect(failedPull.stderr.contains("denied"))
         #expect(interruptedPull.streamFailure == .channelClosed)
 
-        let discovery = try #require(DemoOps.response(
-            command: "conn_docker_path=$(command -v docker 2>/dev/null || true); true",
-            endpoint: endpoint
+        let discoveryCommand = """
+        __CONN_EXECUTABLES_v1_BEGIN_DEMO__
+        conn_candidate="${conn_dir}/docker"
+        conn_candidate="${conn_dir}/docker-compose"
+        """
+        let discovery = try #require(DemoData.behavior().dynamicResponder?(
+            discoveryCommand,
+            endpoint
         ))
         #expect(discovery.stdout.contains("/usr/bin/docker"))
-        #expect(discovery.stdout.contains("__CONN_COMPOSE_V1__/usr/bin/docker-compose"))
+        #expect(discovery.stdout.contains("/usr/bin/docker-compose"))
 
         let discoveredRuntime = DockerRuntimeContext(
             executable: "/usr/bin/docker",

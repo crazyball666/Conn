@@ -285,9 +285,9 @@ public final class TerminalSessionCoordinator {
         return failure.message
     }
 
-    /// Startup UI queries provider capabilities through the generic backend. A
-    /// missing/unsupported provider returns an unavailable candidate; plain PTY
-    /// remains the caller's safe default.
+    /// Returns the locally registered provider choices. Availability is queried
+    /// separately so the picker can disable an unavailable provider without
+    /// replacing the user's selection with another terminal type.
     public func persistentBackendOptions() -> [PersistentBackendOption] {
         persistentBackend.options()
     }
@@ -308,6 +308,17 @@ public final class TerminalSessionCoordinator {
         host: ConnKit.Host
     ) async throws -> [RemoteWorkspaceSummary] {
         return try await persistentBackend.workspaceOptions(
+            for: option,
+            host: host,
+            connectionManager: connectionManager
+        )
+    }
+
+    public func persistentAvailability(
+        for option: PersistentBackendOption,
+        host: ConnKit.Host
+    ) async throws -> PersistentTerminalAvailability {
+        try await persistentBackend.availability(
             for: option,
             host: host,
             connectionManager: connectionManager

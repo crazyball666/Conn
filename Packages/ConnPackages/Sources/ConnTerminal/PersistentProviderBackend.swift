@@ -130,6 +130,22 @@ public struct PersistentProviderBackend: Sendable {
         return try await provider.listWorkspaces(in: context)
     }
 
+    /// Performs the provider-owned, read-only availability check used by the
+    /// new-terminal type picker. The picker remains provider-neutral and does not
+    /// duplicate executable paths or platform rules.
+    public func availability(
+        for option: PersistentBackendOption,
+        host: ConnKit.Host,
+        connectionManager: ConnectionManager
+    ) async throws -> PersistentTerminalAvailability {
+        let (_, context) = try await providerContext(
+            for: option,
+            host: host,
+            connectionManager: connectionManager
+        )
+        return try await registry.probe(in: context)
+    }
+
     public func createLaunch(
         for selection: PersistentWorkspaceCreateSelection,
         option: PersistentBackendOption,

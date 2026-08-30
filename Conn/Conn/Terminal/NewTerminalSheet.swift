@@ -75,7 +75,10 @@ struct NewTerminalSheet: View {
                 }
         }
         .interactiveDismissDisabled()
-        .onAppear { model.start() }
+        .task(id: model.selectedHost?.id) {
+            model.start()
+            await model.checkProviderAvailability()
+        }
         .onDisappear {
             model.closeImmediately()
         }
@@ -88,10 +91,6 @@ struct NewTerminalSheet: View {
             hostSelection
         case .terminalTypeSelection:
             terminalTypeSelection
-        case .providerLoading:
-            TerminalCreationLoadingView(title: L("正在检测持久终端…"))
-        case .providerSelection:
-            providerSelection
         case .workspaceSelection:
             workspaceSelection
         case .creating:
@@ -153,46 +152,13 @@ struct NewTerminalSheet: View {
                         systemImage: "terminal"
                     )
                 }
-                Button { Task { await model.selectPersistent() } } label: {
-                    launchChoice(
-                        title: L("持久终端"),
-                        systemImage: "rectangle.connected.to.line.below"
-                    )
-                }
-            }
-        }
-    }
-
-    private var providerSelection: some View {
-        List {
-            if let errorMessage = model.errorMessage {
-                errorSection(errorMessage)
-            }
-            if model.options.isEmpty {
-                Section(L("持久终端不可用")) {
-                    Text(L("当前版本未配置可用的持久终端 Provider"))
-                        .foregroundStyle(.connMuted)
-                }
-                Section {
-                    Button { Task { await model.selectPersistent() } } label: {
-                        Label(L("重试"), systemImage: "arrow.clockwise")
+                ForEach(model.options) { option in
+                    let availability = model.availability(for: option)
+                    Button { Task { await model.selectOption(option) } } label: {
+                        providerLaunchChoice(option, availability: availability)
                     }
-                }
-            } else {
-                Section(L("选择持久终端")) {
-                    ForEach(model.options) { option in
-                        Button { Task { await model.selectOption(option) } } label: {
-                            HStack {
-                                Text(option.displayName)
-                                    .foregroundStyle(.connInk)
-                                Spacer()
-                                Image(systemName: "chevron.forward")
-                                    .foregroundStyle(.connMuted)
-                            }
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .contentShape(Rectangle())
-                        }
-                    }
+                    .disabled(availability != .available)
+                    .accessibilityIdentifier("new-terminal.provider.\(option.providerID)")
                 }
             }
         }
@@ -273,12 +239,46 @@ struct NewTerminalSheet: View {
         .contentShape(Rectangle())
     }
 
+    private func providerLaunchChoice(
+        _ option: PersistentBackendOption,
+        availability: NewTerminalFlowModel.ProviderAvailability
+    ) -> some View {
+        HStack(spacing: ConnSpacing.sm) {
+            Image(systemName: providerIcon(for: option.providerID))
+                .foregroundStyle(availability == .available ? Color.connAccent : Color.connMuted)
+                .frame(width: 28)
+            Text(option.displayName)
+                .foregroundStyle(availability == .available ? Color.connInk : Color.connMuted)
+            Spacer()
+            switch availability {
+            case .checking:
+                ProgressView().controlSize(.small)
+            case .available:
+                Image(systemName: "chevron.forward")
+                    .foregroundStyle(.connMuted)
+            case .unavailable:
+                Text(L("不可用"))
+                    .font(.connFootnote)
+                    .foregroundStyle(.connMuted)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .contentShape(Rectangle())
+    }
+
+    private func providerIcon(for providerID: String) -> String {
+        switch providerID {
+        case "tmux": "rectangle.stack"
+        case "zellij": "square.grid.2x2"
+        default: "rectangle.connected.to.line.below"
+        }
+    }
+
     private var navigationTitle: String {
         switch model.phase {
         case .hostSelection: L("选择主机")
         case .terminalTypeSelection: L("新建终端")
-        case .providerLoading, .providerSelection: L("持久终端")
-        case .workspaceSelection: model.selectedOption?.displayName ?? L("持久终端")
+        case .workspaceSelection: model.selectedOption?.displayName ?? L("新建终端")
         case .creating: L("新建终端")
         }
     }
@@ -289,7 +289,7 @@ struct NewTerminalSheet: View {
             false
         case .terminalTypeSelection:
             !model.hosts.isEmpty
-        case .providerLoading, .providerSelection, .workspaceSelection, .creating:
+        case .workspaceSelection, .creating:
             true
         }
     }

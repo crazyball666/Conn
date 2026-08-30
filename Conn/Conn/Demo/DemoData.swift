@@ -37,15 +37,8 @@ enum DemoData {
                         ? darwinPlatformProfileOutput
                         : platformProfileOutput)
                 }
-                switch command.trimmingCharacters(in: .whitespacesAndNewlines) {
-                case "command -v sh":
-                    return .init(stdout: "/bin/sh\n")
-                case "command -v bash":
-                    return .init(stdout: "/bin/bash\n")
-                case "command -v zsh":
-                    return .init(stdout: "/bin/zsh\n")
-                default:
-                    break
+                if let executableResolution = executableResolutionResponse(command) {
+                    return executableResolution
                 }
                 if usesDarwinMetrics, command.contains("__CONN_DARWIN_TOP__") {
                     return .init(stdout: darwinMetricOutput)
@@ -65,6 +58,52 @@ enum DemoData {
             execCommandDelay: .milliseconds(smokeExecDelay),
             streamChunkDelay: .milliseconds(30)
         )
+    }
+
+    /// Mirrors ConnSSH's framed executable-discovery protocol so Demo exercises
+    /// the same login-environment path as real hosts.
+    nonisolated private static func executableResolutionResponse(
+        _ command: String
+    ) -> MockSSHTransport.CommandResponse? {
+        let beginPrefix = "__CONN_EXECUTABLES_v1_BEGIN_"
+        guard let beginRange = command.range(of: beginPrefix) else { return nil }
+        let nonceSuffix = command[beginRange.upperBound...]
+        guard let nonceEnd = nonceSuffix.range(of: "__") else { return nil }
+        let nonce = String(nonceSuffix[..<nonceEnd.lowerBound])
+        guard !nonce.isEmpty else { return nil }
+
+        let executablePrefix = "${conn_dir}/"
+        let allowed = CharacterSet(
+            charactersIn: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._+-"
+        )
+        var names: [String] = []
+        var remainder = command[...]
+        while let range = remainder.range(of: executablePrefix) {
+            let suffix = remainder[range.upperBound...]
+            let name = String(suffix.prefix {
+                $0.unicodeScalars.allSatisfy { allowed.contains($0) }
+            })
+            if !name.isEmpty, !names.contains(name) { names.append(name) }
+            remainder = suffix.dropFirst(name.count)
+        }
+
+        let paths = [
+            "sh": "/bin/sh",
+            "bash": "/bin/bash",
+            "zsh": "/bin/zsh",
+            "docker": "/usr/bin/docker",
+            "docker-compose": "/usr/bin/docker-compose",
+        ]
+        var lines = [
+            "__CONN_EXECUTABLES_v1_BEGIN_\(nonce)__",
+            "/usr/bin:/bin",
+        ]
+        for (index, name) in names.enumerated() {
+            lines.append("__CONN_EXECUTABLES_v1_ITEM_\(index)_\(nonce)__")
+            lines.append(paths[name] ?? "")
+        }
+        lines.append("__CONN_EXECUTABLES_v1_END_\(nonce)__")
+        return .init(stdout: lines.joined(separator: "\n"))
     }
 
     /// 与 `RemotePlatformDetector.posixCommand` 的分段协议保持一致。Demo 环境也必须

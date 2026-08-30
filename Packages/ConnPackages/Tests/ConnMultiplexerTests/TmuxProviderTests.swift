@@ -211,10 +211,10 @@ struct TmuxProviderTests {
         _ = try await provider.listWorkspaces(in: context)
 
         let commands = recorder.values
-        // The mock's exact `command -v sh` fixture is resolved before its dynamic
-        // recorder. The remaining wire operations are one static probe plus two
+        // One shared login-environment lookup, one static tmux probe and two
         // deliberately requested catalog refreshes.
-        #expect(commands.count == 3)
+        #expect(commands.count == 4)
+        #expect(commands.filter { $0.contains("__CONN_EXECUTABLES_v1_BEGIN_") }.count == 1)
         #expect(commands.filter { $0.contains("__CONN_TMUX_EXECUTABLE__") }.count == 1)
         #expect(commands.filter { $0.contains("#{q:session_id}") }.count == 2)
         #expect(!commands.contains { $0.contains("display-message -p -t") })
@@ -903,9 +903,14 @@ private func behavior(
         processResponses: [:],
         processFactory: processFactory
     )
-    behavior.commandResponses["command -v sh"] = .init(stdout: "/bin/sh\n")
     behavior.dynamicResponder = { command, _ in
         commandRecorder?.record(command)
+        if let nonce = tmuxExecutableResolverNonce(in: command) {
+            return .init(stdout: tmuxExecutableResolverOutput(
+                nonce: nonce,
+                tmuxExecutable: tmuxInstalled ? "/opt/bin/tmux" : nil
+            ))
+        }
         if command.contains("set -eu"), !serverRunning {
             return .init(
                 stdout: "\(sessionID)\t\(sessionName)\n/tmp/tmux-1000/default\n1234\n987654\n"
@@ -959,6 +964,30 @@ private func behavior(
         return nil
     }
     return behavior
+}
+
+private func tmuxExecutableResolverNonce(in command: String) -> String? {
+    let marker = "__CONN_EXECUTABLES_v1_BEGIN_"
+    guard let range = command.range(of: marker) else { return nil }
+    let suffix = command[range.upperBound...]
+    guard let end = suffix.range(of: "__") else { return nil }
+    let nonce = String(suffix[..<end.lowerBound])
+    return nonce.isEmpty ? nil : nonce
+}
+
+private func tmuxExecutableResolverOutput(
+    nonce: String,
+    tmuxExecutable: String?
+) -> String {
+    [
+        "__CONN_EXECUTABLES_v1_BEGIN_\(nonce)__",
+        "/opt/bin:/usr/bin:/bin",
+        "__CONN_EXECUTABLES_v1_ITEM_0_\(nonce)__",
+        "/bin/sh",
+        "__CONN_EXECUTABLES_v1_ITEM_1_\(nonce)__",
+        tmuxExecutable ?? "",
+        "__CONN_EXECUTABLES_v1_END_\(nonce)__",
+    ].joined(separator: "\n")
 }
 
 private final class SynchronousCommandRecorder: @unchecked Sendable {

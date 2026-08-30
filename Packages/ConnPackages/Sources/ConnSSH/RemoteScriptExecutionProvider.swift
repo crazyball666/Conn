@@ -14,8 +14,15 @@ public protocol RemoteScriptExecutionProvider: Sendable {
     var supportedPlatforms: Set<RemotePlatformKind> { get }
     var supportedInterpreters: Set<ShellInterpreter> { get }
 
-    func interpreterProbeCommand(for interpreter: ShellInterpreter) -> String
-    func invocation(for script: String, interpreter: ShellInterpreter) throws -> String
+    func resolveExecutable(
+        for interpreter: ShellInterpreter,
+        on session: any SSHSession
+    ) async throws -> String?
+    func invocation(
+        for script: String,
+        interpreter: ShellInterpreter,
+        resolvedExecutablePath: String
+    ) throws -> String
 }
 
 public enum RemoteScriptExecutionError: Error, Sendable, Equatable {
@@ -51,29 +58,38 @@ public struct POSIXScriptExecutionProvider: RemoteScriptExecutionProvider {
     public let family = RemoteScriptFamily.posix
     public let supportedPlatforms: Set<RemotePlatformKind> = [.linux, .macOS]
     public let supportedInterpreters: Set<ShellInterpreter>
+    private let executableResolver: RemoteExecutableResolver
 
     public init(
         supportedInterpreters: Set<ShellInterpreter> = POSIXScriptExecutionProvider
-            .supportedInterpreterWhitelist
+            .supportedInterpreterWhitelist,
+        executableResolver: RemoteExecutableResolver = .shared
     ) {
         self.supportedInterpreters = supportedInterpreters.intersection(
             POSIXScriptExecutionProvider.supportedInterpreterWhitelist
         )
+        self.executableResolver = executableResolver
     }
 
-    public func interpreterProbeCommand(for interpreter: ShellInterpreter) -> String {
-        "command -v \(interpreter.rawValue)"
+    public func resolveExecutable(
+        for interpreter: ShellInterpreter,
+        on session: any SSHSession
+    ) async throws -> String? {
+        guard supportedInterpreters.contains(interpreter) else {
+            throw RemoteScriptExecutionError.unsupportedInterpreter(interpreter)
+        }
+        return try await executableResolver.resolve(interpreter.rawValue, on: session)
     }
 
     public func invocation(
         for script: String,
-        interpreter: ShellInterpreter
+        interpreter: ShellInterpreter,
+        resolvedExecutablePath: String
     ) throws -> String {
-        guard supportedInterpreters.contains(interpreter) else {
-            throw RemoteScriptExecutionError.unsupportedInterpreter(interpreter)
-        }
-
-        return "\(POSIXShellArgument.encode(interpreter.rawValue)) -c \(POSIXShellArgument.encode(script))"
+        try prepareRuntime(
+            resolvedExecutablePath: resolvedExecutablePath,
+            interpreter: interpreter
+        ).invocation(for: script)
     }
 
     public func prepareRuntime(

@@ -34,8 +34,8 @@ struct DockerRuntimeProbeTests {
         #expect(registry.provider(for: .linux, scriptFamily: .powershell) == nil)
     }
 
-    @Test("Linux 发现包含系统路径但不包含 Docker Desktop bundle")
-    func linuxDiscoveryUsesLinuxCandidates() async throws {
+    @Test("Linux 通过登录 Shell 环境发现 Docker 且不猜测安装目录")
+    func linuxDiscoveryUsesLoginShellEnvironment() async throws {
         let session = RecordingSSHSession(execResults: [
             .init(exitCode: 0, stdout: Data(), stderr: Data()),
         ])
@@ -45,13 +45,15 @@ struct DockerRuntimeProbeTests {
         #expect(result == DockerProbeResult(availability: .notInstalled, runtime: nil))
         let command = try #require(session.invocations.first?.command)
         #expect(session.invocations.count == 1)
-        #expect(command.contains("/usr/bin/docker"))
-        #expect(command.contains("/usr/local/bin/docker"))
+        #expect(command.contains("conn_login_shell=${SHELL:-}"))
+        #expect(command.contains("-i -l -c"))
+        #expect(!command.contains("/usr/bin/docker"))
+        #expect(!command.contains("/usr/local/bin/docker"))
         #expect(!command.contains("/Applications/Docker.app"))
     }
 
-    @Test("Darwin 发现包含 Homebrew 与 Docker Desktop 候选路径")
-    func darwinDiscoveryUsesHomebrewAndDesktopCandidates() async throws {
+    @Test("Darwin 通过登录 Shell 环境发现 Docker 且不猜测包管理器路径")
+    func darwinDiscoveryUsesLoginShellEnvironment() async throws {
         let session = RecordingSSHSession(execResults: [
             .init(exitCode: 0, stdout: Data(), stderr: Data()),
         ])
@@ -61,9 +63,11 @@ struct DockerRuntimeProbeTests {
         #expect(result == DockerProbeResult(availability: .notInstalled, runtime: nil))
         let command = try #require(session.invocations.first?.command)
         #expect(session.invocations.count == 1)
-        #expect(command.contains("/usr/local/bin/docker"))
-        #expect(command.contains("/opt/homebrew/bin/docker"))
-        #expect(command.contains("/Applications/Docker.app/Contents/Resources/bin/docker"))
+        #expect(command.contains("conn_login_shell=${SHELL:-}"))
+        #expect(command.contains("-i -l -c"))
+        #expect(!command.contains("/usr/local/bin/docker"))
+        #expect(!command.contains("/opt/homebrew/bin/docker"))
+        #expect(!command.contains("/Applications/Docker.app/Contents/Resources/bin/docker"))
     }
 
     @Test("直接探测成功保留路径与 Compose，并只执行发现和一次可用性探测")
@@ -90,7 +94,8 @@ struct DockerRuntimeProbeTests {
             )
         ))
         #expect(session.invocations.count == 2)
-        #expect(session.invocations[0].command.contains("/Applications/Docker.app"))
+        #expect(session.invocations[0].command.contains("__CONN_EXECUTABLES_v1_BEGIN_"))
+        #expect(!session.invocations[0].command.contains("/Applications/Docker.app"))
         #expect(session.invocations[1].command == "'\(executable)' ps -q 2>&1; echo __EXIT__$?")
     }
 
@@ -155,7 +160,7 @@ struct DockerRuntimeProbeTests {
 
         #expect(result == DockerProbeResult(availability: .notInstalled, runtime: nil))
         #expect(session.invocations.count == 1)
-        #expect(session.invocations[0].command.contains("/Applications/Docker.app"))
+        #expect(session.invocations[0].command.contains("__CONN_EXECUTABLES_v1_BEGIN_"))
     }
 
     @Test("Unknown 与 Windows 不执行 POSIX Docker 探测")
@@ -628,9 +633,10 @@ private final class RecordingSSHSession: SSHSession, @unchecked Sendable {
     func exec(_ command: String, timeout: Duration) async throws -> ExecResult {
         lock.withLock {
             recordedInvocations.append(.init(method: .exec, command: command, timeout: timeout))
-            return remainingExecResults.isEmpty
+            let result = remainingExecResults.isEmpty
                 ? ExecResult(exitCode: 0, stdout: Data(), stderr: Data())
                 : remainingExecResults.removeFirst()
+            return adaptLegacyDockerDiscovery(result, for: command)
         }
     }
 
@@ -669,4 +675,46 @@ private final class RecordingSSHSession: SSHSession, @unchecked Sendable {
         stateContinuation.yield(.closed)
         stateContinuation.finish()
     }
+}
+
+private func adaptLegacyDockerDiscovery(
+    _ result: ExecResult,
+    for command: String
+) -> ExecResult {
+    guard let nonce = dockerResolverNonce(in: command), result.isSuccess else { return result }
+    let lines = String(decoding: result.stdout, as: UTF8.self)
+        .split(whereSeparator: \Character.isNewline)
+        .map(String.init)
+    let composeMarker = "__CONN_COMPOSE_V1__"
+    let docker = lines.first { !$0.hasPrefix(composeMarker) && !$0.isEmpty }
+    let compose = lines.first { $0.hasPrefix(composeMarker) }
+        .map { String($0.dropFirst(composeMarker.count)) }
+    let directories = [docker, compose].compactMap { executable -> String? in
+        guard let executable, executable.hasPrefix("/") else { return nil }
+        return URL(fileURLWithPath: executable).deletingLastPathComponent().path
+    }
+    let path = (directories + ["/usr/bin", "/bin"])
+        .reduce(into: [String]()) { values, value in
+            if !values.contains(value) { values.append(value) }
+        }
+        .joined(separator: ":")
+    let output = [
+        "__CONN_EXECUTABLES_v1_BEGIN_\(nonce)__",
+        path,
+        "__CONN_EXECUTABLES_v1_ITEM_0_\(nonce)__",
+        docker ?? "",
+        "__CONN_EXECUTABLES_v1_ITEM_1_\(nonce)__",
+        compose ?? "",
+        "__CONN_EXECUTABLES_v1_END_\(nonce)__",
+    ].joined(separator: "\n")
+    return ExecResult(exitCode: 0, stdout: Data(output.utf8), stderr: result.stderr)
+}
+
+private func dockerResolverNonce(in command: String) -> String? {
+    let marker = "__CONN_EXECUTABLES_v1_BEGIN_"
+    guard let range = command.range(of: marker) else { return nil }
+    let suffix = command[range.upperBound...]
+    guard let end = suffix.range(of: "__") else { return nil }
+    let nonce = String(suffix[..<end.lowerBound])
+    return nonce.isEmpty ? nil : nonce
 }

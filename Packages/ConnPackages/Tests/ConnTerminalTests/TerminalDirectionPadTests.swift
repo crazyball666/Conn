@@ -67,7 +67,7 @@ struct TerminalDirectionPadTests {
 
     @Test("展开面板与 provider 按钮使用独立的内容和触控尺寸")
     func expandedProviderActionMetricsPreventClipping() {
-        #expect(TerminalKeybarMetrics.expandedHeight == 216)
+        #expect(TerminalKeybarMetrics.expandedHeight == 284)
         #expect(TerminalKeybarMetrics.compactPadSide == 40)
         #expect(TerminalKeybarMetrics.providerIconSize == 12)
         #expect(TerminalKeybarMetrics.providerLabelSize == 10)

@@ -63,7 +63,7 @@ public struct ZellijProvider: PersistentTerminalProvider {
         )
         descriptor = PersistentTerminalProviderDescriptor(
             id: Self.providerID,
-            displayName: "Zellij",
+            displayName: "zellij",
             supportedPlatforms: [.linux, .macOS],
             supportedConfigurationVersions: [Self.configurationVersion],
             supportedWorkspaceInstancePayloadVersions: [Self.workspaceInstancePayloadVersion],
@@ -219,10 +219,11 @@ public struct ZellijProvider: PersistentTerminalProvider {
         )
         let command: String
         do {
-            command = try POSIXScriptExecutionProvider().invocation(
-                for: script,
+            let shellRuntime = try POSIXScriptExecutionProvider().prepareRuntime(
+                resolvedExecutablePath: runtime.shellExecutable,
                 interpreter: .sh
             )
+            command = try shellRuntime.invocation(for: script)
         } catch {
             throw PersistentTerminalError.invalidConfiguration
         }
@@ -238,6 +239,11 @@ public struct ZellijProvider: PersistentTerminalProvider {
             return await ZellijPassthroughAttachment(
                 descriptor: descriptor,
                 channel: channel,
+                actionExecutor: ZellijCLIActionExecutor(
+                    executable: runtime.executable,
+                    sessionName: workspaceName,
+                    session: context.session
+                ),
                 attachmentGeneration: Self.attachmentGenerations.next()
             )
         } catch {
@@ -255,39 +261,21 @@ public struct ZellijProvider: PersistentTerminalProvider {
             return cached
         }
 
-        let result = try await context.session.exec(
-            executableDiscoveryCommand(for: context.platformProfile.kind),
-            timeout: .seconds(10)
-        )
-        guard result.isSuccess else { throw PersistentTerminalError.executableMissing }
-        var bytes = result.stdout
-        if bytes.last == UInt8(ascii: "\n") {
-            bytes.removeLast()
-        }
-        if bytes.last == UInt8(ascii: "\r") {
-            bytes.removeLast()
-        }
-        guard let path = String(data: bytes, encoding: .utf8),
-              path.hasPrefix("/"),
-              !path.isEmpty,
-              !path.unicodeScalars.contains(where: {
-                  $0.value < 0x20 || (0x7F ... 0x9F).contains($0.value)
-              })
-        else {
+        let executables: [String: String]
+        do {
+            executables = try await RemoteExecutableResolver.shared.resolve(
+                ["sh", "zellij"],
+                on: context.session
+            )
+        } catch is RemoteExecutableResolutionError {
             throw PersistentTerminalError.invalidConfiguration
         }
-        let runtime = ZellijRuntime(executable: path)
+        guard let shell = executables["sh"],
+              let zellij = executables["zellij"]
+        else { throw PersistentTerminalError.executableMissing }
+        let runtime = ZellijRuntime(shellExecutable: shell, executable: zellij)
         await Self.runtimeCache.insert(runtime, session: context.session, for: key)
         return runtime
-    }
-
-    private func executableDiscoveryCommand(for platform: RemotePlatformKind) -> String {
-        guard platform == .macOS else { return "command -v zellij" }
-        return """
-        PATH="${PATH:-}:/opt/homebrew/bin:/usr/local/bin:/opt/local/bin:$HOME/.cargo/bin:$HOME/.local/bin"
-        export PATH
-        command -v zellij
-        """
     }
 
     private func execute(
@@ -392,6 +380,7 @@ public struct ZellijProvider: PersistentTerminalProvider {
 }
 
 package struct ZellijRuntime: Sendable, Equatable {
+    package let shellExecutable: String
     package let executable: String
 }
 

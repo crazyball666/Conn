@@ -249,21 +249,16 @@ final class ConnUITests: XCTestCase {
         XCTAssertTrue(host.waitForExistence(timeout: 10))
         host.tap()
 
-        let persistentChoice = app.buttons["持久终端"]
-        XCTAssertTrue(persistentChoice.waitForExistence(timeout: 5))
-        persistentChoice.tap()
-
-        let zellijChoice = app.buttons.matching(
-            NSPredicate(format: "label BEGINSWITH[c] %@", "Zellij")
-        ).firstMatch
+        let zellijChoice = app.buttons["new-terminal.provider.zellij"]
         XCTAssertTrue(zellijChoice.waitForExistence(timeout: 20))
+        XCTAssertTrue(zellijChoice.isEnabled)
         zellijChoice.tap()
 
         XCTAssertTrue(
             app.textFields["Session 名称（可选）"].waitForExistence(timeout: 20),
             "Homebrew 安装的 Zellij 应被 SSH 非交互命令探测到"
         )
-        XCTAssertFalse(app.staticTexts["Zellij 不可用，已改用普通终端"].exists)
+        XCTAssertFalse(app.staticTexts["不可用"].exists)
     }
 
     @MainActor
@@ -290,14 +285,9 @@ final class ConnUITests: XCTestCase {
         XCTAssertTrue(host.waitForExistence(timeout: 10))
         host.tap()
 
-        let persistentChoice = app.buttons["持久终端"]
-        XCTAssertTrue(persistentChoice.waitForExistence(timeout: 5))
-        persistentChoice.tap()
-
-        let tmuxChoice = app.buttons.matching(
-            NSPredicate(format: "label BEGINSWITH %@", "tmux")
-        ).firstMatch
+        let tmuxChoice = app.buttons["new-terminal.provider.tmux"]
         XCTAssertTrue(tmuxChoice.waitForExistence(timeout: 20))
+        XCTAssertTrue(tmuxChoice.isEnabled)
         tmuxChoice.tap()
 
         // Keep live acceptance isolated from the user's existing tmux topology. Cleanup

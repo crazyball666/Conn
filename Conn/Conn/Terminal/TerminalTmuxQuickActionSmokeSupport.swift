@@ -105,7 +105,7 @@
         var quickActionGroup: PersistentTerminalQuickActionGroup? {
             PersistentTerminalQuickActionGroup(
                 id: "zellij",
-                title: "Zellij",
+                title: "zellij",
                 sections: [
                     .init(id: "session", titleKey: "Session", actions: [
                         action(
@@ -117,13 +117,33 @@
                     ]),
                     .init(id: "tab", titleKey: "Tab", actions: [
                         action("zellij.tab.new", "新建 Tab", "plus.rectangle"),
-                        action("zellij.tab.next", "下一个 Tab", "arrow.right.to.line")
+                        action("zellij.tab.previous", "上一个 Tab", "arrow.left.to.line"),
+                        action("zellij.tab.next", "下一个 Tab", "arrow.right.to.line"),
+                        action(
+                            "zellij.tab.rename",
+                            "重命名 Tab",
+                            "pencil",
+                            textInput: .init(
+                                titleKey: "重命名 Tab",
+                                placeholderKey: "Tab 名称"
+                            )
+                        )
                     ]),
                     .init(id: "pane", titleKey: "Pane", actions: [
                         action(
                             "zellij.pane.split-right",
                             "向右分屏",
                             "rectangle.split.2x1"
+                        ),
+                        action("zellij.pane.switch", "切换 Pane", "rectangle.2.swap"),
+                        action(
+                            "zellij.pane.rename",
+                            "重命名 Pane",
+                            "pencil",
+                            textInput: .init(
+                                titleKey: "重命名 Pane",
+                                placeholderKey: "Pane 名称"
+                            )
                         ),
                         action(
                             "zellij.pane.close",
@@ -171,12 +191,14 @@
             _ id: String,
             _ titleKey: String,
             _ systemImageName: String,
+            textInput: PersistentTerminalQuickActionTextInput? = nil,
             confirmationTitleKey: String? = nil
         ) -> PersistentTerminalQuickActionDescriptor {
             .init(
                 id: id,
                 titleKey: titleKey,
                 systemImageName: systemImageName,
+                textInput: textInput,
                 confirmation: confirmationTitleKey.map(
                     PersistentTerminalActionConfirmation.init(titleKey:)
                 )

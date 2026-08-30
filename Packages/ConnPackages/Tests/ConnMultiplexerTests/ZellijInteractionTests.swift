@@ -11,7 +11,7 @@ struct ZellijInteractionTests {
         let group = ZellijInteractionCatalog.group
 
         #expect(group.id == ZellijProvider.providerID)
-        #expect(group.title == "Zellij")
+        #expect(group.title == "zellij")
         #expect(group.sections.map(\.id) == ["session", "tab", "pane", "layout-mode"])
         #expect(group.swipeActions.isEmpty)
         #expect(group.actions.map(\.id) == ZellijTerminalQuickAction.allCases.map(\.rawValue))
@@ -25,48 +25,54 @@ struct ZellijInteractionTests {
         #expect(group.actions.first {
             $0.id == ZellijTerminalQuickAction.closePane.rawValue
         }?.confirmation?.titleKey == "关闭当前 Pane？")
+        #expect(group.actions.first {
+            $0.id == ZellijTerminalQuickAction.renameTab.rawValue
+        }?.textInput == .init(titleKey: "重命名 Tab", placeholderKey: "Tab 名称"))
+        #expect(group.actions.first {
+            $0.id == ZellijTerminalQuickAction.renamePane.rawValue
+        }?.textInput == .init(titleKey: "重命名 Pane", placeholderKey: "Pane 名称"))
     }
 
-    @Test("快捷操作严格使用 Zellij 官方默认键位字节")
-    func macrosUseDefaultZellijBindings() {
-        let expected: [ZellijTerminalQuickAction: [UInt8]] = [
-            .closeSession: [0x11],
-            .newTab: [0x14, 0x6E],
-            .previousTab: [0x14, 0x68],
-            .nextTab: [0x14, 0x6C],
-            .renameTab: [0x14, 0x72],
-            .closeTab: [0x14, 0x78],
-            .syncTab: [0x14, 0x73],
-            .newPane: [0x10, 0x6E],
-            .splitPaneDown: [0x10, 0x64],
-            .splitPaneRight: [0x10, 0x72],
-            .switchPane: [0x10, 0x70],
-            .fullscreenPane: [0x10, 0x66],
-            .floatingPanes: [0x1B, 0x66],
-            .renamePane: [0x10, 0x63],
-            .closePane: [0x10, 0x78],
-            .previousLayout: [0x1B, 0x5B],
-            .nextLayout: [0x1B, 0x5D],
-            .increasePaneSize: [0x1B, 0x3D],
-            .decreasePaneSize: [0x1B, 0x2D],
-            .scrollMode: [0x13],
-            .searchMode: [0x13, 0x73],
-            .lockInput: [0x07]
+    @Test("所有快捷操作使用 Zellij CLI，不注入模式键位")
+    func quickActionsUseCLIWhereZellijProvidesActions() {
+        let expected: [ZellijTerminalQuickAction: ZellijTerminalQuickAction.Execution] = [
+            .closeSession: .deleteSession,
+            .newTab: .command(["new-tab"]),
+            .previousTab: .command(["go-to-previous-tab"]),
+            .nextTab: .command(["go-to-next-tab"]),
+            .renameTab: .command(["rename-tab"]),
+            .closeTab: .command(["close-tab"]),
+            .syncTab: .command(["toggle-active-sync-tab"]),
+            .newPane: .command(["new-pane"]),
+            .splitPaneDown: .command(["new-pane", "--direction", "down"]),
+            .splitPaneRight: .command(["new-pane", "--direction", "right"]),
+            .switchPane: .command(["focus-next-pane"]),
+            .fullscreenPane: .command(["toggle-fullscreen"]),
+            .floatingPanes: .command(["toggle-floating-panes"]),
+            .renamePane: .command(["rename-pane"]),
+            .closePane: .command(["close-pane"]),
+            .previousLayout: .command(["previous-swap-layout"]),
+            .nextLayout: .command(["next-swap-layout"]),
+            .increasePaneSize: .command(["resize", "increase"]),
+            .decreasePaneSize: .command(["resize", "decrease"]),
+            .scrollMode: .command(["switch-mode", "scroll"]),
+            .searchMode: .command(["switch-mode", "enter-search"]),
+            .lockInput: .command(["switch-mode", "locked"])
         ]
 
         #expect(ZellijTerminalQuickAction.allCases.count == expected.count)
         for action in ZellijTerminalQuickAction.allCases {
-            #expect(action.macroBytes == expected[action])
+            #expect(action.execution == expected[action])
         }
     }
 
-    @Test("普通动作支持有界重复并作为单个不可拆分写入")
-    func repeatedActionWritesOneAtomicMacro() async throws {
+    @Test("普通动作支持有界重复并由 CLI executor 串行执行")
+    func repeatedActionUsesCLIExecutor() async throws {
         let fixture = try await ZellijInteractionFixture()
         let state = try await fixture.facet.resolveState()
 
         let outcome = try await fixture.facet.performQuickAction(.init(
-            actionID: ZellijTerminalQuickAction.nextTab.rawValue,
+            actionID: ZellijTerminalQuickAction.newTab.rawValue,
             target: state.target,
             attachmentGeneration: state.attachmentGeneration,
             expectedStateRevision: state.revision,
@@ -75,12 +81,84 @@ struct ZellijInteractionTests {
         ))
 
         #expect(outcome == .performed)
-        #expect(fixture.process.writes == [Data([
-            0x14, 0x6C,
-            0x14, 0x6C,
-            0x14, 0x6C
-        ])])
+        #expect(fixture.process.writes.isEmpty)
+        #expect(await fixture.actionExecutor.invocations == [
+            .init(arguments: ["new-tab"], repeatCount: 3)
+        ])
         #expect(try await fixture.facet.resolveState().revision == state.revision + 1)
+        await fixture.attachment.close()
+    }
+
+    @Test("Tab 切换不向当前 Pane 写入模式前缀或 h/l")
+    func tabNavigationDoesNotLeakModeKeysIntoPane() async throws {
+        let fixture = try await ZellijInteractionFixture()
+        var state = try await fixture.facet.resolveState()
+
+        for action in [
+            ZellijTerminalQuickAction.previousTab,
+            ZellijTerminalQuickAction.nextTab
+        ] {
+            _ = try await fixture.facet.performQuickAction(.init(
+                actionID: action.rawValue,
+                target: state.target,
+                attachmentGeneration: state.attachmentGeneration,
+                expectedStateRevision: state.revision,
+                resolution: .currentAtExecution
+            ))
+            state = try await fixture.facet.resolveState()
+        }
+
+        #expect(fixture.process.writes.isEmpty)
+        #expect(await fixture.actionExecutor.invocations == [
+            .init(arguments: ["go-to-previous-tab"], repeatCount: 1),
+            .init(arguments: ["go-to-next-tab"], repeatCount: 1)
+        ])
+        await fixture.attachment.close()
+    }
+
+    @Test("Pane 与其他模式快捷操作不向当前 Pane 注入尾部字符")
+    func providerActionsDoNotLeakModeKeysIntoPane() async throws {
+        let fixture = try await ZellijInteractionFixture()
+        let cases: [(ZellijTerminalQuickAction, String?, [String])] = [
+            (.newTab, nil, ["new-tab"]),
+            (.renameTab, "editor", ["rename-tab", "editor"]),
+            (.closeTab, nil, ["close-tab"]),
+            (.syncTab, nil, ["toggle-active-sync-tab"]),
+            (.newPane, nil, ["new-pane"]),
+            (.splitPaneDown, nil, ["new-pane", "--direction", "down"]),
+            (.splitPaneRight, nil, ["new-pane", "--direction", "right"]),
+            (.switchPane, nil, ["focus-next-pane"]),
+            (.fullscreenPane, nil, ["toggle-fullscreen"]),
+            (.floatingPanes, nil, ["toggle-floating-panes"]),
+            (.renamePane, "server", ["rename-pane", "server"]),
+            (.closePane, nil, ["close-pane"]),
+            (.previousLayout, nil, ["previous-swap-layout"]),
+            (.nextLayout, nil, ["next-swap-layout"]),
+            (.increasePaneSize, nil, ["resize", "increase"]),
+            (.decreasePaneSize, nil, ["resize", "decrease"]),
+            (.scrollMode, nil, ["switch-mode", "scroll"]),
+            (.searchMode, nil, ["switch-mode", "enter-search"]),
+            (.lockInput, nil, ["switch-mode", "locked"])
+        ]
+        var state = try await fixture.facet.resolveState()
+
+        for (action, argument, _) in cases {
+            _ = try await fixture.facet.performQuickAction(.init(
+                actionID: action.rawValue,
+                target: state.target,
+                attachmentGeneration: state.attachmentGeneration,
+                expectedStateRevision: state.revision,
+                argument: argument,
+                confirmsDestructiveAction: action.isDestructive,
+                resolution: .currentAtExecution
+            ))
+            state = try await fixture.facet.resolveState()
+        }
+
+        #expect(fixture.process.writes.isEmpty)
+        #expect(await fixture.actionExecutor.invocations == cases.map {
+            .init(arguments: $0.2, repeatCount: 1)
+        })
         await fixture.attachment.close()
     }
 
@@ -189,7 +267,8 @@ struct ZellijInteractionTests {
         ))
 
         #expect(outcome == .workspaceClosed)
-        #expect(fixture.process.writes == [Data([0x11])])
+        #expect(fixture.process.writes.isEmpty)
+        #expect(await fixture.actionExecutor.deleteSessionCount == 1)
         await fixture.attachment.close()
     }
 
@@ -230,13 +309,15 @@ struct ZellijInteractionTests {
                 confirmsDestructiveAction: true
             ))
         }
-        #expect(fixture.process.writes == [Data([0x11])])
+        #expect(fixture.process.writes.isEmpty)
+        #expect(await fixture.actionExecutor.deleteSessionCount == 1)
         await fixture.attachment.close()
     }
 }
 
 private struct ZellijInteractionFixture {
     let process: ZellijInteractionProcessChannel
+    let actionExecutor: ZellijActionCommandRecorder
     let attachment: ZellijPassthroughAttachment
     let facet: ZellijInteractionFacet
 
@@ -244,7 +325,15 @@ private struct ZellijInteractionFixture {
         autoExitOnQuit: Bool = false,
         processExitTimeout: Duration = .seconds(2)
     ) async throws {
-        process = ZellijInteractionProcessChannel(autoExitOnQuit: autoExitOnQuit)
+        let process = ZellijInteractionProcessChannel(autoExitOnQuit: autoExitOnQuit)
+        self.process = process
+        let onDeleteSession: (@Sendable () async -> Void)?
+        if autoExitOnQuit {
+            onDeleteSession = { await process.finishRemotely() }
+        } else {
+            onDeleteSession = nil
+        }
+        actionExecutor = ZellijActionCommandRecorder(onDeleteSession: onDeleteSession)
         let channel = try await ZellijProcessShellChannel.open(
             process: process,
             nonce: "INTERACTION"
@@ -267,10 +356,35 @@ private struct ZellijInteractionFixture {
         attachment = ZellijPassthroughAttachment(
             descriptor: descriptor,
             channel: channel,
+            actionExecutor: actionExecutor,
             attachmentGeneration: 7,
             processExitTimeout: processExitTimeout
         )
         facet = attachment.interaction as! ZellijInteractionFacet
+    }
+}
+
+private actor ZellijActionCommandRecorder: ZellijActionCommandExecuting {
+    struct Invocation: Sendable, Equatable {
+        let arguments: [String]
+        let repeatCount: Int
+    }
+
+    private(set) var invocations: [Invocation] = []
+    private(set) var deleteSessionCount = 0
+    private let onDeleteSession: (@Sendable () async -> Void)?
+
+    init(onDeleteSession: (@Sendable () async -> Void)? = nil) {
+        self.onDeleteSession = onDeleteSession
+    }
+
+    func execute(arguments: [String], repeatCount: Int) {
+        invocations.append(.init(arguments: arguments, repeatCount: repeatCount))
+    }
+
+    func deleteSession() async {
+        deleteSessionCount += 1
+        await onDeleteSession?()
     }
 }
 

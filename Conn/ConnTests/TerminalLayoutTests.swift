@@ -234,12 +234,12 @@ struct TerminalLayoutTests {
         #expect(TerminalKeybarMetrics.gridSpacing <= 4)
     }
 
-    @Test("展开面板多展示一行并保持紧凑操作按钮的完整内边距")
-    func expandedKeybarFitsMoreProviderActionsWithoutClipping() {
-        #expect(TerminalKeybarMetrics.expandedHeight >= 212)
-        #expect(TerminalKeybarMetrics.expandedHeight <= 220)
+    @Test("展开面板保留顶部快捷栏并增加内容可视高度")
+    func expandedKeybarRetainsCompactRowAndFitsProviderActions() {
+        #expect(TerminalKeybarMetrics.expandedHeight >= 280)
+        #expect(TerminalKeybarMetrics.expandedHeight <= 288)
         #expect(
-            TerminalKeybarMetrics.expandedHeight - 168
+            TerminalKeybarMetrics.expandedHeight - 212
                 >= TerminalKeybarMetrics.hitTargetHeight
         )
         #expect(TerminalKeybarMetrics.providerIconSize <= 12)

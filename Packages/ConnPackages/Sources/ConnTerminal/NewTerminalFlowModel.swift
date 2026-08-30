@@ -25,16 +25,22 @@ public final class NewTerminalFlowModel {
     public enum Phase: Sendable, Equatable {
         case hostSelection
         case terminalTypeSelection
-        case providerLoading
-        case providerSelection
         case workspaceSelection
         case creating
+    }
+
+    public enum ProviderAvailability: Sendable, Equatable {
+        case checking
+        case available
+        case unavailable
     }
 
     public struct Operations {
         public let loadHosts: @MainActor () throws -> [ConnKit.Host]
         public let persistentBackendOptions:
             @MainActor () -> [PersistentBackendOption]
+        public let persistentAvailability:
+            @MainActor (PersistentBackendOption, ConnKit.Host) async throws -> PersistentTerminalAvailability
         public let persistentWorkspaceOptions:
             @MainActor (PersistentBackendOption, ConnKit.Host) async throws -> [RemoteWorkspaceSummary]
         public let makeExistingBackend:
@@ -51,6 +57,7 @@ public final class NewTerminalFlowModel {
         public init(
             loadHosts: @escaping @MainActor () throws -> [ConnKit.Host],
             persistentBackendOptions: @escaping @MainActor () -> [PersistentBackendOption],
+            persistentAvailability: @escaping @MainActor (PersistentBackendOption, ConnKit.Host) async throws -> PersistentTerminalAvailability,
             persistentWorkspaceOptions: @escaping @MainActor (PersistentBackendOption, ConnKit.Host) async throws -> [RemoteWorkspaceSummary],
             makeExistingBackend: @escaping @MainActor (PersistentBackendOption, RemoteWorkspaceSummary, ConnKit.Host) async throws -> PersistentTerminalLaunch,
             makeCreateBackend: @escaping @MainActor (PersistentBackendOption, PersistentWorkspaceCreateSelection, ConnKit.Host) async throws -> PersistentTerminalLaunch,
@@ -61,6 +68,7 @@ public final class NewTerminalFlowModel {
         ) {
             self.loadHosts = loadHosts
             self.persistentBackendOptions = persistentBackendOptions
+            self.persistentAvailability = persistentAvailability
             self.persistentWorkspaceOptions = persistentWorkspaceOptions
             self.makeExistingBackend = makeExistingBackend
             self.makeCreateBackend = makeCreateBackend
@@ -78,6 +86,9 @@ public final class NewTerminalFlowModel {
                 loadHosts: { try hostRepository.allHosts() },
                 persistentBackendOptions: {
                     coordinator.persistentBackendOptions()
+                },
+                persistentAvailability: { option, host in
+                    try await coordinator.persistentAvailability(for: option, host: host)
                 },
                 persistentWorkspaceOptions: { option, host in
                     try await coordinator.persistentWorkspaceOptions(for: option, host: host)
@@ -117,6 +128,7 @@ public final class NewTerminalFlowModel {
     public private(set) var hosts: [ConnKit.Host] = []
     public private(set) var selectedHost: ConnKit.Host?
     public private(set) var options: [PersistentBackendOption] = []
+    public private(set) var providerAvailability: [String: ProviderAvailability] = [:]
     public private(set) var selectedOption: PersistentBackendOption?
     public private(set) var workspaces: [RemoteWorkspaceSummary] = []
     public private(set) var isLoading = false
@@ -144,6 +156,9 @@ public final class NewTerminalFlowModel {
         self.operations = operations
         self.onCompleted = onCompleted
         hasFixedHost = fixedHost != nil
+        if fixedHost != nil {
+            loadProviderOptions()
+        }
     }
 
     public func start() {
@@ -162,7 +177,7 @@ public final class NewTerminalFlowModel {
         guard !closed else { return }
         generation &+= 1
         selectedHost = host
-        options = []
+        loadProviderOptions()
         selectedOption = nil
         workspaces = []
         errorMessage = nil
@@ -175,45 +190,49 @@ public final class NewTerminalFlowModel {
         }
     }
 
-    public func selectPersistent() async {
+    public func checkProviderAvailability() async {
         await runTrackedOperation { model in
-            await model.performPersistentSelection()
+            await model.performProviderAvailabilityCheck()
         }
     }
 
-    private func performPersistentSelection() async {
+    private func performProviderAvailabilityCheck() async {
         guard !closed, let host = selectedHost else { return }
         generation &+= 1
-        let loadingGeneration = generation
-        errorMessage = nil
-        isLoading = true
-        phase = .providerLoading
-
-        let loadedOptions = operations.persistentBackendOptions()
-        guard isCurrent(loadingGeneration) else { return }
-        options = loadedOptions
-        isLoading = false
-
-        guard !loadedOptions.isEmpty else {
-            selectedOption = nil
-            workspaces = []
-            phase = .providerSelection
-            errorMessage = L("暂无可用的持久终端")
-            return
+        let availabilityGeneration = generation
+        let currentOptions = options
+        for option in currentOptions {
+            providerAvailability[option.id] = .checking
         }
 
-        if loadedOptions.count == 1, let option = loadedOptions.first {
-            await loadWorkspaces(
-                for: option,
-                host: host,
-                generation: loadingGeneration,
-                preserveExisting: false
-            )
-        } else {
-            selectedOption = nil
-            workspaces = []
-            phase = .providerSelection
+        await withTaskGroup(of: (String, ProviderAvailability).self) { group in
+            for option in currentOptions {
+                group.addTask { @MainActor [operations] in
+                    do {
+                        let result = try await operations.persistentAvailability(option, host)
+                        let state: ProviderAvailability = switch result.state {
+                        case .available, .degraded: .available
+                        case .unavailable, .unsupported: .unavailable
+                        }
+                        return (option.id, state)
+                    } catch {
+                        return (option.id, .unavailable)
+                    }
+                }
+            }
+
+            for await (optionID, availability) in group {
+                guard isCurrent(availabilityGeneration), phase == .terminalTypeSelection else {
+                    group.cancelAll()
+                    return
+                }
+                providerAvailability[optionID] = availability
+            }
         }
+    }
+
+    public func availability(for option: PersistentBackendOption) -> ProviderAvailability {
+        providerAvailability[option.id] ?? .checking
     }
 
     public func selectOption(_ option: PersistentBackendOption) async {
@@ -223,7 +242,11 @@ public final class NewTerminalFlowModel {
     }
 
     private func performOptionSelection(_ option: PersistentBackendOption) async {
-        guard !closed, let host = selectedHost, options.contains(option) else { return }
+        guard !closed,
+              let host = selectedHost,
+              options.contains(option),
+              availability(for: option) == .available
+        else { return }
         generation &+= 1
         let loadingGeneration = generation
         errorMessage = nil
@@ -250,7 +273,7 @@ public final class NewTerminalFlowModel {
 
         guard let selectedOption else {
             isRefreshing = false
-            phase = .providerSelection
+            phase = .terminalTypeSelection
             return
         }
         await loadWorkspaces(
@@ -356,8 +379,7 @@ public final class NewTerminalFlowModel {
                 selectedHost = nil
                 phase = .hostSelection
             }
-        case .providerLoading, .providerSelection, .workspaceSelection, .creating:
-            options = []
+        case .workspaceSelection, .creating:
             selectedOption = nil
             workspaces = []
             phase = .terminalTypeSelection
@@ -496,17 +518,14 @@ public final class NewTerminalFlowModel {
             errorMessage = nil
         } catch {
             guard isCurrent(expectedGeneration) else { return }
-            if shouldFallBackToPlainPTY(for: error) {
+            if shouldDisableProvider(for: error) {
                 isLoading = false
                 isRefreshing = false
-                await launch(
-                    backend: .plainPTY,
-                    failurePhase: .terminalTypeSelection,
-                    notice: String(
-                        format: L("%@ 不可用，已改用普通终端"),
-                        option.displayName
-                    )
-                )
+                providerAvailability[option.id] = .unavailable
+                selectedOption = nil
+                workspaces = []
+                errorMessage = nil
+                phase = .terminalTypeSelection
                 return
             }
             if !preserveExisting { workspaces = [] }
@@ -517,7 +536,7 @@ public final class NewTerminalFlowModel {
         isRefreshing = false
     }
 
-    private func shouldFallBackToPlainPTY(for error: any Error) -> Bool {
+    private func shouldDisableProvider(for error: any Error) -> Bool {
         guard let issue = error as? PersistentTerminalError else { return false }
         return switch issue {
         case .executableMissing, .unsupportedPlatform:
@@ -525,6 +544,13 @@ public final class NewTerminalFlowModel {
         default:
             false
         }
+    }
+
+    private func loadProviderOptions() {
+        options = operations.persistentBackendOptions()
+        providerAvailability = Dictionary(
+            uniqueKeysWithValues: options.map { ($0.id, .checking) }
+        )
     }
 
     private func finishLaunchFailure(

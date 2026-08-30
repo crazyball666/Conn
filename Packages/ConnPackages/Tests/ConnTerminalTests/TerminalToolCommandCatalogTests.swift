@@ -18,16 +18,35 @@ struct TerminalToolCommandCatalogTests {
         ])
     }
 
+    @Test("Codex catalog covers common session, workflow and diagnostic commands")
+    func codexCatalogContents() {
+        let catalog = TerminalToolCommandCatalog.codex
+        let actions = catalog.sections.flatMap(\.actions)
+
+        #expect(catalog.id == "codex")
+        #expect(catalog.sections.map(\.id) == ["session", "workflow", "configuration"])
+        #expect(actions.count == 12)
+        #expect(Set(actions.map(\.command)) == [
+            "/new", "/resume", "/fork", "/compact",
+            "/plan", "/review", "/diff", "/mention",
+            "/model", "/permissions", "/status", "/mcp"
+        ])
+    }
+
     @Test("tool commands are unique insertion-only payloads without terminal controls")
     func commandsAreSafeInsertionPayloads() {
-        let actions = TerminalToolCommandCatalog.claudeCode.sections.flatMap(\.actions)
+        let catalogs = [TerminalToolCommandCatalog.claudeCode, .codex]
 
-        #expect(Set(actions.map(\.id)).count == actions.count)
-        #expect(actions.allSatisfy { $0.command.hasPrefix("/") })
-        #expect(actions.allSatisfy { action in
-            !action.command.unicodeScalars.contains {
-                $0.value < 0x20 || $0.value == 0x7F
-            }
-        })
+        for catalog in catalogs {
+            let actions = catalog.sections.flatMap(\.actions)
+            #expect(Set(actions.map(\.id)).count == actions.count)
+            #expect(Set(actions.map(\.command)).count == actions.count)
+            #expect(actions.allSatisfy { $0.command.hasPrefix("/") })
+            #expect(actions.allSatisfy { action in
+                !action.command.unicodeScalars.contains {
+                    $0.value < 0x20 || $0.value == 0x7F
+                }
+            })
+        }
     }
 }
