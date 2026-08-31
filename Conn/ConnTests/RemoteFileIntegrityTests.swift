@@ -66,6 +66,79 @@ struct RemoteFileIntegrityTests {
         #expect(try await fileSystem.readAll(destination) == original)
     }
 
+    @Test("文件浏览器首次加载使用终端初始目录")
+    func fileBrowserLoadsConfiguredInitialPath() async {
+        let fileSystem = FaultInjectingFileSystem(
+            seeds: ["/home/deploy/.profile": Data()]
+        )
+        let viewModel = FileBrowserViewModel(
+            host: Self.host,
+            dependencies: makeDependencies(fileSystem: fileSystem)
+        )
+
+        viewModel.setInitialPathIfNeeded("/home/deploy")
+        await viewModel.loadIfNeeded()
+
+        #expect(viewModel.currentPath == "/home/deploy")
+        #expect(viewModel.loadState == .ready)
+    }
+
+    @Test("文件浏览器加载后不覆盖用户当前目录")
+    func fileBrowserDoesNotOverwriteLoadedPath() async {
+        let fileSystem = FaultInjectingFileSystem(
+            seeds: ["/home/readme": Data()]
+        )
+        let viewModel = FileBrowserViewModel(
+            host: Self.host,
+            dependencies: makeDependencies(fileSystem: fileSystem)
+        )
+
+        viewModel.setInitialPathIfNeeded("/home")
+        await viewModel.loadIfNeeded()
+        viewModel.setInitialPathIfNeeded("/")
+
+        #expect(viewModel.currentPath == "/home")
+    }
+
+    @Test("终端目录失效时首次加载回退根目录")
+    func fileBrowserFallsBackToRootAfterInitialPathFailure() async {
+        let fileSystem = FaultInjectingFileSystem(
+            seeds: [:],
+            failingListPaths: ["/home/deleted"]
+        )
+        let viewModel = FileBrowserViewModel(
+            host: Self.host,
+            dependencies: makeDependencies(fileSystem: fileSystem)
+        )
+
+        viewModel.setInitialPathIfNeeded("/home/deleted")
+        await viewModel.loadIfNeeded()
+
+        #expect(viewModel.currentPath == "/")
+        #expect(viewModel.loadState == .ready)
+    }
+
+    @Test("根目录也失败时保留文件浏览器错误状态")
+    func fileBrowserKeepsRootFailure() async {
+        let fileSystem = FaultInjectingFileSystem(
+            seeds: [:],
+            failingListPaths: ["/home/deleted", "/"]
+        )
+        let viewModel = FileBrowserViewModel(
+            host: Self.host,
+            dependencies: makeDependencies(fileSystem: fileSystem)
+        )
+
+        viewModel.setInitialPathIfNeeded("/home/deleted")
+        await viewModel.loadIfNeeded()
+
+        if case .failed = viewModel.loadState {
+            #expect(true)
+        } else {
+            Issue.record("expected root listing failure")
+        }
+    }
+
     private static let host = Host(
         name: "integrity-test",
         address: "127.0.0.1",
@@ -107,23 +180,29 @@ private final class FaultInjectingFileSystem: RemoteFileSystem, @unchecked Senda
     private let underlying: MockRemoteFileSystem
     private let replacementTarget: String?
     private let failWritesStartingAt: UInt64?
+    private let failingListPaths: Set<String>
     private let lock = NSLock()
     private var replacementFailuresRemaining: Int
 
     init(
         seeds: [String: Data],
         replacementTarget: String? = nil,
-        failWritesStartingAt: UInt64? = nil
+        failWritesStartingAt: UInt64? = nil,
+        failingListPaths: Set<String> = []
     ) {
         underlying = MockRemoteFileSystem(seeds: seeds.map {
             MockFileSeed(path: $0.key, kind: .file, content: String(decoding: $0.value, as: UTF8.self))
         })
         self.replacementTarget = replacementTarget
         self.failWritesStartingAt = failWritesStartingAt
+        self.failingListPaths = failingListPaths
         replacementFailuresRemaining = replacementTarget == nil ? 0 : 1
     }
 
-    func list(_ path: String) async throws -> [FileEntry] { try await underlying.list(path) }
+    func list(_ path: String) async throws -> [FileEntry] {
+        if failingListPaths.contains(path) { throw SSHError.channelClosed }
+        return try await underlying.list(path)
+    }
     func stat(_ path: String) async throws -> FileEntry { try await underlying.stat(path) }
 
     func open(_ path: String, mode: RemoteFileMode) async throws -> any RemoteFile {

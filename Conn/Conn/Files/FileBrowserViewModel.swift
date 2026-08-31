@@ -1,5 +1,6 @@
 import ConnKit
 import ConnSSH
+import ConnTerminal
 import Foundation
 import Observation
 #if canImport(UIKit)
@@ -84,13 +85,38 @@ final class FileBrowserViewModel {
         currentPath != "/"
     }
 
+    /// Configures the terminal's observed directory before the first SFTP load.
+    /// Once the browser has loaded, the user's own navigation is authoritative.
+    func setInitialPathIfNeeded(_ path: String?) {
+        guard !hasLoaded,
+              let path,
+              let normalized = TerminalWorkingDirectoryPath.providerPath(from: path)
+        else {
+            return
+        }
+        currentPath = normalized
+    }
+
+    /// Clears prompts that belong to one presentation of the browser. The
+    /// loaded directory/list remains so the terminal can restore its page.
+    func resetTransientPresentationState() {
+        pendingDeletion = nil
+        actionMessage = nil
+    }
+
     // MARK: - 导航 / 列表
 
     /// 仅首次加载（分段出现时调用）。已加载则跳过，避免每次切换重拉。
     func loadIfNeeded() async {
         guard !hasLoaded else { return }
-        hasLoaded = true
-        await load()
+        let initialPath = currentPath
+        await load(path: initialPath)
+        guard initialPath != "/",
+              case .failed = loadState
+        else {
+            return
+        }
+        await load(path: "/")
     }
 
     func load(path: String? = nil) async {

@@ -40,6 +40,8 @@
         private let attachmentState: TerminalAttachmentPanelState
         private let onAttachmentAction: (TerminalAttachmentAction) -> Void
         private let onPersistentWorkingDirectoryChanged: (String?) -> Void
+        private let onTerminalWorkingDirectoryChanged:
+            (TerminalWorkingDirectorySource, UInt64, String?) -> Void
 
         public init(
             session: TerminalSession,
@@ -58,7 +60,10 @@
             onPersistentWorkspaceClosed: @escaping () -> Void = {},
             attachmentState: TerminalAttachmentPanelState = .idle,
             onAttachmentAction: @escaping (TerminalAttachmentAction) -> Void = { _ in },
-            onPersistentWorkingDirectoryChanged: @escaping (String?) -> Void = { _ in }
+            onPersistentWorkingDirectoryChanged: @escaping (String?) -> Void = { _ in },
+            onTerminalWorkingDirectoryChanged: @escaping (
+                TerminalWorkingDirectorySource, UInt64, String?
+            ) -> Void = { _, _, _ in }
         ) {
             self.session = session
             self.transcript = transcript
@@ -77,6 +82,7 @@
             self.attachmentState = attachmentState
             self.onAttachmentAction = onAttachmentAction
             self.onPersistentWorkingDirectoryChanged = onPersistentWorkingDirectoryChanged
+            self.onTerminalWorkingDirectoryChanged = onTerminalWorkingDirectoryChanged
         }
 
         public var body: some View {
@@ -97,7 +103,8 @@
                 onPersistentWorkspaceClosed: onPersistentWorkspaceClosed,
                 attachmentState: attachmentState,
                 onAttachmentAction: onAttachmentAction,
-                onPersistentWorkingDirectoryChanged: onPersistentWorkingDirectoryChanged
+                onPersistentWorkingDirectoryChanged: onPersistentWorkingDirectoryChanged,
+                onTerminalWorkingDirectoryChanged: onTerminalWorkingDirectoryChanged
             )
             // 重连会换一个 TerminalSession；显式换身份，避免 @StateObject 继续持有旧会话。
             .id(ObjectIdentifier(session))
@@ -127,6 +134,9 @@
         private let onReconnect: () -> Void
         private let attachmentState: TerminalAttachmentPanelState
         private let onAttachmentAction: (TerminalAttachmentAction) -> Void
+        private let onPersistentWorkingDirectoryChanged: (String?) -> Void
+        private let onTerminalWorkingDirectoryChanged:
+            (TerminalWorkingDirectorySource, UInt64, String?) -> Void
 
         init(
             session: TerminalSession,
@@ -145,7 +155,10 @@
             onPersistentWorkspaceClosed: @escaping () -> Void,
             attachmentState: TerminalAttachmentPanelState,
             onAttachmentAction: @escaping (TerminalAttachmentAction) -> Void,
-            onPersistentWorkingDirectoryChanged: @escaping (String?) -> Void
+            onPersistentWorkingDirectoryChanged: @escaping (String?) -> Void,
+            onTerminalWorkingDirectoryChanged: @escaping (
+                TerminalWorkingDirectorySource, UInt64, String?
+            ) -> Void
         ) {
             _controller = StateObject(wrappedValue: TerminalInputController(
                 session: session,
@@ -156,7 +169,8 @@
                 onPersistentWorkspaceRenamed: onPersistentWorkspaceRenamed,
                 onPersistentWorkspaceChanged: onPersistentWorkspaceChanged,
                 onPersistentWorkspaceClosed: onPersistentWorkspaceClosed,
-                onPersistentWorkingDirectoryChanged: onPersistentWorkingDirectoryChanged
+                onPersistentWorkingDirectoryChanged: onPersistentWorkingDirectoryChanged,
+                onTerminalWorkingDirectoryChanged: onTerminalWorkingDirectoryChanged
             ))
             _isKeybarExpanded = State(
                 initialValue: ProcessInfo.processInfo.environment["CONN_SMOKE_TERMINAL_EXPANDED"] != nil
@@ -170,6 +184,8 @@
             self.onReconnect = onReconnect
             self.attachmentState = attachmentState
             self.onAttachmentAction = onAttachmentAction
+            self.onPersistentWorkingDirectoryChanged = onPersistentWorkingDirectoryChanged
+            self.onTerminalWorkingDirectoryChanged = onTerminalWorkingDirectoryChanged
         }
 
         var body: some View {
@@ -466,6 +482,8 @@
         private let onPersistentWorkspaceChanged: (String, String?) -> Void
         private let onPersistentWorkspaceClosed: () -> Void
         private let onPersistentWorkingDirectoryChanged: (String?) -> Void
+        private let onTerminalWorkingDirectoryChanged:
+            (TerminalWorkingDirectorySource, UInt64, String?) -> Void
         private let replayOutboundGate = TerminalReplayOutboundGate()
         private let interactionController = TerminalInteractionController()
         private let typedInputPlanner = TerminalTypedInputPlanner()
@@ -520,7 +538,10 @@
             onPersistentWorkspaceRenamed: @escaping (String) -> Void,
             onPersistentWorkspaceChanged: @escaping (String, String?) -> Void,
             onPersistentWorkspaceClosed: @escaping () -> Void,
-            onPersistentWorkingDirectoryChanged: @escaping (String?) -> Void
+            onPersistentWorkingDirectoryChanged: @escaping (String?) -> Void,
+            onTerminalWorkingDirectoryChanged: @escaping (
+                TerminalWorkingDirectorySource, UInt64, String?
+            ) -> Void
         ) {
             self.session = session
             self.transcript = transcript
@@ -531,6 +552,7 @@
             self.onPersistentWorkspaceChanged = onPersistentWorkspaceChanged
             self.onPersistentWorkspaceClosed = onPersistentWorkspaceClosed
             self.onPersistentWorkingDirectoryChanged = onPersistentWorkingDirectoryChanged
+            self.onTerminalWorkingDirectoryChanged = onTerminalWorkingDirectoryChanged
         }
 
         func attach(_ terminalView: KeybarTerminalView) {
@@ -916,6 +938,10 @@
             onPersistentWorkingDirectoryChanged(
                 state.freshness == .live ? state.workingDirectory : nil
             )
+            let providerPath = state.freshness == .live
+                ? state.workingDirectory.flatMap(TerminalWorkingDirectoryPath.providerPath)
+                : nil
+            onTerminalWorkingDirectoryChanged(.provider, terminalGeneration, providerPath)
             refreshProviderQuickActions(for: state)
             updateInteractionContext()
             drainProviderActionQueue()
@@ -1517,7 +1543,21 @@
         }
 
         func setTerminalTitle(source _: TerminalView, title _: String) {}
-        func hostCurrentDirectoryUpdate(source _: TerminalView, directory _: String?) {}
+        func hostCurrentDirectoryUpdate(source _: TerminalView, directory: String?) {
+            guard replayOutboundGate.allowsTerminalDelegateOutput else { return }
+            switch replayOutboundGate.currentFeedProvenance {
+            case .outsideFeed:
+                break
+            case let .live(generation) where generation == terminalGeneration:
+                break
+            case .live, .replay, .generationBoundary:
+                return
+            }
+            guard let path = TerminalWorkingDirectoryPath.osc7Path(from: directory) else {
+                return
+            }
+            onTerminalWorkingDirectoryChanged(.osc7, terminalGeneration, path)
+        }
         func scrolled(source: TerminalView, position: Double) {
             updateInteractionContext()
             let state = TerminalViewportState(
