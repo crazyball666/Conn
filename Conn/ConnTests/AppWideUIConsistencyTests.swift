@@ -413,6 +413,9 @@ struct AppWideUIConsistencyTests {
         #expect(source.contains("settings.terminalConfiguration.theme.appearance"))
         #expect(source.contains("private var terminalColorScheme: ColorScheme"))
         #expect(source.contains(".preferredColorScheme(terminalColorScheme)"))
+        #expect(source.contains("TerminalHostingView(\n                    session:"))
+        #expect(source.contains("                .preferredColorScheme(terminalColorScheme)\n                .overlay"))
+        #expect(!source.contains("terminalContent\n            .preferredColorScheme(terminalColorScheme)"))
         #expect(!source.contains(".toolbarColorScheme("))
         #expect(!source.contains(".preferredColorScheme(.dark)"))
     }
@@ -501,6 +504,8 @@ struct AppWideUIConsistencyTests {
         ))
         #expect(screen.contains("terminalFileBrowserViewModels[tab.id]"))
         #expect(screen.contains("terminalFileBrowserRoute = TerminalFileBrowserRoute(tabID: tab.id)"))
+        #expect(screen.contains("await refreshProviderWorkingDirectory(for: tab)"))
+        #expect(screen.contains("                        .padding(.horizontal, ConnSpacing.page)\n                        .padding(.top, ConnSpacing.xs)"))
         #expect(hostDetail.contains("@State private var fileVM: FileBrowserViewModel"))
         #expect(!screen.contains("@State private var fileVM: FileBrowserViewModel"))
     }

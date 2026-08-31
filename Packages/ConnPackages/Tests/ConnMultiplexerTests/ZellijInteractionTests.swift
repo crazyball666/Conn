@@ -89,6 +89,33 @@ struct ZellijInteractionTests {
         await fixture.attachment.close()
     }
 
+    @Test("resolveState 暴露当前终端 Pane 的工作目录")
+    func resolveStateExposesWorkingDirectory() async throws {
+        let fixture = try await ZellijInteractionFixture()
+        let state = try await fixture.facet.resolveState()
+
+        #expect(state.workingDirectory == "/home/demo/project")
+        #expect(state.freshness == .live)
+        await fixture.attachment.close()
+    }
+
+    @Test("只选择聚焦的非插件 Pane 工作目录")
+    func parsesFocusedTerminalPaneWorkingDirectory() throws {
+        let output = Data(#"[{"is_plugin":true,"is_focused":true,"pane_cwd":"/home/demo/plugin"},{"is_plugin":false,"is_focused":false,"pane_cwd":"/home/demo/other"},{"is_plugin":false,"is_focused":true,"pane_cwd":"/home/demo/project"}]"#.utf8)
+
+        #expect(
+            try ZellijPaneMetadataParser.workingDirectory(from: output)
+                == "/home/demo/project"
+        )
+    }
+
+    @Test("没有聚焦的终端 Pane 时不返回目录")
+    func ignoresMissingFocusedTerminalPaneWorkingDirectory() throws {
+        let output = Data(#"[{"is_plugin":true,"is_focused":true,"pane_cwd":"/home/demo/plugin"},{"is_plugin":false,"is_focused":false,"pane_cwd":"/home/demo/other"}]"#.utf8)
+
+        #expect(try ZellijPaneMetadataParser.workingDirectory(from: output) == nil)
+    }
+
     @Test("Tab 切换不向当前 Pane 写入模式前缀或 h/l")
     func tabNavigationDoesNotLeakModeKeysIntoPane() async throws {
         let fixture = try await ZellijInteractionFixture()
@@ -333,7 +360,10 @@ private struct ZellijInteractionFixture {
         } else {
             onDeleteSession = nil
         }
-        actionExecutor = ZellijActionCommandRecorder(onDeleteSession: onDeleteSession)
+        actionExecutor = ZellijActionCommandRecorder(
+            onDeleteSession: onDeleteSession,
+            workingDirectory: "/home/demo/project"
+        )
         let channel = try await ZellijProcessShellChannel.open(
             process: process,
             nonce: "INTERACTION"
@@ -373,9 +403,14 @@ private actor ZellijActionCommandRecorder: ZellijActionCommandExecuting {
     private(set) var invocations: [Invocation] = []
     private(set) var deleteSessionCount = 0
     private let onDeleteSession: (@Sendable () async -> Void)?
+    private let workingDirectory: String?
 
-    init(onDeleteSession: (@Sendable () async -> Void)? = nil) {
+    init(
+        onDeleteSession: (@Sendable () async -> Void)? = nil,
+        workingDirectory: String? = nil
+    ) {
         self.onDeleteSession = onDeleteSession
+        self.workingDirectory = workingDirectory
     }
 
     func execute(arguments: [String], repeatCount: Int) {
@@ -385,6 +420,10 @@ private actor ZellijActionCommandRecorder: ZellijActionCommandExecuting {
     func deleteSession() async {
         deleteSessionCount += 1
         await onDeleteSession?()
+    }
+
+    func currentWorkingDirectory() async throws -> String? {
+        workingDirectory
     }
 }
 

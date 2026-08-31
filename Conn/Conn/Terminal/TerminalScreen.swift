@@ -65,7 +65,6 @@ struct TerminalScreen: View {
 
     var body: some View {
         terminalContent
-            .preferredColorScheme(terminalColorScheme)
             // TerminalScreen is presented as a full-screen modal. The App-root toast
             // overlay sits below that presentation, so terminal interaction notices need
             // a presentation-local overlay backed by the same environment toast center.
@@ -122,6 +121,8 @@ struct TerminalScreen: View {
                             dependencies: dependencies,
                             viewModel: viewModel
                         )
+                        .padding(.horizontal, ConnSpacing.page)
+                        .padding(.top, ConnSpacing.xs)
                         .navigationTitle(L("文件"))
                         .navigationBarTitleDisplayMode(.inline)
                         .toolbar {
@@ -306,6 +307,7 @@ private extension TerminalScreen {
                         )
                     }
                 )
+                .preferredColorScheme(terminalColorScheme)
                 .overlay {
                     if case let .disconnected(message) = tab.status {
                         reconnectNotice(message)
@@ -440,23 +442,53 @@ private extension TerminalScreen {
             return
         }
 
-        synchronizeWorkingDirectory(for: tab)
-        let viewModel: FileBrowserViewModel
-        if let existing = terminalFileBrowserViewModels[tab.id] {
-            viewModel = existing
-        } else {
-            viewModel = FileBrowserViewModel(host: host, dependencies: dependencies)
-            if case .docker = tab.source {
-                viewModel.setInitialPathIfNeeded(nil)
-            } else {
-                viewModel.setInitialPathIfNeeded(
-                    terminalWorkingDirectoryResolvers[tab.id]?.effectivePath
-                )
+        let tabID = tab.id
+        let generation = tab.generation
+        Task { @MainActor in
+            guard let tab = terminalSessions.store.tab(id: tabID), tab.generation == generation else {
+                return
             }
-            terminalFileBrowserViewModels[tab.id] = viewModel
+            await refreshProviderWorkingDirectory(for: tab)
+            guard let tab = terminalSessions.store.tab(id: tabID), tab.generation == generation else {
+                return
+            }
+
+            synchronizeWorkingDirectory(for: tab)
+            let viewModel: FileBrowserViewModel
+            if let existing = terminalFileBrowserViewModels[tab.id] {
+                viewModel = existing
+            } else {
+                viewModel = FileBrowserViewModel(host: host, dependencies: dependencies)
+                if case .docker = tab.source {
+                    viewModel.setInitialPathIfNeeded(nil)
+                } else {
+                    viewModel.setInitialPathIfNeeded(
+                        terminalWorkingDirectoryResolvers[tab.id]?.effectivePath
+                    )
+                }
+                terminalFileBrowserViewModels[tab.id] = viewModel
+            }
+            viewModel.resetTransientPresentationState()
+            terminalFileBrowserRoute = TerminalFileBrowserRoute(tabID: tab.id)
         }
-        viewModel.resetTransientPresentationState()
-        terminalFileBrowserRoute = TerminalFileBrowserRoute(tabID: tab.id)
+    }
+
+    private func refreshProviderWorkingDirectory(for tab: TerminalTab) async {
+        guard case .persistent = tab.source,
+              let attachment = tab.persistentAttachment
+                as? any PersistentTerminalInteractiveAttachment,
+              let state = try? await attachment.interaction.resolveState()
+        else {
+            return
+        }
+
+        updateWorkingDirectory(
+            source: .provider,
+            tabID: tab.id,
+            generation: tab.generation,
+            path: state.workingDirectory,
+            terminalSource: tab.source
+        )
     }
 
     private func presentDeferredNewTerminal() {

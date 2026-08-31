@@ -10,8 +10,12 @@ struct SubscriptionStoreTests {
         let store = SubscriptionStore.appDefault()
 
         #if CONN_DISABLE_SUBSCRIPTION
-            #expect(store.status == .free)
-            #expect(!store.isPro)
+            #expect(store.status == .pro)
+            #expect(store.isPro)
+            #expect(store.gate.canAddHost(currentCount: 100))
+            #expect(store.gate.allowed(.fileManagement))
+            #expect(store.gate.allowed(.dockerManagement))
+            #expect(store.gate.allowed(.batchExecution))
         #else
             #expect(store.status == .loading)
             #expect(!store.isPro)

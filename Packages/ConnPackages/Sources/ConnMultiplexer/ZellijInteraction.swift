@@ -81,6 +81,32 @@ package enum ZellijTerminalQuickAction: String, CaseIterable, Sendable {
 package protocol ZellijActionCommandExecuting: Sendable {
     func execute(arguments: [String], repeatCount: Int) async throws
     func deleteSession() async throws
+    func currentWorkingDirectory() async throws -> String?
+}
+
+package enum ZellijPaneMetadataParser {
+    private struct Pane: Decodable {
+        let isPlugin: Bool
+        let isFocused: Bool
+        let paneCwd: String?
+    }
+
+    package static func workingDirectory(from data: Data) throws -> String? {
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        let panes = try decoder.decode([Pane].self, from: data)
+
+        return panes.first(where: { pane in
+            guard !pane.isPlugin, pane.isFocused,
+                  let path = pane.paneCwd?.trimmingCharacters(in: .whitespacesAndNewlines),
+                  !path.isEmpty,
+                  path.first == "/"
+            else {
+                return false
+            }
+            return !path.unicodeScalars.contains(where: CharacterSet.controlCharacters.contains)
+        })?.paneCwd?.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
 }
 
 package actor ZellijCLIActionExecutor: ZellijActionCommandExecuting {
@@ -112,6 +138,27 @@ package actor ZellijCLIActionExecutor: ZellijActionCommandExecuting {
             .map(POSIXShellArgument.encode)
             .joined(separator: " ")
         try await execute(command, fallbackError: "Zellij session deletion failed")
+    }
+
+    package func currentWorkingDirectory() async throws -> String? {
+        let command = [
+            executable,
+            "--session",
+            sessionName.rawValue,
+            "action",
+            "list-panes",
+            "--all",
+            "--json"
+        ]
+        .map(POSIXShellArgument.encode)
+        .joined(separator: " ")
+        let result = try await session.exec(command, timeout: .seconds(15))
+        guard result.isSuccess else {
+            throw PersistentTerminalError.commandRejected(
+                result.stderrText.isEmpty ? "Zellij pane query failed" : result.stderrText
+            )
+        }
+        return try ZellijPaneMetadataParser.workingDirectory(from: result.stdout)
     }
 
     private func execute(_ command: String, fallbackError: String) async throws {
@@ -247,9 +294,9 @@ package actor ZellijInteractionFacet: PersistentTerminalInteractionFacet {
         get async { closed ? nil : ZellijInteractionCatalog.group }
     }
 
-    public func resolveState() throws -> PersistentTerminalInteractionState {
+    public func resolveState() async throws -> PersistentTerminalInteractionState {
         guard !closed else { throw PersistentTerminalInteractionError.unavailable }
-        let state = currentState()
+        let state = await currentState()
         continuation.yield(state)
         return state
     }
@@ -314,7 +361,7 @@ package actor ZellijInteractionFacet: PersistentTerminalInteractionFacet {
         }
 
         revision &+= 1
-        continuation.yield(currentState())
+        continuation.yield(await currentState())
         return .performed
     }
 
@@ -324,17 +371,19 @@ package actor ZellijInteractionFacet: PersistentTerminalInteractionFacet {
         continuation.finish()
     }
 
-    private func currentState() -> PersistentTerminalInteractionState {
-        PersistentTerminalInteractionState(
+    private func currentState() async -> PersistentTerminalInteractionState {
+        let workingDirectory = try? await actionExecutor.currentWorkingDirectory()
+        return PersistentTerminalInteractionState(
             target: target,
             workspaceName: workspaceName,
             attachmentGeneration: attachmentGeneration,
             revision: revision,
-            freshness: .snapshot,
+            freshness: workingDirectory == nil ? .snapshot : .live,
             isAlternateBuffer: nil,
             modeCapability: .none,
             historyAvailable: false,
-            observedAt: Date()
+            observedAt: Date(),
+            workingDirectory: workingDirectory
         )
     }
 

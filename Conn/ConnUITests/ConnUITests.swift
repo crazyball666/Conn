@@ -15,6 +15,33 @@ final class ConnUITests: XCTestCase {
     }
 
     @MainActor
+    func testTerminalCenterOpensWithoutCrashing() {
+        let app = XCUIApplication()
+        app.launch()
+
+        XCTAssertTrue(app.navigationBars["主机"].waitForExistence(timeout: 10))
+        app.tabBars.buttons["终端"].tap()
+
+        XCTAssertTrue(app.navigationBars["终端"].waitForExistence(timeout: 5))
+        XCTAssertEqual(app.state, .runningForeground)
+    }
+
+#if CONN_DISABLE_SUBSCRIPTION
+    @MainActor
+    func testDisabledSubscriptionBuildShowsProEntitlement() {
+        let app = XCUIApplication()
+        app.launch()
+
+        XCTAssertTrue(app.navigationBars["主机"].waitForExistence(timeout: 10))
+        app.tabBars.buttons["设置"].tap()
+
+        XCTAssertTrue(app.navigationBars["设置"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["订阅已生效"].waitForExistence(timeout: 5))
+        XCTAssertEqual(app.state, .runningForeground)
+    }
+#endif
+
+    @MainActor
     func testLiveDatabaseCanAddEditAndDeleteHostWithoutCrashing() {
         let app = XCUIApplication()
         app.launch()
