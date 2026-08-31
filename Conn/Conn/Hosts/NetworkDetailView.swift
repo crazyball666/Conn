@@ -127,30 +127,9 @@ struct NetworkDetailView: View {
             let loadedDetail = try await viewModel.networks.detail(for: network)
             detail = loadedDetail
             errorMessage = nil
-            #if DEBUG
-                if ProcessInfo.processInfo.environment["CONN_SMOKE_NETWORK_CONTAINER_ROUTE"] != nil,
-                   let attached = loadedDetail.attachedContainers.first {
-                    open(attached)
-                }
-            #endif
         } catch {
             errorMessage = error.friendlyDiagnosis
         }
         loading = false
     }
 }
-
-// 走真实的 DemoOps 演示夹具（`isolated` 网络，Task 4 新增）。simctl 点不进详情页，
-// 这份 Preview 是本页唯一能在开发期肉眼确认渲染效果的地方。
-#if DEBUG
-#Preview {
-    let host = Host(name: "web-01", address: "10.20.0.11", username: "root")
-    NavigationStack {
-        NetworkDetailView(
-            network: NetworkInfo(id: "f6e5d4c3b2a1", name: "isolated", driver: "bridge", scope: "local"),
-            viewModel: DockerViewModel(host: host, dependencies: .demo()),
-            host: host, dependencies: .demo()
-        )
-    }
-}
-#endif

@@ -181,31 +181,3 @@ struct ImageDetailView: View {
         loading = false
     }
 }
-
-// 走真实的 DemoOps 演示夹具（nginx:1.25，Task 4 新增的多层历史）。simctl 点不进
-// 详情页，这份 Preview 是本页唯一能在开发期肉眼确认渲染效果的地方。
-// `users` 由调用方算好传入（纯函数，不是本页自己取数），这里直接给一个夹具容器。
-#if DEBUG
-#Preview {
-    let host = Host(name: "web-01", address: "10.20.0.11", username: "root")
-    NavigationStack {
-        ImageDetailView(
-            image: ImageInfo(
-                imageID: "a1b2c3d4e5f6",
-                repository: "nginx",
-                tag: "1.25",
-                size: "142MB",
-                created: "9 days ago"
-            ),
-            viewModel: DockerViewModel(host: host, dependencies: .demo()),
-            users: [
-                ContainerInfo(
-                    id: "a1b2c3d4e5f6", name: "web-nginx", image: "nginx:1.25",
-                    state: .running, status: "Up 9 days", ports: "0.0.0.0:80->80/tcp"
-                )
-            ],
-            diskSize: "142MB", host: host, dependencies: .demo()
-        )
-    }
-}
-#endif

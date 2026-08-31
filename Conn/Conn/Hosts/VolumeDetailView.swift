@@ -137,23 +137,3 @@ struct VolumeDetailView: View {
         loading = false
     }
 }
-
-// 演示依赖走真实的 DemoOps/MockSSHTransport——`load()` 会实际"跑"一遍
-// `docker volume inspect` / `docker ps -a --filter volume=` 拿到 Task 4 里新增的
-// 演示夹具（pgdata + 引用它的 pg-main），不是摆设。simctl 点不进详情页，
-// 这份 Preview 是本页唯一能在开发期肉眼确认渲染效果的地方。
-#if DEBUG
-#Preview {
-    let host = Host(name: "web-01", address: "10.20.0.11", username: "root")
-    NavigationStack {
-        VolumeDetailView(
-            volume: VolumeInfo(
-                name: "pgdata", driver: "local", scope: "local",
-                mountpoint: "/var/lib/docker/volumes/pgdata/_data"
-            ),
-            viewModel: DockerViewModel(host: host, dependencies: .demo()),
-            size: "1.2GB", host: host, dependencies: .demo()
-        )
-    }
-}
-#endif

@@ -243,17 +243,6 @@ struct TerminalScreen: View {
             .onChange(of: attachmentCoordinator.panelState.phase) { _, phase in
                 presentAttachmentResult(phase)
             }
-        #if DEBUG
-            .overlay(alignment: .topLeading) {
-                if ProcessInfo.processInfo.environment["CONN_SMOKE_TERMINAL_ATTACHMENTS"] != nil,
-                   let lastInsertedText = insertionMailbox.lastConsumedText {
-                    Text(lastInsertedText)
-                        .font(.system(size: 1))
-                        .opacity(0.01)
-                        .accessibilityIdentifier("terminal.smoke.lastInsertedText")
-                }
-            }
-        #endif
     }
 }
 

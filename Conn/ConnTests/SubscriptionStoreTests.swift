@@ -5,6 +5,19 @@ import ConnEntitlement
 @Suite("Conn Pro 订阅状态")
 @MainActor
 struct SubscriptionStoreTests {
+    @Test("默认订阅状态由编译配置决定")
+    func appDefaultSubscriptionFollowsCompilationFlag() {
+        let store = SubscriptionStore.appDefault()
+
+        #if CONN_DISABLE_SUBSCRIPTION
+            #expect(store.status == .free)
+            #expect(!store.isPro)
+        #else
+            #expect(store.status == .loading)
+            #expect(!store.isPro)
+        #endif
+    }
+
     @Test("固定免费状态不授予 Pro")
     func fixedFreeStateIsNotPro() {
         let store = SubscriptionStore.fixed(.free)
@@ -40,7 +53,7 @@ struct SubscriptionStoreTests {
         #expect(PaywallContext.batchExecution.feature == .batchExecution)
     }
 
-    @Test("演示状态显示确定的价格兜底")
+    @Test("价格兜底保持稳定")
     func fallbackPricesAreStable() {
         let store = SubscriptionStore.fixed(.free)
         #expect(store.fallbackPrice(for: .monthly) == "¥18/月")

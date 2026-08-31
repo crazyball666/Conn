@@ -172,9 +172,7 @@
                 onPersistentWorkingDirectoryChanged: onPersistentWorkingDirectoryChanged,
                 onTerminalWorkingDirectoryChanged: onTerminalWorkingDirectoryChanged
             ))
-            _isKeybarExpanded = State(
-                initialValue: ProcessInfo.processInfo.environment["CONN_SMOKE_TERMINAL_EXPANDED"] != nil
-            )
+            _isKeybarExpanded = State(initialValue: false)
             self.configuration = configuration
             self.tabID = tabID
             self.terminalGeneration = terminalGeneration

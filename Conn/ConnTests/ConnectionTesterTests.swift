@@ -7,7 +7,7 @@ import Testing
 /// ConnectionTester 的诊断步骤映射逻辑。
 ///
 /// 用 MockSSHTransport 注入各类失败，验证 SSHError → 步骤点亮的映射正确。
-/// 真实网络路径由包级 CitadelIntegrationTests（连 Docker）覆盖，此处只测映射。
+/// 这里使用 MockSSHTransport 覆盖连接诊断的错误映射，不依赖外部主机。
 @MainActor
 struct ConnectionTesterTests {
     private func host() -> Host {

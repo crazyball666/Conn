@@ -1,10 +1,9 @@
 import Foundation
 import ConnKit
 
-/// 内存凭据存储（演示模式与测试用）。
+/// 内存凭据存储（测试用）。
 ///
-/// 与 `KeychainCredentialStore` 同语义，但不落地——演示模式不应把假凭据
-/// 写进真实 Keychain。
+/// 与 `KeychainCredentialStore` 同语义，但不落地，避免测试写入真实 Keychain。
 public final class InMemoryCredentialStore: CredentialStore, @unchecked Sendable {
     private var passwords: [String: String] = [:]
     private let lock = NSLock()

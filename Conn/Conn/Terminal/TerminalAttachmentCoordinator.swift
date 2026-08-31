@@ -349,34 +349,6 @@ extension TerminalAttachmentCoordinator {
         insertionContext: TerminalTextInsertionContext?,
         insertionMailbox: TerminalTextInsertionMailbox
     ) {
-        #if DEBUG
-            if ProcessInfo.processInfo.environment["CONN_SMOKE_TERMINAL_ATTACHMENTS_FAILURE"] != nil {
-                panelState = .init(phase: .failed(message: L("无法建立附件上传通道。")))
-                return
-            }
-            if ProcessInfo.processInfo.environment["CONN_SMOKE_TERMINAL_ATTACHMENTS"] != nil {
-                let renderer = UIGraphicsImageRenderer(size: CGSize(width: 24, height: 24))
-                let image = renderer.image { context in
-                    UIColor.systemPurple.setFill()
-                    context.fill(CGRect(x: 0, y: 0, width: 24, height: 24))
-                }
-                guard let data = image.pngData() else {
-                    panelState = .init(phase: .failed(
-                        message: TerminalAttachmentPreparationError.unsupportedImage.friendlyDiagnosis
-                    ))
-                    return
-                }
-                prepareImageData(
-                    data,
-                    preferredFileExtension: "png",
-                    baseName: "ConnUploadSmoke",
-                    providerWorkingDirectory: providerWorkingDirectory,
-                    insertionContext: insertionContext,
-                    insertionMailbox: insertionMailbox
-                )
-                return
-            }
-        #endif
         if let urls = UIPasteboard.general.urls, !urls.isEmpty {
             uploadFiles(
                 urls,

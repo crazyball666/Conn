@@ -4,7 +4,7 @@ import Foundation
 /// 主机凭据（密码、密钥私钥）的安全存取。
 ///
 /// **红线**：凭据只存 Keychain，密文绝不入 SQLite。本协议是唯一出口，
-/// 其他层不得直接触碰 Keychain。演示模式与测试注入内存实现。
+/// 其他层不得直接触碰 Keychain。测试注入内存实现。
 ///
 /// 密钥私钥材料只通过 Keychain 引用读取，绝不写入 SQLite。
 public protocol CredentialStore: Sendable {

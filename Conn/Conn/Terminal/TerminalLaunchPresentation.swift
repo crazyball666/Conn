@@ -11,7 +11,7 @@ struct ExistingTerminalRoute: Identifiable {
 }
 
 /// Reusable source-page presentation state for requests that already specify their
-/// source/backend/command (Docker, scripts and diagnostics smoke flows).
+/// source/backend/command (Docker and scripts).
 @Observable
 @MainActor
 final class TerminalLaunchPresentation {

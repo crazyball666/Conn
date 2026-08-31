@@ -23,9 +23,3 @@ Package.resolved
 
 # 文档构建产物（md 为源文件，HTML 由 Tooling/build_doc_html.py 生成）
 docs/*.html
-
-# Spike 临时环境
-Spikes/**/.env
-# Spike 测试密钥：虽是一次性测试密钥，私钥仍不入库（原则）。
-# keys/ 由 Spikes/S1-ssh-matrix 的 setup 脚本用 ssh-keygen 现场生成。
-Spikes/**/keys/

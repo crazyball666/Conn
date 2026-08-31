@@ -2,9 +2,9 @@ import Foundation
 
 /// 主机仓库协议。
 ///
-/// 由 `ConnStore.HostStore` 提供 GRDB 实现，由演示模式提供内存实现。
+/// 由 `ConnStore.HostStore` 提供 GRDB 实现。
 /// 技术实现方案 §1.1：所有跨层交互经协议注入，**禁止单例直取**——
-/// 这是演示模式（`MockSSHTransport` 同款思路）与测试能整体替换数据层的前提。
+/// 这是测试能整体替换数据层的前提。
 public protocol HostRepository: Sendable {
     /// 全部未删除的主机，按排序权重再按名称排序。
     func allHosts() throws -> [Host]

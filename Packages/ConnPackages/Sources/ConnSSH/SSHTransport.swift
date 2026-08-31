@@ -11,8 +11,8 @@ public enum SSHSessionState: Sendable, Equatable {
 
 /// 引擎可替换的传输总抽象（技术方案 §4.1）。
 ///
-/// Citadel 与（潜在的）libssh2 都实现此协议；`MockSSHTransport` 亦然，
-/// 供演示模式与测试整体替换。上层永远只见此协议，不见具体引擎。
+/// Citadel 与（潜在的）libssh2 都实现此协议；`MockSSHTransport` 供测试替换。
+/// 上层永远只见此协议，不见具体引擎。
 public protocol SSHTransport: Sendable {
     func connect(
         _ endpoint: SSHEndpoint,

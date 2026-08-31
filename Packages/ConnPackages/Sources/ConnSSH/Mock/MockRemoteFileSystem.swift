@@ -1,6 +1,6 @@
 import Foundation
 
-/// 一颗内存文件树的种子（演示/测试用）。
+/// 一颗内存文件树的种子（测试用）。
 public struct MockFileSeed: Sendable {
     public let path: String
     public let kind: FileKind
@@ -14,7 +14,7 @@ public struct MockFileSeed: Sendable {
         self.permissions = permissions ?? (kind == .directory ? 0o040755 : 0o100644)
     }
 
-    /// 一颗像样的 Linux 文件树，演示模式直接可逛。
+    /// 一颗确定性的 Linux 文件树，供测试使用。
     public static let defaultTree: [MockFileSeed] = [
         .init(path: "/home", kind: .directory),
         .init(path: "/home/deploy", kind: .directory),
@@ -42,7 +42,7 @@ public struct MockFileSeed: Sendable {
     ]
 }
 
-/// 内存实现的 `RemoteFileSystem`（演示模式与测试复用）。
+/// 内存实现的 `RemoteFileSystem`（测试用）。
 ///
 /// 用 actor 保证并发读写文件树安全。默认载入一颗像样的 Linux 树。
 public actor MockRemoteFileSystem: RemoteFileSystem {

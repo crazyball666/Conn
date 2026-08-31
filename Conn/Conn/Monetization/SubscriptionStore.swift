@@ -7,7 +7,7 @@ import StoreKit
 /// App Store 订阅状态的唯一入口。
 ///
 /// 商品加载、购买、恢复和交易更新都集中在这里，UI 只读取状态和权益门控，
-/// 不直接依赖 StoreKit。`fixed` 供演示和测试注入确定的免费/Pro 状态。
+/// 不直接依赖 StoreKit。`fixed` 供单元测试注入确定的免费/Pro 状态。
 @MainActor
 @Observable
 final class SubscriptionStore {
@@ -81,6 +81,16 @@ final class SubscriptionStore {
 
     static func live() -> SubscriptionStore {
         SubscriptionStore(mode: .live)
+    }
+
+    /// App 默认订阅策略由编译配置决定：正式构建默认启用订阅，
+    /// 只有显式定义 `CONN_DISABLE_SUBSCRIPTION` 时才关闭订阅。
+    static func appDefault() -> SubscriptionStore {
+        #if CONN_DISABLE_SUBSCRIPTION
+            return .fixed(.free)
+        #else
+            return .live()
+        #endif
     }
 
     static func fixed(_ snapshot: EntitlementSnapshot) -> SubscriptionStore {

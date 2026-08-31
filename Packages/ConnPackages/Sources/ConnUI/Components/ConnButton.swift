@@ -145,7 +145,6 @@ public struct ConnBanner: View {
 #Preview("按钮与横幅 · 深色") {
     VStack(spacing: ConnSpacing.sm) {
         ConnButton("添加我的服务器") {}
-        ConnButton("先逛逛演示模式", kind: .ghost) {}
         ConnButton("停止 nginx-proxy", kind: .destructive) {}
         ConnBanner("免费版已用 3/3 台主机，升级专业版解锁无限主机", systemImage: "info.circle")
         ConnBanner("恢复码尚未备份", systemImage: "exclamationmark.triangle", kind: .warn)
@@ -160,7 +159,6 @@ public struct ConnBanner: View {
 #Preview("按钮与横幅 · 浅色") {
     VStack(spacing: ConnSpacing.sm) {
         ConnButton("添加我的服务器") {}
-        ConnButton("先逛逛演示模式", kind: .ghost) {}
         ConnBanner("免费版已用 3/3 台主机", systemImage: "info.circle")
     }
     .padding(ConnSpacing.page)

@@ -384,12 +384,6 @@ struct DockerComposeProjectDetailView: View {
         errorMessage = nil
         do {
             services = try await viewModel.compose.services(for: project)
-            #if DEBUG
-                if ProcessInfo.processInfo.environment["CONN_SMOKE_COMPOSE_CONTAINER_ROUTE"] != nil,
-                   let service = services.first(where: { $0.name == "api" }) {
-                    open(service)
-                }
-            #endif
         } catch {
             errorMessage = error.friendlyDiagnosis
         }

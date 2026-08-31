@@ -35,7 +35,7 @@ public extension HostKeyStore {
     }
 }
 
-/// 内存指纹库（测试与演示模式用）。
+/// 内存指纹库（测试用）。
 ///
 /// 线程安全：内部用锁保护，满足 `Sendable`。
 public final class InMemoryHostKeyStore: HostKeyStore, @unchecked Sendable {

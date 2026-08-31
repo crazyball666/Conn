@@ -24,7 +24,7 @@ enum PaywallContext: String, CaseIterable, Equatable, Identifiable, Sendable {
 }
 
 /// Conn Pro 购买页。价格以 StoreKit 返回值为准，未配置商品时使用确定的开发兜底值，
-/// 保证演示包和商品配置前的 UI 验收仍然可用。
+/// 保证商品配置前的 UI 验收仍然可用。
 struct PaywallView: View {
     let dependencies: AppDependencies
     let context: PaywallContext

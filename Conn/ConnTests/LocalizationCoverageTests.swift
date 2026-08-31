@@ -26,7 +26,6 @@ struct LocalizationCoverageTests {
         let uiCatalog = try loadCatalog("../Packages/ConnPackages/Sources/ConnUI/Resources/Localizable.xcstrings")
         let tmuxKeys = try tmuxInteractionKeys()
             .union(zellijInteractionKeys())
-            .union(tmuxSmokeInteractionKeys())
             .union(["主机", "终端", "脚本", "设置"])
         try validate(keys: tmuxKeys, in: uiCatalog, surface: "ConnUI dynamic terminal UI")
 
@@ -81,7 +80,6 @@ struct LocalizationCoverageTests {
         }
         try keys.formUnion(tmuxInteractionKeys())
         try keys.formUnion(zellijInteractionKeys())
-        try keys.formUnion(tmuxSmokeInteractionKeys())
         try keys.formUnion(dangerReasonKeys())
 
         let violations = keys.filter { key in
@@ -230,10 +228,6 @@ struct LocalizationCoverageTests {
         try descriptorKeys(
             in: "../Packages/ConnPackages/Sources/ConnMultiplexer/ZellijInteraction.swift"
         )
-    }
-
-    private func tmuxSmokeInteractionKeys() throws -> Set<String> {
-        try descriptorKeys(in: "Conn/Terminal/TerminalTmuxQuickActionSmokeSupport.swift")
     }
 
     private func descriptorKeys(in relativePath: String) throws -> Set<String> {

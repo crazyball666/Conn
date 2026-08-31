@@ -1,10 +1,6 @@
 import Foundation
 
-/// 脚本化的假 SSH 引擎。
-///
-/// 同一实现供**演示模式**（技术方案 §4.10）与 **UI/集成测试**复用——没有服务器
-/// 也能完整体验，App Store 审核也靠它。假指标发生器（正弦+噪声、故障机）在
-/// Phase 7/10 补，本类型只做命令层与失败注入。
+/// 脚本化的假 SSH 引擎，仅供测试使用。
 public final class MockSSHTransport: SSHTransport {
     /// 一条命令的预置响应。
     public struct CommandResponse: Sendable {
@@ -82,9 +78,7 @@ public final class MockSSHTransport: SSHTransport {
         /// 覆盖或新增命令响应，优先于内置脚本。
         public var commandResponses: [String: CommandResponse]
         /// 动态响应器：按（原始命令, 目标端点）现算响应，返回 nil 则回落内置脚本。
-        /// 演示模式（Phase 10）用它生成随时间演化的假指标/容器/日志——数据生成逻辑
-        /// 放在 App/Feature 层（可 import ConnMonitor/ConnOps），此处只留一个闭包插槽，
-        /// 保持 ConnSSH 与上层解耦。
+        /// 由测试按原始命令和目标端点生成动态响应；此处不依赖具体业务模块。
         public var dynamicResponder: (@Sendable (String, SSHEndpoint) -> CommandResponse?)?
         /// Exact command → scripted bidirectional process response.
         public var processResponses: [String: ProcessResponse]
@@ -371,7 +365,7 @@ final class MockSSHSession: SSHSession, @unchecked Sendable {
             return custom
         }
         // 解释器包装的解包是 Mock 自身的确定性匹配行为，不是 SSHSession 公共 API。
-        // 演示模式按脚本内容命中假输出，而不是把解释器本身当成未知命令。
+        // 测试按脚本内容命中假输出，而不是把解释器本身当成未知命令。
         if let script = unwrapInterpreterInvocation(trimmed) {
             return resolve(script)
         }
@@ -611,40 +605,20 @@ extension MockSSHSession {
 final class MockShellChannel: ShellChannel {
     let output: AsyncThrowingStream<Data, Error>
     private let continuation: AsyncThrowingStream<Data, Error>.Continuation
-    private let isMarketingScreenshot =
-        ProcessInfo.processInfo.environment["CONN_SMOKE_TERMINAL_SCREENSHOT"] != nil
 
     init() {
         (output, continuation) = AsyncThrowingStream.makeStream()
-        let prompt = isMarketingScreenshot ? "deploy@ops-node-01:~$ " : "demo-host:~$ "
-        continuation.yield(Data(prompt.utf8))
-        #if DEBUG
-            if ProcessInfo.processInfo.environment["CONN_SMOKE_TERMINAL_OSC7"] != nil {
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [self] in
-                    self.continuation.yield(Data("\u{1B}]7;file:///home\u{07}".utf8))
-                }
-            }
-        #endif
+        continuation.yield(Data("demo-host:~$ ".utf8))
     }
 
     func write(_ bytes: Data) async throws {
-        if isMarketingScreenshot,
-           String(decoding: bytes, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines) == "ls -a" {
-            continuation.yield(Data("""
-            ls -a\r
-            .  ..  .bash_logout  .bashrc  .config\r
-            apps  logs  scripts\r
-            deploy@ops-node-01:~$
-            """.utf8))
-            return
-        }
         // 真实 PTY 中 Ctrl+U 由 shell 行编辑器处理：清空当前输入并重绘提示符。
-        // Mock Shell 也模拟这一语义，避免演示/UI 验收时把控制码原样回显成“无反应”。
+        // Mock Shell 也模拟这一语义，避免测试时把控制码原样回显成“无反应”。
         if bytes == Data([0x15]) {
             continuation.yield(Data("\r\u{1B}[2Kdemo-host:~$ ".utf8))
             return
         }
-        // 回显演示：把输入原样吐回
+        // 回显输入，模拟交互式终端。
         continuation.yield(bytes)
     }
 

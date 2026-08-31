@@ -5766,41 +5766,6 @@
         }
       }
     },
-    "先逛逛演示模式" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Try demo mode"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "デモモードを試す"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "데모 모드 둘러보기"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "体验演示模式"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "體驗示範模式"
-          }
-        }
-      }
-    },
     "光标" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -19385,41 +19350,6 @@
         }
       }
     },
-    "添加第一台服务器，或先用演示模式逛一圈" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Add your first server, or try demo mode first"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "最初のサーバーを追加するか、まずデモモードで試してみましょう"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "첫 서버를 추가하거나 먼저 데모 모드로 둘러보세요"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "添加第一台服务器，或先体验演示模式"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "新增第一台伺服器，或先體驗示範模式"
-          }
-        }
-      }
-    },
     "添加选项" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -19619,35 +19549,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "源与目标相同"
-          }
-        }
-      }
-    },
-    "演示模式" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Demo mode"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "デモモード"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "데모 모드"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "示範模式"
           }
         }
       }

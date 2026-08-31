@@ -376,23 +376,3 @@ private extension ContainerDetailView {
         )
     }
 }
-
-// 走真实的 DemoOps 演示夹具（web-nginx，Task 4 补了一条指到 web_assets 卷的具名
-// 挂载）——挂载段应有 3 行：2 条绑定挂载不可点，"web_assets" 那条可点；网络段
-// "bridge" 可点。本页不在 brief 明确要求的「三个详情页」之列，但它是本任务改动
-// 最大的既有视图（新增挂载/网络可点），加一个 Preview 成本很低、价值不小。
-#if DEBUG
-#Preview {
-    let host = Host(name: "web-01", address: "10.20.0.11", username: "root")
-    NavigationStack {
-        ContainerDetailView(
-            host: host, dependencies: .demo(),
-            container: ContainerInfo(
-                id: "a1b2c3d4e5f6", name: "web-nginx", image: "nginx:1.25",
-                state: .running, status: "Up 3 days", ports: "0.0.0.0:80->80/tcp"
-            ),
-            viewModel: DockerViewModel(host: host, dependencies: .demo())
-        )
-    }
-}
-#endif

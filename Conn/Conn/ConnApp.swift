@@ -28,29 +28,10 @@ struct ConnApp: App {
         // 在任何视图（含 .searchable 搜索框）创建前配置 UIKit 外观——appearance 只对
         // 之后创建的实例生效，放到 onAppear 里会与首个搜索框的创建竞态导致背景色不生效。
         ConnAppearance.configureIfNeeded()
-        #if DEBUG
-            // 终端粘贴的 UI 冒烟由 App 自己预置文本，避免 UI Test Runner 作为跨 App
-            // 剪贴板来源触发系统权限弹窗；发布包不会执行这段。
-            if let smokePasteText = ProcessInfo.processInfo.environment["CONN_SMOKE_PASTE_TEXT"] {
-                UIPasteboard.general.string = smokePasteText
-            }
-        #endif
     }
 
-    /// 依赖选择：DEBUG 下 `CONN_DEMO=1` 走演示模式（Mock 引擎 + 假数据），
-    /// 否则走生产（Citadel + GRDB 落盘）。Phase 10 会把演示开关搬到设置页。
+    /// 生产依赖使用 Citadel + GRDB 落盘库。
     private static func makeDependencies() -> BootstrapState {
-        #if DEBUG
-            if ProcessInfo.processInfo.environment["CONN_SMOKE_DATABASE_LOADING"] != nil {
-                return .loading
-            }
-            if let forcedFailure = ProcessInfo.processInfo.environment["CONN_SMOKE_DATABASE_FAILURE"] {
-                return .failed(forcedFailure)
-            }
-            if ProcessInfo.processInfo.environment["CONN_DEMO"] != nil {
-                return .ready(AppDependencies.demo())
-            }
-        #endif
         do {
             return .ready(try AppDependencies.live())
         } catch {
@@ -94,16 +75,6 @@ struct ConnApp: App {
         Task { @MainActor in
             // 先让 SwiftUI 提交 loading 状态，避免同步初始化失败时看起来没有响应。
             await Task.yield()
-            #if DEBUG
-                if let rawDelay = ProcessInfo.processInfo.environment["CONN_SMOKE_DATABASE_RETRY_DELAY"],
-                   let seconds = Double(rawDelay), seconds > 0 {
-                    try? await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000))
-                }
-                if ProcessInfo.processInfo.environment["CONN_SMOKE_DATABASE_RECOVER_ON_RETRY"] != nil {
-                    bootstrap = .ready(AppDependencies.demo())
-                    return
-                }
-            #endif
             do {
                 try AppDependencies.resetLocalDatabase()
                 bootstrap = Self.makeDependencies()
@@ -115,121 +86,8 @@ struct ConnApp: App {
 
     @ViewBuilder
     private func rootView(dependencies: AppDependencies) -> some View {
-        #if DEBUG
-            if ProcessInfo.processInfo.environment["CONN_SMOKE_DIAGNOSTICS"] != nil {
-                DiagnosticsSmokeView(transport: dependencies.diagnosticsTransport)
-            } else if ProcessInfo.processInfo.environment["CONN_SMOKE_NEW_TERMINAL_PICKER"] != nil {
-                NewTerminalSheetSmokeView(terminalSessions: dependencies.terminalSessions)
-            } else if ProcessInfo.processInfo.environment["CONN_SMOKE_TERMINAL"] != nil {
-                // 终端采用沉浸式全屏布局，页面级操作由底部固定入口承载。
-                TerminalSmokeLaunchView(
-                    host: smokeTerminalHost(dependencies: dependencies),
-                    dependencies: dependencies,
-                    // 冒烟专用：固定密码 resolver（正常路径走 Keychain）。
-                    terminalSessions: TerminalSessionCoordinator(
-                        hostRepository: dependencies.hostRepository,
-                        connectionManager: ConnectionManager(
-                            transport: dependencies.diagnosticsTransport
-                        ) { _ in .password("conntest123") }
-                    ),
-                    initialCommand: smokeTerminalCommand()
-                )
-            } else if ProcessInfo.processInfo.environment["CONN_SMOKE_TERMINAL_CENTER"] != nil {
-                TerminalSessionCenterSmokeView(dependencies: dependencies)
-            } else if ProcessInfo.processInfo.environment["CONN_SMOKE_DETAIL"] != nil,
-                      let host = smokeDetailHost(dependencies: dependencies) {
-                NavigationStack {
-                    HostDetailView(host: host, dependencies: dependencies, initialSegment: smokeSegment())
-                }
-            } else if ProcessInfo.processInfo.environment["CONN_SMOKE_LOGSTREAM"] != nil,
-                      let host = smokeDetailHost(dependencies: dependencies) {
-                NavigationStack {
-                    LogStreamView(
-                        host: host, dependencies: dependencies,
-                        source: LogSource(
-                            id: "smoke-nginx", title: "Nginx 错误",
-                            subtitle: "/var/log/nginx/error.log",
-                            kind: .file(path: "/var/log/nginx/error.log")
-                        )
-                    )
-                }
-            } else if ProcessInfo.processInfo.environment["CONN_SMOKE_SNIPPETS"] != nil {
-                NavigationStack { SnippetsView(dependencies: dependencies) }
-            } else if ProcessInfo.processInfo.environment["CONN_SMOKE_SCRIPT_RUN"] != nil {
-                SnippetRunView(
-                    snippet: BuiltinSnippets.load().first
-                        ?? Snippet(title: "System Overview", script: "uname -a; uptime"),
-                    dependencies: dependencies
-                )
-            } else if ProcessInfo.processInfo.environment["CONN_SMOKE_HOSTFORM"] != nil {
-                HostFormView(dependencies: dependencies, initialDraft: HostDraft(), editingHostID: nil) { _ in }
-            } else if ProcessInfo.processInfo.environment["CONN_SMOKE_CARDS"] != nil {
-                CardStatesSmokeView()
-            } else if ProcessInfo.processInfo.environment["CONN_SMOKE_ME"] != nil {
-                NavigationStack { MeView(dependencies: dependencies) }
-            } else if ProcessInfo.processInfo.environment["CONN_SMOKE_EDITOR"] != nil, let host = smokeDetailHost(dependencies: dependencies) {
-                NavigationStack {
-                    FileEditorView(
-                        host: host, dependencies: dependencies,
-                        entry: FileEntry(
-                            name: "nginx.conf", path: "/etc/nginx/nginx.conf",
-                            size: 200, permissions: 0o100644, kind: .file
-                        )
-                    )
-                }
-            } else {
-                RootTabView(dependencies: dependencies)
-            }
-        #else
-            RootTabView(dependencies: dependencies)
-        #endif
+        RootTabView(dependencies: dependencies)
     }
-
-    #if DEBUG
-        /// 终端 UI 冒烟使用本地 Spike；协调器会校验主机仍在仓库中，故把这台仅测试用的
-        /// 主机写入演示内存库。它不进入生产依赖，也不会出现在发布版的数据里。
-        private func smokeTerminalHost(dependencies: AppDependencies) -> Host {
-            let host = Host(
-                id: "conn.smoke.terminal",
-                name: "ops-node-01",
-                address: "127.0.0.1",
-                username: "deploy",
-                port: 2202
-            )
-            try? dependencies.hostRepository.save(host)
-            return host
-        }
-
-        /// 冒烟：优先取演示故障机（有高负载 + 进程列表），否则第一台。
-        private func smokeDetailHost(dependencies: AppDependencies) -> Host? {
-            let hosts = (try? dependencies.hostRepository.allHosts()) ?? []
-            return hosts.first { $0.address == DemoData.faultHostAddress } ?? hosts.first
-        }
-
-        /// 冒烟：CONN_SMOKE_SEGMENT 指定初始段（docker / logs / files / overview）。
-        private func smokeSegment() -> HostDetailView.Segment {
-            switch ProcessInfo.processInfo.environment["CONN_SMOKE_SEGMENT"] {
-            case "docker": .docker
-            case "logs": .logs
-            case "files": .files
-            case "processes": .processes
-            default: .overview
-            }
-        }
-
-        /// 终端冒烟可切换成长输出，用同一个入口验证键盘可见区与自动跟随。
-        private func smokeTerminalCommand() -> String {
-            if ProcessInfo.processInfo.environment["CONN_SMOKE_TERMINAL_SCREENSHOT"] != nil {
-                return "ls -a"
-            }
-            guard ProcessInfo.processInfo.environment["CONN_SMOKE_TERMINAL_LONG_OUTPUT"] != nil else {
-                return "echo '中文渲染测试 你好世界 café 日本語 🚀 制表符'; ls /"
-            }
-            return (1 ... 120)
-                .map { String(format: "terminal output line %03d", $0) }
-                .joined(separator: "\r\n")
-        }
-    #endif
 }
 
 /// 生产依赖的启动状态。数据库初始化失败时保留在可恢复页面，避免 Release 直接崩溃。
@@ -312,7 +170,7 @@ private struct DatabaseInitializationFailureView: View {
 /// 依赖容器。
 ///
 /// 技术实现方案 §1.1：**禁止单例直取**——所有跨层交互经协议注入，
-/// 保证演示模式与测试可整体替换数据层与传输层。
+/// 保证测试可整体替换数据层与传输层。
 @MainActor
 struct AppDependencies {
     let hostRepository: any HostRepository
@@ -439,7 +297,7 @@ struct AppDependencies {
             // 无法可靠推断，必须在依赖注入前同步转为 unknown，失败则让启动明确失败。
             try runHistoryStore.recoverPending()
             try importBuiltinSnippetsIfNeeded(snippetStore, snippetGroupStore)
-            let subscription = SubscriptionStore.live()
+            let subscription = SubscriptionStore.appDefault()
             subscription.start()
 
             return AppDependencies(
@@ -457,9 +315,8 @@ struct AppDependencies {
                 terminalSessions: terminalSessions,
                 appLock: AppLockController(
                     authenticator: LABiometricAuthenticator(),
-                    // 设置页持久化的开关；DEBUG 冒烟可强制开启验证锁屏。
+                    // 设置页持久化的开关。
                     isEnabled: UserDefaults.standard.bool(forKey: AppLockController.storageKey)
-                        || ProcessInfo.processInfo.environment["CONN_SMOKE_APPLOCK"] != nil
                 ),
                 subscription: subscription
             )
@@ -468,94 +325,6 @@ struct AppDependencies {
     static func resetLocalDatabase() throws {
         try AppDatabase.removeOnDiskStore(at: databaseURL())
     }
-
-    #if DEBUG
-    /// 演示依赖（**仅 DEBUG 编译**）：内存库 + Mock 引擎（假指标/容器/日志）。
-    /// 不进入发行包——仅供开发期截图与冒烟联调（`CONN_DEMO` / `CONN_SMOKE_*`）。
-    /// 演示数据由 `DemoData` 生成并经 `MockSSHTransport.dynamicResponder` 注入。
-    static func demo() -> AppDependencies {
-        do {
-            let database = try AppDatabase.inMemory()
-            let hostStore = makeHostStore(database: database)
-            let groupStore = HostGroupStore(database: database)
-            let keyStore = SSHKeyStore(database: database)
-            try DemoData.seedHosts(into: hostStore, groups: groupStore)
-
-            let transport = MockSSHTransport(behavior: DemoData.behavior())
-            let credentialStore = InMemoryCredentialStore()
-            let connectionManager = ConnectionManager(transport: transport) { _ in .password("demo") }
-            let isResumeSmoke =
-                ProcessInfo.processInfo.environment["CONN_SMOKE_TERMINAL_RESUME"] != nil
-            let resumeProvider = TerminalResumeSmokeProvider()
-            let resumeRecords: [PersistentTerminalResumeRecord]
-            if isResumeSmoke, let host = try hostStore.allHosts().first {
-                resumeRecords = [PersistentTerminalResumeRecord(
-                    id: "smoke-resume",
-                    hostID: host.id,
-                    hostName: host.name,
-                    hostAddress: host.displayAddress,
-                    descriptor: resumeProvider.attachmentDescriptor,
-                    automaticAlias: "saved-session"
-                )]
-            } else {
-                resumeRecords = []
-            }
-            let terminalSessions = TerminalSessionCoordinator(
-                hostRepository: hostStore,
-                connectionManager: connectionManager,
-                providerRegistry: isResumeSmoke
-                    ? try PersistentTerminalProviderRegistry(providers: [resumeProvider])
-                    : .default,
-                resumeRepository: InMemoryTerminalResumeRepository(records: resumeRecords)
-            )
-            if ProcessInfo.processInfo.environment["CONN_SMOKE_ACTIVE_TERMINAL"] != nil,
-               let host = try hostStore.allHosts().first {
-                terminalSessions.store.add(TerminalTab(
-                    id: "smoke-existing-terminal",
-                    hostID: host.id,
-                    hostName: host.name,
-                    hostAddress: host.displayAddress,
-                    session: TerminalSession(channel: TerminalSessionCrashSmokeChannel())
-                ))
-            }
-            let snippetExecutionPlanner = makeSnippetExecutionPlanner(
-                connectionManager: connectionManager
-            )
-            let monitor = MonitorScheduler(connectionManager: connectionManager)
-            let snippetStore = SnippetStore(database: database)
-            let snippetGroupStore = SnippetGroupStore(database: database)
-            let runHistoryStore = RunHistoryStore(database: database)
-            try runHistoryStore.recoverPending()
-            try importBuiltinSnippetsIfNeeded(snippetStore, snippetGroupStore)
-            let subscription: SubscriptionStore
-            switch ProcessInfo.processInfo.environment["CONN_SUBSCRIPTION_STATE"] {
-            case "pro": subscription = .fixed(.pro)
-            case "loading": subscription = .live()
-            default: subscription = .fixed(.free)
-            }
-            subscription.start()
-
-            return AppDependencies(
-                hostRepository: hostStore,
-                hostGroupRepository: groupStore,
-                keyRepository: keyStore,
-                credentialStore: credentialStore,
-                connectionManager: connectionManager,
-                snippetExecutionPlanner: snippetExecutionPlanner,
-                diagnosticsTransport: transport,
-                monitor: monitor,
-                runHistory: runHistoryStore,
-                snippetRepository: snippetStore,
-                snippetGroupRepository: snippetGroupStore,
-                terminalSessions: terminalSessions,
-                appLock: AppLockController(authenticator: LABiometricAuthenticator(), isEnabled: false),
-                subscription: subscription
-            )
-        } catch {
-            fatalError("演示库初始化失败：\(error)")
-        }
-    }
-    #endif
 
     /// `Application Support/Conn/conn.sqlite`
     private static func databaseURL() -> URL {

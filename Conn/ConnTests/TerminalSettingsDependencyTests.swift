@@ -23,8 +23,7 @@ struct TerminalSettingsDependencyTests {
             "Hosts/ContainerDetailView.swift",
             "Hosts/DockerView.swift",
             "Commands/SnippetRunView.swift",
-            "Terminal/TerminalSessionCenterView.swift",
-            "Terminal/TerminalSmokeLaunchView.swift"
+            "Terminal/TerminalSessionCenterView.swift"
         ]
         for caller in callers {
             let contents = try source(caller)

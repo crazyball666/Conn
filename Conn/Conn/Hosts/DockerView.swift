@@ -35,7 +35,6 @@ struct DockerView: View {
 
     var body: some View {
         content
-            .task { await loadForSmokeRoute() }
             .task { await autoRefreshLoop() }
             .sheet(
                 item: operationSheetBinding,
@@ -226,32 +225,6 @@ struct DockerView: View {
             case .compose: await viewModel.compose.load()
             }
         }
-    }
-
-    private func loadForSmokeRoute() async {
-        await viewModel.loadIfNeeded()
-        #if DEBUG
-            let environment = ProcessInfo.processInfo.environment
-            if environment["CONN_SMOKE_COMPOSE_DETAIL_ROUTE"] != nil {
-                await viewModel.compose.load()
-                if let project = viewModel.compose.items.first(where: { $0.name == "conn-web" }) {
-                    route = .composeDetail(project)
-                }
-                return
-            }
-            if environment["CONN_SMOKE_COMPOSE_FORM"] != nil {
-                await viewModel.compose.load()
-                operationSheet = .addComposeProject
-                return
-            }
-            guard environment["CONN_SMOKE_NETWORK_DETAIL_ROUTE"] != nil
-                    || environment["CONN_SMOKE_NETWORK_CONTAINER_ROUTE"] != nil
-            else { return }
-            await viewModel.networks.load()
-            if let network = viewModel.networks.items.first(where: { $0.name == "isolated" }) {
-                route = .networkDetail(network)
-            }
-        #endif
     }
 
     /// 镜像列表重拉后，「未使用」判定要跟着用最新的容器列表重算一遍，

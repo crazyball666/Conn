@@ -68,7 +68,7 @@ public enum SSHPooledSessionHealth: Sendable, Equatable {
 /// 全局唯一的连接池管理器（技术方案 §4.1）。
 ///
 /// 每主机复用 1 条 SSH 连接；并发请求同一主机只握手一次。经 Environment 注入，
-/// 禁止单例直取——演示模式与测试可整体替换 `SSHTransport`。
+/// 禁止单例直取——测试可整体替换 `SSHTransport`。
 ///
 /// 指纹校验（TOFU）发生在握手内部，是 `transport` 的职责；本管理器只管池化。
 public actor ConnectionManager {

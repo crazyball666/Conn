@@ -47,8 +47,7 @@ public struct ActionTile: View {
 
 /// 空态。
 ///
-/// 设计规范 §5：SF Symbol + 一句话 + 主按钮；**首屏空态必须给双出口**
-/// （「添加主机 / 试试演示」）。原型未出稿此组件，按规范文字实现。
+/// 设计规范 §5：SF Symbol + 一句话 + 主按钮。原型未出稿此组件，按规范文字实现。
 public struct EmptyState: View {
     private let systemName: String
     private let title: String
@@ -118,7 +117,6 @@ public struct EmptyState: View {
         LazyVGrid(columns: Array(repeating: GridItem(spacing: ConnSpacing.xs), count: 3), spacing: ConnSpacing.xs) {
             ActionTile("全部巡检", systemName: "arrow.clockwise") {}
             ActionTile("批量执行", systemName: "square.stack.3d.up") {}
-            ActionTile("演示模式", systemName: "play.rectangle") {}
         }
         LazyVGrid(columns: Array(repeating: GridItem(spacing: ConnSpacing.xs), count: 4), spacing: ConnSpacing.xs) {
             ActionTile("终端", systemName: "terminal", isSelected: true) {}
@@ -139,9 +137,8 @@ public struct EmptyState: View {
             EmptyState(
                 systemName: "server.rack",
                 title: "还没有主机",
-                message: "添加第一台服务器，或先用演示模式逛一圈",
-                primary: .init("添加我的服务器") {},
-                secondary: .init("先逛逛演示模式") {}
+                message: "添加第一台服务器以开始管理",
+                primary: .init("添加我的服务器") {}
             )
             .padding(.vertical, ConnSpacing.xl)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
