@@ -1,4 +1,5 @@
 import ConnKit
+import ConnEntitlement
 import ConnMultiplexer
 import ConnSSH
 import ConnTerminal
@@ -32,6 +33,10 @@ struct TerminalScreen: View {
     @State private var isFileImporterPresented = false
     @State private var photoSelection: [PhotosPickerItem] = []
     @State private var providerWorkingDirectory: String?
+    @State private var terminalWorkingDirectoryResolvers: [String: TerminalWorkingDirectoryResolver] = [:]
+    @State private var terminalFileBrowserViewModels: [String: FileBrowserViewModel] = [:]
+    @State private var terminalFileBrowserRoute: TerminalFileBrowserRoute?
+    @State private var paywallContext: PaywallContext?
     @State private var pendingAttachmentContext: TerminalTextInsertionContext?
     @State private var pendingAttachmentWorkingDirectory: String?
     @Environment(\.connToastCenter) private var toastCenter
@@ -65,10 +70,16 @@ struct TerminalScreen: View {
             // overlay sits below that presentation, so terminal interaction notices need
             // a presentation-local overlay backed by the same environment toast center.
             .connGlobalToast()
-            .onAppear { verifyExistingTab() }
+            .onAppear {
+                verifyExistingTab()
+                synchronizeWorkingDirectory(for: activeTab)
+            }
             .onChange(of: activeTab?.id) { previousID, currentID in
                 guard previousID == tabID, currentID == nil else { return }
                 leaveClosedTab()
+            }
+            .onChange(of: activeTab?.generation) { _, _ in
+                synchronizeWorkingDirectory(for: activeTab)
             }
             .sheet(isPresented: $isCommandPickerPresented) {
                 if let snippetRepository, let snippetGroupRepository {
@@ -91,14 +102,42 @@ struct TerminalScreen: View {
                         onSwitchTerminal: {
                             deferSessionAction(.switchTerminal)
                         },
+                        onOpenFileBrowser: {
+                            deferSessionAction(.fileBrowser)
+                        },
                         onCloseTerminal: {
                             deferSessionAction(.closeTerminal)
                         }
                     )
-                    .presentationDetents([.height(296)])
+                    .presentationDetents([.medium])
                     .presentationDragIndicator(.visible)
                     .presentationBackground(Color.connBg)
                 }
+            }
+            .sheet(item: $terminalFileBrowserRoute) { route in
+                if let viewModel = terminalFileBrowserViewModels[route.tabID] {
+                    NavigationStack {
+                        FileBrowserView(
+                            host: host,
+                            dependencies: dependencies,
+                            viewModel: viewModel
+                        )
+                        .navigationTitle(L("文件"))
+                        .navigationBarTitleDisplayMode(.inline)
+                        .toolbar {
+                            ToolbarItem(placement: .topBarLeading) {
+                                Button(L("关闭")) {
+                                    terminalFileBrowserRoute = nil
+                                }
+                            }
+                        }
+                    }
+                    .accessibilityIdentifier("terminal.file-browser")
+                    .presentationDragIndicator(.visible)
+                }
+            }
+            .sheet(item: $paywallContext) { context in
+                PaywallView(dependencies: dependencies, context: context)
             }
             .sheet(
                 isPresented: $isSessionListPresented,
@@ -266,7 +305,16 @@ private extension TerminalScreen {
                     },
                     attachmentState: attachmentCoordinator.panelState,
                     onAttachmentAction: handleAttachmentAction,
-                    onPersistentWorkingDirectoryChanged: { providerWorkingDirectory = $0 }
+                    onPersistentWorkingDirectoryChanged: { providerWorkingDirectory = $0 },
+                    onTerminalWorkingDirectoryChanged: { source, generation, path in
+                        updateWorkingDirectory(
+                            source: source,
+                            tabID: tab.id,
+                            generation: generation,
+                            path: path,
+                            terminalSource: tab.source
+                        )
+                    }
                 )
                 .overlay {
                     if case let .disconnected(message) = tab.status {
@@ -361,9 +409,64 @@ private extension TerminalScreen {
         switch action {
         case .switchTerminal:
             isSessionListPresented = true
+        case .fileBrowser:
+            openFileBrowser()
         case .closeTerminal:
             dismiss()
         }
+    }
+
+    private func synchronizeWorkingDirectory(for tab: TerminalTab?) {
+        guard let tab else { return }
+        var resolver = terminalWorkingDirectoryResolvers[tab.id] ?? .init()
+        resolver.synchronize(generation: tab.generation)
+        terminalWorkingDirectoryResolvers[tab.id] = resolver
+    }
+
+    private func updateWorkingDirectory(
+        source: TerminalWorkingDirectorySource,
+        tabID: String,
+        generation: UInt64,
+        path: String?,
+        terminalSource: TerminalSessionSource
+    ) {
+        guard let tab = terminalSessions.store.tab(id: tabID), tab.generation == generation else {
+            return
+        }
+        var resolver = terminalWorkingDirectoryResolvers[tabID] ?? .init()
+        resolver.update(source: source, generation: generation, path: path)
+        terminalWorkingDirectoryResolvers[tabID] = resolver
+
+        guard case .docker = terminalSource else {
+            terminalFileBrowserViewModels[tabID]?.setInitialPathIfNeeded(resolver.effectivePath)
+            return
+        }
+    }
+
+    private func openFileBrowser() {
+        guard let tab = activeTab else { return }
+        guard dependencies.subscription.gate.allowed(.fileManagement) else {
+            paywallContext = .fileManagement
+            return
+        }
+
+        synchronizeWorkingDirectory(for: tab)
+        let viewModel: FileBrowserViewModel
+        if let existing = terminalFileBrowserViewModels[tab.id] {
+            viewModel = existing
+        } else {
+            viewModel = FileBrowserViewModel(host: host, dependencies: dependencies)
+            if case .docker = tab.source {
+                viewModel.setInitialPathIfNeeded(nil)
+            } else {
+                viewModel.setInitialPathIfNeeded(
+                    terminalWorkingDirectoryResolvers[tab.id]?.effectivePath
+                )
+            }
+            terminalFileBrowserViewModels[tab.id] = viewModel
+        }
+        viewModel.resetTransientPresentationState()
+        terminalFileBrowserRoute = TerminalFileBrowserRoute(tabID: tab.id)
     }
 
     private func presentDeferredNewTerminal() {
@@ -439,13 +542,21 @@ private extension TerminalScreen {
 
 private enum DeferredTerminalSessionAction {
     case switchTerminal
+    case fileBrowser
     case closeTerminal
+}
+
+private struct TerminalFileBrowserRoute: Identifiable {
+    let tabID: String
+
+    var id: String { tabID }
 }
 
 private struct TerminalSessionActionsSheet: View {
     let host: Host
     let tab: TerminalTab
     let onSwitchTerminal: () -> Void
+    let onOpenFileBrowser: () -> Void
     let onCloseTerminal: () -> Void
 
     var body: some View {
@@ -464,6 +575,12 @@ private struct TerminalSessionActionsSheet: View {
                     identifier: "terminal.session-actions.switch",
                     showsDisclosure: true,
                     action: onSwitchTerminal
+                )
+                actionRow(
+                    title: L("文件管理"),
+                    systemName: "folder",
+                    identifier: "terminal.session-actions.files",
+                    action: onOpenFileBrowser
                 )
                 actionRow(
                     title: L("关闭终端"),

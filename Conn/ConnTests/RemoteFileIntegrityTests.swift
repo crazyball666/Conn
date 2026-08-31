@@ -139,6 +139,27 @@ struct RemoteFileIntegrityTests {
         }
     }
 
+    @Test("重新打开终端文件页前清理遗留操作提示")
+    func fileBrowserResetsTransientPresentationState() {
+        let viewModel = FileBrowserViewModel(
+            host: Self.host,
+            dependencies: makeDependencies(fileSystem: FaultInjectingFileSystem(seeds: [:]))
+        )
+        viewModel.actionMessage = "stale"
+        viewModel.pendingDeletion = FileEntry(
+            name: "old.txt",
+            path: "/old.txt",
+            size: 1,
+            permissions: 0o100644,
+            kind: .file
+        )
+
+        viewModel.resetTransientPresentationState()
+
+        #expect(viewModel.actionMessage == nil)
+        #expect(viewModel.pendingDeletion == nil)
+    }
+
     private static let host = Host(
         name: "integrity-test",
         address: "127.0.0.1",

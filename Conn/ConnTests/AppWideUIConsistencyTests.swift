@@ -473,16 +473,22 @@ struct AppWideUIConsistencyTests {
         #expect(!keybar.contains("Button(L(\"执行\"))"))
     }
 
-    @Test("终端会话操作仅保留切换与关闭页面，关闭页面不释放会话")
+    @Test("终端会话操作包含文件管理且关闭页面不释放会话")
     func terminalSessionActionsClosePageWithoutClosingSession() throws {
         let source = try appSource("Terminal/TerminalScreen.swift")
+        let host = try packageSource("Sources/ConnTerminal/TerminalHostingView.swift")
 
         #expect(!source.contains("onReturnToTerminalList"))
         #expect(!source.contains("terminal.session-actions.return"))
         #expect(!source.contains("closeTerminalAndDismiss"))
         #expect(source.contains("case .closeTerminal:\n            dismiss()"))
         #expect(source.contains("terminal.session-actions.switch"))
+        #expect(source.contains("terminal.session-actions.files"))
         #expect(source.contains("terminal.session-actions.close"))
+        #expect(source.contains("onTerminalWorkingDirectoryChanged"))
+        #expect(host.contains("onTerminalWorkingDirectoryChanged"))
+        #expect(host.contains("hostCurrentDirectoryUpdate(source _: TerminalView, directory:"))
+        #expect(host.contains("onPersistentWorkingDirectoryChanged(nil)"))
     }
 
     @Test("终端会话操作使用紧凑常规字重且仅图标使用主题色")

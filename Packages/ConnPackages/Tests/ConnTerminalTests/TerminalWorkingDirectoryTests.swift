@@ -68,7 +68,7 @@ struct TerminalWorkingDirectoryTests {
         resolver.update(source: .provider, generation: 1, path: "/old/provider")
         resolver.update(source: .osc7, generation: 1, path: "/old/shell")
 
-        resolver.update(source: .provider, generation: 2, path: nil)
+        resolver.synchronize(generation: 2)
         #expect(resolver.effectivePath == nil)
 
         resolver.update(source: .osc7, generation: 1, path: "/stale")

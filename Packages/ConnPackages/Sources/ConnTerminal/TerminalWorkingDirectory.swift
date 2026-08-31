@@ -120,6 +120,15 @@ public struct TerminalWorkingDirectoryResolver: Sendable, Equatable {
         providerPath ?? osc7Path
     }
 
+    /// Invalidates candidates when a tab's connection generation changes even
+    /// before the new connection emits a directory report.
+    public mutating func synchronize(generation: UInt64) {
+        guard self.generation == nil || generation > self.generation! else { return }
+        self.generation = generation
+        providerPath = nil
+        osc7Path = nil
+    }
+
     /// Updates one already-normalized source value. A newer generation clears
     /// both candidates; an old generation is ignored. A nil provider value
     /// removes only the provider candidate so a valid OSC 7 fallback remains
@@ -131,11 +140,7 @@ public struct TerminalWorkingDirectoryResolver: Sendable, Equatable {
     ) {
         if let currentGeneration = self.generation {
             guard generation >= currentGeneration else { return }
-            if generation > currentGeneration {
-                providerPath = nil
-                osc7Path = nil
-                self.generation = generation
-            }
+            if generation > currentGeneration { synchronize(generation: generation) }
         } else {
             self.generation = generation
         }
