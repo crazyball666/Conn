@@ -491,6 +491,20 @@ struct AppWideUIConsistencyTests {
         #expect(host.contains("onPersistentWorkingDirectoryChanged(nil)"))
     }
 
+    @Test("终端文件页面按会话独立保存且不复用主机详情页面")
+    func terminalFileBrowserStateIsOwnedByTerminalTab() throws {
+        let screen = try appSource("Terminal/TerminalScreen.swift")
+        let hostDetail = try appSource("Hosts/HostDetailView.swift")
+
+        #expect(screen.contains(
+            "@State private var terminalFileBrowserViewModels: [String: FileBrowserViewModel] = [:]"
+        ))
+        #expect(screen.contains("terminalFileBrowserViewModels[tab.id]"))
+        #expect(screen.contains("terminalFileBrowserRoute = TerminalFileBrowserRoute(tabID: tab.id)"))
+        #expect(hostDetail.contains("@State private var fileVM: FileBrowserViewModel"))
+        #expect(!screen.contains("@State private var fileVM: FileBrowserViewModel"))
+    }
+
     @Test("终端会话操作使用紧凑常规字重且仅图标使用主题色")
     func terminalSessionActionsUseConsistentTypographyAndAccentIcons() throws {
         let source = try appSource("Terminal/TerminalScreen.swift")

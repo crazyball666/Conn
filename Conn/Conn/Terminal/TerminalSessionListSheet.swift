@@ -30,6 +30,7 @@ struct TerminalSessionListSheet: View {
                         }
                         .buttonStyle(.plain)
                         .contentShape(.rect)
+                        .accessibilityIdentifier("terminal.session.\(tab.id)")
                         .contextMenu {
                             Button {
                                 renameTarget = tab

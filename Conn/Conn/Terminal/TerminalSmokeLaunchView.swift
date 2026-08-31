@@ -13,6 +13,7 @@
         @State private var launcher: TerminalLaunchPresentation
         @State private var didStart = false
         @State private var didScheduleReconnect = false
+        @State private var didSeedSecondTab = false
         @State private var didReconnect = false
         @Environment(SettingsStore.self) private var settings
 
@@ -40,7 +41,7 @@
                     launcher.launch(TerminalLaunchRequest(
                         host: host,
                         policy: .createNew,
-                        source: .shell,
+                        source: smokeSource,
                         initialCommand: initialCommand
                     ))
                 }
@@ -55,6 +56,17 @@
                     )
                 }
                 .onChange(of: launcher.route?.tabID) { _, tabID in
+                    if !didSeedSecondTab,
+                       ProcessInfo.processInfo.environment["CONN_SMOKE_TERMINAL_SECOND_TAB"] != nil {
+                        didSeedSecondTab = true
+                        Task {
+                            _ = await terminalSessions.launch(TerminalLaunchRequest(
+                                host: host,
+                                policy: .createNew,
+                                source: .shell
+                            ))
+                        }
+                    }
                     guard !didScheduleReconnect,
                           let tabID,
                           ProcessInfo.processInfo.environment["CONN_SMOKE_TERMINAL_RECONNECT"] != nil
@@ -68,6 +80,12 @@
                         }
                     }
                 }
+        }
+
+        private var smokeSource: TerminalSessionSource {
+            ProcessInfo.processInfo.environment["CONN_SMOKE_TERMINAL_DOCKER"] != nil
+                ? .docker(containerName: "demo")
+                : .shell
         }
     }
 

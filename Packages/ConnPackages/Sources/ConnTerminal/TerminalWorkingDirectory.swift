@@ -30,7 +30,8 @@ public enum TerminalWorkingDirectoryPath {
         guard !encodedPath.isEmpty,
               encodedPath.hasPrefix("/"),
               hasValidPercentEscapes(encodedPath),
-              let decodedPath = encodedPath.removingPercentEncoding
+              let decodedPath = encodedPath.removingPercentEncoding,
+              hasSafeCharacters(decodedPath)
         else {
             return nil
         }
@@ -147,15 +148,17 @@ public struct TerminalWorkingDirectoryResolver: Sendable, Equatable {
 
         switch source {
         case .provider:
-            guard path == nil || TerminalWorkingDirectoryPath.providerPath(from: path) != nil else {
+            let normalized = path.flatMap(TerminalWorkingDirectoryPath.providerPath(from:))
+            guard path == nil || normalized != nil else {
                 return
             }
-            providerPath = path.map { TerminalWorkingDirectoryPath.providerPath(from: $0)! }
+            providerPath = normalized
         case .osc7:
-            guard path == nil || TerminalWorkingDirectoryPath.providerPath(from: path) != nil else {
+            let normalized = path.flatMap(TerminalWorkingDirectoryPath.providerPath(from:))
+            guard path == nil || normalized != nil else {
                 return
             }
-            osc7Path = path.map { TerminalWorkingDirectoryPath.providerPath(from: $0)! }
+            osc7Path = normalized
         }
     }
 }
