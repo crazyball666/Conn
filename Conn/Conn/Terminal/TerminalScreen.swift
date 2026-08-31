@@ -129,6 +129,7 @@ struct TerminalScreen: View {
                                 Button(L("关闭")) {
                                     terminalFileBrowserRoute = nil
                                 }
+                                .accessibilityIdentifier("terminal.file-browser.close")
                             }
                         }
                     }

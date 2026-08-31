@@ -125,6 +125,7 @@ struct FileBrowserView: View {
         } message: {
             Text(viewModel.actionMessage ?? "")
         }
+        .accessibilityIdentifier("file-browser")
     }
 
     // MARK: - 顶部：面包屑 + 导航栏菜单
@@ -134,6 +135,7 @@ struct FileBrowserView: View {
             HStack(spacing: 3) { breadcrumbItems }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityIdentifier("file-browser.breadcrumbs")
     }
 
     @ToolbarContentBuilder
@@ -167,6 +169,9 @@ struct FileBrowserView: View {
             .foregroundStyle(crumb.isCurrent ? Color.connInk : .connAccent)
             .fontWeight(crumb.isCurrent ? .semibold : .regular)
             .disabled(crumb.isCurrent)
+            .accessibilityIdentifier(
+                "file-browser.breadcrumb." + (crumb.isRoot ? "root" : crumb.path)
+            )
         }
     }
 
@@ -302,6 +307,7 @@ struct FileBrowserView: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .accessibilityIdentifier("file-browser.entry.\(entry.path)")
         .contextMenu { rowActions(entry) }
     }
 
