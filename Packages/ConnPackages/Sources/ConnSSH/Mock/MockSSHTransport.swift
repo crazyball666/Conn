@@ -618,6 +618,11 @@ final class MockShellChannel: ShellChannel {
         (output, continuation) = AsyncThrowingStream.makeStream()
         let prompt = isMarketingScreenshot ? "deploy@ops-node-01:~$ " : "demo-host:~$ "
         continuation.yield(Data(prompt.utf8))
+        if ProcessInfo.processInfo.environment["CONN_SMOKE_TERMINAL_OSC7"] != nil {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [self] in
+                self.continuation.yield(Data("\u{1B}]7;file:///home\u{07}".utf8))
+            }
+        }
     }
 
     func write(_ bytes: Data) async throws {

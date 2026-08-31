@@ -7,7 +7,7 @@ final class TerminalFileBrowserUITests: XCTestCase {
 
     @MainActor
     func testProTerminalFileBrowserRestoresDirectoryAfterDismissal() {
-        let app = launchTerminal(subscription: "pro")
+        let app = launchTerminal(subscription: "pro", reportsOSC7Directory: true)
         let sessionActions = app.buttons["terminal.keybar.session-actions"]
         XCTAssertTrue(sessionActions.waitForExistence(timeout: 10))
 
@@ -19,12 +19,14 @@ final class TerminalFileBrowserUITests: XCTestCase {
 
         let browser = app.descendants(matching: .any)["terminal.file-browser"].firstMatch
         XCTAssertTrue(browser.waitForExistence(timeout: 5))
-        let home = app.descendants(matching: .any)["file-browser.entry./home"].firstMatch
-        XCTAssertTrue(home.waitForExistence(timeout: 10))
-        home.tap()
-
         let homeBreadcrumb = app.descendants(matching: .any)["file-browser.breadcrumb./home"].firstMatch
         XCTAssertTrue(homeBreadcrumb.waitForExistence(timeout: 5))
+        let deploy = app.descendants(matching: .any)["file-browser.entry./home/deploy"].firstMatch
+        XCTAssertTrue(deploy.waitForExistence(timeout: 10))
+        deploy.tap()
+
+        let deployBreadcrumb = app.descendants(matching: .any)["file-browser.breadcrumb./home/deploy"].firstMatch
+        XCTAssertTrue(deployBreadcrumb.waitForExistence(timeout: 5))
         app.buttons["terminal.file-browser.close"].tap()
         XCTAssertTrue(browser.waitForNonExistence(timeout: 5))
 
@@ -35,6 +37,10 @@ final class TerminalFileBrowserUITests: XCTestCase {
         XCTAssertTrue(browser.waitForExistence(timeout: 5))
         XCTAssertTrue(
             app.descendants(matching: .any)["file-browser.breadcrumb./home"].firstMatch
+                .waitForExistence(timeout: 5)
+        )
+        XCTAssertTrue(
+            app.descendants(matching: .any)["file-browser.breadcrumb./home/deploy"].firstMatch
                 .waitForExistence(timeout: 5),
             "同一个终端重新打开文件管理时应恢复上次目录"
         )
@@ -59,11 +65,17 @@ final class TerminalFileBrowserUITests: XCTestCase {
     }
 
     @MainActor
-    private func launchTerminal(subscription: String) -> XCUIApplication {
+    private func launchTerminal(
+        subscription: String,
+        reportsOSC7Directory: Bool = false
+    ) -> XCUIApplication {
         let app = XCUIApplication()
         app.launchEnvironment["CONN_DEMO"] = "1"
         app.launchEnvironment["CONN_SMOKE_TERMINAL"] = "1"
         app.launchEnvironment["CONN_SUBSCRIPTION_STATE"] = subscription
+        if reportsOSC7Directory {
+            app.launchEnvironment["CONN_SMOKE_TERMINAL_OSC7"] = "1"
+        }
         app.launchArguments += ["-conn.settings.terminalCursorBlinking", "NO"]
         app.launch()
         return app
