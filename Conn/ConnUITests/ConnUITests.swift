@@ -26,6 +26,26 @@ final class ConnUITests: XCTestCase {
         XCTAssertEqual(app.state, .runningForeground)
     }
 
+    @MainActor
+    func testHostKeyMismatchConfirmationKeepsServerListStable() {
+        let app = XCUIApplication()
+        app.launch()
+
+        XCTAssertTrue(app.navigationBars["主机"].waitForExistence(timeout: 10))
+        let alert = app.alerts["确认更新主机指纹"]
+
+        // 真实的指纹变更取决于服务器状态，不能在生产代码中植入测试开关。
+        // 如果当前设备已有一台发生指纹变更的主机，验证完整的确认入口和取消路径；
+        // 没有变更时仍验证列表和 App 进程保持稳定。
+        if alert.waitForExistence(timeout: 5) {
+            XCTAssertTrue(alert.buttons["更新指纹并重连"].exists)
+            XCTAssertTrue(alert.buttons["取消"].exists)
+            alert.buttons["取消"].tap()
+            XCTAssertTrue(app.navigationBars["主机"].waitForExistence(timeout: 5))
+        }
+        XCTAssertEqual(app.state, .runningForeground)
+    }
+
 #if CONN_DISABLE_SUBSCRIPTION
     @MainActor
     func testDisabledSubscriptionBuildShowsProEntitlement() {

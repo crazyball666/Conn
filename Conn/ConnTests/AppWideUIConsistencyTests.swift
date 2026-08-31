@@ -907,7 +907,8 @@ struct AppWideUIConsistencyTests {
         )
         #expect(source.contains(".containerRelativeFrame(.vertical)"))
         #expect(source.contains(".scrollBounceBehavior(.always, axes: .vertical)"))
-        #expect(source.contains(".refreshable { await viewModel.refresh() }"))
+        #expect(source.contains(".refreshable {"))
+        #expect(source.contains("await viewModel.refresh()"))
         #expect(!source.contains(".scrollBounceBehavior(.basedOnSize)"))
     }
 

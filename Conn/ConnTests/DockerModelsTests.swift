@@ -257,6 +257,7 @@ struct DockerModelsTests {
                 requirementAdapterRegistry: SnippetRequirementAdapterRegistry(adapters: [])
             ),
             diagnosticsTransport: transport,
+            hostKeyStore: InMemoryHostKeyStore(),
             monitor: MonitorScheduler(connectionManager: connectionManager),
             runHistory: StubRunHistoryRepository(),
             snippetRepository: StubSnippetRepository(),

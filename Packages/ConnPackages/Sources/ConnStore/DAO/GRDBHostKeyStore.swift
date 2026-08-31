@@ -8,6 +8,7 @@ import GRDB
 /// 与内存实现同语义：首次入库、相同放行、变更阻断且不覆盖。指纹跨 App 重启
 /// 留存，是防降级攻击的基础（技术方案 §4.1）。
 public struct GRDBHostKeyStore: HostKeyStore {
+    private static let keyType = "unknown"
     private let database: AppDatabase
     private let state: FailureState
 
@@ -33,7 +34,10 @@ public struct GRDBHostKeyStore: HostKeyStore {
         do {
             return try database.writer.read { db in
                 try KnownHostRecord
-                    .filter(sql: "host_pattern = ?", arguments: [endpoint.identifier])
+                    .filter(
+                        sql: "host_pattern = ? AND key_type = ?",
+                        arguments: [endpoint.identifier, Self.keyType]
+                    )
                     .fetchOne(db)?
                     .fingerprint
             }
@@ -44,7 +48,7 @@ public struct GRDBHostKeyStore: HostKeyStore {
     }
 
     public func remember(_ fingerprint: String, for endpoint: SSHEndpoint) {
-        // 用 host_pattern 唯一索引做 upsert：同主机改指纹时覆盖那一行。
+        // 用 host_pattern + key_type 唯一索引做 upsert：同主机同算法改指纹时覆盖那一行。
         do {
             try database.writer.write { db in
                 try db.execute(
@@ -53,11 +57,39 @@ public struct GRDBHostKeyStore: HostKeyStore {
                     VALUES (?, ?, ?, ?, ?)
                     ON CONFLICT(host_pattern, key_type) DO UPDATE SET fingerprint = excluded.fingerprint
                     """,
-                    arguments: [UUID().uuidString, endpoint.identifier, "unknown", fingerprint, Timestamp.now()]
+                    arguments: [UUID().uuidString, endpoint.identifier, Self.keyType, fingerprint, Timestamp.now()]
                 )
             }
         } catch {
             state.markFailed(endpoint)
+        }
+    }
+
+    public func replace(
+        _ fingerprint: String, ifCurrent expected: String, for endpoint: SSHEndpoint
+    ) -> HostKeyReplacementResult {
+        guard !state.hasFailed(endpoint) else { return .unavailable }
+        do {
+            return try database.writer.write { db in
+                let known = try KnownHostRecord
+                    .filter(
+                        sql: "host_pattern = ? AND key_type = ?",
+                        arguments: [endpoint.identifier, Self.keyType]
+                    )
+                    .fetchOne(db)?
+                    .fingerprint
+                guard !state.hasFailed(endpoint) else { return .unavailable }
+                guard let known else { return .unavailable }
+                guard known == expected else { return .expectedFingerprintMismatch }
+                try db.execute(
+                    sql: "UPDATE known_host SET fingerprint = ? WHERE host_pattern = ? AND key_type = ?",
+                    arguments: [fingerprint, endpoint.identifier, Self.keyType]
+                )
+                return .replaced
+            }
+        } catch {
+            state.markFailed(endpoint)
+            return .unavailable
         }
     }
 

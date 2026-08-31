@@ -86,30 +86,36 @@
         }
       }
     },
-    "主机指纹已变更，连接已阻止。\n远程主机密钥与首次记录不一致，可能源于系统重装或中间人攻击。\n已记录：%@\n当前：%@\n请确认变更来源后再手动信任。" : {
+    "主机指纹已变更，连接已阻止。\n校验端点：%@:%d\n远程主机密钥与首次记录不一致，可能源于系统重装或中间人攻击。\n已记录：%@\n当前：%@\n请确认变更来源后再手动信任。" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "The host fingerprint has changed, so the connection was blocked.\nThe remote host key differs from the initial record. This may result from a system reinstall or a man-in-the-middle attack.\nRecorded: %@\nCurrent: %@\nVerify the source of the change before trusting it manually."
+            "value" : "The host fingerprint has changed, so the connection to %@:%d was blocked.\nThe remote host key differs from the initial record. This may result from a system reinstall or a man-in-the-middle attack.\nRecorded: %@\nCurrent: %@\nVerify the source of the change before trusting it manually."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "ホストのフィンガープリントが変更されたため、接続をブロックしました。\nリモートホストの鍵が初回の記録と一致しません。システムの再インストールまたは中間者攻撃の可能性があります。\n記録済み：%@\n現在：%@\n変更元を確認してから手動で信頼してください。"
+            "value" : "ホストのフィンガープリントが変更されたため、%@:%d への接続をブロックしました。\nリモートホストの鍵が初回の記録と一致しません。システムの再インストールまたは中間者攻撃の可能性があります。\n記録済み：%@\n現在：%@\n変更元を確認してから手動で信頼してください。"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "호스트 지문이 변경되어 연결을 차단했습니다.\n원격 호스트 키가 최초 기록과 일치하지 않습니다. 시스템 재설치 또는 중간자 공격이 원인일 수 있습니다.\n기록됨: %@\n현재: %@\n변경 원인을 확인한 후 수동으로 신뢰하세요."
+            "value" : "호스트 지문이 변경되어 %@:%d 연결을 차단했습니다.\n원격 호스트 키가 최초 기록과 일치하지 않습니다. 시스템 재설치 또는 중간자 공격이 원인일 수 있습니다.\n기록됨: %@\n현재: %@\n변경 원인을 확인한 후 수동으로 신뢰하세요."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "主机指纹已变更，已阻止连接到 %@:%d。\n远程主机密钥与首次记录不一致，可能源于系统重装或中间人攻击。\n已记录：%@\n当前：%@\n请确认变更来源后再手动信任。"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "主機指紋已變更，因此已阻止連線。\n遠端主機金鑰與首次記錄不一致，可能源於系統重裝或中間人攻擊。\n已記錄：%@\n目前：%@\n請確認變更來源後再手動信任。"
+            "value" : "主機指紋已變更，因此已阻止 %@:%d 的連線。\n遠端主機金鑰與首次記錄不一致，可能源於系統重裝或中間人攻擊。\n已記錄：%@\n目前：%@\n請確認變更來源後再手動信任。"
           }
         }
       }

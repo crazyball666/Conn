@@ -42,6 +42,16 @@ struct GRDBHostKeyStoreTests {
         #expect(store.knownFingerprint(for: endpoint) == "SHA256:newtrust")
     }
 
+    @Test("条件覆盖在事务内校验旧指纹")
+    func conditionalReplaceIsAtomicAtStoreBoundary() throws {
+        let store = try makeStore()
+        _ = store.evaluate(fingerprint, for: endpoint)
+
+        #expect(store.replace("SHA256:newtrust", ifCurrent: fingerprint, for: endpoint) == .replaced)
+        #expect(store.replace("SHA256:stale", ifCurrent: fingerprint, for: endpoint) == .expectedFingerprintMismatch)
+        #expect(store.knownFingerprint(for: endpoint) == "SHA256:newtrust")
+    }
+
     @Test("指纹跨 store 实例留存（同一数据库）")
     func persistsAcrossInstances() throws {
         let database = try AppDatabase.inMemory()

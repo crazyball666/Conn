@@ -29,6 +29,9 @@ public final class MonitorScheduler {
     public private(set) var metrics: [String: HostMetrics] = [:]
     /// 各主机最近一次采集错误（面向用户的短诊断），成功则清空。
     public private(set) var errors: [String: String] = [:]
+    /// 各主机最近一次主机指纹变更错误。与 `errors` 并存，供 UI 在不解析文案的情况下
+    /// 展示已记录/当前指纹，并在用户确认后执行安全覆盖。
+    public private(set) var hostKeyMismatches: [String: SSHError] = [:]
     /// 各主机当前采集阶段，键为 `Host.id`。驱动卡片右上角的转圈与「重连中」。
     public private(set) var phases: [String: CollectPhase] = [:]
     public private(set) var lastScanAt: Date?
@@ -82,6 +85,12 @@ public final class MonitorScheduler {
     /// 后续轮次自然让位（本函数顶部的 guard），每台主机因此至多只有一个孤儿；
     /// 孤儿自己跑完时再移除，那台主机随即恢复正常采集。
     private var inFlight: Set<String> = []
+    /// 用户确认指纹后正在执行的单主机恢复。它在 `invalidate` 的 await 期间也占位，
+    /// 防止后台轮询抢先启动另一轮采集。
+    private var reconnectInFlight: Set<String> = []
+    /// 正在采集的主机等待用户确认的重连。确认动作不能因并发轮询而静默丢失，
+    /// 等原采集真正释放 `inFlight` 后再驱逐并重新握手。
+    private var inFlightWaiters: [String: [CheckedContinuation<Void, Never>]] = [:]
 
     /// 上次 `startDashboard` 的参数。回前台恢复时按原样重启。
     ///
@@ -224,6 +233,7 @@ public final class MonitorScheduler {
         generation &+= 1
         // 轮询停了就没有任何一台在采集中，否则转圈会一直挂着。
         phases.removeAll()
+        reconnectInFlight.removeAll()
         // 清掉恢复配置，把 `resumeAfterBackground` 的作用域精确收敛到
         // 「仪表盘此刻确实在跑」。
         //
@@ -272,6 +282,44 @@ public final class MonitorScheduler {
         lastScanAt = now()
     }
 
+    /// 驱逐指定主机的旧会话并执行一次单主机采集。
+    ///
+    /// 服务器列表在用户确认更新主机指纹后使用此入口。确认前的 mismatch 已经清掉了
+    /// 该主机的指标，因此 `performCollect` 不会把这次恢复再套入普通采集的传输重试，
+    /// 从而保证用户确认后最多只有一次重连尝试。
+    public func reconnect(host: ConnKit.Host) async {
+        let scanGeneration = generation
+        guard
+            isCurrent(scanGeneration),
+            !reconnectInFlight.contains(host.id)
+        else { return }
+        reconnectInFlight.insert(host.id)
+        defer { reconnectInFlight.remove(host.id) }
+        await waitForCollectionToFinish(hostID: host.id)
+        guard isCurrent(scanGeneration) else { return }
+        await connectionManager.invalidate(host: host)
+        guard isCurrent(scanGeneration) else { return }
+        await collectOne(
+            host,
+            generation: scanGeneration,
+            allowTransportRetry: false,
+            isManualReconnect: true
+        )
+        guard isCurrent(scanGeneration) else { return }
+        lastScanAt = now()
+    }
+
+    /// 清除同一远端端点下的重复告警。多个本地主机配置可能共享一个 endpoint，
+    /// 而 TOFU 指纹按 endpoint 存储；用户确认一次后，不应为同一密钥轮换重复弹窗。
+    public func clearHostKeyMismatches(for endpoint: SSHEndpoint) {
+        for (hostID, error) in hostKeyMismatches {
+            guard case let .hostKeyMismatch(errorEndpoint, _, _) = error,
+                  errorEndpoint == endpoint
+            else { continue }
+            hostKeyMismatches[hostID] = nil
+        }
+    }
+
     // MARK: - 采集
 
     /// 一轮采集，滑动窗口维持至多 `concurrency` 个并发（TaskGroup 补位）。
@@ -317,12 +365,18 @@ public final class MonitorScheduler {
     /// 此刻是什么状态，卡片继续转圈是诚实的。收圈交给孤儿完成时做。
     private func collectOne(
         _ host: ConnKit.Host, generation scanGeneration: Int,
-        includeExtended: Bool = false
+        includeExtended: Bool = false,
+        allowTransportRetry: Bool = true,
+        isManualReconnect: Bool = false
     ) async {
         // 作废的旧轮直接不跑；同一主机已有一轮在飞行中也让位（详见 `generation`/`inFlight`）。
         // 注意这里**不再** `defer { inFlight.remove(host.id) }`——移除是孤儿自己的责任，
         // 理由见 `inFlight` 的文档注释。
-        guard isCurrent(scanGeneration), !inFlight.contains(host.id) else { return }
+        guard
+            isCurrent(scanGeneration),
+            !inFlight.contains(host.id),
+            isManualReconnect || !reconnectInFlight.contains(host.id)
+        else { return }
         inFlight.insert(host.id)
 
         await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
@@ -355,7 +409,8 @@ public final class MonitorScheduler {
             Task { @MainActor in
                 await self.performCollect(
                     host, generation: scanGeneration,
-                    includeExtended: includeExtended
+                    includeExtended: includeExtended,
+                    allowTransportRetry: allowTransportRetry
                 )
                 timer.cancel()          // 采完了就别让计时器白占着一个 Task
                 latch.workDidFinish()
@@ -403,16 +458,21 @@ public final class MonitorScheduler {
     /// 仪表盘轮询默认只取核心段；详情轮询按 `wantsExtended` 传入。
     private func performCollect(
         _ host: ConnKit.Host, generation scanGeneration: Int,
-        includeExtended: Bool
+        includeExtended: Bool,
+        allowTransportRetry: Bool
     ) async {
         // **无条件移除，不能挡在 `guard isCurrent` 后面**：代次一变（切走再回来、
         // 回前台重启）这台主机就会永久留在 `inFlight` 里，此后每一轮都对它让位，
         // 采集永久停摆。这个 defer 是「至多一个孤儿」这条不变量的另一半。
-        defer { inFlight.remove(host.id) }
+        defer {
+            inFlight.remove(host.id)
+            let waiters = inFlightWaiters.removeValue(forKey: host.id) ?? []
+            for waiter in waiters { waiter.resume() }
+        }
 
         // 只有「本来有读数」的主机才享受这次宽限。首采失败直接如实报错；
         // 已判定故障的主机（metrics 已被清空）也不再重试，避免每轮双倍连接尝试。
-        let allowsRetry = metrics[host.id] != nil
+        let allowsRetry = allowTransportRetry && metrics[host.id] != nil
 
         if let error = await attempt(
             host, generation: scanGeneration,
@@ -435,6 +495,18 @@ public final class MonitorScheduler {
         // 代次已变时不收圈也不会漏——`stop()` 本来就 `phases.removeAll()`。
         guard isCurrent(scanGeneration) else { return }
         phases[host.id] = .idle
+    }
+
+    /// 等待当前采集完成，避免确认动作只更新指纹却因为命中 `inFlight` 而没有重连。
+    private func waitForCollectionToFinish(hostID: String) async {
+        guard inFlight.contains(hostID) else { return }
+        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+            if inFlight.contains(hostID) {
+                inFlightWaiters[hostID, default: []].append(continuation)
+            } else {
+                continuation.resume()
+            }
+        }
     }
 
     /// 一次采集尝试。
@@ -468,6 +540,7 @@ public final class MonitorScheduler {
             metrics[host.id] = publishedMetrics
             onMetricsUpdated?(publishedMetrics)
             errors[host.id] = nil
+            hostKeyMismatches[host.id] = nil
             return nil
         } catch let error as MetricCollectionError {
             // 平台不支持是稳定的能力结论，不是传输故障。保留健康 SSH 连接，让终端、
@@ -485,6 +558,11 @@ public final class MonitorScheduler {
     /// 而不是一直挂着旧的绿色读数。
     private func record(_ error: Error, for host: ConnKit.Host) {
         errors[host.id] = error.friendlyDiagnosis
+        if let sshError = error as? SSHError, case .hostKeyMismatch = sshError {
+            hostKeyMismatches[host.id] = sshError
+        } else {
+            hostKeyMismatches[host.id] = nil
+        }
         metrics[host.id] = nil
     }
 }

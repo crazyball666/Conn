@@ -1,6 +1,42 @@
 {
   "sourceLanguage" : "zh-Hans",
   "strings" : {
+    "确认更新主机指纹" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Confirm Host Fingerprint Update" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "ホストフィンガープリントの更新を確認" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "호스트 지문 업데이트 확인" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "确认更新主机指纹" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "確認更新主機指紋" } }
+      }
+    },
+    "更新指纹并重连" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Update Fingerprint and Reconnect" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "フィンガープリントを更新して再接続" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "지문 업데이트 후 다시 연결" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "更新指纹并重连" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "更新指紋並重新連線" } }
+      }
+    },
+    "主机指纹已发生新的变化，请重新确认" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "The host fingerprint changed again. Please confirm it again." } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "ホストフィンガープリントが再度変更されました。もう一度確認してください。" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "호스트 지문이 다시 변경되었습니다. 다시 확인하세요." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "主机指纹已发生新的变化，请重新确认" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "主機指紋已再次變更，請重新確認" } }
+      }
+    },
+    "无法更新主机指纹，请检查本地数据库状态后重试" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Unable to update the host fingerprint. Check the local database and try again." } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "ホストフィンガープリントを更新できません。ローカルデータベースを確認して再試行してください。" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "호스트 지문을 업데이트할 수 없습니다. 로컬 데이터베이스를 확인한 후 다시 시도하세요." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "无法更新主机指纹，请检查本地数据库状态后重试" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "無法更新主機指紋，請檢查本機資料庫狀態後重試" } }
+      }
+    },
     "Conn Pro" : {
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Conn Pro" } },

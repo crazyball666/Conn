@@ -113,6 +113,24 @@ final class FlakyTransport: SSHTransport {
     }
 }
 
+final class HostKeyMismatchTransport: SSHTransport {
+    private let error: SSHError
+
+    init(expected: String, actual: String) {
+        error = .hostKeyMismatch(
+            endpoint: SSHEndpoint(host: "10.0.0.1", port: 22),
+            expected: expected,
+            actual: actual
+        )
+    }
+
+    func connect(
+        _ endpoint: SSHEndpoint, username: String, auth: SSHAuth, hostKeyPolicy: HostKeyPolicy
+    ) async throws -> any SSHSession {
+        throw error
+    }
+}
+
 struct FixturePlatformDetector: RemotePlatformDetecting {
     let profile: RemotePlatformProfile
 

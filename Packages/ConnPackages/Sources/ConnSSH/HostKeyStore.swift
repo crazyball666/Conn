@@ -12,6 +12,16 @@ public enum HostKeyVerdict: Sendable, Equatable {
     case unavailable
 }
 
+/// 条件更新主机指纹的结果。
+public enum HostKeyReplacementResult: Sendable, Equatable {
+    /// 旧指纹匹配，已完成覆盖。
+    case replaced
+    /// 本地已有记录，但不是调用方确认时看到的旧指纹。
+    case expectedFingerprintMismatch
+    /// 指纹库不可读或不可写。
+    case unavailable
+}
+
 /// TOFU（Trust On First Use）主机指纹库。
 ///
 /// 由 GRDB 实现（`known_host` 表，见 `ConnStore.GRDBHostKeyStore`），
@@ -20,6 +30,13 @@ public protocol HostKeyStore: Sendable {
     func knownFingerprint(for endpoint: SSHEndpoint) -> String?
     /// 手动记住指纹（首次信任，或用户在告警里确认覆盖变更）。
     func remember(_ fingerprint: String, for endpoint: SSHEndpoint)
+    /// 仅当本地记录仍是 `expected` 时覆盖指纹。
+    ///
+    /// 这是变更告警的安全确认边界：弹窗可能在后台停留一段时间，不能让过期的确认
+    /// 覆盖期间已经写入的另一条记录，并区分条件不满足与存储故障。
+    func replace(
+        _ fingerprint: String, ifCurrent expected: String, for endpoint: SSHEndpoint
+    ) -> HostKeyReplacementResult
     /// 裁决呈现的指纹。首次会自动 `remember`；变更**不**自动覆盖。
     func evaluate(_ presented: String, for endpoint: SSHEndpoint) -> HostKeyVerdict
 }
@@ -50,6 +67,17 @@ public final class InMemoryHostKeyStore: HostKeyStore, @unchecked Sendable {
 
     public func remember(_ fingerprint: String, for endpoint: SSHEndpoint) {
         lock.withLock { store[endpoint.identifier] = fingerprint }
+    }
+
+    public func replace(
+        _ fingerprint: String, ifCurrent expected: String, for endpoint: SSHEndpoint
+    ) -> HostKeyReplacementResult {
+        lock.withLock {
+            guard let known = store[endpoint.identifier] else { return .unavailable }
+            guard known == expected else { return .expectedFingerprintMismatch }
+            store[endpoint.identifier] = fingerprint
+            return .replaced
+        }
     }
 
     public func evaluate(_ presented: String, for endpoint: SSHEndpoint) -> HostKeyVerdict {

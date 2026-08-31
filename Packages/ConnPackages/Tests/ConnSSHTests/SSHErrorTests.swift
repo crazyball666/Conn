@@ -14,7 +14,11 @@ struct SSHErrorTests {
             .authFailed(reason: .badCredentials),
             .authFailed(reason: .rsaSha2Unsupported),
             .authFailed(reason: .noAcceptedMethods),
-            .hostKeyMismatch(expected: "SHA256:aaa", actual: "SHA256:bbb"),
+            .hostKeyMismatch(
+                endpoint: SSHEndpoint(host: "example.com", port: 22),
+                expected: "SHA256:aaa",
+                actual: "SHA256:bbb"
+            ),
             .unsupportedByEngine(.keyboardInteractive),
             .jumpChainFailed(hopIndex: 1, hopHost: "bastion"),
             .channelClosed

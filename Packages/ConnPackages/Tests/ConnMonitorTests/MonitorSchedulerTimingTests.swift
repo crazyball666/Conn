@@ -16,6 +16,77 @@ struct MonitorSchedulerTimingTests {
 
     // MARK: - 预热轮与防抖
 
+    @Test("主机指纹错误保留已记录和当前指纹，供列表确认")
+    func preservesHostKeyMismatchDetails() async {
+        let target = host()
+        let expected = "SHA256:old"
+        let actual = "SHA256:new"
+        let manager = ConnectionManager(
+            transport: HostKeyMismatchTransport(expected: expected, actual: actual),
+            platformDetector: FixturePlatformDetector(profile: .init(kind: .linux))
+        )
+        let scheduler = MonitorScheduler(connectionManager: manager)
+
+        await scheduler.scanNow(hosts: [target])
+
+        #expect(scheduler.hostKeyMismatches[target.id] == .hostKeyMismatch(
+            endpoint: SSHEndpoint(host: target.address, port: target.port),
+            expected: expected,
+            actual: actual
+        ))
+        #expect(scheduler.errors[target.id] != nil)
+    }
+
+    @Test("确认重连等待已经进行中的采集，不静默跳过")
+    func reconnectWaitsForExistingCollection() async throws {
+        let target = host()
+        let log = CallLog()
+        let gate = Gate()
+        await log.armGate(gate)
+        let scheduler = MonitorScheduler(
+            connectionManager: ConnectionManager(
+                transport: FlakyTransport(log: log),
+                platformDetector: FixturePlatformDetector(profile: .init(kind: .linux))
+            )
+        )
+
+        let scan = Task { await scheduler.scanNow(hosts: [target]) }
+        await waitUntilExecCount(log, atLeast: 1)
+        let reconnect = Task { await scheduler.reconnect(host: target) }
+
+        // 重连必须先等现有采集释放 inFlight，不能因为撞上并发轮询而直接返回。
+        try await Task.sleep(for: .milliseconds(50))
+        #expect(await log.connects == 1)
+
+        await gate.open()
+        await scan.value
+        await reconnect.value
+
+        #expect(await log.connects == 2)
+        #expect(scheduler.errors[target.id] == nil)
+    }
+
+    @Test("同一端点的多个主机确认一次后清除重复的指纹告警")
+    func clearsHostKeyMismatchesForSharedEndpoint() async {
+        let first = host("h1")
+        let second = host("h2")
+        let expected = "SHA256:old"
+        let actual = "SHA256:new"
+        let manager = ConnectionManager(
+            transport: HostKeyMismatchTransport(expected: expected, actual: actual),
+            platformDetector: FixturePlatformDetector(profile: .init(kind: .linux))
+        )
+        let scheduler = MonitorScheduler(connectionManager: manager)
+        await scheduler.scanNow(hosts: [first, second])
+        #expect(scheduler.hostKeyMismatches.count == 2)
+
+        scheduler.clearHostKeyMismatches(
+            for: SSHEndpoint(host: first.address, port: first.port)
+        )
+
+        #expect(scheduler.hostKeyMismatches.isEmpty)
+    }
+
     @Test("已有读数时跳过 2s 预热轮")
     func skipsWarmUpWhenBaselineExists() async throws {
         // 用可控时钟并把「上次采集」推到 5s 防抖窗口之外：

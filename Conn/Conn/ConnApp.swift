@@ -184,6 +184,8 @@ struct AppDependencies {
     let snippetExecutionPlanner: SnippetExecutionPlanner
     /// 连接测试用的传输层（与 connectionManager 同引擎，供诊断树直接调用）。
     let diagnosticsTransport: any SSHTransport
+    /// 持久化 TOFU 主机指纹库。与 CitadelTransport 共用同一实例，供确认轮换时条件覆盖。
+    let hostKeyStore: any HostKeyStore
     /// 监控采集调度（Phase 7）。仪表盘 30s / 详情 3s。
     let monitor: MonitorScheduler
     /// 执行审计仓库（Phase 8/9）。容器启停、片段执行写入。
@@ -308,6 +310,7 @@ struct AppDependencies {
                 connectionManager: connectionManager,
                 snippetExecutionPlanner: snippetExecutionPlanner,
                 diagnosticsTransport: transport,
+                hostKeyStore: hostKeyStore,
                 monitor: monitor,
                 runHistory: runHistoryStore,
                 snippetRepository: snippetStore,

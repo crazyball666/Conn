@@ -53,4 +53,15 @@ struct HostKeyStoreTests {
         store.remember("SHA256:newtrusted", for: endpoint)
         #expect(store.evaluate("SHA256:newtrusted", for: endpoint) == .matches)
     }
+
+    @Test("条件覆盖只接受弹窗中的旧指纹，避免过期确认覆盖新记录")
+    func conditionalReplaceRequiresExpectedFingerprint() {
+        let store = InMemoryHostKeyStore()
+        _ = store.evaluate(fingerprint, for: endpoint)
+
+        #expect(store.replace("SHA256:newtrusted", ifCurrent: fingerprint, for: endpoint) == .replaced)
+        #expect(store.knownFingerprint(for: endpoint) == "SHA256:newtrusted")
+        #expect(store.replace("SHA256:stale", ifCurrent: fingerprint, for: endpoint) == .expectedFingerprintMismatch)
+        #expect(store.knownFingerprint(for: endpoint) == "SHA256:newtrusted")
+    }
 }

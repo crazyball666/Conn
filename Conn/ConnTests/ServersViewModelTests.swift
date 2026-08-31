@@ -53,7 +53,8 @@ private final class StubHostGroupRepository: HostGroupRepository, @unchecked Sen
 struct ServersViewModelTests {
     private func makeViewModel(
         hosts: [Host] = [],
-        groups: [HostGroup] = []
+        groups: [HostGroup] = [],
+        hostKeyStore: any HostKeyStore = InMemoryHostKeyStore()
     ) -> (ServersViewModel, StubHostGroupRepository) {
         let hostStore = StubHostRepository(hosts: hosts)
         let groupStore = StubHostGroupRepository(groups: groups)
@@ -65,10 +66,133 @@ struct ServersViewModelTests {
         let viewModel = ServersViewModel(
             hostStore: hostStore,
             groupStore: groupStore,
-            monitor: monitor
+            monitor: monitor,
+            hostKeyStore: hostKeyStore
         )
         viewModel.load()
         return (viewModel, groupStore)
+    }
+
+    @Test("确认更新主机指纹后覆盖旧记录并触发重连")
+    func confirmsHostKeyChangeAndReconnects() async {
+        let target = Host(name: "web", address: "10.0.0.1", username: "root")
+        let store = InMemoryHostKeyStore()
+        let oldFingerprint = "SHA256:old"
+        let newFingerprint = "SHA256:new"
+        _ = store.evaluate(oldFingerprint, for: SSHEndpoint(host: target.address, port: target.port))
+        let log = ExecLog()
+        let monitor = MonitorScheduler(
+            connectionManager: ConnectionManager(
+                transport: RotatingHostKeyTransport(
+                    log: log, expected: oldFingerprint, actual: newFingerprint
+                ),
+                platformDetector: ServersFixedPlatformDetector()
+            )
+        )
+        let viewModel = ServersViewModel(
+            hostStore: StubHostRepository(hosts: [target]),
+            groupStore: StubHostGroupRepository(),
+            monitor: monitor,
+            hostKeyStore: store
+        )
+        viewModel.load()
+        await monitor.scanNow(hosts: [target])
+        #expect(monitor.hostKeyMismatches[target.id] == .hostKeyMismatch(
+            endpoint: SSHEndpoint(host: target.address, port: target.port),
+            expected: oldFingerprint,
+            actual: newFingerprint
+        ))
+
+        await viewModel.updateHostKeyAndReconnect(
+            host: target,
+            endpoint: SSHEndpoint(host: target.address, port: target.port),
+            expected: oldFingerprint,
+            actual: newFingerprint
+        )
+
+        #expect(store.knownFingerprint(for: SSHEndpoint(host: target.address, port: target.port)) == newFingerprint)
+        #expect(await log.connects == 2, "确认后只能新增一次重连握手")
+    }
+
+    @Test("过期确认不覆盖已经变化的主机指纹")
+    func staleHostKeyConfirmationDoesNotOverwrite() async {
+        let target = Host(name: "web", address: "10.0.0.1", username: "root")
+        let store = InMemoryHostKeyStore()
+        let currentFingerprint = "SHA256:current"
+        _ = store.evaluate(currentFingerprint, for: SSHEndpoint(host: target.address, port: target.port))
+        let log = ExecLog()
+        let monitor = MonitorScheduler(
+            connectionManager: ConnectionManager(
+                transport: RotatingHostKeyTransport(
+                    log: log, expected: currentFingerprint, actual: "SHA256:presented"
+                ),
+                platformDetector: ServersFixedPlatformDetector()
+            )
+        )
+        let viewModel = ServersViewModel(
+            hostStore: StubHostRepository(hosts: [target]),
+            groupStore: StubHostGroupRepository(),
+            monitor: monitor,
+            hostKeyStore: store
+        )
+        viewModel.load()
+        await monitor.scanNow(hosts: [target])
+
+        await viewModel.updateHostKeyAndReconnect(
+            host: target,
+            endpoint: SSHEndpoint(host: target.address, port: target.port),
+            expected: currentFingerprint,
+            actual: "SHA256:attacker"
+        )
+
+        #expect(store.knownFingerprint(for: SSHEndpoint(host: target.address, port: target.port)) == currentFingerprint)
+        #expect(viewModel.errorMessage == Conn.L("主机指纹已发生新的变化，请重新确认"))
+    }
+
+    @Test("确认后再次出现第三个指纹时不覆盖本次已确认的指纹")
+    func laterHostKeyRotationDoesNotOverwriteConfirmedFingerprint() async {
+        let target = Host(name: "web", address: "10.0.0.1", username: "root")
+        let store = InMemoryHostKeyStore()
+        let endpoint = SSHEndpoint(host: target.address, port: target.port)
+        let oldFingerprint = "SHA256:old"
+        let newFingerprint = "SHA256:new"
+        let laterFingerprint = "SHA256:later"
+        _ = store.evaluate(oldFingerprint, for: endpoint)
+        let log = ExecLog()
+        let monitor = MonitorScheduler(
+            connectionManager: ConnectionManager(
+                transport: RotatingHostKeyTransport(
+                    log: log,
+                    expected: oldFingerprint,
+                    actual: newFingerprint,
+                    reconnectMismatch: laterFingerprint
+                ),
+                platformDetector: ServersFixedPlatformDetector()
+            )
+        )
+        let viewModel = ServersViewModel(
+            hostStore: StubHostRepository(hosts: [target]),
+            groupStore: StubHostGroupRepository(),
+            monitor: monitor,
+            hostKeyStore: store
+        )
+        viewModel.load()
+        await monitor.scanNow(hosts: [target])
+
+        await viewModel.updateHostKeyAndReconnect(
+            host: target,
+            endpoint: endpoint,
+            expected: oldFingerprint,
+            actual: newFingerprint
+        )
+
+        #expect(store.knownFingerprint(for: endpoint) == newFingerprint)
+        #expect(monitor.hostKeyMismatches[target.id] == .hostKeyMismatch(
+            endpoint: endpoint,
+            expected: newFingerprint,
+            actual: laterFingerprint
+        ))
+        #expect(await log.connects == 2)
     }
 
     @Test("卡片顺序照抄仓库顺序，不受健康状态影响")
@@ -374,12 +498,15 @@ private actor Gate {
 /// 计数与失败预设必须跨会话存活——重连会新建 `GatedSession`，状态挂在会话上就丢了。
 private actor ExecLog {
     private(set) var execs = 0
+    private(set) var connects = 0
     private var failuresRemaining = 0
     private var gate: Gate?
     private var stdoutSamples: [Data] = []
 
     /// 追加 n 次待失败的 exec。
     func failNext(_ count: Int) { failuresRemaining += count }
+
+    func recordConnect() { connects += 1 }
 
     func setStdoutSamples(_ outputs: [String]) {
         stdoutSamples = outputs.map { Data($0.utf8) }
@@ -416,6 +543,41 @@ private final class GatedTransport: SSHTransport {
         _ endpoint: SSHEndpoint, username: String, auth: SSHAuth, hostKeyPolicy: HostKeyPolicy
     ) async throws -> any SSHSession {
         GatedSession(log: log)
+    }
+}
+
+private final class RotatingHostKeyTransport: SSHTransport, @unchecked Sendable {
+    private let log: ExecLog
+    private let expected: String
+    private let actual: String
+    private let reconnectMismatch: String?
+    private let lock = NSLock()
+    private var connectCount = 0
+
+    init(log: ExecLog, expected: String, actual: String, reconnectMismatch: String? = nil) {
+        self.log = log
+        self.expected = expected
+        self.actual = actual
+        self.reconnectMismatch = reconnectMismatch
+    }
+
+    func connect(
+        _ endpoint: SSHEndpoint, username: String, auth: SSHAuth, hostKeyPolicy: HostKeyPolicy
+    ) async throws -> any SSHSession {
+        let attempt = lock.withLock {
+            connectCount += 1
+            return connectCount
+        }
+        await log.recordConnect()
+        if attempt == 1 {
+            throw SSHError.hostKeyMismatch(endpoint: endpoint, expected: expected, actual: actual)
+        }
+        if let reconnectMismatch {
+            throw SSHError.hostKeyMismatch(
+                endpoint: endpoint, expected: actual, actual: reconnectMismatch
+            )
+        }
+        return GatedSession(log: log)
     }
 }
 

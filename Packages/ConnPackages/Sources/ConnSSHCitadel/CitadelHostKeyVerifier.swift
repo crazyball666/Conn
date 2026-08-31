@@ -30,14 +30,14 @@ final class CitadelHostKeyVerifier: NIOSSHClientServerAuthenticationDelegate, @u
             case .trustedFirstUse, .matches:
                 return .success(fingerprint)
             case let .mismatch(known):
-                return .failure(.hostKeyMismatch(expected: known, actual: fingerprint))
+                return .failure(.hostKeyMismatch(endpoint: endpoint, expected: known, actual: fingerprint))
             case .unavailable:
                 return .failure(.hostKeyStoreUnavailable)
             }
 
         case let .strict(expectedFingerprint):
             guard expectedFingerprint == fingerprint else {
-                return .failure(.hostKeyMismatch(expected: expectedFingerprint, actual: fingerprint))
+                return .failure(.hostKeyMismatch(endpoint: endpoint, expected: expectedFingerprint, actual: fingerprint))
             }
             return .success(fingerprint)
 

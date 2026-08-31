@@ -35,7 +35,11 @@ struct AuthMappingTests {
         let expected = "SHA256:known"
         let actual = "SHA256:presented"
         let error = CitadelHostKeyValidationError(
-            sshError: .hostKeyMismatch(expected: expected, actual: actual)
+            sshError: .hostKeyMismatch(
+                endpoint: endpoint,
+                expected: expected,
+                actual: actual
+            )
         )
 
         #expect(
@@ -43,7 +47,11 @@ struct AuthMappingTests {
                 error,
                 endpoint: endpoint,
                 auth: .password("ignored")
-            ) == .hostKeyMismatch(expected: expected, actual: actual)
+            ) == .hostKeyMismatch(
+                endpoint: endpoint,
+                expected: expected,
+                actual: actual
+            )
         )
     }
 }

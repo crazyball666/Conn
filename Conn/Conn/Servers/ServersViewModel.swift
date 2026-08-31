@@ -27,6 +27,7 @@ final class ServersViewModel {
     private let hostStore: any HostRepository
     private let groupStore: any HostGroupRepository
     private let credentialStore: (any CredentialStore)?
+    private let hostKeyStore: any HostKeyStore
     /// 采集调度。View 在 appear/disappear 控制生命周期。
     let monitor: MonitorScheduler
 
@@ -39,12 +40,14 @@ final class ServersViewModel {
         hostStore: any HostRepository,
         groupStore: any HostGroupRepository,
         monitor: MonitorScheduler,
-        credentialStore: (any CredentialStore)? = nil
+        credentialStore: (any CredentialStore)? = nil,
+        hostKeyStore: any HostKeyStore = InMemoryHostKeyStore()
     ) {
         self.hostStore = hostStore
         self.groupStore = groupStore
         self.monitor = monitor
         self.credentialStore = credentialStore
+        self.hostKeyStore = hostKeyStore
     }
 
     // MARK: - 生命周期
@@ -91,6 +94,31 @@ final class ServersViewModel {
     func refresh() async {
         load()
         await monitor.scanNow(hosts: hosts)
+    }
+
+    /// 用户确认服务器密钥轮换后，条件覆盖本地旧指纹并只重连这一台主机。
+    ///
+    /// `replace` 会再次核对弹窗生成时的旧指纹；弹窗停留期间若记录已被其他路径更新，
+    /// 本次操作不会覆盖新记录，也不会尝试用未经确认的指纹连接。
+    func updateHostKeyAndReconnect(
+        host: Host, endpoint: SSHEndpoint, expected: String, actual: String
+    ) async {
+        guard
+            let mismatch = monitor.hostKeyMismatches[host.id],
+            mismatch == .hostKeyMismatch(endpoint: endpoint, expected: expected, actual: actual)
+        else {
+            errorMessage = L("主机指纹已发生新的变化，请重新确认")
+            return
+        }
+        switch hostKeyStore.replace(actual, ifCurrent: expected, for: endpoint) {
+        case .replaced:
+            monitor.clearHostKeyMismatches(for: endpoint)
+            await monitor.reconnect(host: host)
+        case .expectedFingerprintMismatch:
+            errorMessage = L("主机指纹已发生新的变化，请重新确认")
+        case .unavailable:
+            errorMessage = L("无法更新主机指纹，请检查本地数据库状态后重试")
+        }
     }
 
     /// 真删除，不可恢复。只影响本地记录，不影响服务器本身。

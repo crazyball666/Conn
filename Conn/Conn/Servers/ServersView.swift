@@ -1,5 +1,7 @@
 import ConnEntitlement
 import ConnKit
+import ConnMonitor
+import ConnSSH
 import ConnTerminal
 import ConnUI
 import SwiftUI
@@ -19,6 +21,22 @@ private struct TerminalRoute: Hashable, Identifiable {
     var id: String { tabID }
 }
 
+/// 服务器列表中的主机指纹变更确认请求。
+private struct HostKeyUpdateRequest: Identifiable, Equatable {
+    let hostID: String
+    let endpoint: SSHEndpoint
+    let expected: String
+    let actual: String
+
+    var id: String {
+        "\(hostID)|\(endpoint.identifier)|\(expected)|\(actual)"
+    }
+
+    var error: SSHError {
+        .hostKeyMismatch(endpoint: endpoint, expected: expected, actual: actual)
+    }
+}
+
 /// 「服务器」页：原「仪表盘 S1」+「主机 S2」合并为一屏。
 ///
 /// PRD「观测先于操作」：健康视图为主——状态 + CPU/内存/磁盘 指标卡；
@@ -36,6 +54,11 @@ struct ServersView: View {
     @State private var groupDeleteRequest: GroupEditRequest?
     @State private var groupNameInput = ""
     @State private var paywallContext: PaywallContext?
+    @State private var pendingHostKeyUpdate: HostKeyUpdateRequest?
+    @State private var dismissedHostKeyRequestIDs: Set<String> = []
+    /// 用户确认后若重连立即观察到第三个指纹，不在同一次操作中再次弹窗；
+    /// 用户可通过下拉刷新或重新进入页面主动重新确认。
+    @State private var suppressedHostKeyEndpointIDs: Set<String> = []
     @Environment(SettingsStore.self) private var settings
     @Environment(\.connToastCenter) private var toastCenter
     private let dependencies: AppDependencies
@@ -46,7 +69,8 @@ struct ServersView: View {
             hostStore: dependencies.hostRepository,
             groupStore: dependencies.hostGroupRepository,
             monitor: dependencies.monitor,
-            credentialStore: dependencies.credentialStore
+            credentialStore: dependencies.credentialStore,
+            hostKeyStore: dependencies.hostKeyStore
         ))
     }
 
@@ -75,7 +99,11 @@ struct ServersView: View {
                 .accessibilityLabel(L("新增"))
             }
         }
-        .onAppear { viewModel.appear(interval: settings.refreshInterval.duration) }
+        .onAppear {
+            suppressedHostKeyEndpointIDs.removeAll()
+            viewModel.appear(interval: settings.refreshInterval.duration)
+            presentNextHostKeyMismatch()
+        }
         .onDisappear { viewModel.disappear() }
         .sheet(item: $formRequest) { request in
             HostFormView(
@@ -109,6 +137,38 @@ struct ServersView: View {
             Button(L("取消"), role: .cancel) { pendingDelete = nil }
         } message: { host in
             Text(String(format: L("“%@”将从本地列表中永久删除，但不会影响远程主机。"), host.name))
+        }
+        .alert(
+            L("确认更新主机指纹"),
+            isPresented: Binding(
+                get: { pendingHostKeyUpdate != nil },
+                set: { if !$0 { pendingHostKeyUpdate = nil } }
+            ),
+            presenting: pendingHostKeyUpdate
+        ) { request in
+            Button(L("更新指纹并重连")) {
+                suppressedHostKeyEndpointIDs.insert(request.endpoint.identifier)
+                pendingHostKeyUpdate = nil
+                guard let host = viewModel.host(forID: request.hostID) else { return }
+                Task {
+                    await viewModel.updateHostKeyAndReconnect(
+                        host: host,
+                        endpoint: request.endpoint,
+                        expected: request.expected,
+                        actual: request.actual
+                    )
+                }
+            }
+            Button(L("取消"), role: .cancel) {
+                dismissedHostKeyRequestIDs.insert(request.id)
+                pendingHostKeyUpdate = nil
+                Task { @MainActor in
+                    await Task.yield()
+                    presentNextHostKeyMismatch()
+                }
+            }
+        } message: { request in
+            Text(request.error.diagnosis)
         }
         .navigationDestination(item: $selectedHost) { host in
             HostDetailView(host: host, dependencies: dependencies)
@@ -148,6 +208,9 @@ struct ServersView: View {
         .onChange(of: viewModel.errorMessage) { _, message in
             toastCenter.show(message, style: .error)
         }
+        .onChange(of: viewModel.monitor.hostKeyMismatches) { _, _ in
+            presentNextHostKeyMismatch()
+        }
     }
 
     // MARK: - 区块
@@ -170,7 +233,12 @@ struct ServersView: View {
             }
         }
         .scrollBounceBehavior(.always, axes: .vertical)
-        .refreshable { await viewModel.refresh() }
+        .refreshable {
+            await viewModel.refresh()
+            suppressedHostKeyEndpointIDs.removeAll()
+            dismissedHostKeyRequestIDs.removeAll()
+            presentNextHostKeyMismatch()
+        }
     }
 
     private var groupFilter: some View {
@@ -258,5 +326,38 @@ struct ServersView: View {
 
     private func startEditing(_ host: Host) {
         formRequest = HostFormRequest(draft: HostDraft(from: host), editingHostID: host.id)
+    }
+
+    /// 按当前卡片顺序逐个展示 mismatch；同一组 old/new 指纹在取消后不重复弹出，
+    /// 直到监控状态变化或页面再次遇到新的 mismatch。
+    @MainActor
+    private func presentNextHostKeyMismatch() {
+        let mismatches = viewModel.monitor.hostKeyMismatches
+        if mismatches.isEmpty {
+            pendingHostKeyUpdate = nil
+            dismissedHostKeyRequestIDs.removeAll()
+            return
+        }
+        let nextRequest = viewModel.cards.compactMap { card -> HostKeyUpdateRequest? in
+            guard
+                let error = mismatches[card.id],
+                case let .hostKeyMismatch(endpoint, expected, actual) = error
+            else { return nil }
+            guard !suppressedHostKeyEndpointIDs.contains(endpoint.identifier) else { return nil }
+            return HostKeyUpdateRequest(
+                hostID: card.id, endpoint: endpoint, expected: expected, actual: actual
+            )
+        }.first { !dismissedHostKeyRequestIDs.contains($0.id) }
+
+        // 如果弹窗打开期间当前指纹又变化了，更新为最新的请求；确认旧请求时，
+        // ViewModel 也会再次校验三元组，双层保护避免过期 actual 被覆盖。
+        if let pendingHostKeyUpdate {
+            if nextRequest?.id != pendingHostKeyUpdate.id {
+                self.pendingHostKeyUpdate = nextRequest
+            }
+            return
+        }
+        guard let nextRequest else { return }
+        pendingHostKeyUpdate = nextRequest
     }
 }

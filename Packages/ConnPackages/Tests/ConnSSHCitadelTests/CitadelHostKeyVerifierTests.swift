@@ -43,6 +43,7 @@ struct CitadelHostKeyVerifierTests {
         let result = verifier.evaluate(changed)
         if case let .failure(error) = result {
             #expect(error == .hostKeyMismatch(
+                endpoint: endpoint,
                 expected: originalFingerprint,
                 actual: CitadelHostKeyVerifier.fingerprint(for: changed)
             ))
@@ -99,5 +100,8 @@ struct CitadelHostKeyVerifierTests {
 private struct UnavailableHostKeyStore: HostKeyStore {
     func knownFingerprint(for endpoint: SSHEndpoint) -> String? { nil }
     func remember(_ fingerprint: String, for endpoint: SSHEndpoint) {}
+    func replace(
+        _ fingerprint: String, ifCurrent expected: String, for endpoint: SSHEndpoint
+    ) -> HostKeyReplacementResult { .unavailable }
     func evaluate(_ presented: String, for endpoint: SSHEndpoint) -> HostKeyVerdict { .unavailable }
 }

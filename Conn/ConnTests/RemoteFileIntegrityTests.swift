@@ -183,6 +183,7 @@ struct RemoteFileIntegrityTests {
                 requirementAdapterRegistry: SnippetRequirementAdapterRegistry(adapters: [])
             ),
             diagnosticsTransport: transport,
+            hostKeyStore: InMemoryHostKeyStore(),
             monitor: MonitorScheduler(connectionManager: connectionManager),
             runHistory: IntegrityRunHistoryRepository(),
             snippetRepository: IntegritySnippetRepository(),

@@ -59,7 +59,11 @@ struct ConnectionTesterTests {
     @Test("指纹不符 → 前三步过、指纹步失败")
     func hostKeyMismatchAtStep3() async {
         let transport = MockSSHTransport(behavior: .init(
-            failConnect: .hostKeyMismatch(expected: "SHA256:a", actual: "SHA256:b")
+            failConnect: .hostKeyMismatch(
+                endpoint: SSHEndpoint(host: "10.0.0.1", port: 22),
+                expected: "SHA256:a",
+                actual: "SHA256:b"
+            )
         ))
         let tester = ConnectionTester(transport: transport)
         await tester.run(host: host(), username: "root", auth: .password("x"))

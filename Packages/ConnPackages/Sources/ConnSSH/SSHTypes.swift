@@ -154,7 +154,7 @@ public enum SSHError: Error, Sendable, Equatable {
     case commandTimeout(endpoint: SSHEndpoint, seconds: Int)
     case authFailed(reason: AuthFailureReason)
     case missingPrivateKey
-    case hostKeyMismatch(expected: String, actual: String)
+    case hostKeyMismatch(endpoint: SSHEndpoint, expected: String, actual: String)
     case hostKeyStoreUnavailable
     /// 配置了跳板链，但当前传输层没有提供跳板实现。
     case jumpChainUnsupported
@@ -198,9 +198,9 @@ public enum SSHError: Error, Sendable, Equatable {
             }
         case .missingPrivateKey:
             L("密钥认证不可用：找不到对应的私钥材料。\n请在“密钥管理”中重新导入或生成密钥，然后重新选择。")
-        case let .hostKeyMismatch(expected, actual):
-            String(format: L("主机指纹已变更，连接已阻止。\n远程主机密钥与首次记录不一致，可能源于系统重装或中间人攻击。\n已记录：%@\n当前：%@\n请确认变更来源后再手动信任。"),
-                   expected, actual)
+        case let .hostKeyMismatch(endpoint, expected, actual):
+            String(format: L("主机指纹已变更，连接已阻止。\n校验端点：%@:%d\n远程主机密钥与首次记录不一致，可能源于系统重装或中间人攻击。\n已记录：%@\n当前：%@\n请确认变更来源后再手动信任。"),
+                   endpoint.host, endpoint.port, expected, actual)
         case .hostKeyStoreUnavailable:
             L("无法读取主机指纹，连接已阻止。\n请检查本地数据库状态后重试。")
         case .jumpChainUnsupported:
