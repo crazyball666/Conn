@@ -55,7 +55,23 @@ public enum ExecCommandOutput {
 @available(macOS 15.0, *)
 public struct TTYOutput: AsyncSequence {
     internal let sequence: AsyncThrowingStream<ExecCommandOutput, Error>
+    private let exitCodeBox: NIOLockedValueBox<Int?>
     public typealias Element = ExecCommandOutput
+
+    internal init(
+        sequence: AsyncThrowingStream<ExecCommandOutput, Error>,
+        exitCodeBox: NIOLockedValueBox<Int?>
+    ) {
+        self.sequence = sequence
+        self.exitCodeBox = exitCodeBox
+    }
+
+    /// The SSH exit-status received before the output stream ended, if any.
+    /// A nil value means that the stream ended without an exit-status and therefore
+    /// cannot be treated as a successful remote process exit.
+    public var exitCode: Int? {
+        exitCodeBox.withLockedValue { $0 }
+    }
 
     public struct AsyncIterator: AsyncIteratorProtocol {
         public typealias Element = ExecCommandOutput
@@ -272,7 +288,11 @@ extension SSHClient {
     internal func _executeCommandStream(
         environment: [SSHChannelRequestEvent.EnvironmentRequest] = [],
         mode: CommandMode
-    ) async throws -> (channel: Channel, output: AsyncThrowingStream<ExecCommandOutput, Error>) {
+    ) async throws -> (
+        channel: Channel,
+        output: AsyncThrowingStream<ExecCommandOutput, Error>,
+        exitCode: NIOLockedValueBox<Int?>
+    ) {
         let (stream, streamContinuation) = AsyncThrowingStream<ExecCommandOutput, Error>.makeStream()
 
         let hasReceivedChannelSuccess = NIOLockedValueBox<Bool>(false)
@@ -346,7 +366,7 @@ extension SSHClient {
             ))
         }
         
-        return (channel, stream)
+        return (channel, stream, exitCode)
     }
 
     /// Creates a pseudo-terminal (PTY) session and executes the provided closure with input/output streams
@@ -361,7 +381,7 @@ extension SSHClient {
         environment: [SSHChannelRequestEvent.EnvironmentRequest] = [],
         perform: (_ inbound: TTYOutput, _ outbound: TTYStdinWriter) async throws -> Void
     ) async throws {
-        let (channel, output) = try await _executeCommandStream(
+        let (channel, output, exitCode) = try await _executeCommandStream(
             environment: environment,
             mode: .pty(request)
         )
@@ -371,7 +391,7 @@ extension SSHClient {
         }
 
         do {
-            let inbound = TTYOutput(sequence: output)
+            let inbound = TTYOutput(sequence: output, exitCodeBox: exitCode)
             try await perform(inbound, TTYStdinWriter(channel: channel))
             try await close()
         } catch {
@@ -410,7 +430,7 @@ extension SSHClient {
         environment: [SSHChannelRequestEvent.EnvironmentRequest] = [],
         perform: (_ inbound: TTYOutput, _ outbound: TTYStdinWriter) async throws -> Void
     ) async throws {
-        let (channel, output) = try await _executeCommandStream(
+        let (channel, output, exitCode) = try await _executeCommandStream(
             environment: environment,
             mode: .tty(command: nil)
         )
@@ -420,7 +440,7 @@ extension SSHClient {
         }
 
         do {
-            let inbound = TTYOutput(sequence: output)
+            let inbound = TTYOutput(sequence: output, exitCodeBox: exitCode)
             try await perform(inbound, TTYStdinWriter(channel: channel))
             try await close()
         } catch {
@@ -467,7 +487,7 @@ extension SSHClient {
         environment: [SSHChannelRequestEvent.EnvironmentRequest] = [],
         perform: (_ inbound: TTYOutput, _ outbound: TTYStdinWriter) async throws -> Void
     ) async throws {
-        let (channel, output) = try await _executeCommandStream(
+        let (channel, output, exitCode) = try await _executeCommandStream(
             environment: environment,
             mode: .command(command)
         )
@@ -477,7 +497,7 @@ extension SSHClient {
         }
 
         do {
-            let inbound = TTYOutput(sequence: output)
+            let inbound = TTYOutput(sequence: output, exitCodeBox: exitCode)
             try await perform(inbound, TTYStdinWriter(channel: channel))
             try await close()
         } catch {
@@ -505,7 +525,7 @@ extension SSHClient {
         let mode: CommandMode = terminal.map {
             .ptyExec(request: $0, command: command)
         } ?? .command(command)
-        let (channel, output) = try await _executeCommandStream(
+        let (channel, output, exitCode) = try await _executeCommandStream(
             environment: environment,
             mode: mode
         )
@@ -515,7 +535,7 @@ extension SSHClient {
         }
 
         do {
-            let inbound = TTYOutput(sequence: output)
+            let inbound = TTYOutput(sequence: output, exitCodeBox: exitCode)
             try await perform(inbound, TTYStdinWriter(channel: channel))
             try await close()
         } catch {

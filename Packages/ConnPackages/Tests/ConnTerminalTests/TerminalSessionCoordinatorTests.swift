@@ -210,14 +210,34 @@ private final class LivenessTerminalSession: SSHSession, @unchecked Sendable {
 private final class LivenessTerminalShellChannel: ShellChannel, @unchecked Sendable {
     let output: AsyncThrowingStream<Data, Error>
     private let continuation: AsyncThrowingStream<Data, Error>.Continuation
+    private let closeOrderRecorder: CloseOrderRecorder?
+    private let lock = NSLock()
+    private var didClose = false
 
-    init() {
+    init(closeOrderRecorder: CloseOrderRecorder? = nil) {
+        self.closeOrderRecorder = closeOrderRecorder
         (output, continuation) = AsyncThrowingStream.makeStream()
     }
 
     func write(_ bytes: Data) async throws { _ = bytes }
     func resize(_ size: TermSize) async throws { _ = size }
-    func close() async { continuation.finish() }
+    func close() async {
+        guard lock.withLock({
+            guard !didClose else { return false }
+            didClose = true
+            return true
+        }) else { return }
+        await closeOrderRecorder?.record("channel")
+        continuation.finish()
+    }
+}
+
+private actor CloseOrderRecorder {
+    private(set) var events: [String] = []
+
+    func record(_ event: String) {
+        events.append(event)
+    }
 }
 
 private actor PersistentRenameRecorder {
@@ -359,13 +379,16 @@ private actor RecoveryAttachmentRecorder {
     private(set) var createdNames: [String?] = []
     private let failOnOpenNumbers: Set<Int>
     private let openErrors: [Int: PersistentTerminalError]
+    private let closeOrderRecorder: CloseOrderRecorder?
 
     init(
         failOnOpenNumbers: Set<Int> = [],
-        openErrors: [Int: PersistentTerminalError] = [:]
+        openErrors: [Int: PersistentTerminalError] = [:],
+        closeOrderRecorder: CloseOrderRecorder? = nil
     ) {
         self.failOnOpenNumbers = failOnOpenNumbers
         self.openErrors = openErrors
+        self.closeOrderRecorder = closeOrderRecorder
     }
 
     func open(
@@ -376,7 +399,10 @@ private actor RecoveryAttachmentRecorder {
         if let error = openErrors[reasons.count] {
             throw error
         }
-        let attachment = RecoveryAttachment(descriptor: descriptor)
+        let attachment = RecoveryAttachment(
+            descriptor: descriptor,
+            closeOrderRecorder: closeOrderRecorder
+        )
         attachments.append(attachment)
         if failOnOpenNumbers.contains(reasons.count) {
             attachment.fail(recovery: .rebuildAttachment)
@@ -394,12 +420,18 @@ private final class RecoveryAttachment: PersistentTerminalAttachment, @unchecked
     let presentation: PersistentAttachmentPresentation
     let lifecycleEvents: AsyncStream<PersistentTerminalAttachmentLifecycleEvent>
     private let continuation: AsyncStream<PersistentTerminalAttachmentLifecycleEvent>.Continuation
-    private let channel = LivenessTerminalShellChannel()
+    private let closeOrderRecorder: CloseOrderRecorder?
+    private let channel: LivenessTerminalShellChannel
     private let lock = NSLock()
     private var didClose = false
 
-    init(descriptor: PersistentAttachmentDescriptor) {
+    init(
+        descriptor: PersistentAttachmentDescriptor,
+        closeOrderRecorder: CloseOrderRecorder? = nil
+    ) {
         self.descriptor = descriptor
+        self.closeOrderRecorder = closeOrderRecorder
+        channel = LivenessTerminalShellChannel(closeOrderRecorder: closeOrderRecorder)
         presentation = .byteTerminal(channel)
         (lifecycleEvents, continuation) = AsyncStream.makeStream(
             bufferingPolicy: .bufferingNewest(1)
@@ -427,6 +459,7 @@ private final class RecoveryAttachment: PersistentTerminalAttachment, @unchecked
             didClose = true
             return true
         }) else { return }
+        await closeOrderRecorder?.record("attachment")
         continuation.finish()
         await channel.close()
     }
@@ -529,6 +562,25 @@ private struct RecoveryPersistentProvider: PersistentTerminalProvider, Sendable 
 @Suite("TerminalSessionCoordinator — 创建与复用", .serialized)
 @MainActor
 struct TerminalSessionCoordinatorTests {
+    @Test("旧生命周期代次不能在重连后关闭当前 Tab")
+    func staleLifecycleTokenCannotAffectReplacement() {
+        let oldToken = UUID()
+        let replacementToken = UUID()
+
+        #expect(!TerminalSessionCoordinator.acceptsLifecycleEvent(
+            currentToken: replacementToken,
+            eventToken: oldToken,
+            currentGeneration: 2,
+            eventGeneration: 2
+        ))
+        #expect(TerminalSessionCoordinator.acceptsLifecycleEvent(
+            currentToken: replacementToken,
+            eventToken: replacementToken,
+            currentGeneration: 2,
+            eventGeneration: 2
+        ))
+    }
+
     @Test("launch attempt 只有 commit 后才把 Tab 加入 Store")
     func launchAttemptAddsTabOnlyAfterCommit() async {
         let host = Host(id: "host-1", name: "web", address: "10.0.0.1", username: "root")
@@ -1299,6 +1351,40 @@ struct TerminalSessionCoordinatorTests {
         }
         #expect(String(decoding: bytes, as: UTF8.self).contains("old-screen"))
         #expect(String(decoding: bytes, as: UTF8.self).contains("[已重新连接]"))
+        await coordinator.close(first.id)
+    }
+
+    @Test("重连先标记并关闭旧 attachment 再关闭其底层通道")
+    func reconnectClosesAttachmentBeforeItsChannel() async throws {
+        let host = Host(id: "host-1", name: "web", address: "10.0.0.1", username: "root")
+        let closeOrder = CloseOrderRecorder()
+        let recorder = RecoveryAttachmentRecorder(closeOrderRecorder: closeOrder)
+        let provider = RecoveryPersistentProvider(recorder: recorder)
+        let coordinator = TerminalSessionCoordinator(
+            hostRepository: TerminalHostRepository(hosts: [host]),
+            connectionManager: ConnectionManager(
+                transport: MockSSHTransport(),
+                platformDetector: RenamePlatformDetector()
+            ),
+            providerRegistry: try PersistentTerminalProviderRegistry(providers: [provider])
+        )
+
+        guard case let .success(first) = await coordinator.launch(.init(
+            host: host,
+            policy: .createNew,
+            source: .persistent(providerID: provider.descriptor.id),
+            backend: .persistent(provider.attachmentDescriptor),
+            automaticAlias: "ops"
+        )) else {
+            Issue.record("初次 persistent attachment 应成功")
+            return
+        }
+
+        guard case .success = await coordinator.reconnect(first.id) else {
+            Issue.record("重连应成功")
+            return
+        }
+        #expect(await closeOrder.events == ["attachment", "channel"])
         await coordinator.close(first.id)
     }
 

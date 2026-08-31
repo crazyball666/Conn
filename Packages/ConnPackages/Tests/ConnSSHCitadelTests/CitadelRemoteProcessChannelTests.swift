@@ -5,6 +5,26 @@ import Testing
 
 @Suite("Citadel remote process lifecycle")
 struct CitadelRemoteProcessChannelTests {
+    @Test("没有 SSH exit-status 的 EOF 不得被当作成功退出")
+    func transportEOFIsNotSuccessfulExit() {
+        let transportEOF = CitadelRemoteProcessChannel.pumpOutcome(forExitCode: nil)
+        if case .transportClosed = transportEOF {
+            // Expected: a closed SSH transport is not a successful remote exit.
+        } else {
+            Issue.record("没有 exit-status 的 EOF 必须保留为 transport close")
+        }
+
+        for (exitCode, expected) in [(0, Int32(0)), (75, Int32(75))] {
+            guard case let .exited(actual) = CitadelRemoteProcessChannel.pumpOutcome(
+                forExitCode: exitCode
+            ) else {
+                Issue.record("已有 SSH exit-status 时必须保留为 exited")
+                continue
+            }
+            #expect(actual == expected)
+        }
+    }
+
     @Test("server close racing local cleanup remains a successful process exit")
     func remoteCloseRaceAfterExitIsNotFailure() {
         #expect(CitadelRemoteProcessChannel.normalizedProcessError(

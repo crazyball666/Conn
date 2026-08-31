@@ -12,6 +12,8 @@
 
         @State private var launcher: TerminalLaunchPresentation
         @State private var didStart = false
+        @State private var didScheduleReconnect = false
+        @State private var didReconnect = false
         @Environment(SettingsStore.self) private var settings
 
         init(
@@ -48,8 +50,23 @@
                         tabID: route.tabID,
                         dependencies: dependencies,
                         terminalSessions: terminalSessions,
-                        settings: settings
+                        settings: settings,
+                        didReconnect: didReconnect
                     )
+                }
+                .onChange(of: launcher.route?.tabID) { _, tabID in
+                    guard !didScheduleReconnect,
+                          let tabID,
+                          ProcessInfo.processInfo.environment["CONN_SMOKE_TERMINAL_RECONNECT"] != nil
+                    else { return }
+                    didScheduleReconnect = true
+                    Task { @MainActor in
+                        try? await Task.sleep(for: .milliseconds(250))
+                        guard !Task.isCancelled else { return }
+                        if case .success = await terminalSessions.reconnect(tabID) {
+                            didReconnect = true
+                        }
+                    }
                 }
         }
     }
@@ -89,18 +106,27 @@
         let dependencies: AppDependencies
         let terminalSessions: TerminalSessionCoordinator
         let settings: SettingsStore
+        let didReconnect: Bool
 
         @State private var isPrepared = false
 
         var body: some View {
             if isPrepared {
-                TerminalScreen(
-                    host: host,
-                    tabID: tabID,
-                    dependencies: dependencies,
-                    settings: settings,
-                    terminalSessions: terminalSessions
-                )
+                ZStack(alignment: .topLeading) {
+                    TerminalScreen(
+                        host: host,
+                        tabID: tabID,
+                        dependencies: dependencies,
+                        settings: settings,
+                        terminalSessions: terminalSessions
+                    )
+                    if didReconnect {
+                        Color.clear
+                            .frame(width: 1, height: 1)
+                            .accessibilityIdentifier("terminal.smoke.reconnect.completed")
+                            .allowsHitTesting(false)
+                    }
+                }
             } else {
                 ProgressView(L("正在打开终端…"))
                     .task {

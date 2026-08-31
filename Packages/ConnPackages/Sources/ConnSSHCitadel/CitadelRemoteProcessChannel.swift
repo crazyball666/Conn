@@ -14,6 +14,7 @@ import NIOSSH
 final class CitadelRemoteProcessChannel: RemoteProcessChannel, @unchecked Sendable {
     enum PumpOutcome {
         case exited(Int32)
+        case transportClosed
         case stopped
         case failed(any Error)
     }
@@ -117,6 +118,12 @@ final class CitadelRemoteProcessChannel: RemoteProcessChannel, @unchecked Sendab
         case let .exited(code):
             bridge.finish()
             return RemoteProcessExit(exitCode: code, signal: nil)
+        case .transportClosed:
+            // EOF without SSH exit-status is a dead transport, not a successful
+            // command/workspace exit. Preserve the distinction for providers such
+            // as Zellij, which only retire a workspace on an explicit exit code 0.
+            bridge.finish()
+            return RemoteProcessExit(exitCode: nil, signal: nil)
         case .stopped:
             bridge.finish()
             return RemoteProcessExit(exitCode: nil, signal: nil)
@@ -141,6 +148,11 @@ final class CitadelRemoteProcessChannel: RemoteProcessChannel, @unchecked Sendab
         return nil
     }
 
+    static func pumpOutcome(forExitCode exitCode: Int?) -> PumpOutcome {
+        guard let exitCode else { return .transportClosed }
+        return .exited(Int32(exitCode))
+    }
+
     private func pump(_ inbound: TTYOutput) async -> PumpOutcome {
         do {
             for try await chunk in inbound {
@@ -153,7 +165,7 @@ final class CitadelRemoteProcessChannel: RemoteProcessChannel, @unchecked Sendab
                 }
                 guard bridge.yield(output) else { return .stopped }
             }
-            return .exited(0)
+            return Self.pumpOutcome(forExitCode: inbound.exitCode)
         } catch is CancellationError {
             return .stopped
         } catch let failure as SSHClient.CommandFailed {

@@ -114,6 +114,10 @@ public final class TerminalSessionCoordinator {
     private var restoreTasks: [String: Task<Result<TerminalTab, TerminalLaunchFailure>, Never>] = [:]
     private var lifecycleTasks: [String: Task<Void, Never>] = [:]
     private var attachmentLifecycleTasks: [String: Task<Void, Never>] = [:]
+    /// Changes before reconnect teardown starts. Lifecycle events from the old
+    /// session/attachment carry the previous token and are ignored even if they
+    /// were already queued when their observer task was cancelled.
+    private var lifecycleTokens: [String: UUID] = [:]
     private var automaticRecoveryTasks: [String: AutomaticRecoveryTask] = [:]
     private var consumedFailureIDs: Set<UUID> = []
     private var launchAttempts: [TerminalLaunchAttemptID: LaunchAttemptState] = [:]
@@ -251,11 +255,19 @@ public final class TerminalSessionCoordinator {
         }
         let tab = prepared.tab
         store.add(tab)
+        let lifecycleToken = UUID()
+        lifecycleTokens[tab.id] = lifecycleToken
         await tab.session.start()
-        observeLifecycle(for: tab.id, generation: tab.generation, session: tab.session)
+        observeLifecycle(
+            for: tab.id,
+            generation: tab.generation,
+            token: lifecycleToken,
+            session: tab.session
+        )
         observeAttachmentLifecycle(
             for: tab.id,
             generation: tab.generation,
+            token: lifecycleToken,
             attachment: tab.persistentAttachment
         )
         persistResumeRecord(for: tab)
@@ -616,6 +628,7 @@ public final class TerminalSessionCoordinator {
 
     public func close(_ tabID: String) async {
         let closingTab = store.tab(id: tabID)
+        lifecycleTokens.removeValue(forKey: tabID)
         lifecycleTasks.removeValue(forKey: tabID)?.cancel()
         attachmentLifecycleTasks.removeValue(forKey: tabID)?.cancel()
         automaticRecoveryTasks.removeValue(forKey: tabID)?.task.cancel()
@@ -647,6 +660,7 @@ public final class TerminalSessionCoordinator {
             restoreTasks.removeValue(forKey: recordID)?.cancel()
         }
         for tab in store.tabs(forHost: hostID) {
+            lifecycleTokens.removeValue(forKey: tab.id)
             lifecycleTasks.removeValue(forKey: tab.id)?.cancel()
             attachmentLifecycleTasks.removeValue(forKey: tab.id)?.cancel()
             automaticRecoveryTasks.removeValue(forKey: tab.id)?.task.cancel()
@@ -754,11 +768,19 @@ public final class TerminalSessionCoordinator {
                 }
                 let tab = prepared.tab
                 store.add(tab)
+                let lifecycleToken = UUID()
+                lifecycleTokens[tab.id] = lifecycleToken
                 await tab.session.start()
-                observeLifecycle(for: tab.id, generation: tab.generation, session: tab.session)
+                observeLifecycle(
+                    for: tab.id,
+                    generation: tab.generation,
+                    token: lifecycleToken,
+                    session: tab.session
+                )
                 observeAttachmentLifecycle(
                     for: tab.id,
                     generation: tab.generation,
+                    token: lifecycleToken,
                     attachment: tab.persistentAttachment
                 )
                 persistResumeRecord(for: tab)
@@ -800,8 +822,8 @@ public final class TerminalSessionCoordinator {
             guard isLaunchCurrent(forHost: request.host.id, expectedGeneration: expectedHostLaunchGeneration),
                   (try hostRepository.host(id: request.host.id)) != nil
             else {
-                await session.close()
                 await temporaryAttachment?.close()
+                await session.close()
                 return .failure(TerminalLaunchFailure(message: L("终端会话启动已取消")))
             }
 
@@ -837,9 +859,11 @@ public final class TerminalSessionCoordinator {
             return .success(PreparedLaunch(tab: tab))
         } catch {
             if let temporarySession {
+                await temporaryAttachment?.close()
                 await temporarySession.close()
+            } else {
+                await temporaryAttachment?.close()
             }
-            await temporaryAttachment?.close()
             let recovery = restorationRecord.flatMap { record in
                 terminalPersistentWorkspaceIsMissing(error)
                     ? TerminalLaunchRecovery.createPersistentWorkspace(record)
@@ -853,24 +877,27 @@ public final class TerminalSessionCoordinator {
     }
 
     private func closePreparedLaunch(_ prepared: PreparedLaunch) async {
-        await prepared.tab.session.close()
         await prepared.tab.persistentAttachment?.close()
+        await prepared.tab.session.close()
     }
 
     private func replaceDisconnectedTab(_ tabID: String) async -> Result<TerminalTab, TerminalLaunchFailure> {
         guard let oldTab = store.tab(id: tabID) else {
             return .failure(TerminalLaunchFailure(message: L("终端会话不存在")))
         }
+        let lifecycleToken = UUID()
+        lifecycleTokens[tabID] = lifecycleToken
         let nextGeneration = oldTab.generation + 1
         store.updateStatus(tabID, to: .reconnecting)
         // 先失效旧代次，再关闭旧 PTY；任何迟到输出都不会污染新 generation。
         await oldTab.transcript.activateGeneration(nextGeneration)
         lifecycleTasks.removeValue(forKey: tabID)?.cancel()
         attachmentLifecycleTasks.removeValue(forKey: tabID)?.cancel()
-        await oldTab.session.close()
         await oldTab.persistentAttachment?.close()
+        await oldTab.session.close()
 
         var temporarySession: TerminalSession?
+        var temporaryAttachment: (any PersistentTerminalAttachment)?
         do {
             guard let host = try hostRepository.host(id: oldTab.hostID) else {
                 throw TerminalLaunchFailure(message: L("主机已被删除"))
@@ -883,6 +910,7 @@ public final class TerminalSessionCoordinator {
             }
             let opened = try await openBackend(backend, for: host, reason: .reconnect)
             let channel = opened.channel
+            temporaryAttachment = opened.attachment
             let session = TerminalSession(
                 channel: channel,
                 transcript: oldTab.transcript,
@@ -894,8 +922,8 @@ public final class TerminalSessionCoordinator {
                 try await session.send(Array("\(command)\n".utf8))
             }
             guard let current = store.tab(id: tabID), current.generation == oldTab.generation else {
-                await session.close()
                 await opened.attachment?.close()
+                await session.close()
                 return .failure(TerminalLaunchFailure(message: L("终端会话已关闭")))
             }
 
@@ -907,10 +935,16 @@ public final class TerminalSessionCoordinator {
                 persistentAttachment: opened.attachment
             )
             await session.start()
-            observeLifecycle(for: tabID, generation: nextGeneration, session: session)
+            observeLifecycle(
+                for: tabID,
+                generation: nextGeneration,
+                token: lifecycleToken,
+                session: session
+            )
             observeAttachmentLifecycle(
                 for: tabID,
                 generation: nextGeneration,
+                token: lifecycleToken,
                 attachment: opened.attachment
             )
             guard let replacement = store.tab(id: tabID) else {
@@ -919,9 +953,8 @@ public final class TerminalSessionCoordinator {
             persistResumeRecord(for: replacement)
             return .success(replacement)
         } catch {
-            if let temporarySession {
-                await temporarySession.close()
-            }
+            await temporaryAttachment?.close()
+            await temporarySession?.close()
             let message = terminalUserFacingDiagnosis(error)
             if store.tab(id: tabID)?.generation == oldTab.generation {
                 store.updateStatus(tabID, to: .disconnected(message: message))
@@ -1000,12 +1033,22 @@ public final class TerminalSessionCoordinator {
         return try await startup.finishedChannel()
     }
 
-    private func observeLifecycle(for tabID: String, generation: UInt64, session: TerminalSession) {
+    private func observeLifecycle(
+        for tabID: String,
+        generation: UInt64,
+        token: UUID,
+        session: TerminalSession
+    ) {
         lifecycleTasks.removeValue(forKey: tabID)?.cancel()
         lifecycleTasks[tabID] = Task { [weak self] in
             for await event in session.lifecycleEvents {
                 guard !Task.isCancelled else { return }
-                self?.receive(event, tabID: tabID, generation: generation)
+                self?.receive(
+                    event,
+                    tabID: tabID,
+                    generation: generation,
+                    token: token
+                )
             }
         }
     }
@@ -1013,6 +1056,7 @@ public final class TerminalSessionCoordinator {
     private func observeAttachmentLifecycle(
         for tabID: String,
         generation: UInt64,
+        token: UUID,
         attachment: (any PersistentTerminalAttachment)?
     ) {
         attachmentLifecycleTasks.removeValue(forKey: tabID)?.cancel()
@@ -1020,7 +1064,12 @@ public final class TerminalSessionCoordinator {
         attachmentLifecycleTasks[tabID] = Task { [weak self] in
             for await event in attachment.lifecycleEvents {
                 guard !Task.isCancelled else { return }
-                self?.receive(event, tabID: tabID, generation: generation)
+                self?.receive(
+                    event,
+                    tabID: tabID,
+                    generation: generation,
+                    token: token
+                )
             }
         }
     }
@@ -1028,13 +1077,29 @@ public final class TerminalSessionCoordinator {
     private func receive(
         _ event: PersistentTerminalAttachmentLifecycleEvent,
         tabID: String,
-        generation: UInt64
+        generation: UInt64,
+        token: UUID
     ) {
-        guard let tab = store.tab(id: tabID), tab.generation == generation else { return }
+        guard let tab = store.tab(id: tabID),
+              Self.acceptsLifecycleEvent(
+                  currentToken: lifecycleTokens[tabID],
+                  eventToken: token,
+                  currentGeneration: tab.generation,
+                  eventGeneration: generation
+              )
+        else { return }
         switch event {
         case .workspaceClosed:
             Task { @MainActor [weak self] in
-                await self?.close(tabID)
+                guard let self,
+                      Self.acceptsLifecycleEvent(
+                          currentToken: self.lifecycleTokens[tabID],
+                          eventToken: token,
+                          currentGeneration: self.store.tab(id: tabID)?.generation,
+                          eventGeneration: generation
+                      )
+                else { return }
+                await self.close(tabID)
             }
         case let .failed(failure):
             if failure.issue == .remoteObjectMissing {
@@ -1042,7 +1107,15 @@ public final class TerminalSessionCoordinator {
                 // longer exists. Keeping a disconnected tab would also keep a bookmark that
                 // can never reconnect, so retire both through the normal close path.
                 Task { @MainActor [weak self] in
-                    await self?.close(tabID)
+                    guard let self,
+                          Self.acceptsLifecycleEvent(
+                              currentToken: self.lifecycleTokens[tabID],
+                              eventToken: token,
+                              currentGeneration: self.store.tab(id: tabID)?.generation,
+                              eventGeneration: generation
+                          )
+                    else { return }
+                    await self.close(tabID)
                 }
                 return
             }
@@ -1099,14 +1172,35 @@ public final class TerminalSessionCoordinator {
         )
     }
 
-    private func receive(_ event: TerminalSessionLifecycleEvent, tabID: String, generation: UInt64) {
-        guard let tab = store.tab(id: tabID), tab.generation == generation else { return }
+    private func receive(
+        _ event: TerminalSessionLifecycleEvent,
+        tabID: String,
+        generation: UInt64,
+        token: UUID
+    ) {
+        guard let tab = store.tab(id: tabID),
+              Self.acceptsLifecycleEvent(
+                  currentToken: lifecycleTokens[tabID],
+                  eventToken: token,
+                  currentGeneration: tab.generation,
+                  eventGeneration: generation
+              )
+        else { return }
         switch event {
         case .closed:
             store.updateStatus(tabID, to: .disconnected(message: nil))
         case let .failed(message):
             store.updateStatus(tabID, to: .disconnected(message: message))
         }
+    }
+
+    static func acceptsLifecycleEvent(
+        currentToken: UUID?,
+        eventToken: UUID,
+        currentGeneration: UInt64?,
+        eventGeneration: UInt64
+    ) -> Bool {
+        currentToken == eventToken && currentGeneration == eventGeneration
     }
 
     private func launchGeneration(forHost hostID: String) -> UInt64 {

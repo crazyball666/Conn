@@ -107,6 +107,40 @@ final class TerminalEmptyStateUITests: XCTestCase {
     }
 
     @MainActor
+    func testReconnectKeepsTerminalPageAndLocalSessionRecord() throws {
+        let app = XCUIApplication()
+        app.launchEnvironment["CONN_DEMO"] = "1"
+        app.launchEnvironment["CONN_SMOKE_TERMINAL"] = "1"
+        app.launchEnvironment["CONN_SMOKE_TERMINAL_RECONNECT"] = "1"
+        app.launchArguments += ["-conn.settings.terminalCursorBlinking", "false"]
+        app.launch()
+
+        let terminal = app.descendants(matching: .any)["terminal.viewport"].firstMatch
+        XCTAssertTrue(terminal.waitForExistence(timeout: 10))
+        XCTAssertTrue(
+            app.descendants(matching: .any)["terminal.smoke.reconnect.completed"].firstMatch
+                .waitForExistence(timeout: 10),
+            "重连应完成而不是关闭终端页面"
+        )
+        XCTAssertTrue(terminal.exists)
+        XCTAssertEqual(app.state, .runningForeground)
+
+        let sessionActions = app.buttons["terminal.keybar.session-actions"]
+        XCTAssertTrue(sessionActions.waitForExistence(timeout: 5))
+        sessionActions.tap()
+        let switchTerminal = app.buttons["terminal.session-actions.switch"]
+        XCTAssertTrue(switchTerminal.waitForExistence(timeout: 5))
+        switchTerminal.tap()
+
+        XCTAssertTrue(app.navigationBars["终端会话"].waitForExistence(timeout: 5))
+        let localSession = app.staticTexts.matching(
+            NSPredicate(format: "label CONTAINS %@", "普通终端")
+        ).firstMatch
+        XCTAssertTrue(localSession.waitForExistence(timeout: 5), "重连后本地终端记录应继续存在")
+        XCTAssertEqual(app.state, .runningForeground)
+    }
+
+    @MainActor
     func testPersistedTmuxEntryRestoresWithoutOpeningWorkspacePicker() throws {
         let app = XCUIApplication()
         app.launchEnvironment["CONN_DEMO"] = "1"
