@@ -1,4 +1,5 @@
 import ConnCrypto
+import ConnEntitlement
 import ConnKit
 import ConnMonitor
 import ConnOps
@@ -264,7 +265,8 @@ struct DockerModelsTests {
                 hostRepository: StubHostRepository(),
                 connectionManager: connectionManager
             ),
-            appLock: AppLockController(authenticator: StubAuthenticator(), isEnabled: false)
+            appLock: AppLockController(authenticator: StubAuthenticator(), isEnabled: false),
+            subscription: .fixed(.free)
         )
     }
 }

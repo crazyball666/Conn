@@ -84,6 +84,7 @@ final class DockerDestructiveConfirmationUITests: XCTestCase {
     func testComposeDownUsesSystemAlertWithoutProjectNameEntry() throws {
         let app = XCUIApplication()
         app.launchEnvironment["CONN_DEMO"] = "1"
+        app.launchEnvironment["CONN_SUBSCRIPTION_STATE"] = "pro"
         app.launchEnvironment["CONN_SMOKE_DETAIL"] = "1"
         app.launchEnvironment["CONN_SMOKE_SEGMENT"] = "docker"
         app.launchEnvironment["CONN_SMOKE_DOCKER_TAB"] = "compose"
@@ -103,6 +104,7 @@ final class DockerDestructiveConfirmationUITests: XCTestCase {
     private func launchDocker(tab: String) -> XCUIApplication {
         let app = XCUIApplication()
         app.launchEnvironment["CONN_DEMO"] = "1"
+        app.launchEnvironment["CONN_SUBSCRIPTION_STATE"] = "pro"
         app.launchEnvironment["CONN_SMOKE_DETAIL"] = "1"
         app.launchEnvironment["CONN_SMOKE_SEGMENT"] = "docker"
         app.launchEnvironment["CONN_SMOKE_DOCKER_TAB"] = tab

@@ -1,4 +1,5 @@
 import ConnCrypto
+import ConnEntitlement
 import ConnKit
 import ConnMonitor
 import ConnRunner
@@ -96,7 +97,8 @@ struct RemoteFileIntegrityTests {
                 hostRepository: hostRepository,
                 connectionManager: connectionManager
             ),
-            appLock: AppLockController(authenticator: IntegrityAuthenticator(), isEnabled: false)
+            appLock: AppLockController(authenticator: IntegrityAuthenticator(), isEnabled: false),
+            subscription: .fixed(.free)
         )
     }
 }

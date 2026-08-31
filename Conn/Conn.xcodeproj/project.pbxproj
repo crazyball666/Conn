@@ -19,6 +19,7 @@
 		7CAA0003300CF0AD00307624 /* ConnOps in Frameworks */ = {isa = PBXBuildFile; productRef = 7CAA0004300CF0AD00307624 /* ConnOps */; };
 		7CAA0005300CF0AD00307624 /* ConnRunner in Frameworks */ = {isa = PBXBuildFile; productRef = 7CAA0006300CF0AD00307624 /* ConnRunner */; };
 		7CAA0010300CF0AD00307624 /* ConnEditor in Frameworks */ = {isa = PBXBuildFile; productRef = 7CAA0011300CF0AD00307624 /* ConnEditor */; };
+		7CAA0014300CF0AD00307624 /* ConnEntitlement in Frameworks */ = {isa = PBXBuildFile; productRef = 7CAA0015300CF0AD00307624 /* ConnEntitlement */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -79,6 +80,7 @@
 				7CAA0003300CF0AD00307624 /* ConnOps in Frameworks */,
 				7CAA0005300CF0AD00307624 /* ConnRunner in Frameworks */,
 				7CAA0010300CF0AD00307624 /* ConnEditor in Frameworks */,
+				7CAA0014300CF0AD00307624 /* ConnEntitlement in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -151,6 +153,7 @@
 				7CAA0004300CF0AD00307624 /* ConnOps */,
 				7CAA0006300CF0AD00307624 /* ConnRunner */,
 				7CAA0011300CF0AD00307624 /* ConnEditor */,
+				7CAA0015300CF0AD00307624 /* ConnEntitlement */,
 			);
 			productName = Conn;
 			productReference = 7C181A90300CF0AD00307624 /* Conn.app */;
@@ -685,6 +688,10 @@
 		7CAA0011300CF0AD00307624 /* ConnEditor */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = ConnEditor;
+		};
+		7CAA0015300CF0AD00307624 /* ConnEntitlement */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = ConnEntitlement;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

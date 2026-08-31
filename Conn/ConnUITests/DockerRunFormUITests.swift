@@ -18,6 +18,7 @@ final class DockerRunFormUITests: XCTestCase {
     func testCreateContainerFormShowsNewFieldsAndSaveButton() throws {
         let app = XCUIApplication()
         app.launchEnvironment["CONN_DEMO"] = "1"
+        app.launchEnvironment["CONN_SUBSCRIPTION_STATE"] = "pro"
         app.launchEnvironment["CONN_SMOKE_DETAIL"] = "1"
         app.launchEnvironment["CONN_SMOKE_SEGMENT"] = "docker"
         app.launch()
@@ -64,6 +65,7 @@ final class DockerRunFormUITests: XCTestCase {
     func testFillingFormUpdatesCommandPreview() throws {
         let app = XCUIApplication()
         app.launchEnvironment["CONN_DEMO"] = "1"
+        app.launchEnvironment["CONN_SUBSCRIPTION_STATE"] = "pro"
         app.launchEnvironment["CONN_SMOKE_DETAIL"] = "1"
         app.launchEnvironment["CONN_SMOKE_SEGMENT"] = "docker"
         app.launch()
@@ -102,6 +104,7 @@ final class DockerRunFormUITests: XCTestCase {
     func testSaveAsCommandShowsConfirmation() throws {
         let app = XCUIApplication()
         app.launchEnvironment["CONN_DEMO"] = "1"
+        app.launchEnvironment["CONN_SUBSCRIPTION_STATE"] = "pro"
         app.launchEnvironment["CONN_SMOKE_DETAIL"] = "1"
         app.launchEnvironment["CONN_SMOKE_SEGMENT"] = "docker"
         app.launch()
@@ -188,6 +191,7 @@ final class DockerRunFormUITests: XCTestCase {
     private func launchDockerResource(tab: String) -> XCUIApplication {
         let app = XCUIApplication()
         app.launchEnvironment["CONN_DEMO"] = "1"
+        app.launchEnvironment["CONN_SUBSCRIPTION_STATE"] = "pro"
         app.launchEnvironment["CONN_SMOKE_DETAIL"] = "1"
         app.launchEnvironment["CONN_SMOKE_SEGMENT"] = "docker"
         app.launchEnvironment["CONN_SMOKE_DOCKER_TAB"] = tab

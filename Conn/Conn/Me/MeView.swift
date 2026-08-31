@@ -15,11 +15,45 @@ struct MeView: View {
     @State private var showsPrivacyPolicy = false
     @State private var feedbackMailContent: FeedbackMailContent?
     @State private var showsFeedbackFallback = false
+    @State private var paywallContext: PaywallContext?
 
     var body: some View {
         @Bindable var localization = localization
         @Bindable var settings = settings
         Form {
+            Section {
+                Button {
+                    paywallContext = .upgrade
+                } label: {
+                    HStack(spacing: ConnSpacing.sm) {
+                        Image(systemName: dependencies.subscription.isPro ? "checkmark.seal.fill" : "bolt.shield.fill")
+                            .font(.system(size: 22, weight: .semibold))
+                            .foregroundStyle(.white)
+                            .frame(width: 40, height: 40)
+                            .background(Color.connAccent, in: RoundedRectangle(cornerRadius: ConnRadius.control))
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(L("Conn Pro"))
+                                .font(.connBody)
+                                .fontWeight(.semibold)
+                                .foregroundStyle(.primary)
+                            Text(dependencies.subscription.isPro
+                                ? L("订阅已生效")
+                                : L("解锁无限主机、文件管理、Docker 与批量执行"))
+                                .font(.connFootnote)
+                                .foregroundStyle(.secondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        Spacer()
+                        Image(systemName: "chevron.right")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.tertiary)
+                    }
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("settings.pro")
+            }
+
             Section(L("外观")) {
                 Picker(selection: $settings.appearance) {
                     ForEach(AppAppearance.allCases) { Text($0.label).tag($0) }
@@ -126,6 +160,9 @@ struct MeView: View {
             FeedbackMailComposer(content: content) {
                 feedbackMailContent = nil
             }
+        }
+        .sheet(item: $paywallContext) { context in
+            PaywallView(dependencies: dependencies, context: context)
         }
         .alert(L("无法发送邮件"), isPresented: $showsFeedbackFallback) {
             Button(L("确定"), role: .cancel) {}

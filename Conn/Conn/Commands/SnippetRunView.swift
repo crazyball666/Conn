@@ -1,3 +1,4 @@
+import ConnEntitlement
 import ConnKit
 import ConnRunner
 import ConnSSH
@@ -26,6 +27,7 @@ struct SnippetRunView: View {
     @State private var pendingReason: String?
     @State private var batchConfirmationInput = ""
     @State private var terminalLauncher: TerminalLaunchPresentation
+    @State private var paywallContext: PaywallContext?
 
     init(snippet: Snippet, dependencies: AppDependencies) {
         self.snippet = snippet
@@ -66,6 +68,9 @@ struct SnippetRunView: View {
                     dependencies: dependencies,
                     settings: settings
                 )
+            }
+            .sheet(item: $paywallContext) { context in
+                PaywallView(dependencies: dependencies, context: context)
             }
             .overlay { terminalLaunchProgress }
             .onChange(of: terminalLauncher.errorMessage) { _, message in
@@ -389,6 +394,15 @@ struct SnippetRunView: View {
     /// 任意一台生产主机命中风险，就要求整批二次确认。
     private func attempt(_ mode: SnippetExecutionMode) {
         guard !selectedHosts.isEmpty, !isRunning else { return }
+        if let blockedFeature = SnippetEntitlementPolicy.blockedFeature(
+            for: snippet,
+            hostCount: selectedHosts.count,
+            mode: mode,
+            gate: dependencies.subscription.gate
+        ) {
+            paywallContext = blockedFeature
+            return
+        }
         SnippetExecutionAttemptFeedback.begin(
             errorText: &errorText,
             outcome: &outcome,

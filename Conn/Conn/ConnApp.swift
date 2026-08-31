@@ -1,4 +1,5 @@
 import ConnCrypto
+import ConnEntitlement
 import ConnKit
 import ConnMonitor
 import ConnMultiplexer
@@ -338,6 +339,8 @@ struct AppDependencies {
     let terminalSessions: TerminalSessionCoordinator
     /// 应用锁。默认关闭，设置页开启（Phase 5）。
     let appLock: AppLockController
+    /// App Store 订阅状态与 Pro 权益门控。
+    let subscription: SubscriptionStore
 
     private static func makeSnippetExecutionPlanner(
         connectionManager: ConnectionManager
@@ -436,6 +439,8 @@ struct AppDependencies {
             // 无法可靠推断，必须在依赖注入前同步转为 unknown，失败则让启动明确失败。
             try runHistoryStore.recoverPending()
             try importBuiltinSnippetsIfNeeded(snippetStore, snippetGroupStore)
+            let subscription = SubscriptionStore.live()
+            subscription.start()
 
             return AppDependencies(
                 hostRepository: hostStore,
@@ -455,7 +460,8 @@ struct AppDependencies {
                     // 设置页持久化的开关；DEBUG 冒烟可强制开启验证锁屏。
                     isEnabled: UserDefaults.standard.bool(forKey: AppLockController.storageKey)
                         || ProcessInfo.processInfo.environment["CONN_SMOKE_APPLOCK"] != nil
-                )
+                ),
+                subscription: subscription
             )
     }
 
@@ -521,6 +527,13 @@ struct AppDependencies {
             let runHistoryStore = RunHistoryStore(database: database)
             try runHistoryStore.recoverPending()
             try importBuiltinSnippetsIfNeeded(snippetStore, snippetGroupStore)
+            let subscription: SubscriptionStore
+            switch ProcessInfo.processInfo.environment["CONN_SUBSCRIPTION_STATE"] {
+            case "pro": subscription = .fixed(.pro)
+            case "loading": subscription = .live()
+            default: subscription = .fixed(.free)
+            }
+            subscription.start()
 
             return AppDependencies(
                 hostRepository: hostStore,
@@ -535,7 +548,8 @@ struct AppDependencies {
                 snippetRepository: snippetStore,
                 snippetGroupRepository: snippetGroupStore,
                 terminalSessions: terminalSessions,
-                appLock: AppLockController(authenticator: LABiometricAuthenticator(), isEnabled: false)
+                appLock: AppLockController(authenticator: LABiometricAuthenticator(), isEnabled: false),
+                subscription: subscription
             )
         } catch {
             fatalError("演示库初始化失败：\(error)")

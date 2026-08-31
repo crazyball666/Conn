@@ -1,3 +1,4 @@
+import ConnEntitlement
 import ConnKit
 import ConnTerminal
 import ConnUI
@@ -34,6 +35,7 @@ struct ServersView: View {
     @State private var renameTarget: GroupEditRequest?
     @State private var groupDeleteRequest: GroupEditRequest?
     @State private var groupNameInput = ""
+    @State private var paywallContext: PaywallContext?
     @Environment(SettingsStore.self) private var settings
     @Environment(\.connToastCenter) private var toastCenter
     private let dependencies: AppDependencies
@@ -88,6 +90,9 @@ struct ServersView: View {
                 )
                 viewModel.load()
             }
+        }
+        .sheet(item: $paywallContext) { context in
+            PaywallView(dependencies: dependencies, context: context)
         }
         .alert(
             L("删除主机"),
@@ -244,6 +249,10 @@ struct ServersView: View {
     // MARK: - 动作
 
     private func startAdding() {
+        guard dependencies.subscription.gate.canAddHost(currentCount: viewModel.totalCount) else {
+            paywallContext = .thirdHost
+            return
+        }
         formRequest = HostFormRequest(draft: HostDraft(), editingHostID: nil)
     }
 

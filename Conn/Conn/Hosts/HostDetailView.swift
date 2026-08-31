@@ -1,3 +1,4 @@
+import ConnEntitlement
 import ConnKit
 import ConnMonitor
 import ConnTerminal
@@ -21,12 +22,15 @@ struct HostDetailView: View {
     @State private var terminalRoute: ExistingTerminalRoute?
     @State private var isNewTerminalPresented = false
     @State private var pendingTerminalCompletion: NewTerminalFlowCompletion?
+    @State private var paywallContext: PaywallContext?
+    private let initialSegment: Segment
     @Environment(SettingsStore.self) private var settings
     @Environment(\.connToastCenter) private var toastCenter
 
     init(host: Host, dependencies: AppDependencies, initialSegment: Segment = .overview) {
         self.host = host
         self.dependencies = dependencies
+        self.initialSegment = initialSegment
         _route = State(initialValue: initialSegment == .overview ? nil : initialSegment)
         _monitorVM = State(initialValue: HostOverviewViewModel(host: host, dependencies: dependencies))
         _processVM = State(initialValue: ProcessListViewModel(host: host, dependencies: dependencies))
@@ -57,7 +61,10 @@ struct HostDetailView: View {
         .toolbar { terminalToolbarItem }
         .toolbar(.visible, for: .tabBar)
         .navigationDestination(item: $route, destination: destination)
-        .onAppear { monitorVM.appear() }
+        .onAppear {
+            presentPaywallIfNeededForInitialRoute()
+            monitorVM.appear()
+        }
         .onDisappear { monitorVM.disappear() }
         .sheet(
             isPresented: $isNewTerminalPresented,
@@ -73,6 +80,9 @@ struct HostDetailView: View {
                 }
             )
             .presentationDetents([.medium, .large])
+        }
+        .sheet(item: $paywallContext) { context in
+            PaywallView(dependencies: dependencies, context: context)
         }
         .fullScreenCover(item: $terminalRoute) { route in
             TerminalScreen(
@@ -132,7 +142,29 @@ struct HostDetailView: View {
     }
 
     private func toolButton(_ segment: Segment, systemImage: String) -> some View {
-        ActionTile(L(segment.rawValue), systemName: systemImage) { route = segment }
+        ActionTile(L(segment.rawValue), systemName: systemImage) {
+            guard requireProIfNeeded(for: segment) else { return }
+            route = segment
+        }
+    }
+
+    private func presentPaywallIfNeededForInitialRoute() {
+        guard initialSegment != .overview else { return }
+        guard !requireProIfNeeded(for: initialSegment) else { return }
+        route = nil
+    }
+
+    private func requireProIfNeeded(for segment: Segment) -> Bool {
+        switch segment {
+        case .files where !dependencies.subscription.gate.allowed(.fileManagement):
+            paywallContext = .fileManagement
+            return false
+        case .docker where !dependencies.subscription.gate.allowed(.dockerManagement):
+            paywallContext = .dockerManagement
+            return false
+        default:
+            return true
+        }
     }
 
     @ViewBuilder

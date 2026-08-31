@@ -21,6 +21,7 @@ let package = Package(
         .library(name: "ConnTerminal", targets: ["ConnTerminal"]),
         .library(name: "ConnEditor", targets: ["ConnEditor"]),
         .library(name: "ConnUI", targets: ["ConnUI"]),
+        .library(name: "ConnEntitlement", targets: ["ConnEntitlement"]),
     ],
     dependencies: [
         .package(url: "https://github.com/groue/GRDB.swift.git", from: "7.11.1"),
@@ -149,6 +150,9 @@ let package = Package(
             resources: [.process("Resources")]
         ),
 
+        // 本地订阅权益规则：不依赖 StoreKit、UI 或远端能力模块，保证额度和付费墙边界可独立测试。
+        .target(name: "ConnEntitlement"),
+
         .testTarget(name: "ConnKitTests", dependencies: ["ConnKit"]),
         .testTarget(name: "ConnStoreTests", dependencies: ["ConnStore", "ConnMultiplexer"]),
         .testTarget(name: "ConnSSHTests", dependencies: ["ConnSSH"]),
@@ -174,5 +178,6 @@ let package = Package(
         .testTarget(name: "ConnTerminalTests", dependencies: ["ConnTerminal"]),
         .testTarget(name: "ConnEditorTests", dependencies: ["ConnEditor"]),
         .testTarget(name: "ConnUITests", dependencies: ["ConnUI"]),
+        .testTarget(name: "ConnEntitlementTests", dependencies: ["ConnEntitlement"]),
     ]
 )
