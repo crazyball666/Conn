@@ -1,465 +1,6 @@
 {
   "sourceLanguage" : "zh-Hans",
   "strings" : {
-    "确认更新主机指纹" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Confirm Host Fingerprint Update" } },
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "ホストフィンガープリントの更新を確認" } },
-        "ko" : { "stringUnit" : { "state" : "translated", "value" : "호스트 지문 업데이트 확인" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "确认更新主机指纹" } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "確認更新主機指紋" } }
-      }
-    },
-    "更新指纹并重连" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Update Fingerprint and Reconnect" } },
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "フィンガープリントを更新して再接続" } },
-        "ko" : { "stringUnit" : { "state" : "translated", "value" : "지문 업데이트 후 다시 연결" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "更新指纹并重连" } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "更新指紋並重新連線" } }
-      }
-    },
-    "主机指纹已发生新的变化，请重新确认" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "The host fingerprint changed again. Please confirm it again." } },
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "ホストフィンガープリントが再度変更されました。もう一度確認してください。" } },
-        "ko" : { "stringUnit" : { "state" : "translated", "value" : "호스트 지문이 다시 변경되었습니다. 다시 확인하세요." } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "主机指纹已发生新的变化，请重新确认" } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "主機指紋已再次變更，請重新確認" } }
-      }
-    },
-    "无法更新主机指纹，请检查本地数据库状态后重试" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Unable to update the host fingerprint. Check the local database and try again." } },
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "ホストフィンガープリントを更新できません。ローカルデータベースを確認して再試行してください。" } },
-        "ko" : { "stringUnit" : { "state" : "translated", "value" : "호스트 지문을 업데이트할 수 없습니다. 로컬 데이터베이스를 확인한 후 다시 시도하세요." } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "无法更新主机指纹，请检查本地数据库状态后重试" } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "無法更新主機指紋，請檢查本機資料庫狀態後重試" } }
-      }
-    },
-    "Conn Pro" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Conn Pro" } },
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "Conn Pro" } },
-        "ko" : { "stringUnit" : { "state" : "translated", "value" : "Conn Pro" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "Conn Pro" } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "Conn Pro" } }
-      }
-    },
-    "CONN PRO" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "CONN PRO" } },
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "CONN PRO" } },
-        "ko" : { "stringUnit" : { "state" : "translated", "value" : "CONN PRO" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "CONN PRO" } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "CONN PRO" } }
-      }
-    },
-    "把复杂的主机运维，收进一个工作台" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Bring complex host operations into one workspace" } },
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "複雑なホスト運用を、ひとつのワークスペースに集約" } },
-        "ko" : { "stringUnit" : { "state" : "translated", "value" : "복잡한 호스트 운영을 하나의 작업 공간으로" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "把复杂的主机运维，收进一个工作台" } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "將複雜的主機維運收進一個工作空間" } }
-      }
-    },
-    "连接、文件、容器与批量执行，全部在一处完成。" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Connections, files, containers, and batch execution—all in one place." } },
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "接続、ファイル、コンテナ、一括実行を、すべてひとつの場所で。" } },
-        "ko" : { "stringUnit" : { "state" : "translated", "value" : "연결, 파일, 컨테이너 및 일괄 실행을 한곳에서 관리하세요." } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "连接、文件、容器与批量执行，全部在一处完成。" } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "連線、檔案、容器與批次執行，全部集中一處。" } }
-      }
-    },
-    "四项核心能力" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Four core capabilities" } },
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "4つの主要機能" } },
-        "ko" : { "stringUnit" : { "state" : "translated", "value" : "4가지 핵심 기능" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "四项核心能力" } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "四項核心能力" } }
-      }
-    },
-    "不受两台限制" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "No two-host limit" } },
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "2 台制限なし" } },
-        "ko" : { "stringUnit" : { "state" : "translated", "value" : "호스트 2대 제한 없음" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "不受两台限制" } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "不受兩台限制" } }
-      }
-    },
-    "上传、下载与整理" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Upload, download, and organize" } },
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "アップロード、ダウンロード、整理" } },
-        "ko" : { "stringUnit" : { "state" : "translated", "value" : "업로드, 다운로드 및 정리" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "上传、下载与整理" } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "上傳、下載與整理" } }
-      }
-    },
-    "容器与镜像操作" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Container and image operations" } },
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "コンテナとイメージを操作" } },
-        "ko" : { "stringUnit" : { "state" : "translated", "value" : "컨테이너 및 이미지 작업" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "容器与镜像操作" } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "容器與映像檔操作" } }
-      }
-    },
-    "多台主机同时执行" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Run on multiple hosts at once" } },
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "複数ホストで同時実行" } },
-        "ko" : { "stringUnit" : { "state" : "translated", "value" : "여러 호스트에서 동시에 실행" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "多台主机同时执行" } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "在多台主機上同時執行" } }
-      }
-    },
-    "自动续订" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Auto-renewing" } },
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "自動更新" } },
-        "ko" : { "stringUnit" : { "state" : "translated", "value" : "자동 갱신" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "自动续订" } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "自動續訂" } }
-      }
-    },
-    "每年" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "per year" } },
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "年" } },
-        "ko" : { "stringUnit" : { "state" : "translated", "value" : "매년" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "每年" } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "每年" } }
-      }
-    },
-    "每月" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "per month" } },
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "月" } },
-        "ko" : { "stringUnit" : { "state" : "translated", "value" : "매월" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "每月" } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "每月" } }
-      }
-    },
-    "解锁完整的主机管理能力" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Unlock complete host management" } },
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "ホスト管理機能をすべて解放" } },
-        "ko" : { "stringUnit" : { "state" : "translated", "value" : "완전한 호스트 관리 기능 잠금 해제" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "解锁完整的主机管理能力" } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "解鎖完整的主機管理能力" } }
-      }
-    },
-    "为多主机运维工作流提供无限制的文件、容器和批量操作。" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Unlimited file, container, and batch operations for multi-host workflows." } },
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "複数ホストの運用ワークフローで、ファイル・コンテナ・一括操作を無制限に利用できます。" } },
-        "ko" : { "stringUnit" : { "state" : "translated", "value" : "다중 호스트 운영 워크플로에서 파일, 컨테이너 및 일괄 작업을 제한 없이 사용하세요." } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "为多主机运维工作流提供无限制的文件、容器和批量操作。" } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "為多主機維運工作流程提供無限制的檔案、容器和批次操作。" } }
-      }
-    },
-    "订阅由 Apple 管理，可在系统设置中取消。" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Subscriptions are managed by Apple and can be cancelled in Settings." } },
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "サブスクリプションは Apple によって管理され、設定からキャンセルできます。" } },
-        "ko" : { "stringUnit" : { "state" : "translated", "value" : "구독은 Apple에서 관리하며 설정에서 취소할 수 있습니다." } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "订阅由 Apple 管理，可在系统设置中取消。" } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "訂閱由 Apple 管理，可在系統設定中取消。" } }
-      }
-    },
-    "处理中…" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Processing…" } },
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "処理中…" } },
-        "ko" : { "stringUnit" : { "state" : "translated", "value" : "처리 중…" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "处理中…" } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "處理中…" } }
-      }
-    },
-    "订阅" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Subscription" } },
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "サブスクリプション" } },
-        "ko" : { "stringUnit" : { "state" : "translated", "value" : "구독" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "订阅" } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "訂閱" } }
-      }
-    },
-    "Pro 包含" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Pro includes" } },
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "Pro の内容" } },
-        "ko" : { "stringUnit" : { "state" : "translated", "value" : "Pro 포함 기능" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "Pro 包含" } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "Pro 包含" } }
-      }
-    },
-    "选择订阅周期" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Choose a billing cycle" } },
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "購読期間を選択" } },
-        "ko" : { "stringUnit" : { "state" : "translated", "value" : "구독 주기 선택" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "选择订阅周期" } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "選擇訂閱週期" } }
-      }
-    },
-    "更划算" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Best value" } },
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "お得" } },
-        "ko" : { "stringUnit" : { "state" : "translated", "value" : "더 경제적" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "更划算" } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "更划算" } }
-      }
-    },
-    "按年自动续订" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Renews yearly" } },
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "年額で自動更新" } },
-        "ko" : { "stringUnit" : { "state" : "translated", "value" : "매년 자동 갱신" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "按年自动续订" } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "按年自動續訂" } }
-      }
-    },
-    "按月自动续订" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Renews monthly" } },
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "月額で自動更新" } },
-        "ko" : { "stringUnit" : { "state" : "translated", "value" : "매월 자동 갱신" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "按月自动续订" } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "按月自動續訂" } }
-      }
-    },
-    "订阅 Conn Pro · %@" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Subscribe to Conn Pro · %@" } },
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "Conn Pro を購読 · %@" } },
-        "ko" : { "stringUnit" : { "state" : "translated", "value" : "Conn Pro 구독 · %@" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "订阅 Conn Pro · %@" } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "訂閱 Conn Pro · %@" } }
-      }
-    },
-    "恢复购买" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Restore Purchases" } },
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "購入を復元" } },
-        "ko" : { "stringUnit" : { "state" : "translated", "value" : "구매 복원" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "恢复购买" } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "恢復購買" } }
-      }
-    },
-    "无限主机数量" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Unlimited hosts" } },
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "ホスト数無制限" } },
-        "ko" : { "stringUnit" : { "state" : "translated", "value" : "호스트 수 무제한" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "无限主机数量" } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "無限主機數量" } }
-      }
-    },
-    "远程文件管理" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Remote file management" } },
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "リモートファイル管理" } },
-        "ko" : { "stringUnit" : { "state" : "translated", "value" : "원격 파일 관리" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "远程文件管理" } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "遠端檔案管理" } }
-      }
-    },
-    "文件管理" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "File management" } },
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "ファイル管理" } },
-        "ko" : { "stringUnit" : { "state" : "translated", "value" : "파일 관리" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "文件管理" } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "檔案管理" } }
-      }
-    },
-    "¥18/月" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "¥18/month" } },
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "¥18/月" } },
-        "ko" : { "stringUnit" : { "state" : "translated", "value" : "월 ¥18" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "¥18/月" } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "¥18/月" } }
-      }
-    },
-    "¥98/年" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "¥98/year" } },
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "¥98/年" } },
-        "ko" : { "stringUnit" : { "state" : "translated", "value" : "연 ¥98" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "¥98/年" } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "¥98/年" } }
-      }
-    },
-    "Docker 管理" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Docker management" } },
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "Docker 管理" } },
-        "ko" : { "stringUnit" : { "state" : "translated", "value" : "Docker 관리" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "Docker 管理" } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "Docker 管理" } }
-      }
-    },
-    "批量执行脚本" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Batch script execution" } },
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "スクリプトの一括実行" } },
-        "ko" : { "stringUnit" : { "state" : "translated", "value" : "스크립트 일괄 실행" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "批量执行脚本" } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "批次執行腳本" } }
-      }
-    },
-    "升级到 Conn Pro" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Upgrade to Conn Pro" } },
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "Conn Pro にアップグレード" } },
-        "ko" : { "stringUnit" : { "state" : "translated", "value" : "Conn Pro로 업그레이드" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "升级到 Conn Pro" } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "升級至 Conn Pro" } }
-      }
-    },
-    "添加第三台主机" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Add a third host" } },
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "3 台目のホストを追加" } },
-        "ko" : { "stringUnit" : { "state" : "translated", "value" : "세 번째 호스트 추가" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "添加第三台主机" } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "新增第三台主機" } }
-      }
-    },
-    "文件管理是 Conn Pro 功能，升级后即可访问远程文件。" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "File management is a Conn Pro feature. Upgrade to access remote files." } },
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "ファイル管理は Conn Pro の機能です。アップグレードするとリモートファイルにアクセスできます。" } },
-        "ko" : { "stringUnit" : { "state" : "translated", "value" : "파일 관리는 Conn Pro 기능입니다. 업그레이드하면 원격 파일에 액세스할 수 있습니다." } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "文件管理是 Conn Pro 功能，升级后即可访问远程文件。" } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "檔案管理是 Conn Pro 功能，升級後即可存取遠端檔案。" } }
-      }
-    },
-    "Docker 管理是 Conn Pro 功能，升级后即可管理容器和镜像。" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Docker management is a Conn Pro feature. Upgrade to manage containers and images." } },
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "Docker 管理は Conn Pro の機能です。アップグレードするとコンテナとイメージを管理できます。" } },
-        "ko" : { "stringUnit" : { "state" : "translated", "value" : "Docker 관리는 Conn Pro 기능입니다. 업그레이드하면 컨테이너와 이미지를 관리할 수 있습니다." } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "Docker 管理是 Conn Pro 功能，升级后即可管理容器和镜像。" } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "Docker 管理是 Conn Pro 功能，升級後即可管理容器和映像檔。" } }
-      }
-    },
-    "批量执行是 Conn Pro 功能，升级后可同时操作多台主机。" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Batch execution is a Conn Pro feature. Upgrade to operate on multiple hosts at once." } },
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "一括実行は Conn Pro の機能です。アップグレードすると複数ホストを同時に操作できます。" } },
-        "ko" : { "stringUnit" : { "state" : "translated", "value" : "일괄 실행은 Conn Pro 기능입니다. 업그레이드하면 여러 호스트를 동시에 조작할 수 있습니다." } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "批量执行是 Conn Pro 功能，升级后可同时操作多台主机。" } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "批次執行是 Conn Pro 功能，升級後可同時操作多台主機。" } }
-      }
-    },
-    "订阅后即可使用全部 Pro 功能。" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Subscribe to use all Pro features." } },
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "購読するとすべての Pro 機能を利用できます。" } },
-        "ko" : { "stringUnit" : { "state" : "translated", "value" : "구독하면 모든 Pro 기능을 사용할 수 있습니다." } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "订阅后即可使用全部 Pro 功能。" } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "訂閱後即可使用全部 Pro 功能。" } }
-      }
-    },
-    "免费版最多添加两台主机，升级后可添加任意数量。" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "The free version supports up to two hosts. Upgrade to add more." } },
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "無料版ではホストを 2 台まで追加できます。アップグレードするとさらに追加できます。" } },
-        "ko" : { "stringUnit" : { "state" : "translated", "value" : "무료 버전은 호스트를 최대 2대까지 지원합니다. 업그레이드하면 더 추가할 수 있습니다." } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "免费版最多添加两台主机，升级后可添加任意数量。" } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "免費版最多新增兩台主機，升級後可新增任意數量。" } }
-      }
-    },
-    "购买已提交，完成后将自动生效。" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Purchase submitted. It will take effect automatically when complete." } },
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "購入を受け付けました。完了すると自動的に有効になります。" } },
-        "ko" : { "stringUnit" : { "state" : "translated", "value" : "구매가 제출되었습니다. 완료되면 자동으로 적용됩니다." } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "购买已提交，完成后将自动生效。" } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "購買已提交，完成後將自動生效。" } }
-      }
-    },
-    "购买暂不可用，请稍后重试。" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Purchases are temporarily unavailable. Try again later." } },
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "現在購入を利用できません。しばらくしてから再試行してください。" } },
-        "ko" : { "stringUnit" : { "state" : "translated", "value" : "현재 구매를 사용할 수 없습니다. 나중에 다시 시도하세요." } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "购买暂不可用，请稍后重试。" } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "購買暫時無法使用，請稍後重試。" } }
-      }
-    },
-    "购买失败，请稍后重试。" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Purchase failed. Try again later." } },
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "購入に失敗しました。しばらくしてから再試行してください。" } },
-        "ko" : { "stringUnit" : { "state" : "translated", "value" : "구매에 실패했습니다. 나중에 다시 시도하세요." } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "购买失败，请稍后重试。" } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "購買失敗，請稍後重試。" } }
-      }
-    },
-    "订阅已恢复。" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Subscription restored." } },
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "サブスクリプションを復元しました。" } },
-        "ko" : { "stringUnit" : { "state" : "translated", "value" : "구독이 복원되었습니다." } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "订阅已恢复。" } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "訂閱已恢復。" } }
-      }
-    },
-    "未找到有效订阅。" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "No active subscription found." } },
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "有効なサブスクリプションが見つかりません。" } },
-        "ko" : { "stringUnit" : { "state" : "translated", "value" : "유효한 구독을 찾을 수 없습니다." } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "未找到有效订阅。" } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "找不到有效訂閱。" } }
-      }
-    },
-    "按月" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Monthly" } },
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "月額" } },
-        "ko" : { "stringUnit" : { "state" : "translated", "value" : "월간" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "按月" } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "按月" } }
-      }
-    },
-    "按年" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Yearly" } },
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "年額" } },
-        "ko" : { "stringUnit" : { "state" : "translated", "value" : "연간" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "按年" } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "按年" } }
-      }
-    },
-    "订阅已生效" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Subscription active" } },
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "購読中" } },
-        "ko" : { "stringUnit" : { "state" : "translated", "value" : "구독 활성화됨" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "订阅已生效" } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "訂閱已生效" } }
-      }
-    },
-    "解锁无限主机、文件管理、Docker 与批量执行" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Unlock unlimited hosts, file management, Docker, and batch execution" } },
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "無制限のホスト、ファイル管理、Docker、一括実行を解放" } },
-        "ko" : { "stringUnit" : { "state" : "translated", "value" : "무제한 호스트, 파일 관리, Docker 및 일괄 실행 잠금 해제" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "解锁无限主机、文件管理、Docker 与批量执行" } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "解鎖無限主機、檔案管理、Docker 與批次執行" } }
-      }
-    },
     "—" : {
       "localizations" : {
         "en" : {
@@ -1783,6 +1324,76 @@
     "$ " : {
 
     },
+    "¥18/月" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "¥18/month"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "¥18/月"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "월 ¥18"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "¥18/月"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "¥18/月"
+          }
+        }
+      }
+    },
+    "¥98/年" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "¥98/year"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "¥98/年"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "연 ¥98"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "¥98/年"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "¥98/年"
+          }
+        }
+      }
+    },
     "1 分钟" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -1998,6 +1609,76 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Compose 專案設定無效"
+          }
+        }
+      }
+    },
+    "Conn Pro" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Conn Pro"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Conn Pro"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Conn Pro"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Conn Pro"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Conn Pro"
+          }
+        }
+      }
+    },
+    "CONN PRO" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CONN PRO"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CONN PRO"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CONN PRO"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CONN PRO"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CONN PRO"
           }
         }
       }
@@ -2853,6 +2534,76 @@
         }
       }
     },
+    "Docker 管理" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Docker management"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Docker 管理"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Docker 관리"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Docker 管理"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Docker 管理"
+          }
+        }
+      }
+    },
+    "Docker 管理是 Conn Pro 功能，升级后即可管理容器和镜像。" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Docker management is a Conn Pro feature. Upgrade to manage containers and images."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Docker 管理は Conn Pro の機能です。アップグレードするとコンテナとイメージを管理できます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Docker 관리는 Conn Pro 기능입니다. 업그레이드하면 컨테이너와 이미지를 관리할 수 있습니다."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Docker 管理是 Conn Pro 功能，升级后即可管理容器和镜像。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Docker 管理是 Conn Pro 功能，升級後即可管理容器和映像檔。"
+          }
+        }
+      }
+    },
     "Docker 系统清理" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -3241,6 +2992,41 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Pane 標題、命令或路徑來自最新快照；首次訂閱更新後將切換為即時狀態。"
+          }
+        }
+      }
+    },
+    "Pro 包含" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pro includes"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pro の内容"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pro 포함 기능"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pro 包含"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pro 包含"
           }
         }
       }
@@ -3794,6 +3580,41 @@
         }
       }
     },
+    "上传、下载与整理" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Upload, download, and organize"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "アップロード、ダウンロード、整理"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "업로드, 다운로드 및 정리"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "上传、下载与整理"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "上傳、下載與整理"
+          }
+        }
+      }
+    },
     "上传失败：%@" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -4171,6 +3992,70 @@
         }
       }
     },
+    "不受两台限制" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No two-host limit"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "2 台制限なし"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "호스트 2대 제한 없음"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不受两台限制"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不受兩台限制"
+          }
+        }
+      }
+    },
+    "不可中断" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Uninterruptible"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "割込み不可"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "중단 불가"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不可中斷"
+          }
+        }
+      }
+    },
     "不可用" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -4202,35 +4087,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "無法使用"
-          }
-        }
-      }
-    },
-    "不可中断" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Uninterruptible"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "割込み不可"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "중단 불가"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "不可中斷"
           }
         }
       }
@@ -4347,6 +4203,41 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "不重新啟動"
+          }
+        }
+      }
+    },
+    "为多主机运维工作流提供无限制的文件、容器和批量操作。" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unlimited file, container, and batch operations for multi-host workflows."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "複数ホストの運用ワークフローで、ファイル・コンテナ・一括操作を無制限に利用できます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "다중 호스트 운영 워크플로에서 파일, 컨테이너 및 일괄 작업을 제한 없이 사용하세요."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "为多主机运维工作流提供无限制的文件、容器和批量操作。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "為多主機維運工作流程提供無限制的檔案、容器和批次操作。"
           }
         }
       }
@@ -4585,6 +4476,41 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "主機指標收集暫時無法使用"
+          }
+        }
+      }
+    },
+    "主机指纹已发生新的变化，请重新确认" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The host fingerprint changed again. Please confirm it again."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ホストフィンガープリントが再度変更されました。もう一度確認してください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "호스트 지문이 다시 변경되었습니다. 다시 확인하세요."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "主机指纹已发生新的变化，请重新确认"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "主機指紋已再次變更，請重新確認"
           }
         }
       }
@@ -5984,6 +5910,41 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "游標閃爍"
+          }
+        }
+      }
+    },
+    "免费版最多添加两台主机，升级后可添加任意数量。" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The free version supports up to two hosts. Upgrade to add more."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無料版ではホストを 2 台まで追加できます。アップグレードするとさらに追加できます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "무료 버전은 호스트를 최대 2대까지 지원합니다. 업그레이드하면 더 추가할 수 있습니다."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "免费版最多添加两台主机，升级后可添加任意数量。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "免費版最多新增兩台主機，升級後可新增任意數量。"
           }
         }
       }
@@ -8147,6 +8108,41 @@
         }
       }
     },
+    "升级到 Conn Pro" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Upgrade to Conn Pro"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Conn Pro にアップグレード"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Conn Pro로 업그레이드"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "升级到 Conn Pro"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "升級至 Conn Pro"
+          }
+        }
+      }
+    },
     "协议" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -9395,6 +9391,41 @@
         }
       }
     },
+    "四项核心能力" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Four core capabilities"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "4つの主要機能"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "4가지 핵심 기능"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "四项核心能力"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "四項核心能力"
+          }
+        }
+      }
+    },
     "回滚历史" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -9594,6 +9625,41 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "填入"
+          }
+        }
+      }
+    },
+    "处理中…" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Processing…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "処理中…"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "처리 중…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "处理中…"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "處理中…"
           }
         }
       }
@@ -9913,6 +9979,41 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "外觀"
+          }
+        }
+      }
+    },
+    "多台主机同时执行" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Run on multiple hosts at once"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "複数ホストで同時実行"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "여러 호스트에서 동시에 실행"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "多台主机同时执行"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在多台主機上同時執行"
           }
         }
       }
@@ -10389,6 +10490,41 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "容器：%@"
+          }
+        }
+      }
+    },
+    "容器与镜像操作" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Container and image operations"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "コンテナとイメージを操作"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "컨테이너 및 이미지 작업"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "容器与镜像操作"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "容器與映像檔操作"
           }
         }
       }
@@ -12905,6 +13041,41 @@
         }
       }
     },
+    "恢复购买" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Restore Purchases"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "購入を復元"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "구매 복원"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "恢复购买"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "恢復購買"
+          }
+        }
+      }
+    },
     "我的" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -13485,6 +13656,41 @@
         }
       }
     },
+    "批量执行是 Conn Pro 功能，升级后可同时操作多台主机。" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Batch execution is a Conn Pro feature. Upgrade to operate on multiple hosts at once."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "一括実行は Conn Pro の機能です。アップグレードすると複数ホストを同時に操作できます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "일괄 실행은 Conn Pro 기능입니다. 업그레이드하면 여러 호스트를 동시에 조작할 수 있습니다."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "批量执行是 Conn Pro 功能，升级后可同时操作多台主机。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "批次執行是 Conn Pro 功能，升級後可同時操作多台主機。"
+          }
+        }
+      }
+    },
     "批量执行结果" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -13510,6 +13716,76 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "批次執行結果"
+          }
+        }
+      }
+    },
+    "批量执行脚本" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Batch script execution"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "スクリプトの一括実行"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "스크립트 일괄 실행"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "批量执行脚本"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "批次執行腳本"
+          }
+        }
+      }
+    },
+    "把复杂的主机运维，收进一个工作台" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bring complex host operations into one workspace"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "複雑なホスト運用を、ひとつのワークスペースに集約"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "복잡한 호스트 운영을 하나의 작업 공간으로"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "把复杂的主机运维，收进一个工作台"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "將複雜的主機維運收進一個工作空間"
           }
         }
       }
@@ -13694,6 +13970,35 @@
         }
       }
     },
+    "持久终端：%@" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Persistent Terminal: %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "永続ターミナル：%@"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "지속 터미널: %@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "持久終端：%@"
+          }
+        }
+      }
+    },
     "持久终端不可用" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -13725,70 +14030,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "持久終端無法使用"
-          }
-        }
-      }
-    },
-    "正在检测持久终端…" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Detecting persistent terminal providers…"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "永続ターミナル Provider を検出中…"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "지속 터미널 Provider 감지 중…"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "正在检测持久终端…"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "正在偵測持久終端…"
-          }
-        }
-      }
-    },
-    "持久终端：%@" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Persistent Terminal: %@"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "永続ターミナル：%@"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "지속 터미널: %@"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "持久終端：%@"
           }
         }
       }
@@ -13847,6 +14088,146 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "掛載點"
+          }
+        }
+      }
+    },
+    "按年" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Yearly"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "年額"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "연간"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "按年"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "按年"
+          }
+        }
+      }
+    },
+    "按年自动续订" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Renews yearly"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "年額で自動更新"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "매년 자동 갱신"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "按年自动续订"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "按年自動續訂"
+          }
+        }
+      }
+    },
+    "按月" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Monthly"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "月額"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "월간"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "按月"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "按月"
+          }
+        }
+      }
+    },
+    "按月自动续订" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Renews monthly"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "月額で自動更新"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "매월 자동 갱신"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "按月自动续订"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "按月自動續訂"
           }
         }
       }
@@ -14855,6 +15236,76 @@
         }
       }
     },
+    "文件管理" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "File management"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ファイル管理"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "파일 관리"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "文件管理"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "檔案管理"
+          }
+        }
+      }
+    },
+    "文件管理是 Conn Pro 功能，升级后即可访问远程文件。" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "File management is a Conn Pro feature. Upgrade to access remote files."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ファイル管理は Conn Pro の機能です。アップグレードするとリモートファイルにアクセスできます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "파일 관리는 Conn Pro 기능입니다. 업그레이드하면 원격 파일에 액세스할 수 있습니다."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "文件管理是 Conn Pro 功能，升级后即可访问远程文件。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "檔案管理是 Conn Pro 功能，升級後即可存取遠端檔案。"
+          }
+        }
+      }
+    },
     "文件超过 1MB，暂不支持在线编辑。请下载后查看。" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -15830,6 +16281,41 @@
         }
       }
     },
+    "无法更新主机指纹，请检查本地数据库状态后重试" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unable to update the host fingerprint. Check the local database and try again."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ホストフィンガープリントを更新できません。ローカルデータベースを確認して再試行してください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "호스트 지문을 업데이트할 수 없습니다. 로컬 데이터베이스를 확인한 후 다시 시도하세요."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法更新主机指纹，请检查本地数据库状态后重试"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法更新主機指紋，請檢查本機資料庫狀態後重試"
+          }
+        }
+      }
+    },
     "无法确认远程主机是否满足片段要求。" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -15942,6 +16428,41 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "無映像檔"
+          }
+        }
+      }
+    },
+    "无限主机数量" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unlimited hosts"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ホスト数無制限"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "호스트 수 무제한"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无限主机数量"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無限主機數量"
           }
         }
       }
@@ -16851,6 +17372,41 @@
         }
       }
     },
+    "更划算" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Best value"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "お得"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "더 경제적"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "更划算"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "更划算"
+          }
+        }
+      }
+    },
     "更多操作" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -16876,6 +17432,41 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "更多操作"
+          }
+        }
+      }
+    },
+    "更新指纹并重连" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Update Fingerprint and Reconnect"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "フィンガープリントを更新して再接続"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "지문 업데이트 후 다시 연결"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "更新指纹并重连"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "更新指紋並重新連線"
           }
         }
       }
@@ -17340,6 +17931,41 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "找不到符合的映像檔"
+          }
+        }
+      }
+    },
+    "未找到有效订阅。" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No active subscription found."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "有効なサブスクリプションが見つかりません。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "유효한 구독을 찾을 수 없습니다."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未找到有效订阅。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "找不到有效訂閱。"
           }
         }
       }
@@ -18272,6 +18898,41 @@
         }
       }
     },
+    "正在检测持久终端…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Detecting persistent terminal providers…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "永続ターミナル Provider を検出中…"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "지속 터미널 Provider 감지 중…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在检测持久终端…"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在偵測持久終端…"
+          }
+        }
+      }
+    },
     "正在连接 %@…" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -18570,6 +19231,76 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "分段"
+          }
+        }
+      }
+    },
+    "每年" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "per year"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "年"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "매년"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "每年"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "每年"
+          }
+        }
+      }
+    },
+    "每月" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "per month"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "月"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "매월"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "每月"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "每月"
           }
         }
       }
@@ -19481,6 +20212,41 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "新增第一台主機以開始監控與管理"
+          }
+        }
+      }
+    },
+    "添加第三台主机" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add a third host"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "3 台目のホストを追加"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "세 번째 호스트 추가"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "添加第三台主机"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新增第三台主機"
           }
         }
       }
@@ -20630,6 +21396,41 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "確認批次執行"
+          }
+        }
+      }
+    },
+    "确认更新主机指纹" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Confirm Host Fingerprint Update"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ホストフィンガープリントの更新を確認"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "호스트 지문 업데이트 확인"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "确认更新主机指纹"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "確認更新主機指紋"
           }
         }
       }
@@ -22891,6 +23692,41 @@
         }
       }
     },
+    "自动续订" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Auto-renewing"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自動更新"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "자동 갱신"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自动续订"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自動續訂"
+          }
+        }
+      }
+    },
     "蓝" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -23061,6 +23897,286 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "解鎖 Conn"
+          }
+        }
+      }
+    },
+    "解锁完整的主机管理能力" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unlock complete host management"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ホスト管理機能をすべて解放"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "완전한 호스트 관리 기능 잠금 해제"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "解锁完整的主机管理能力"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "解鎖完整的主機管理能力"
+          }
+        }
+      }
+    },
+    "解锁无限主机、文件管理、Docker 与批量执行" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unlock unlimited hosts, file management, Docker, and batch execution"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無制限のホスト、ファイル管理、Docker、一括実行を解放"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "무제한 호스트, 파일 관리, Docker 및 일괄 실행 잠금 해제"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "解锁无限主机、文件管理、Docker 与批量执行"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "解鎖無限主機、檔案管理、Docker 與批次執行"
+          }
+        }
+      }
+    },
+    "订阅" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Subscription"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "サブスクリプション"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "구독"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "订阅"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "訂閱"
+          }
+        }
+      }
+    },
+    "订阅 Conn Pro · %@" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Subscribe to Conn Pro · %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Conn Pro を購読 · %@"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Conn Pro 구독 · %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "订阅 Conn Pro · %@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "訂閱 Conn Pro · %@"
+          }
+        }
+      }
+    },
+    "订阅后即可使用全部 Pro 功能。" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Subscribe to use all Pro features."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "購読するとすべての Pro 機能を利用できます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "구독하면 모든 Pro 기능을 사용할 수 있습니다."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "订阅后即可使用全部 Pro 功能。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "訂閱後即可使用全部 Pro 功能。"
+          }
+        }
+      }
+    },
+    "订阅已恢复。" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Subscription restored."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "サブスクリプションを復元しました。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "구독이 복원되었습니다."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "订阅已恢复。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "訂閱已恢復。"
+          }
+        }
+      }
+    },
+    "订阅已生效" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Subscription active"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "購読中"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "구독 활성화됨"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "订阅已生效"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "訂閱已生效"
+          }
+        }
+      }
+    },
+    "订阅由 Apple 管理，可在系统设置中取消。" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Subscriptions are managed by Apple and can be cancelled in Settings."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "サブスクリプションは Apple によって管理され、設定からキャンセルできます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "구독은 Apple에서 관리하며 설정에서 취소할 수 있습니다."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "订阅由 Apple 管理，可在系统设置中取消。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "訂閱由 Apple 管理，可在系統設定中取消。"
           }
         }
       }
@@ -24469,6 +25585,111 @@
         }
       }
     },
+    "购买失败，请稍后重试。" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Purchase failed. Try again later."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "購入に失敗しました。しばらくしてから再試行してください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "구매에 실패했습니다. 나중에 다시 시도하세요."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "购买失败，请稍后重试。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "購買失敗，請稍後重試。"
+          }
+        }
+      }
+    },
+    "购买已提交，完成后将自动生效。" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Purchase submitted. It will take effect automatically when complete."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "購入を受け付けました。完了すると自動的に有効になります。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "구매가 제출되었습니다. 완료되면 자동으로 적용됩니다."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "购买已提交，完成后将自动生效。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "購買已提交，完成後將自動生效。"
+          }
+        }
+      }
+    },
+    "购买暂不可用，请稍后重试。" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Purchases are temporarily unavailable. Try again later."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "現在購入を利用できません。しばらくしてから再試行してください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "현재 구매를 사용할 수 없습니다. 나중에 다시 시도하세요."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "购买暂不可用，请稍后重试。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "購買暫時無法使用，請稍後重試。"
+          }
+        }
+      }
+    },
     "跟随中" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -25817,6 +27038,41 @@
         }
       }
     },
+    "远程文件管理" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Remote file management"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "リモートファイル管理"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "원격 파일 관리"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "远程文件管理"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "遠端檔案管理"
+          }
+        }
+      }
+    },
     "连接" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -25842,6 +27098,41 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "連線"
+          }
+        }
+      }
+    },
+    "连接、文件、容器与批量执行，全部在一处完成。" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Connections, files, containers, and batch execution—all in one place."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "接続、ファイル、コンテナ、一括実行を、すべてひとつの場所で。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "연결, 파일, 컨테이너 및 일괄 실행을 한곳에서 관리하세요."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "连接、文件、容器与批量执行，全部在一处完成。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "連線、檔案、容器與批次執行，全部集中一處。"
           }
         }
       }
@@ -26568,6 +27859,41 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "選擇要控制的 Conn 終端"
+          }
+        }
+      }
+    },
+    "选择订阅周期" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose a billing cycle"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "購読期間を選択"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "구독 주기 선택"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "选择订阅周期"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "選擇訂閱週期"
           }
         }
       }
