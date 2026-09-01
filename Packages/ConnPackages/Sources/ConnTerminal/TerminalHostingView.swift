@@ -722,6 +722,11 @@
                 case let .replayFinished(viewport):
                     replayOutboundGate.finishReplay()
                     isReplayGateActive = false
+                    // Historical replay suppresses delegate callbacks; publish the
+                    // terminal's final parsed OSC 7 value once replay is complete.
+                    if let directory = terminalView.getTerminal().hostCurrentDirectory {
+                        hostCurrentDirectoryUpdate(source: terminalView, directory: directory)
+                    }
                     terminalView.scroll(toPosition: viewport.followsLiveOutput ? 1 : viewport.scrollPosition)
                     if replayPolicy == .authoritativeRemote {
                         rendererReadyForRemoteViewport = true

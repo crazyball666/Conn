@@ -366,6 +366,12 @@ package struct TmuxInteractionStateProjector: Sendable {
         }
 
         let interaction = pane.interaction
+        let workingDirectory: String? = switch pane.currentPath.freshness {
+        case .liveSubscription, .snapshot:
+            pane.currentPath.value
+        case .stale, .unavailable:
+            nil
+        }
         var routingFreshness = [
             interaction.alternateOn.freshness,
             interaction.paneInMode.freshness,
@@ -390,9 +396,7 @@ package struct TmuxInteractionStateProjector: Sendable {
             providerModeID: interaction.mode.value,
             historyAvailable: (interaction.historySize.value ?? 0) > 0,
             observedAt: snapshot.observedAt,
-            workingDirectory: effectiveFreshness([pane.currentPath.freshness]) == .live
-                ? pane.currentPath.value
-                : nil
+            workingDirectory: workingDirectory
         )
         return .init(
             state: state,

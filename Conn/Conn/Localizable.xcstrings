@@ -46,6 +46,105 @@
         "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "Conn Pro" } }
       }
     },
+    "CONN PRO" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "CONN PRO" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "CONN PRO" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "CONN PRO" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "CONN PRO" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "CONN PRO" } }
+      }
+    },
+    "把复杂的主机运维，收进一个工作台" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Bring complex host operations into one workspace" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "複雑なホスト運用を、ひとつのワークスペースに集約" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "복잡한 호스트 운영을 하나의 작업 공간으로" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "把复杂的主机运维，收进一个工作台" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "將複雜的主機維運收進一個工作空間" } }
+      }
+    },
+    "连接、文件、容器与批量执行，全部在一处完成。" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Connections, files, containers, and batch execution—all in one place." } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "接続、ファイル、コンテナ、一括実行を、すべてひとつの場所で。" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "연결, 파일, 컨테이너 및 일괄 실행을 한곳에서 관리하세요." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "连接、文件、容器与批量执行，全部在一处完成。" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "連線、檔案、容器與批次執行，全部集中一處。" } }
+      }
+    },
+    "四项核心能力" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Four core capabilities" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "4つの主要機能" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "4가지 핵심 기능" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "四项核心能力" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "四項核心能力" } }
+      }
+    },
+    "不受两台限制" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "No two-host limit" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "2 台制限なし" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "호스트 2대 제한 없음" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "不受两台限制" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "不受兩台限制" } }
+      }
+    },
+    "上传、下载与整理" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Upload, download, and organize" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "アップロード、ダウンロード、整理" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "업로드, 다운로드 및 정리" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "上传、下载与整理" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "上傳、下載與整理" } }
+      }
+    },
+    "容器与镜像操作" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Container and image operations" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "コンテナとイメージを操作" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "컨테이너 및 이미지 작업" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "容器与镜像操作" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "容器與映像檔操作" } }
+      }
+    },
+    "多台主机同时执行" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Run on multiple hosts at once" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "複数ホストで同時実行" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "여러 호스트에서 동시에 실행" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "多台主机同时执行" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "在多台主機上同時執行" } }
+      }
+    },
+    "自动续订" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Auto-renewing" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "自動更新" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "자동 갱신" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "自动续订" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "自動續訂" } }
+      }
+    },
+    "每年" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "per year" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "年" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "매년" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "每年" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "每年" } }
+      }
+    },
+    "每月" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "per month" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "月" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "매월" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "每月" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "每月" } }
+      }
+    },
     "解锁完整的主机管理能力" : {
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Unlock complete host management" } },

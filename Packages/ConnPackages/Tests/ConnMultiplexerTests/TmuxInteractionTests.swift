@@ -67,6 +67,18 @@ struct TmuxInteractionTests {
         #expect(stale.workingDirectory == nil)
     }
 
+    @Test("fresh tmux snapshots preserve the active pane working directory")
+    func projectsWorkingDirectoryFromFreshSnapshot() throws {
+        let fixture = try InteractionFixture()
+        let snapshot = try TmuxInteractionStateProjector().project(
+            snapshot: fixture.snapshot(freshness: .snapshot(observedAt: fixture.now)),
+            identity: fixture.identity,
+            attachmentGeneration: 9
+        )
+
+        #expect(snapshot.workingDirectory == "/repo/conn")
+    }
+
     @Test("normal mode does not require a pane mode identifier")
     func projectsNormalModeWithoutModeIdentifier() throws {
         let fixture = try InteractionFixture()

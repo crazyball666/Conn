@@ -374,6 +374,19 @@ struct AppWideUIConsistencyTests {
         ))
     }
 
+    @Test("订阅页采用聚焦的价值主张、方案选择与底部主 CTA")
+    func paywallUsesFocusedConversionLayout() throws {
+        let source = try appSource("Monetization/PaywallView.swift")
+
+        #expect(source.contains("accessibilityIdentifier(\"paywall.hero\")"))
+        #expect(source.contains("accessibilityIdentifier(\"paywall.features\")"))
+        #expect(source.contains("accessibilityIdentifier(\"paywall.plans\")"))
+        #expect(source.contains(".safeAreaInset(edge: .bottom, spacing: 0)"))
+        #expect(source.contains("accessibilityIdentifier(\"paywall.plan.\\(plan.rawValue)\")"))
+        #expect(source.contains("paywall.yearly.badge"))
+        #expect(source.contains("paywall.restore"))
+    }
+
     @Test("终端主题使用自定义列表展示完整预览而不是系统 Picker 文本降级")
     func terminalThemesUseCustomPreviewList() throws {
         let settings = try appSource("Me/TerminalSettingsView.swift")
@@ -501,6 +514,14 @@ struct AppWideUIConsistencyTests {
         #expect(host.contains("onTerminalWorkingDirectoryChanged"))
         #expect(host.contains("hostCurrentDirectoryUpdate(source _: TerminalView, directory:"))
         #expect(host.contains("onPersistentWorkingDirectoryChanged(nil)"))
+    }
+
+    @Test("终端回放结束后同步 SwiftTerm 已解析的当前目录")
+    func terminalReplayPublishesKnownWorkingDirectory() throws {
+        let host = try packageSource("Sources/ConnTerminal/TerminalHostingView.swift")
+
+        #expect(host.contains("if let directory = terminalView.getTerminal().hostCurrentDirectory"))
+        #expect(host.contains("hostCurrentDirectoryUpdate(source: terminalView, directory: directory)"))
     }
 
     @Test("终端文件页面按会话独立保存且不复用主机详情页面")

@@ -23,6 +23,13 @@ enum PaywallContext: String, CaseIterable, Equatable, Identifiable, Sendable {
     }
 }
 
+private struct PaywallFeature: Identifiable {
+    let id: String
+    let title: String
+    let detail: String
+    let systemImage: String
+}
+
 /// Conn Pro 购买页。价格以 StoreKit 返回值为准，未配置商品时使用确定的开发兜底值，
 /// 保证商品配置前的 UI 验收仍然可用。
 struct PaywallView: View {
@@ -39,18 +46,21 @@ struct PaywallView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: ConnSpacing.md) {
                     hero
-                    reasonCard
+                    contextBanner
                     featureList
                     planPicker
-                    purchaseButton
-                    restoreButton
                     Text(L("订阅由 Apple 管理，可在系统设置中取消。"))
                         .font(.connFootnote)
                         .foregroundStyle(.connMuted)
                         .frame(maxWidth: .infinity)
                         .multilineTextAlignment(.center)
+                        .padding(.horizontal, ConnSpacing.xs)
+                        .padding(.bottom, ConnSpacing.sm)
                 }
                 .padding(ConnSpacing.page)
+            }
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                purchaseBar
             }
             .background(Color.connBg.ignoresSafeArea())
             .navigationTitle(L("Conn Pro"))
@@ -90,34 +100,56 @@ struct PaywallView: View {
     }
 
     private var hero: some View {
-        VStack(alignment: .leading, spacing: ConnSpacing.xs) {
-            HStack(spacing: ConnSpacing.sm) {
-                Image(systemName: "bolt.shield.fill")
-                    .font(.system(size: 28, weight: .bold))
-                    .foregroundStyle(.white)
-                    .frame(width: 52, height: 52)
-                    .background(Color.connAccent, in: RoundedRectangle(cornerRadius: ConnRadius.control))
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(L("Conn Pro"))
-                        .font(.connTitle)
-                        .foregroundStyle(.connInk)
-                    Text(L("解锁完整的主机管理能力"))
+        ZStack(alignment: .bottomTrailing) {
+            LinearGradient(
+                colors: [.connAccentDeep, .connAccent],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+            Circle()
+                .fill(Color.white.opacity(0.14))
+                .frame(width: 190, height: 190)
+                .blur(radius: 2)
+                .offset(x: 78, y: 74)
+            Image(systemName: "server.rack")
+                .font(.system(size: 112, weight: .bold))
+                .foregroundStyle(.white.opacity(0.11))
+                .rotationEffect(.degrees(-8))
+                .offset(x: 28, y: 18)
+
+            VStack(alignment: .leading, spacing: ConnSpacing.md) {
+                HStack {
+                    Label(L("CONN PRO"), systemImage: "bolt.fill")
+                        .font(.connCaption)
+                        .foregroundStyle(.white.opacity(0.94))
+                        .padding(.horizontal, ConnSpacing.sm)
+                        .padding(.vertical, ConnSpacing.xxs)
+                        .background(Color.white.opacity(0.14), in: Capsule())
+                    Spacer(minLength: 0)
+                }
+                VStack(alignment: .leading, spacing: ConnSpacing.xs) {
+                    Text(L("把复杂的主机运维，收进一个工作台"))
+                        .font(.connSectionTitle)
+                        .fontWeight(.bold)
+                        .foregroundStyle(.white)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Text(L("连接、文件、容器与批量执行，全部在一处完成。"))
                         .font(.connFootnote)
-                        .foregroundStyle(.connMuted)
+                        .foregroundStyle(.white.opacity(0.78))
+                        .fixedSize(horizontal: false, vertical: true)
                 }
             }
-            Text(L("为多主机运维工作流提供无限制的文件、容器和批量操作。"))
-                .font(.connBody)
-                .foregroundStyle(.connInk)
-                .fixedSize(horizontal: false, vertical: true)
+            .padding(ConnSpacing.lg)
         }
+        .frame(maxWidth: .infinity, minHeight: 194, alignment: .leading)
+        .clipShape(.rect(cornerRadius: ConnRadius.card, style: .continuous))
         .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("paywall.hero")
     }
 
-    private var reasonCard: some View {
+    private var contextBanner: some View {
         HStack(alignment: .top, spacing: ConnSpacing.sm) {
-            Image(systemName: "lock.open.fill")
-                .foregroundStyle(.connAccent)
+            IconChip("arrow.up.right", tint: .accent, size: ConnSize.iconChipCompact)
             VStack(alignment: .leading, spacing: 4) {
                 Text(contextTitle)
                     .font(.connBody)
@@ -131,41 +163,94 @@ struct PaywallView: View {
             Spacer(minLength: 0)
         }
         .padding(ConnSpacing.cardPadding)
-        .connSurface(cornerRadius: ConnRadius.card)
+        .background(Color.connAccentFill, in: .rect(cornerRadius: ConnRadius.card, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: ConnRadius.card, style: .continuous)
+                .strokeBorder(Color.connAccent.opacity(0.24), lineWidth: 1)
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("paywall.context")
     }
 
     private var featureList: some View {
         VStack(alignment: .leading, spacing: ConnSpacing.xs) {
-            Text(L("Pro 包含"))
-                .font(.connCaption)
-                .foregroundStyle(.connMuted)
-                .connEyebrowTracking()
-            ForEach(featureItems, id: \.self) { item in
-                Label(item, systemImage: "checkmark.circle.fill")
-                    .font(.connBody)
+            HStack(alignment: .firstTextBaseline) {
+                Text(L("Pro 包含"))
+                    .font(.connSectionTitle)
+                    .fontWeight(.semibold)
                     .foregroundStyle(.connInk)
-                    .symbolRenderingMode(.hierarchical)
-                    .foregroundStyle(.connGood)
-                    .padding(.vertical, 2)
+                Spacer()
+                Text(L("四项核心能力"))
+                    .font(.connCaption)
+                    .foregroundStyle(.connMuted)
+            }
+            LazyVGrid(
+                columns: [
+                    GridItem(.flexible(), spacing: ConnSpacing.sm),
+                    GridItem(.flexible(), spacing: ConnSpacing.sm),
+                ],
+                spacing: ConnSpacing.sm
+            ) {
+                ForEach(featureItems) { item in
+                    featureItem(item)
+                }
             }
         }
         .padding(ConnSpacing.cardPadding)
         .frame(maxWidth: .infinity, alignment: .leading)
         .connSurface(cornerRadius: ConnRadius.card)
+        .accessibilityIdentifier("paywall.features")
+    }
+
+    private func featureItem(_ item: PaywallFeature) -> some View {
+        VStack(alignment: .leading, spacing: ConnSpacing.xs) {
+            HStack {
+                IconChip(item.systemImage, tint: .accent, size: ConnSize.iconChipCompact)
+                Spacer(minLength: 0)
+                Image(systemName: "checkmark")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(.connGood)
+            }
+            Text(item.title)
+                .font(.connBody)
+                .fontWeight(.semibold)
+                .foregroundStyle(.connInk)
+                .lineLimit(2)
+            Text(item.detail)
+                .font(.connCaption)
+                .foregroundStyle(.connMuted)
+                .lineLimit(2)
+        }
+        .frame(maxWidth: .infinity, minHeight: 104, alignment: .topLeading)
+        .padding(ConnSpacing.sm)
+        .background(Color.connBg.opacity(0.5), in: .rect(cornerRadius: ConnRadius.control, style: .continuous))
     }
 
     private var planPicker: some View {
         VStack(alignment: .leading, spacing: ConnSpacing.xs) {
-            Text(L("选择订阅周期"))
-                .font(.connCaption)
-                .foregroundStyle(.connMuted)
-                .connEyebrowTracking()
-            HStack(spacing: ConnSpacing.sm) {
+            HStack(alignment: .firstTextBaseline) {
+                Text(L("选择订阅周期"))
+                    .font(.connSectionTitle)
+                    .fontWeight(.semibold)
+                    .foregroundStyle(.connInk)
+                Spacer()
+                Text(L("自动续订"))
+                    .font(.connCaption)
+                    .foregroundStyle(.connMuted)
+            }
+            LazyVGrid(
+                columns: [
+                    GridItem(.flexible(), spacing: ConnSpacing.sm),
+                    GridItem(.flexible(), spacing: ConnSpacing.sm),
+                ],
+                spacing: ConnSpacing.sm
+            ) {
                 ForEach(SubscriptionStore.Plan.allCases) { plan in
                     planButton(plan)
                 }
             }
         }
+        .accessibilityIdentifier("paywall.plans")
     }
 
     private func planButton(_ plan: SubscriptionStore.Plan) -> some View {
@@ -173,74 +258,127 @@ struct PaywallView: View {
         return Button {
             selectedPlan = plan
         } label: {
-            VStack(alignment: .leading, spacing: 4) {
-                HStack {
-                    Text(planTitle(plan))
-                        .font(.connBody)
-                        .fontWeight(.semibold)
-                    Spacer()
-                    if plan == .yearly {
-                        Text(L("更划算"))
-                            .font(.connData(.caption2))
-                            .foregroundStyle(selected ? .white : .connAccent)
+            VStack(alignment: .leading, spacing: ConnSpacing.sm) {
+                HStack(alignment: .top, spacing: ConnSpacing.xs) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(planTitle(plan))
+                            .font(.connBody)
+                            .fontWeight(.semibold)
+                            .foregroundStyle(.connInk)
+                        Text(planSubtitle(plan))
+                            .font(.connCaption)
+                            .foregroundStyle(.connMuted)
                     }
+                    Spacer(minLength: 0)
+                    Image(systemName: selected ? "checkmark.circle.fill" : "circle")
+                        .font(.title3)
+                        .foregroundStyle(selected ? Color.connAccent : Color.connDim)
                 }
-                Text(priceText(for: plan))
-                    .font(.connData(.title3))
-                    .fontWeight(.bold)
-                    .connTabularNumbers()
-                Text(plan == .yearly ? L("按年自动续订") : L("按月自动续订"))
-                    .font(.connFootnote)
-                    .foregroundStyle(selected ? .white.opacity(0.82) : .connMuted)
+                HStack(alignment: .firstTextBaseline, spacing: 4) {
+                    Text(priceText(for: plan))
+                        .font(.connData(.title3))
+                        .fontWeight(.bold)
+                        .foregroundStyle(.connInk)
+                        .connTabularNumbers()
+                    Text(plan == .yearly ? L("每年") : L("每月"))
+                        .font(.connCaption)
+                        .foregroundStyle(.connMuted)
+                }
+                if plan == .yearly {
+                    Text(L("更划算"))
+                        .font(.connData(.caption2))
+                        .fontWeight(.semibold)
+                        .foregroundStyle(.connAccent)
+                        .padding(.horizontal, ConnSpacing.xs)
+                        .padding(.vertical, 3)
+                        .background(Color.connAccentFill, in: Capsule())
+                        .accessibilityIdentifier("paywall.yearly.badge")
+                } else {
+                    Color.clear
+                        .frame(height: 18)
+                        .accessibilityHidden(true)
+                }
             }
-            .foregroundStyle(selected ? .white : .connInk)
+            .frame(maxWidth: .infinity, minHeight: 132, alignment: .topLeading)
             .padding(ConnSpacing.cardPadding)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(selected ? Color.connAccent : Color.connSurface, in: RoundedRectangle(cornerRadius: ConnRadius.card))
+            .background(
+                selected ? Color.connAccentFill : Color.connSurface,
+                in: .rect(cornerRadius: ConnRadius.card, style: .continuous)
+            )
             .overlay {
-                RoundedRectangle(cornerRadius: ConnRadius.card)
-                    .stroke(selected ? Color.clear : Color.connMuted.opacity(0.22), lineWidth: 1)
+                RoundedRectangle(cornerRadius: ConnRadius.card, style: .continuous)
+                    .strokeBorder(
+                        selected ? Color.connAccent : Color.connLine,
+                        lineWidth: selected ? 1.5 : 1
+                    )
             }
         }
-        .buttonStyle(.plain)
+        .buttonStyle(ConnPressStyle())
         .accessibilityIdentifier("paywall.plan.\(plan.rawValue)")
         .accessibilityAddTraits(selected ? [.isSelected] : [])
     }
 
-    private var purchaseButton: some View {
-        Button {
-            Task { await purchase() }
-        } label: {
-            Text(String(format: L("订阅 Conn Pro · %@"), priceText(for: selectedPlan)))
-                .font(.connBody)
-                .fontWeight(.semibold)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, ConnSpacing.sm)
+    private var purchaseBar: some View {
+        VStack(spacing: ConnSpacing.xxs) {
+            ConnButton(
+                String(format: L("订阅 Conn Pro · %@"), priceText(for: selectedPlan)),
+                height: ConnSize.buttonHeightLarge
+            ) {
+                Task { await purchase() }
+            }
+            .disabled(isPurchasing || dependencies.subscription.status == .loading)
+            .accessibilityIdentifier("paywall.purchase")
+            .frame(maxWidth: .infinity)
+
+            Button {
+                Task { await restore() }
+            } label: {
+                Text(L("恢复购买"))
+                    .font(.connFootnote)
+                    .foregroundStyle(.connMuted)
+                    .frame(maxWidth: .infinity)
+                    .frame(minHeight: ConnSize.minTouchTarget)
+            }
+            .disabled(isPurchasing)
+            .accessibilityIdentifier("paywall.restore")
         }
-        .buttonStyle(.borderedProminent)
-        .tint(.connAccent)
-        .disabled(isPurchasing || dependencies.subscription.status == .loading)
-        .accessibilityIdentifier("paywall.purchase")
+        .padding(.horizontal, ConnSpacing.page)
+        .padding(.top, ConnSpacing.sm)
+        .padding(.bottom, ConnSpacing.xxs)
+        .background(.ultraThinMaterial)
+        .overlay(alignment: .top) {
+            Rectangle()
+                .fill(Color.connLine)
+                .frame(height: 1)
+        }
     }
 
-    private var restoreButton: some View {
-        Button {
-            Task { await restore() }
-        } label: {
-            Text(L("恢复购买"))
-                .font(.connFootnote)
-                .frame(maxWidth: .infinity)
-        }
-        .disabled(isPurchasing)
-        .accessibilityIdentifier("paywall.restore")
-    }
-
-    private var featureItems: [String] {
+    private var featureItems: [PaywallFeature] {
         [
-            L("无限主机数量"),
-            L("远程文件管理"),
-            L("Docker 管理"),
-            L("批量执行脚本"),
+            PaywallFeature(
+                id: "hosts",
+                title: L("无限主机数量"),
+                detail: L("不受两台限制"),
+                systemImage: "server.rack"
+            ),
+            PaywallFeature(
+                id: "files",
+                title: L("远程文件管理"),
+                detail: L("上传、下载与整理"),
+                systemImage: "folder"
+            ),
+            PaywallFeature(
+                id: "docker",
+                title: L("Docker 管理"),
+                detail: L("容器与镜像操作"),
+                systemImage: "shippingbox"
+            ),
+            PaywallFeature(
+                id: "batch",
+                title: L("批量执行脚本"),
+                detail: L("多台主机同时执行"),
+                systemImage: "square.stack.3d.up"
+            ),
         ]
     }
 
@@ -268,6 +406,13 @@ struct PaywallView: View {
         switch plan {
         case .monthly: L("按月")
         case .yearly: L("按年")
+        }
+    }
+
+    private func planSubtitle(_ plan: SubscriptionStore.Plan) -> String {
+        switch plan {
+        case .monthly: L("按月自动续订")
+        case .yearly: L("按年自动续订")
         }
     }
 

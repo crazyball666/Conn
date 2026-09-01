@@ -35,6 +35,40 @@ final class ConnUITests: XCTestCase {
                 "方向盘右侧应保留横向滑动安全间距"
             )
         }
+
+        let sessionActions = app.buttons["terminal.keybar.session-actions"]
+        if sessionActions.waitForExistence(timeout: 2) {
+            sessionActions.tap()
+            let files = app.buttons["terminal.session-actions.files"]
+            XCTAssertTrue(files.waitForExistence(timeout: 5))
+            files.tap()
+            XCTAssertTrue(
+                app.otherElements["terminal.file-browser"].waitForExistence(timeout: 5)
+            )
+        }
+        XCTAssertEqual(app.state, .runningForeground)
+    }
+
+    @MainActor
+    func testPaywallPresentsFocusedPlanSelection() {
+        let app = XCUIApplication()
+        app.launch()
+
+        XCTAssertTrue(app.navigationBars["主机"].waitForExistence(timeout: 10))
+        app.tabBars.buttons["设置"].tap()
+
+        XCTAssertTrue(app.navigationBars["设置"].waitForExistence(timeout: 10))
+        app.buttons["settings.pro"].tap()
+
+        let paywall = app.otherElements["paywall"]
+        XCTAssertTrue(paywall.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.otherElements["paywall.hero"].exists)
+        XCTAssertTrue(app.otherElements["paywall.features"].exists)
+        XCTAssertTrue(app.otherElements["paywall.plans"].exists)
+        XCTAssertTrue(app.buttons["paywall.plan.monthly"].exists)
+        XCTAssertTrue(app.buttons["paywall.plan.yearly"].exists)
+        XCTAssertTrue(app.buttons["paywall.purchase"].exists)
+        XCTAssertTrue(app.buttons["paywall.restore"].exists)
         XCTAssertEqual(app.state, .runningForeground)
     }
 
