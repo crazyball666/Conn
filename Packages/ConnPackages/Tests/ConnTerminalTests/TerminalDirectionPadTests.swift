@@ -68,7 +68,7 @@ struct TerminalDirectionPadTests {
     @Test("展开面板与 provider 按钮使用独立的内容和触控尺寸")
     func expandedProviderActionMetricsPreventClipping() {
         #expect(TerminalKeybarMetrics.expandedHeight == 284)
-        #expect(TerminalKeybarMetrics.compactPadSide == 40)
+        #expect(TerminalKeybarMetrics.compactPadSide == 34)
         #expect(TerminalKeybarMetrics.directionPadTrailingInset == 8)
         #expect(TerminalKeybarMetrics.providerIconSize == 12)
         #expect(TerminalKeybarMetrics.providerLabelSize == 10)
@@ -82,5 +82,12 @@ struct TerminalDirectionPadTests {
                 <= TerminalKeybarMetrics.capVisualHeight
         )
         #expect(TerminalKeybarMetrics.hitTargetHeight == 44)
+    }
+
+    @Test("紧凑快捷键缩小后仍保留足够的方向箭头间距")
+    func compactMetricsMakeRoomForTheHorizontalKeyScroll() {
+        #expect(TerminalKeybarMetrics.compactCapWidth == 34)
+        #expect(TerminalKeybarMetrics.capVisualHeight == 28)
+        #expect(TerminalKeybarMetrics.compactPadSide == 34)
     }
 }

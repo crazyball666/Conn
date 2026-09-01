@@ -56,7 +56,7 @@
                         )
                 }
             }
-            .padding(.horizontal, 6)
+            .padding(.horizontal, TerminalKeybarMetrics.compactHorizontalInset)
             .padding(.vertical, 1)
             .frame(maxWidth: .infinity)
             .background(Color.connBar.ignoresSafeArea(edges: .bottom))

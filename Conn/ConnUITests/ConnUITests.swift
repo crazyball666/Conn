@@ -29,11 +29,23 @@ final class ConnUITests: XCTestCase {
         if directionPad.waitForExistence(timeout: 2) {
             let keybar = app.descendants(matching: .any)["terminal.keybar"].firstMatch
             XCTAssertTrue(keybar.exists)
+            let sessionActions = app.buttons["terminal.keybar.session-actions"]
+            XCTAssertTrue(sessionActions.exists)
+            XCTAssertGreaterThanOrEqual(
+                sessionActions.frame.minX - keybar.frame.minX,
+                8,
+                "方向盘左侧应保留与右侧一致的快捷栏内边距"
+            )
             XCTAssertGreaterThanOrEqual(
                 keybar.frame.maxX - directionPad.frame.maxX,
                 8,
                 "方向盘右侧应保留横向滑动安全间距"
             )
+            XCTAssertLessThanOrEqual(directionPad.frame.width, 36)
+
+            let compactAction = app.buttons["terminal.keybar.commands"]
+            XCTAssertTrue(compactAction.exists)
+            XCTAssertLessThanOrEqual(compactAction.frame.width, 36)
         }
 
         let sessionActions = app.buttons["terminal.keybar.session-actions"]

@@ -9,11 +9,13 @@ public enum TerminalKeybarMetrics {
     public static let expandedHeight: CGFloat = 284
 
     static let hitTargetHeight: CGFloat = 44
-    static let capVisualHeight: CGFloat = 30
-    static let compactCapWidth: CGFloat = 38
+    /// Compact row content keeps a symmetric breathing room on both screen edges.
+    static let compactHorizontalInset: CGFloat = 8
+    static let capVisualHeight: CGFloat = 28
+    static let compactCapWidth: CGFloat = 34
     /// 会话入口承载页面级导航与关闭操作，始终保留完整的 44pt 触控宽度。
     static let sessionActionsCapWidth: CGFloat = 44
-    static let compactPadSide: CGFloat = 40
+    static let compactPadSide: CGFloat = 34
     /// 方向盘右侧留出独立的手指滑动余量，避免贴住屏幕边缘影响横向手势。
     static let directionPadTrailingInset: CGFloat = 8
     static let gridSpacing: CGFloat = 4

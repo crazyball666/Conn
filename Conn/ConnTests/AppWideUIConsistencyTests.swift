@@ -365,10 +365,11 @@ struct AppWideUIConsistencyTests {
         #expect(keybar.contains("terminal.keybar.session-actions"))
     }
 
-    @Test("紧凑快捷栏方向盘右侧保留滑动安全间距")
-    func directionPadKeepsTrailingSwipeSpace() throws {
+    @Test("紧凑快捷栏两侧对称留白并为方向盘保留滑动安全间距")
+    func compactKeybarKeepsSymmetricEdgeSpace() throws {
         let keybar = try packageSource("Sources/ConnTerminal/TerminalKeybar.swift")
 
+        #expect(keybar.contains(".padding(.horizontal, TerminalKeybarMetrics.compactHorizontalInset)"))
         #expect(keybar.contains(
             ".padding(.trailing, TerminalKeybarMetrics.directionPadTrailingInset)"
         ))
