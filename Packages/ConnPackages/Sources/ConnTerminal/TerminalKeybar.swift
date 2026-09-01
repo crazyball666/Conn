@@ -96,6 +96,7 @@
                         width: TerminalKeybarMetrics.compactPadSide,
                         height: TerminalKeybarMetrics.compactPadSide
                     )
+                    .padding(.trailing, TerminalKeybarMetrics.directionPadTrailingInset)
             }
         }
 

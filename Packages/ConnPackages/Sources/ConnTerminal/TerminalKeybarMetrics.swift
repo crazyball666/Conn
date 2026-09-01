@@ -14,6 +14,8 @@ public enum TerminalKeybarMetrics {
     /// 会话入口承载页面级导航与关闭操作，始终保留完整的 44pt 触控宽度。
     static let sessionActionsCapWidth: CGFloat = 44
     static let compactPadSide: CGFloat = 40
+    /// 方向盘右侧留出独立的手指滑动余量，避免贴住屏幕边缘影响横向手势。
+    static let directionPadTrailingInset: CGFloat = 8
     static let gridSpacing: CGFloat = 4
     static let commonColumnCount = 7
     static let providerColumnCount = 6

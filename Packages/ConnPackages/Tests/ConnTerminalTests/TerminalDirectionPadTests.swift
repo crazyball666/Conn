@@ -69,6 +69,7 @@ struct TerminalDirectionPadTests {
     func expandedProviderActionMetricsPreventClipping() {
         #expect(TerminalKeybarMetrics.expandedHeight == 284)
         #expect(TerminalKeybarMetrics.compactPadSide == 40)
+        #expect(TerminalKeybarMetrics.directionPadTrailingInset == 8)
         #expect(TerminalKeybarMetrics.providerIconSize == 12)
         #expect(TerminalKeybarMetrics.providerLabelSize == 10)
         #expect(TerminalKeybarMetrics.providerContentHorizontalPadding == 4)

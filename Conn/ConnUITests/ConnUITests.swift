@@ -23,6 +23,18 @@ final class ConnUITests: XCTestCase {
         app.tabBars.buttons["终端"].tap()
 
         XCTAssertTrue(app.navigationBars["终端"].waitForExistence(timeout: 5))
+        // 如果当前测试数据库已有活动终端，顺带验收快捷栏的真实布局；空数据库仍应
+        // 至少完成终端主页导航，不人为注入远端凭据或终端会话。
+        let directionPad = app.descendants(matching: .any)["terminal.keybar.directionPad"].firstMatch
+        if directionPad.waitForExistence(timeout: 2) {
+            let keybar = app.descendants(matching: .any)["terminal.keybar"].firstMatch
+            XCTAssertTrue(keybar.exists)
+            XCTAssertGreaterThanOrEqual(
+                keybar.frame.maxX - directionPad.frame.maxX,
+                8,
+                "方向盘右侧应保留横向滑动安全间距"
+            )
+        }
         XCTAssertEqual(app.state, .runningForeground)
     }
 

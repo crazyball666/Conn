@@ -365,6 +365,15 @@ struct AppWideUIConsistencyTests {
         #expect(keybar.contains("terminal.keybar.session-actions"))
     }
 
+    @Test("紧凑快捷栏方向盘右侧保留滑动安全间距")
+    func directionPadKeepsTrailingSwipeSpace() throws {
+        let keybar = try packageSource("Sources/ConnTerminal/TerminalKeybar.swift")
+
+        #expect(keybar.contains(
+            ".padding(.trailing, TerminalKeybarMetrics.directionPadTrailingInset)"
+        ))
+    }
+
     @Test("终端主题使用自定义列表展示完整预览而不是系统 Picker 文本降级")
     func terminalThemesUseCustomPreviewList() throws {
         let settings = try appSource("Me/TerminalSettingsView.swift")
