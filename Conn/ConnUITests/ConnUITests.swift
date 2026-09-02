@@ -54,6 +54,14 @@ final class ConnUITests: XCTestCase {
         let sessionActions = app.buttons["terminal.keybar.session-actions"]
         if sessionActions.waitForExistence(timeout: 2) {
             sessionActions.tap()
+            let switchTerminal = app.buttons["terminal.session-actions.switch"]
+            XCTAssertTrue(switchTerminal.waitForExistence(timeout: 5))
+            switchTerminal.tap()
+            let sessionListDone = app.buttons["terminal.session-actions.sessions.done"]
+            XCTAssertTrue(sessionListDone.waitForExistence(timeout: 5))
+            sessionListDone.tap()
+            XCTAssertTrue(switchTerminal.waitForExistence(timeout: 5))
+
             let files = app.buttons["terminal.session-actions.files"]
             XCTAssertTrue(files.waitForExistence(timeout: 5))
             files.tap()

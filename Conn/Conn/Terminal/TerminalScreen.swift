@@ -92,95 +92,16 @@ struct TerminalScreen: View {
             }
             .sheet(
                 isPresented: $isSessionActionsPresented,
-                onDismiss: performDeferredSessionAction
+                onDismiss: {
+                    isSessionListPresented = false
+                    performDeferredSessionAction()
+                    presentDeferredNewTerminal()
+                }
             ) {
-                if let tab = activeTab {
-                    TerminalSessionActionsSheet(
-                        host: host,
-                        tab: tab,
-                        onSwitchTerminal: {
-                            deferSessionAction(.switchTerminal)
-                        },
-                        onOpenFileBrowser: {
-                            deferSessionAction(.fileBrowser)
-                        },
-                        onCloseTerminal: {
-                            deferSessionAction(.closeTerminal)
-                        }
-                    )
-                    .presentationDetents([.medium])
-                    .presentationDragIndicator(.visible)
-                    .presentationBackground(Color.connBg)
-                }
-            }
-            .sheet(item: $terminalFileBrowserRoute) { route in
-                if let viewModel = terminalFileBrowserViewModels[route.tabID] {
-                    NavigationStack {
-                        FileBrowserView(
-                            host: host,
-                            dependencies: dependencies,
-                            viewModel: viewModel
-                        )
-                        .padding(.horizontal, ConnSpacing.page)
-                        .padding(.top, ConnSpacing.xs)
-                        .navigationTitle(L("文件"))
-                        .navigationBarTitleDisplayMode(.inline)
-                        .toolbar {
-                            ToolbarItem(placement: .topBarLeading) {
-                                Button(L("关闭")) {
-                                    terminalFileBrowserRoute = nil
-                                }
-                                .accessibilityIdentifier("terminal.file-browser.close")
-                            }
-                        }
-                    }
-                    .accessibilityIdentifier("terminal.file-browser")
-                    .presentationDragIndicator(.visible)
-                }
+                sessionActionsSheet
             }
             .sheet(item: $paywallContext) { context in
                 PaywallView(dependencies: dependencies, context: context)
-            }
-            .sheet(
-                isPresented: $isSessionListPresented,
-                onDismiss: presentDeferredNewTerminal
-            ) {
-                TerminalSessionListSheet(
-                    host: host,
-                    store: terminalSessions.store,
-                    selectedTabID: tabID,
-                    onSelect: { selectedID in
-                        terminalSessions.store.select(selectedID)
-                        tabID = selectedID
-                        isSessionListPresented = false
-                    },
-                    onCreate: {
-                        createAfterSessionListDismisses = true
-                        isSessionListPresented = false
-                    },
-                    onRename: { id, alias in
-                        Task {
-                            if case let .failure(failure) = await terminalSessions.rename(id, to: alias),
-                               let message = terminalSessions.consumeFailure(failure) {
-                                toastCenter.show(message, style: .error)
-                            }
-                        }
-                    },
-                    onClose: { id in
-                        Task {
-                            await terminalSessions.close(id)
-                            if tabID == id {
-                                if let recent = terminalSessions.store.recentTab(forHost: host.id) {
-                                    tabID = recent.id
-                                } else {
-                                    dismiss()
-                                }
-                            }
-                        }
-                    }
-                )
-                .presentationDetents([.medium, .large])
-                .presentationDragIndicator(.visible)
             }
             .sheet(
                 isPresented: $isNewTerminalPresented,
@@ -248,6 +169,65 @@ struct TerminalScreen: View {
 }
 
 private extension TerminalScreen {
+    @ViewBuilder
+    private var sessionActionsSheet: some View {
+        if let tab = activeTab {
+            TerminalSessionActionsSheet(
+                host: host,
+                tab: tab,
+                dependencies: dependencies,
+                isSessionListPresented: $isSessionListPresented,
+                terminalFileBrowserRoute: $terminalFileBrowserRoute,
+                terminalFileBrowserViewModels: $terminalFileBrowserViewModels,
+                store: terminalSessions.store,
+                selectedTabID: tabID,
+                onSwitchTerminal: {
+                    isSessionListPresented = true
+                },
+                onOpenFileBrowser: {
+                    openFileBrowser()
+                },
+                onCloseTerminal: {
+                    deferSessionAction(.closeTerminal)
+                },
+                onSelectTerminal: { selectedID in
+                    terminalSessions.store.select(selectedID)
+                    tabID = selectedID
+                    isSessionListPresented = false
+                    isSessionActionsPresented = false
+                },
+                onCreateTerminal: {
+                    createAfterSessionListDismisses = true
+                    isSessionListPresented = false
+                    isSessionActionsPresented = false
+                },
+                onRenameTerminal: { id, alias in
+                    Task {
+                        if case let .failure(failure) = await terminalSessions.rename(id, to: alias),
+                           let message = terminalSessions.consumeFailure(failure) {
+                            toastCenter.show(message, style: .error)
+                        }
+                    }
+                },
+                onCloseSession: { id in
+                    Task {
+                        await terminalSessions.close(id)
+                        if tabID == id {
+                            if let recent = terminalSessions.store.recentTab(forHost: host.id) {
+                                tabID = recent.id
+                            } else {
+                                dismiss()
+                            }
+                        }
+                    }
+                }
+            )
+            .presentationDetents([.medium, .large])
+            .presentationDragIndicator(.visible)
+            .presentationBackground(Color.connBg)
+        }
+    }
+
     private var activeTab: TerminalTab? {
         terminalSessions.store.tab(id: tabID)
     }
@@ -399,10 +379,6 @@ private extension TerminalScreen {
         guard let action = deferredSessionAction else { return }
         deferredSessionAction = nil
         switch action {
-        case .switchTerminal:
-            isSessionListPresented = true
-        case .fileBrowser:
-            openFileBrowser()
         case .closeTerminal:
             dismiss()
         }
@@ -563,12 +539,10 @@ private extension TerminalScreen {
 }
 
 private enum DeferredTerminalSessionAction {
-    case switchTerminal
-    case fileBrowser
     case closeTerminal
 }
 
-private struct TerminalFileBrowserRoute: Identifiable {
+private struct TerminalFileBrowserRoute: Hashable, Identifiable {
     let tabID: String
 
     var id: String { tabID }
@@ -577,9 +551,19 @@ private struct TerminalFileBrowserRoute: Identifiable {
 private struct TerminalSessionActionsSheet: View {
     let host: Host
     let tab: TerminalTab
+    let dependencies: AppDependencies
+    @Binding var isSessionListPresented: Bool
+    @Binding var terminalFileBrowserRoute: TerminalFileBrowserRoute?
+    @Binding var terminalFileBrowserViewModels: [String: FileBrowserViewModel]
+    let store: TerminalSessionStore
+    let selectedTabID: String?
     let onSwitchTerminal: () -> Void
     let onOpenFileBrowser: () -> Void
     let onCloseTerminal: () -> Void
+    let onSelectTerminal: (String) -> Void
+    let onCreateTerminal: () -> Void
+    let onRenameTerminal: (String, String) -> Void
+    let onCloseSession: (String) -> Void
 
     var body: some View {
         NavigationStack {
@@ -618,6 +602,40 @@ private struct TerminalSessionActionsSheet: View {
             .navigationTitle(L("会话操作"))
             .navigationBarTitleDisplayMode(.inline)
             .background(Color.connBg.ignoresSafeArea())
+            .navigationDestination(isPresented: $isSessionListPresented) {
+                TerminalSessionListSheet(
+                    host: host,
+                    store: store,
+                    selectedTabID: selectedTabID,
+                    onSelect: onSelectTerminal,
+                    onCreate: onCreateTerminal,
+                    onRename: onRenameTerminal,
+                    onClose: onCloseSession,
+                    onDismiss: { isSessionListPresented = false }
+                )
+            }
+            .navigationDestination(item: $terminalFileBrowserRoute) { route in
+                if let viewModel = terminalFileBrowserViewModels[route.tabID] {
+                    FileBrowserView(
+                        host: host,
+                        dependencies: dependencies,
+                        viewModel: viewModel
+                    )
+                    .padding(.horizontal, ConnSpacing.page)
+                    .padding(.top, ConnSpacing.xs)
+                    .navigationTitle(L("文件"))
+                    .navigationBarTitleDisplayMode(.inline)
+                    .toolbar {
+                        ToolbarItem(placement: .topBarLeading) {
+                            Button(L("关闭")) {
+                                terminalFileBrowserRoute = nil
+                            }
+                            .accessibilityIdentifier("terminal.file-browser.close")
+                        }
+                    }
+                    .accessibilityIdentifier("terminal.file-browser")
+                }
+            }
         }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("terminal.session-actions")

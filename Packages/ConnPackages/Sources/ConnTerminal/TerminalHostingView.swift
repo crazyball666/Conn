@@ -912,10 +912,16 @@
 
         func toggleKeyboard() {
             guard let terminalView else { return }
-            if terminalView.isFirstResponder {
-                _ = terminalView.resignFirstResponder()
-            } else {
-                _ = terminalView.becomeFirstResponder()
+            var transaction = Transaction(animation: nil)
+            transaction.disablesAnimations = true
+            withTransaction(transaction) {
+                UIView.performWithoutAnimation {
+                    if terminalView.isFirstResponder {
+                        _ = terminalView.resignFirstResponder()
+                    } else {
+                        _ = terminalView.becomeFirstResponder()
+                    }
+                }
             }
         }
 

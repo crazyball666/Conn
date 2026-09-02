@@ -521,6 +521,19 @@ struct AppWideUIConsistencyTests {
         #expect(host.contains("touchTap.require(toFail: selectionDrag)"))
     }
 
+    @Test("终端键盘开关不使用过渡动画")
+    func terminalKeyboardToggleDisablesAnimations() throws {
+        let host = try packageSource("Sources/ConnTerminal/TerminalHostingView.swift")
+        let toggleStart = try #require(host.range(of: "func toggleKeyboard()"))
+        let toggleEnd = try #require(
+            host.range(of: "func togglePointer()", range: toggleStart.upperBound..<host.endIndex)
+        )
+        let toggleSource = String(host[toggleStart.lowerBound..<toggleEnd.lowerBound])
+
+        #expect(toggleSource.contains("UIView.performWithoutAnimation"))
+        #expect(toggleSource.contains("transaction.disablesAnimations = true"))
+    }
+
     @Test("终端会话操作包含文件管理且关闭页面不释放会话")
     func terminalSessionActionsClosePageWithoutClosingSession() throws {
         let source = try appSource("Terminal/TerminalScreen.swift")
@@ -537,6 +550,23 @@ struct AppWideUIConsistencyTests {
         #expect(host.contains("onTerminalWorkingDirectoryChanged"))
         #expect(host.contains("hostCurrentDirectoryUpdate(source _: TerminalView, directory:"))
         #expect(host.contains("onPersistentWorkingDirectoryChanged(nil)"))
+    }
+
+    @Test("会话操作切换终端在同一弹窗内导航")
+    func terminalSessionActionsNavigateWithinSameSheet() throws {
+        let screen = try appSource("Terminal/TerminalScreen.swift")
+
+        #expect(screen.contains(".navigationDestination(isPresented: $isSessionListPresented)"))
+        #expect(!screen.contains(".sheet(\n                isPresented: $isSessionListPresented,"))
+    }
+
+    @Test("会话操作与文件管理在同一弹窗内导航")
+    func terminalFileBrowserNavigatesWithinSameSheet() throws {
+        let screen = try appSource("Terminal/TerminalScreen.swift")
+
+        #expect(screen.contains(".navigationDestination(item: $terminalFileBrowserRoute)"))
+        #expect(!screen.contains(".sheet(item: $terminalFileBrowserRoute)"))
+        #expect(screen.contains("terminal.file-browser"))
     }
 
     @Test("终端回放结束后同步 SwiftTerm 已解析的当前目录")
@@ -558,7 +588,8 @@ struct AppWideUIConsistencyTests {
         #expect(screen.contains("terminalFileBrowserViewModels[tab.id]"))
         #expect(screen.contains("terminalFileBrowserRoute = TerminalFileBrowserRoute(tabID: tab.id)"))
         #expect(screen.contains("await refreshProviderWorkingDirectory(for: tab)"))
-        #expect(screen.contains("                        .padding(.horizontal, ConnSpacing.page)\n                        .padding(.top, ConnSpacing.xs)"))
+        #expect(screen.contains(".padding(.horizontal, ConnSpacing.page)"))
+        #expect(screen.contains(".padding(.top, ConnSpacing.xs)"))
         #expect(hostDetail.contains("@State private var fileVM: FileBrowserViewModel"))
         #expect(!screen.contains("@State private var fileVM: FileBrowserViewModel"))
     }
@@ -580,7 +611,8 @@ struct AppWideUIConsistencyTests {
     func terminalSessionActionsMatchSessionListHeader() throws {
         let source = try appSource("Terminal/TerminalScreen.swift")
 
-        #expect(source.contains("TerminalSessionActionsSheet(\n                        host: host,"))
+        #expect(source.contains("TerminalSessionActionsSheet("))
+        #expect(source.contains("host: host,"))
         #expect(source.contains("NavigationStack"))
         #expect(source.contains(".navigationTitle(L(\"会话操作\"))"))
         #expect(source.contains(".navigationBarTitleDisplayMode(.inline)"))

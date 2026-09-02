@@ -13,81 +13,80 @@ struct TerminalSessionListSheet: View {
     let onCreate: () -> Void
     let onRename: (String, String) -> Void
     let onClose: (String) -> Void
+    let onDismiss: () -> Void
 
     @State private var renameTarget: TerminalTab?
     @State private var alias = ""
-    @Environment(\.dismiss) private var dismiss
 
     private var tabs: [TerminalTab] { store.tabs(forHost: host.id) }
 
     var body: some View {
-        NavigationStack {
-            List {
-                Section {
-                    ForEach(tabs) { tab in
-                        Button { onSelect(tab.id) } label: {
-                            sessionRow(tab)
-                        }
-                        .buttonStyle(.plain)
-                        .contentShape(.rect)
-                        .accessibilityIdentifier("terminal.session.\(tab.id)")
-                        .contextMenu {
-                            Button {
-                                renameTarget = tab
-                                alias = tab.alias ?? tab.automaticAlias
-                            } label: {
-                                Label(L("设置别名"), systemImage: "pencil")
-                            }
-                        }
-                        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                            Button(role: .destructive) { onClose(tab.id) } label: {
-                                Label(L("删除"), systemImage: "trash")
-                            }
-                        }
-                        .accessibilityAction(named: Text(L("设置别名"))) {
+        List {
+            Section {
+                ForEach(tabs) { tab in
+                    Button { onSelect(tab.id) } label: {
+                        sessionRow(tab)
+                    }
+                    .buttonStyle(.plain)
+                    .contentShape(.rect)
+                    .accessibilityIdentifier("terminal.session.\(tab.id)")
+                    .contextMenu {
+                        Button {
                             renameTarget = tab
                             alias = tab.alias ?? tab.automaticAlias
+                        } label: {
+                            Label(L("设置别名"), systemImage: "pencil")
                         }
-                        .accessibilityAction(named: Text(L("删除"))) {
-                            onClose(tab.id)
+                    }
+                    .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                        Button(role: .destructive) { onClose(tab.id) } label: {
+                            Label(L("删除"), systemImage: "trash")
                         }
                     }
-                } header: {
-                    Text(host.displayAddress)
-                } footer: {
-                    Text(L("关闭终端页面不会结束会话；仅在会话列表中删除时才会终止该 PTY。"))
-                }
-            }
-            .scrollContentBackground(.hidden)
-            .background(Color.connBg.ignoresSafeArea())
-            .navigationTitle(L("终端会话"))
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button(L("完成")) { dismiss() }
-                }
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button(action: onCreate) {
-                        Image(systemName: "plus")
+                    .accessibilityAction(named: Text(L("设置别名"))) {
+                        renameTarget = tab
+                        alias = tab.alias ?? tab.automaticAlias
                     }
-                    .accessibilityLabel(L("新建终端"))
-                }
-            }
-            .alert(L("设置终端别名"), isPresented: Binding(
-                get: { renameTarget != nil },
-                set: { if !$0 { renameTarget = nil } }
-            )) {
-                TextField(L("别名"), text: $alias)
-                Button(L("取消"), role: .cancel) { renameTarget = nil }
-                Button(L("保存")) {
-                    if let target = renameTarget {
-                        onRename(target.id, alias)
+                    .accessibilityAction(named: Text(L("删除"))) {
+                        onClose(tab.id)
                     }
-                    renameTarget = nil
                 }
-            } message: {
-                Text(renameMessage)
+            } header: {
+                Text(host.displayAddress)
+            } footer: {
+                Text(L("关闭终端页面不会结束会话；仅在会话列表中删除时才会终止该 PTY。"))
             }
+        }
+        .scrollContentBackground(.hidden)
+        .background(Color.connBg.ignoresSafeArea())
+        .navigationTitle(L("终端会话"))
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .cancellationAction) {
+                Button(L("完成"), action: onDismiss)
+                    .accessibilityIdentifier("terminal.session-actions.sessions.done")
+            }
+            ToolbarItem(placement: .topBarTrailing) {
+                Button(action: onCreate) {
+                    Image(systemName: "plus")
+                }
+                .accessibilityLabel(L("新建终端"))
+            }
+        }
+        .alert(L("设置终端别名"), isPresented: Binding(
+            get: { renameTarget != nil },
+            set: { if !$0 { renameTarget = nil } }
+        )) {
+            TextField(L("别名"), text: $alias)
+            Button(L("取消"), role: .cancel) { renameTarget = nil }
+            Button(L("保存")) {
+                if let target = renameTarget {
+                    onRename(target.id, alias)
+                }
+                renameTarget = nil
+            }
+        } message: {
+            Text(renameMessage)
         }
     }
 
