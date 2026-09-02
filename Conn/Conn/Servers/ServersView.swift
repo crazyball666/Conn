@@ -87,6 +87,7 @@ struct ServersView: View {
                     } label: {
                         Label(L("新增主机"), systemImage: "server.rack")
                     }
+                    .accessibilityIdentifier("servers.add-host")
                     Button {
                         groupNameInput = ""
                         isNewGroupPresented = true
@@ -97,6 +98,7 @@ struct ServersView: View {
                     Image(systemName: "plus")
                 }
                 .accessibilityLabel(L("新增"))
+                .accessibilityIdentifier("servers.add")
             }
         }
         .onAppear {
@@ -110,13 +112,19 @@ struct ServersView: View {
                 dependencies: dependencies,
                 initialDraft: request.draft,
                 editingHostID: request.editingHostID
-            ) { result in
-                await dependencies.terminalSessions.hostDidSave(
-                    result.host,
-                    replacing: result.previousHost,
-                    connectionIdentityChanged: result.connectionIdentityChanged
-                )
-                viewModel.load()
+            ) { @MainActor result in
+                let host = result.host
+                let previousHost = result.previousHost
+                let connectionIdentityChanged = result.connectionIdentityChanged
+                let terminalSessions = dependencies.terminalSessions
+                Task { @MainActor in
+                    await terminalSessions.hostDidSave(
+                        host,
+                        replacing: previousHost,
+                        connectionIdentityChanged: connectionIdentityChanged
+                    )
+                    viewModel.load()
+                }
             }
         }
         .sheet(item: $paywallContext) { context in
@@ -134,6 +142,7 @@ struct ServersView: View {
                     pendingDelete = nil
                 }
             }
+            .accessibilityIdentifier("servers.host.delete.confirm")
             Button(L("取消"), role: .cancel) { pendingDelete = nil }
         } message: { host in
             Text(String(format: L("“%@”将从本地列表中永久删除，但不会影响远程主机。"), host.name))
@@ -274,11 +283,13 @@ struct ServersView: View {
                     } label: {
                         Label(L("编辑"), systemImage: "pencil")
                     }
+                    .accessibilityIdentifier("servers.host.edit.\(card.id)")
                     Button(role: .destructive) {
                         pendingDelete = viewModel.host(forID: card.id)
                     } label: {
                         Label(L("删除"), systemImage: "trash")
                     }
+                    .accessibilityIdentifier("servers.host.delete.\(card.id)")
                 }
                 .transition(.move(edge: .top).combined(with: .opacity))
             }

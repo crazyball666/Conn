@@ -10,7 +10,9 @@ final class ConnUITests: XCTestCase {
         let app = XCUIApplication()
         app.launch()
 
-        XCTAssertTrue(app.navigationBars["主机"].waitForExistence(timeout: 10))
+        let serversTab = app.tabBars.buttons["tab.servers"]
+        XCTAssertTrue(serversTab.waitForExistence(timeout: 10))
+        XCTAssertTrue(serversTab.isSelected)
         XCTAssertEqual(app.state, .runningForeground)
     }
 
@@ -19,10 +21,11 @@ final class ConnUITests: XCTestCase {
         let app = XCUIApplication()
         app.launch()
 
-        XCTAssertTrue(app.navigationBars["主机"].waitForExistence(timeout: 10))
-        app.tabBars.buttons["终端"].tap()
+        XCTAssertTrue(app.tabBars.buttons["tab.servers"].waitForExistence(timeout: 10))
+        app.tabBars.buttons["tab.terminal"].tap()
 
-        XCTAssertTrue(app.navigationBars["终端"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.tabBars.buttons["tab.terminal"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.tabBars.buttons["tab.terminal"].isSelected)
         // 如果当前测试数据库已有活动终端，顺带验收快捷栏的真实布局；空数据库仍应
         // 至少完成终端主页导航，不人为注入远端凭据或终端会话。
         let directionPad = app.descendants(matching: .any)["terminal.keybar.directionPad"].firstMatch
@@ -124,23 +127,17 @@ final class ConnUITests: XCTestCase {
         let app = XCUIApplication()
         app.launch()
 
-        XCTAssertTrue(app.navigationBars["主机"].waitForExistence(timeout: 10))
-        app.buttons["新增"].tap()
-        let addServer = app.buttons["新增主机"]
+        XCTAssertTrue(app.tabBars.buttons["tab.servers"].waitForExistence(timeout: 10))
+        app.buttons["servers.add"].tap()
+        let addServer = app.buttons["servers.add-host"]
         XCTAssertTrue(addServer.waitForExistence(timeout: 5))
         addServer.tap()
 
-        XCTAssertTrue(app.navigationBars["添加主机"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.descendants(matching: .any)["host-form"].waitForExistence(timeout: 5))
         let marker = "ui-save-\(UUID().uuidString.prefix(8))"
-        let name = app.textFields.matching(
-            NSPredicate(format: "placeholderValue == %@", "便于记忆，选填")
-        ).firstMatch
-        let address = app.textFields.matching(
-            NSPredicate(format: "placeholderValue == %@", "example.com 或 10.0.0.1")
-        ).firstMatch
-        let username = app.textFields.matching(
-            NSPredicate(format: "placeholderValue == %@", "root")
-        ).firstMatch
+        let name = app.textFields["host-form.name"]
+        let address = app.textFields["host-form.address"]
+        let username = app.textFields["host-form.username"]
         XCTAssertTrue(name.waitForExistence(timeout: 5))
         XCTAssertTrue(address.exists)
         XCTAssertTrue(username.exists)
@@ -150,9 +147,9 @@ final class ConnUITests: XCTestCase {
         address.typeText("203.0.113.10")
         username.tap()
         username.typeText("root")
-        app.navigationBars["添加主机"].buttons["保存"].tap()
+        app.buttons["host-form.save"].tap()
 
-        XCTAssertTrue(app.navigationBars["主机"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.tabBars.buttons["tab.servers"].waitForExistence(timeout: 10))
         XCTAssertEqual(app.state, .runningForeground)
         let hostCard = app.buttons.matching(
             NSPredicate(format: "label CONTAINS %@", marker)
@@ -160,20 +157,28 @@ final class ConnUITests: XCTestCase {
         XCTAssertTrue(hostCard.waitForExistence(timeout: 5))
 
         hostCard.press(forDuration: 1)
-        XCTAssertTrue(app.buttons["编辑"].waitForExistence(timeout: 5))
-        app.buttons["编辑"].tap()
-        XCTAssertTrue(app.navigationBars["编辑主机"].waitForExistence(timeout: 5))
-        app.navigationBars["编辑主机"].buttons["保存"].tap()
+        let edit = app.buttons.matching(
+            NSPredicate(format: "identifier BEGINSWITH %@", "servers.host.edit.")
+        ).firstMatch
+        XCTAssertTrue(edit.waitForExistence(timeout: 5))
+        edit.tap()
+        XCTAssertTrue(app.descendants(matching: .any)["host-form"].waitForExistence(timeout: 5))
+        app.buttons["host-form.save"].tap()
 
-        XCTAssertTrue(app.navigationBars["主机"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.tabBars.buttons["tab.servers"].waitForExistence(timeout: 10))
         XCTAssertTrue(hostCard.waitForExistence(timeout: 5))
 
         hostCard.press(forDuration: 1)
-        XCTAssertTrue(app.buttons["删除"].waitForExistence(timeout: 5))
-        app.buttons["删除"].tap()
-        let alert = app.alerts["删除主机"]
-        XCTAssertTrue(alert.waitForExistence(timeout: 5))
-        alert.buttons["删除"].tap()
+        let delete = app.buttons.matching(
+            NSPredicate(format: "identifier BEGINSWITH %@", "servers.host.delete.")
+        ).firstMatch
+        XCTAssertTrue(delete.waitForExistence(timeout: 5))
+        delete.tap()
+        let deleteConfirmation = app.buttons.matching(
+            NSPredicate(format: "identifier == %@", "servers.host.delete.confirm")
+        ).firstMatch
+        XCTAssertTrue(deleteConfirmation.waitForExistence(timeout: 5))
+        deleteConfirmation.tap()
         XCTAssertTrue(hostCard.waitForNonExistence(timeout: 10))
         XCTAssertEqual(app.state, .runningForeground)
     }

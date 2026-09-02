@@ -51,7 +51,10 @@ struct RootTabView: View {
         @ViewBuilder content: () -> some View
     ) -> some View {
         content()
-            .tabItem { Label(L(tab.title), systemImage: tab.systemImage) }
+            .tabItem {
+                Label(L(tab.title), systemImage: tab.systemImage)
+                    .accessibilityIdentifier("tab.\(tab.rawValue)")
+            }
             .tag(tab)
     }
 }

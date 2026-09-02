@@ -391,7 +391,16 @@ extension TerminalView {
         let newCols = Int (getEffectiveWidth (size: newSize) / cellDimension.width)
         
         if newCols != terminal.cols || newRows != terminal.rows {
+            // Conn installs host-managed selection gestures. A keyboard
+            // resize or a SwiftUI layout pass must not discard an active
+            // native selection before the host can present its context menu.
+            #if os(iOS) || os(visionOS)
+            if !hostManagesTouchGestures {
+                selection.active = false
+            }
+            #else
             selection.active = false
+            #endif
             terminal.resize (cols: newCols, rows: newRows)
             
             // These used to be outside

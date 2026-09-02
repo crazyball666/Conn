@@ -5,7 +5,7 @@ import Foundation
 import Observation
 
 /// 主机保存后的会话联动所需信息。密码文本仍只在表单内比较，绝不写入此结果。
-struct HostFormSaveResult {
+struct HostFormSaveResult: Sendable {
     let host: Host
     let previousHost: Host?
     let connectionIdentityChanged: Bool

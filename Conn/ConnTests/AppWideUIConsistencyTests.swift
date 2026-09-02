@@ -499,6 +499,19 @@ struct AppWideUIConsistencyTests {
         #expect(!keybar.contains("Button(L(\"执行\"))"))
     }
 
+    @Test("主机保存回调显式绑定主线程并安全传递值结果")
+    func hostSaveCallbackHasExplicitConcurrencyBoundary() throws {
+        let hostForm = try appSource("Hosts/HostFormView.swift")
+        let viewModel = try appSource("Hosts/HostFormViewModel.swift")
+        let servers = try appSource("Servers/ServersView.swift")
+
+        #expect(viewModel.contains("struct HostFormSaveResult: Sendable"))
+        #expect(hostForm.contains("private let onSaved: @MainActor"))
+        #expect(hostForm.contains("onSaved(result)"))
+        #expect(!hostForm.contains("await onSaved(result)"))
+        #expect(servers.contains(") { @MainActor result in"))
+    }
+
     @Test("终端会话操作包含文件管理且关闭页面不释放会话")
     func terminalSessionActionsClosePageWithoutClosingSession() throws {
         let source = try appSource("Terminal/TerminalScreen.swift")

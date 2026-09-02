@@ -119,6 +119,7 @@ public struct HealthCard: View {
         }
         .buttonStyle(ConnPressStyle())
         .accessibilityElement(children: .ignore)
+        .accessibilityIdentifier("servers.host.\(model.id)")
         .accessibilityLabel(accessibilityDescription)
         .accessibilityAddTraits(.isButton)
     }

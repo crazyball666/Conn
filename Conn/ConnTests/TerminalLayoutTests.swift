@@ -220,6 +220,22 @@ struct TerminalLayoutTests {
         #expect(!view.gestureRecognizerShouldBegin(directPointer))
     }
 
+    @Test("宿主管理的选区在终端视口尺寸变化后仍可继续操作")
+    func hostSelectionSurvivesViewportResize() {
+        let view = KeybarTerminalView(frame: CGRect(x: 0, y: 0, width: 320, height: 480))
+        view.resize(cols: 40, rows: 20)
+        view.feedFollowingLiveOutput(byteArray: ArraySlice("selected text\r\n".utf8))
+        view.setSelectionRange(
+            start: Position(col: 0, row: 0),
+            end: Position(col: 8, row: 0)
+        )
+
+        view.frame.size = CGSize(width: 320, height: 420)
+        view.layoutIfNeeded()
+
+        #expect(view.hasActiveSelection)
+    }
+
     @Test("快捷键栏使用单行紧凑高度并为四合一方向盘留足触控高度")
     func keybarUsesCompactSingleRowMetrics() {
         #expect(TerminalKeybarMetrics.compactHeight <= 52)

@@ -14,7 +14,7 @@ struct HostFormView: View {
     @State private var isPasswordVisible = false
     @FocusState private var focus: HostDraft.Field?
     private let dependencies: AppDependencies
-    private let onSaved: (HostFormSaveResult) async -> Void
+    private let onSaved: @MainActor (HostFormSaveResult) -> Void
 
     /// 字段名列宽：容纳「用户名 / 认证方式」等最长 4 个汉字，全表左对齐。
     private let labelWidth: CGFloat = 76
@@ -23,7 +23,7 @@ struct HostFormView: View {
         dependencies: AppDependencies,
         initialDraft: HostDraft,
         editingHostID: String?,
-        onSaved: @escaping (HostFormSaveResult) async -> Void
+        onSaved: @escaping @MainActor (HostFormSaveResult) -> Void
     ) {
         self.dependencies = dependencies
         self.onSaved = onSaved
@@ -49,6 +49,7 @@ struct HostFormView: View {
             }
             .scrollContentBackground(.hidden)
             .background(Color.connBg.ignoresSafeArea())
+            .accessibilityIdentifier("host-form")
             .navigationTitle(viewModel.title)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -59,6 +60,7 @@ struct HostFormView: View {
                     Button(L("保存")) { save() }
                         .fontWeight(.semibold)
                         .disabled(viewModel.loadError != nil)
+                        .accessibilityIdentifier("host-form.save")
                 }
             }
             .sheet(isPresented: $showDiagnostics) {
@@ -265,6 +267,7 @@ struct HostFormView: View {
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
                     .focused($focus, equals: field)
+                    .accessibilityIdentifier("host-form.\(fieldIdentifier(field))")
             }
             if let error {
                 Text(error)
@@ -331,12 +334,24 @@ struct HostFormView: View {
             .foregroundStyle(.connMuted)
     }
 
+    private func fieldIdentifier(_ field: HostDraft.Field?) -> String {
+        switch field {
+        case .name: "name"
+        case .address: "address"
+        case .port: "port"
+        case .username: "username"
+        case .key: "key"
+        case nil: "field"
+        }
+    }
+
     private func save() {
         if let result = viewModel.save() {
-            Task {
-                await onSaved(result)
-                dismiss()
-            }
+            // Keep the save result on the main-actor call stack. The old
+            // unstructured async callback outlived the sheet and could copy
+            // Host across the SwiftUI closure boundary during dismissal.
+            onSaved(result)
+            dismiss()
         }
     }
 }

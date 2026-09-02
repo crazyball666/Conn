@@ -1601,13 +1601,22 @@ open class TerminalView: UIScrollView, UITextInputTraits, UIKeyInput, UIScrollVi
     /// endpoint, pivot, menu, and edge auto-scroll implementation. Embedders that
     /// set `hostManagesTouchGestures` use this instead of duplicating selection math.
     public func handleHostSelectionPan(_ gestureRecognizer: UIPanGestureRecognizer) {
+        guard gestureRecognizer.state != .cancelled else { return }
         panSelectionHandler(gestureRecognizer)
     }
 
     public func finishHostSelection(showMenu: Bool) {
         guard showMenu, selection.active else { return }
-        _ = becomeFirstResponder()
-        showContextMenu(forRegion: makeContextMenuRegionForSelection(), pos: selection.end)
+        let region = makeContextMenuRegionForSelection()
+        let position = selection.end
+        // SelectionService notifies the view asynchronously. Present after
+        // that notification settles so its inactive-state cleanup cannot
+        // immediately hide the menu on release.
+        DispatchQueue.main.async { [weak self] in
+            guard let self, self.selection.active else { return }
+            _ = self.becomeFirstResponder()
+            self.showContextMenu(forRegion: region, pos: position)
+        }
     }
 
     /// Programmatically presents SwiftTerm's standard Copy / Paste /

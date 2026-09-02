@@ -1381,7 +1381,13 @@
             case .ended:
                 terminalView.finishHostSelection(showMenu: true)
             case .cancelled, .failed:
-                terminalView.clearSelection()
+                // Competing scroll/layout gestures can cancel the host
+                // recognizer after SwiftTerm has already created a valid
+                // selection. Preserve it and give UIKit one more chance to
+                // show the standard Copy/Paste menu.
+                if terminalView.hasActiveSelection {
+                    terminalView.finishHostSelection(showMenu: true)
+                }
             default:
                 break
             }
