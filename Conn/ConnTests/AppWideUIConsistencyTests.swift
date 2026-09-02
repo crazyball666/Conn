@@ -555,9 +555,13 @@ struct AppWideUIConsistencyTests {
     @Test("会话操作切换终端在同一弹窗内导航")
     func terminalSessionActionsNavigateWithinSameSheet() throws {
         let screen = try appSource("Terminal/TerminalScreen.swift")
+        let sessionList = try appSource("Terminal/TerminalSessionListSheet.swift")
 
         #expect(screen.contains(".navigationDestination(isPresented: $isSessionListPresented)"))
         #expect(!screen.contains(".sheet(\n                isPresented: $isSessionListPresented,"))
+        #expect(sessionList.contains(".navigationTitle(L(\"终端会话\"))"))
+        #expect(!sessionList.contains("Button(L(\"完成\")"))
+        #expect(!sessionList.contains("terminal.session-actions.sessions.done"))
     }
 
     @Test("会话操作与文件管理在同一弹窗内导航")
@@ -567,6 +571,12 @@ struct AppWideUIConsistencyTests {
         #expect(screen.contains(".navigationDestination(item: $terminalFileBrowserRoute)"))
         #expect(!screen.contains(".sheet(item: $terminalFileBrowserRoute)"))
         #expect(screen.contains("terminal.file-browser"))
+        #expect(screen.contains("viewModel: route.viewModel"))
+        #expect(!screen.contains("if let viewModel = terminalFileBrowserViewModels[route.tabID]"))
+        #expect(screen.contains(
+            ".presentationDetents([.medium, .large], selection: $sessionActionsDetent)"
+        ))
+        #expect(screen.contains("sessionActionsDetent = .large"))
     }
 
     @Test("终端回放结束后同步 SwiftTerm 已解析的当前目录")
@@ -586,7 +596,8 @@ struct AppWideUIConsistencyTests {
             "@State private var terminalFileBrowserViewModels: [String: FileBrowserViewModel] = [:]"
         ))
         #expect(screen.contains("terminalFileBrowserViewModels[tab.id]"))
-        #expect(screen.contains("terminalFileBrowserRoute = TerminalFileBrowserRoute(tabID: tab.id)"))
+        #expect(screen.contains("terminalFileBrowserRoute = TerminalFileBrowserRoute("))
+        #expect(screen.contains("viewModel: viewModel"))
         #expect(screen.contains("await refreshProviderWorkingDirectory(for: tab)"))
         #expect(screen.contains(".padding(.horizontal, ConnSpacing.page)"))
         #expect(screen.contains(".padding(.top, ConnSpacing.xs)"))

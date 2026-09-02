@@ -13,7 +13,6 @@ struct TerminalSessionListSheet: View {
     let onCreate: () -> Void
     let onRename: (String, String) -> Void
     let onClose: (String) -> Void
-    let onDismiss: () -> Void
 
     @State private var renameTarget: TerminalTab?
     @State private var alias = ""
@@ -62,10 +61,6 @@ struct TerminalSessionListSheet: View {
         .navigationTitle(L("终端会话"))
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            ToolbarItem(placement: .cancellationAction) {
-                Button(L("完成"), action: onDismiss)
-                    .accessibilityIdentifier("terminal.session-actions.sessions.done")
-            }
             ToolbarItem(placement: .topBarTrailing) {
                 Button(action: onCreate) {
                     Image(systemName: "plus")

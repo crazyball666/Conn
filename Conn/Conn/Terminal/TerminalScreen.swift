@@ -23,6 +23,7 @@ struct TerminalScreen: View {
     @State private var isCommandPickerPresented = false
     @State private var isSessionActionsPresented = false
     @State private var isSessionListPresented = false
+    @State private var sessionActionsDetent: PresentationDetent = .medium
     @State private var isNewTerminalPresented = false
     @State private var deferredSessionAction: DeferredTerminalSessionAction?
     @State private var createAfterSessionListDismisses = false
@@ -96,6 +97,7 @@ struct TerminalScreen: View {
                     isSessionListPresented = false
                     performDeferredSessionAction()
                     presentDeferredNewTerminal()
+                    sessionActionsDetent = .medium
                 }
             ) {
                 sessionActionsSheet
@@ -178,13 +180,14 @@ private extension TerminalScreen {
                 dependencies: dependencies,
                 isSessionListPresented: $isSessionListPresented,
                 terminalFileBrowserRoute: $terminalFileBrowserRoute,
-                terminalFileBrowserViewModels: $terminalFileBrowserViewModels,
                 store: terminalSessions.store,
                 selectedTabID: tabID,
                 onSwitchTerminal: {
+                    sessionActionsDetent = .large
                     isSessionListPresented = true
                 },
                 onOpenFileBrowser: {
+                    sessionActionsDetent = .large
                     openFileBrowser()
                 },
                 onCloseTerminal: {
@@ -222,7 +225,7 @@ private extension TerminalScreen {
                     }
                 }
             )
-            .presentationDetents([.medium, .large])
+            .presentationDetents([.medium, .large], selection: $sessionActionsDetent)
             .presentationDragIndicator(.visible)
             .presentationBackground(Color.connBg)
         }
@@ -445,7 +448,11 @@ private extension TerminalScreen {
                 terminalFileBrowserViewModels[tab.id] = viewModel
             }
             viewModel.resetTransientPresentationState()
-            terminalFileBrowserRoute = TerminalFileBrowserRoute(tabID: tab.id)
+            sessionActionsDetent = .large
+            terminalFileBrowserRoute = TerminalFileBrowserRoute(
+                tabID: tab.id,
+                viewModel: viewModel
+            )
         }
     }
 
@@ -544,8 +551,17 @@ private enum DeferredTerminalSessionAction {
 
 private struct TerminalFileBrowserRoute: Hashable, Identifiable {
     let tabID: String
+    let viewModel: FileBrowserViewModel
 
     var id: String { tabID }
+
+    static func == (lhs: Self, rhs: Self) -> Bool {
+        lhs.tabID == rhs.tabID
+    }
+
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(tabID)
+    }
 }
 
 private struct TerminalSessionActionsSheet: View {
@@ -554,7 +570,6 @@ private struct TerminalSessionActionsSheet: View {
     let dependencies: AppDependencies
     @Binding var isSessionListPresented: Bool
     @Binding var terminalFileBrowserRoute: TerminalFileBrowserRoute?
-    @Binding var terminalFileBrowserViewModels: [String: FileBrowserViewModel]
     let store: TerminalSessionStore
     let selectedTabID: String?
     let onSwitchTerminal: () -> Void
@@ -610,31 +625,20 @@ private struct TerminalSessionActionsSheet: View {
                     onSelect: onSelectTerminal,
                     onCreate: onCreateTerminal,
                     onRename: onRenameTerminal,
-                    onClose: onCloseSession,
-                    onDismiss: { isSessionListPresented = false }
+                    onClose: onCloseSession
                 )
             }
             .navigationDestination(item: $terminalFileBrowserRoute) { route in
-                if let viewModel = terminalFileBrowserViewModels[route.tabID] {
-                    FileBrowserView(
-                        host: host,
-                        dependencies: dependencies,
-                        viewModel: viewModel
-                    )
-                    .padding(.horizontal, ConnSpacing.page)
-                    .padding(.top, ConnSpacing.xs)
-                    .navigationTitle(L("文件"))
-                    .navigationBarTitleDisplayMode(.inline)
-                    .toolbar {
-                        ToolbarItem(placement: .topBarLeading) {
-                            Button(L("关闭")) {
-                                terminalFileBrowserRoute = nil
-                            }
-                            .accessibilityIdentifier("terminal.file-browser.close")
-                        }
-                    }
-                    .accessibilityIdentifier("terminal.file-browser")
-                }
+                FileBrowserView(
+                    host: host,
+                    dependencies: dependencies,
+                    viewModel: route.viewModel
+                )
+                .padding(.horizontal, ConnSpacing.page)
+                .padding(.top, ConnSpacing.xs)
+                .navigationTitle(L("文件"))
+                .navigationBarTitleDisplayMode(.inline)
+                .accessibilityIdentifier("terminal.file-browser")
             }
         }
         .accessibilityElement(children: .contain)
