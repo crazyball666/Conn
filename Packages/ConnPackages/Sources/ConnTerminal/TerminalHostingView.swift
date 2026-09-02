@@ -1374,6 +1374,10 @@
                 dismissHistoryReviewIfNeeded()
                 interactionController.deactivatePointer()
                 syncInteractionPresentation()
+                // Become first responder before creating the selection. SwiftTerm emits
+                // a focus report during this transition; sending it before the native
+                // selection exists prevents it from clearing the new selection.
+                _ = terminalView.becomeFirstResponder()
                 terminalView.clearSelection()
                 terminalView.beginHostSelection(at: point, granularity: .word)
             case .changed:
@@ -1810,6 +1814,8 @@
             )
             touchTap.allowedTouchTypes = [NSNumber(value: UITouch.TouchType.direct.rawValue)]
             touchTap.require(toFail: pointerPan)
+            touchTap.require(toFail: longPress)
+            touchTap.require(toFail: selectionDrag)
             addGestureRecognizer(touchTap)
             directTap = touchTap
 
@@ -2039,6 +2045,13 @@
         }
 
         override public func becomeFirstResponder() -> Bool {
+            // SwiftTerm emits a focus report from its implementation even when UIKit
+            // asks an already-focused view to become first responder again. During
+            // selection-menu presentation that redundant report can be misclassified
+            // as user input and clear the freshly-created selection.
+            if isFirstResponder {
+                return true
+            }
             let didBecome = super.becomeFirstResponder()
             if didBecome {
                 onFirstResponderChange?(true)

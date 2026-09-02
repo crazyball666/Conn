@@ -512,6 +512,15 @@ struct AppWideUIConsistencyTests {
         #expect(servers.contains(") { @MainActor result in"))
     }
 
+    @Test("终端长按选区不会被直接点击手势在松手时抢占")
+    func terminalSelectionGesturesPrecedeDirectTap() throws {
+        let host = try packageSource("Sources/ConnTerminal/TerminalHostingView.swift")
+
+        #expect(host.contains("_ = terminalView.becomeFirstResponder()"))
+        #expect(host.contains("touchTap.require(toFail: longPress)"))
+        #expect(host.contains("touchTap.require(toFail: selectionDrag)"))
+    }
+
     @Test("终端会话操作包含文件管理且关闭页面不释放会话")
     func terminalSessionActionsClosePageWithoutClosingSession() throws {
         let source = try appSource("Terminal/TerminalScreen.swift")
