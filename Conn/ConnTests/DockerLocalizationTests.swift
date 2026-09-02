@@ -402,6 +402,16 @@ struct DockerLocalizationTests {
 }
 
 extension DockerLocalizationTests {
+    @Test("Docker 首页首次出现会触发根模型加载")
+    func dockerHomeLoadsOnFirstAppearance() throws {
+        let dockerView = try source(named: "Conn/Hosts/DockerView.swift")
+
+        #expect(
+            dockerView.contains(".task { await viewModel.loadIfNeeded() }"),
+            "Docker 首页必须在首次出现时启动根模型加载，否则会永久停留在 loading"
+        )
+    }
+
     @Test("五类 Docker 资源共用导航栏操作菜单，内容区只保留数量与列表")
     func resourceOperationsUseNavigationMenu() throws {
         let dockerView = try source(named: "Conn/Hosts/DockerView.swift")

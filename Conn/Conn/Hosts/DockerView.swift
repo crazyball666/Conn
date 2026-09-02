@@ -35,6 +35,7 @@ struct DockerView: View {
 
     var body: some View {
         content
+            .task { await viewModel.loadIfNeeded() }
             .task { await autoRefreshLoop() }
             .sheet(
                 item: operationSheetBinding,
