@@ -318,6 +318,19 @@ struct AppWideUIConsistencyTests {
         #expect(source.components(separatedBy: ".contentShape(Rectangle())").count >= 3)
     }
 
+    @Test("主机和脚本分组删除使用 Alert 确认")
+    func groupDeletionUsesAlertConfirmation() throws {
+        let alerts = try appSource("Support/GroupManagementAlerts.swift")
+        let servers = try appSource("Servers/ServersView.swift")
+        let snippets = try appSource("Commands/SnippetsView.swift")
+
+        #expect(alerts.contains(".alert(\n                L(\"删除分组\")"))
+        #expect(!alerts.contains(".confirmationDialog("))
+        #expect(servers.contains("deleteRequest: $groupDeleteRequest"))
+        #expect(snippets.contains("deleteRequest: $groupDeleteRequest"))
+        #expect(snippets.contains("deleteRequest: $groupsDeleteRequest"))
+    }
+
     @Test("终端会话列表项整行空白区域也能点击")
     func terminalSessionRowsMakeEntireRowInteractive() throws {
         for path in [

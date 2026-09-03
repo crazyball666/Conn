@@ -53,20 +53,20 @@ private struct GroupManagementAlerts: ViewModifier {
                 }
                 .disabled(isNameBlank)
             }
-            .confirmationDialog(
+            .alert(
                 L("删除分组"),
                 isPresented: Binding(
                     get: { deleteRequest != nil },
                     set: { if !$0 { deleteRequest = nil } }
                 ),
-                titleVisibility: .visible
-            ) {
+                presenting: deleteRequest
+            ) { request in
                 Button(L("删除"), role: .destructive) {
-                    if let request = deleteRequest { actions.onDelete(request.id) }
+                    actions.onDelete(request.id)
                     deleteRequest = nil
                 }
                 Button(L("取消"), role: .cancel) { deleteRequest = nil }
-            } message: {
+            } message: { _ in
                 Text(actions.deleteMessage)
             }
     }
