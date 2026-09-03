@@ -114,11 +114,7 @@
     private struct TerminalHostContent: View {
         @StateObject private var controller: TerminalInputController
         @State private var isKeybarExpanded: Bool
-        /// 收起系统键盘后仍保留快捷键栏。键盘响应者状态和快捷键栏展示状态
-        /// 是两个独立的交互状态，不能用同一个 focus 信号驱动。
-        @State private var keepsKeybarVisible = false
-        /// Provider 快捷操作弹窗必须由稳定的终端宿主持有。若状态放在快捷键栏中，
-        /// Alert 输入框抢走终端焦点时快捷键栏会被移除，Alert 也会随之销毁。
+        /// Provider 快捷操作弹窗必须由终端宿主持有，不能依赖快捷键栏的局部状态。
         @State private var pendingTextInputAction: PersistentTerminalQuickActionDescriptor?
         @State private var pendingConfirmationAction: PersistentTerminalQuickActionDescriptor?
         @State private var quickActionText = ""
@@ -194,13 +190,7 @@
                 )
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
 
-                if TerminalKeybarVisibilityPolicy.shouldShow(
-                    configurationShowsKeybar: configuration.showsKeybar,
-                    terminalFocused: controller.isTerminalFocused,
-                    reviewActive: controller.isReviewActive,
-                    userPinned: keepsKeybarVisible,
-                    providerActionPresented: isProviderActionPresented
-                ) {
+                if configuration.showsKeybar {
                     TerminalKeybar(
                         ctrlActive: controller.ctrlActive,
                         isExpanded: isKeybarExpanded,
@@ -216,11 +206,8 @@
                         providerQuickActionGroup: controller.providerQuickActionGroup,
                         performingProviderQuickActionID: controller.performingProviderQuickActionID,
                         onProviderQuickAction: selectProviderQuickAction,
-                        keyboardVisible: controller.isTerminalFocused,
-                        onToggleKeyboard: {
-                            keepsKeybarVisible = true
-                            controller.toggleKeyboard()
-                        },
+                        keyboardVisible: controller.isSoftwareKeyboardVisible,
+                        onToggleKeyboard: controller.toggleKeyboard,
                         onExpansionChange: setKeybarExpanded,
                         attachmentState: attachmentState,
                         onAttachmentAction: onAttachmentAction
@@ -293,14 +280,6 @@
                     pendingConfirmationAction = nil
                 }
             }
-            .onChange(of: controller.isTerminalFocused) { _, isFocused in
-                if !isFocused,
-                   !controller.isReviewActive,
-                   !keepsKeybarVisible,
-                   !isProviderActionPresented {
-                    isKeybarExpanded = false
-                }
-            }
             .onChange(of: controller.providerQuickActionGroup?.id) { _, groupID in
                 if groupID == nil {
                     pendingTextInputAction = nil
@@ -335,14 +314,7 @@
             }
         }
 
-        private var isProviderActionPresented: Bool {
-            pendingTextInputAction != nil || pendingConfirmationAction != nil
-        }
-
         private func showSessionActions() {
-            // The page-level entry remains reachable after a sheet temporarily takes
-            // terminal focus and dismisses the software keyboard.
-            keepsKeybarVisible = true
             onShowSessionActions()
         }
 
@@ -517,6 +489,7 @@
 
         @Published var ctrlActive = false
         @Published private(set) var isTerminalFocused = false
+        @Published private(set) var isSoftwareKeyboardVisible = false
         @Published private(set) var pointerAvailable = false
         @Published private(set) var pointerActive = false
         @Published private(set) var isReviewActive = false
@@ -749,6 +722,7 @@
         func setTerminalFocused(_ isFocused: Bool) {
             guard isTerminalFocused != isFocused else { return }
             isTerminalFocused = isFocused
+            isSoftwareKeyboardVisible = isFocused && (terminalView?.softwareKeyboardVisible ?? true)
             // Local selection temporarily owns UIKit first responder while the terminal
             // screen remains logically focused. Do not emit an artificial CSI focus-out
             // event to vim/tmux/Claude Code merely because the user selected text.
@@ -912,17 +886,8 @@
 
         func toggleKeyboard() {
             guard let terminalView else { return }
-            var transaction = Transaction(animation: nil)
-            transaction.disablesAnimations = true
-            withTransaction(transaction) {
-                UIView.performWithoutAnimation {
-                    if terminalView.isFirstResponder {
-                        _ = terminalView.resignFirstResponder()
-                    } else {
-                        _ = terminalView.becomeFirstResponder()
-                    }
-                }
-            }
+            terminalView.setSoftwareKeyboardVisible(!isSoftwareKeyboardVisible)
+            isSoftwareKeyboardVisible = terminalView.softwareKeyboardVisible
         }
 
         func togglePointer() {
@@ -1665,10 +1630,22 @@
         }
     }
 
+    private final class TerminalHiddenInputView: UIView {
+        override var intrinsicContentSize: CGSize {
+            CGSize(width: UIView.noIntrinsicMetric, height: 0)
+        }
+
+        override func sizeThatFits(_ size: CGSize) -> CGSize {
+            CGSize(width: size.width, height: 0)
+        }
+    }
+
     /// 负责终端绘制、滚动与焦点通知的 `TerminalView` 子类。
     public final class KeybarTerminalView: TerminalView {
         var onFirstResponderChange: ((Bool) -> Void)?
         var onSystemPaste: ((String) -> Void)?
+        private let hiddenInputView = TerminalHiddenInputView()
+        private(set) var softwareKeyboardVisible = false
         private var horizontalContentPadding: CGFloat = 0
         fileprivate var configuredCursorShape: TerminalCursorShape?
         fileprivate var configuredCursorBlinking: Bool?
@@ -1996,6 +1973,32 @@
             inputAccessoryView = nil
         }
 
+        /// 切换软件键盘的输入视图，不释放终端 first responder。
+        ///
+        /// `resignFirstResponder()` 会把键盘退场动画交给系统键盘窗口，无法由
+        /// `UIView.performWithoutAnimation` 可靠关闭。使用零高度输入视图保留
+        /// responder，快捷键栏和终端焦点也就不会随键盘退场发生二次布局切换。
+        func setSoftwareKeyboardVisible(_ visible: Bool) {
+            if visible {
+                inputView = nil
+                if isFirstResponder {
+                    softwareKeyboardVisible = true
+                    reloadInputViewWithoutAnimation()
+                } else {
+                    _ = becomeFirstResponder()
+                }
+            } else {
+                inputView = hiddenInputView
+                softwareKeyboardVisible = false
+                reloadInputViewWithoutAnimation()
+            }
+        }
+
+        private func reloadInputViewWithoutAnimation() {
+            guard isFirstResponder else { return }
+            UIView.performWithoutAnimation { reloadInputViews() }
+        }
+
         /// SwiftTerm 将选择浮标画在文字坐标边缘。终端自身全宽、文字内容内移后，
         /// 浮标仍处于控件可绘制范围内，不会被左右边界裁切。
         func configureContentPadding(horizontal padding: CGFloat) {
@@ -2046,6 +2049,7 @@
                     _ = becomeFirstResponder()
                 }
             } else {
+                softwareKeyboardVisible = false
                 onFirstResponderChange?(false)
             }
         }
@@ -2060,6 +2064,7 @@
             }
             let didBecome = super.becomeFirstResponder()
             if didBecome {
+                softwareKeyboardVisible = inputView == nil
                 onFirstResponderChange?(true)
             }
             return didBecome
@@ -2068,6 +2073,7 @@
         override public func resignFirstResponder() -> Bool {
             let didResign = super.resignFirstResponder()
             if didResign {
+                softwareKeyboardVisible = false
                 onFirstResponderChange?(false)
             }
             return didResign

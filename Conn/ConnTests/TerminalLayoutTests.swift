@@ -16,6 +16,24 @@ struct TerminalLayoutTests {
         #expect(view.inputAccessoryView == nil)
     }
 
+    @Test("键盘开关使用零高度输入视图并同步状态")
+    func softwareKeyboardVisibilityUsesStableResponder() {
+        let view = KeybarTerminalView(frame: CGRect(x: 0, y: 0, width: 320, height: 480))
+
+        view.setSoftwareKeyboardVisible(false)
+
+        #expect(!view.softwareKeyboardVisible)
+        #expect(view.inputView != nil)
+
+        view.setSoftwareKeyboardVisible(true)
+
+        // The view is intentionally not attached to a window in this unit test, so UIKit
+        // cannot grant it first responder status. The visible request must still clear the
+        // hidden input view without fabricating a visible-keyboard state.
+        #expect(!view.softwareKeyboardVisible)
+        #expect(view.inputView == nil)
+    }
+
     @Test("水平留白属于终端内部，并从可用列宽中扣除")
     func horizontalContentPaddingKeepsFullViewWidth() {
         let width: CGFloat = 320

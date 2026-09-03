@@ -521,8 +521,8 @@ struct AppWideUIConsistencyTests {
         #expect(host.contains("touchTap.require(toFail: selectionDrag)"))
     }
 
-    @Test("终端键盘开关不使用过渡动画")
-    func terminalKeyboardToggleDisablesAnimations() throws {
+    @Test("终端键盘开关保留 responder 并切换输入视图")
+    func terminalKeyboardToggleUsesStableResponder() throws {
         let host = try packageSource("Sources/ConnTerminal/TerminalHostingView.swift")
         let toggleStart = try #require(host.range(of: "func toggleKeyboard()"))
         let toggleEnd = try #require(
@@ -530,8 +530,19 @@ struct AppWideUIConsistencyTests {
         )
         let toggleSource = String(host[toggleStart.lowerBound..<toggleEnd.lowerBound])
 
-        #expect(toggleSource.contains("UIView.performWithoutAnimation"))
-        #expect(toggleSource.contains("transaction.disablesAnimations = true"))
+        #expect(toggleSource.contains("setSoftwareKeyboardVisible"))
+        #expect(!toggleSource.contains("resignFirstResponder"))
+        #expect(!toggleSource.contains("becomeFirstResponder"))
+        #expect(!toggleSource.contains("UIView.performWithoutAnimation"))
+    }
+
+    @Test("快捷键栏展示不依赖终端 first responder")
+    func terminalKeybarPresentationIsStable() throws {
+        let host = try packageSource("Sources/ConnTerminal/TerminalHostingView.swift")
+
+        #expect(host.contains("if configuration.showsKeybar {"))
+        #expect(!host.contains("keepsKeybarVisible"))
+        #expect(!host.contains("TerminalKeybarVisibilityPolicy.shouldShow"))
     }
 
     @Test("终端会话操作包含文件管理且关闭页面不释放会话")
@@ -649,6 +660,22 @@ struct AppWideUIConsistencyTests {
         #expect(source.contains("Text(host.displayAddress)"))
         #expect(!source.contains("Text(host.name.isEmpty ? host.address : host.name)"))
         #expect(!source.contains("Text(L(\"当前终端\"))"))
+    }
+
+    @Test("会话操作弹窗跟随 App 外观而不是终端主题")
+    func terminalSessionActionsFollowAppAppearance() throws {
+        let source = try appSource("Terminal/TerminalScreen.swift")
+        let sheetStart = try #require(
+            source.range(of: ".sheet(\n                isPresented: $isSessionActionsPresented")
+        )
+        let sheetEnd = try #require(
+            source.range(of: ".sheet(item: $paywallContext", range: sheetStart.upperBound..<source.endIndex)
+        )
+        let sessionSheetSource = String(source[sheetStart.lowerBound..<sheetEnd.lowerBound])
+
+        #expect(sessionSheetSource.contains("sessionActionsSheet"))
+        #expect(source.contains("@Environment(\\.colorScheme) private var appColorScheme"))
+        #expect(sessionSheetSource.contains(".preferredColorScheme(appColorScheme)"))
     }
 
     @Test("编辑器与终端字号设置使用一致默认值和语言无关图标")

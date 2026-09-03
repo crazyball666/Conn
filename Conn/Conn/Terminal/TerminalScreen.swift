@@ -41,6 +41,7 @@ struct TerminalScreen: View {
     @State private var pendingAttachmentContext: TerminalTextInsertionContext?
     @State private var pendingAttachmentWorkingDirectory: String?
     @Environment(\.connToastCenter) private var toastCenter
+    @Environment(\.colorScheme) private var appColorScheme
     @Environment(\.dismiss) private var dismiss
 
     init(
@@ -101,6 +102,7 @@ struct TerminalScreen: View {
                 }
             ) {
                 sessionActionsSheet
+                    .preferredColorScheme(appColorScheme)
             }
             .sheet(item: $paywallContext) { context in
                 PaywallView(dependencies: dependencies, context: context)
