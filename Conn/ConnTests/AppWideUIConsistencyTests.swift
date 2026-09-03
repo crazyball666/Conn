@@ -579,6 +579,25 @@ struct AppWideUIConsistencyTests {
         #expect(screen.contains("sessionActionsDetent = .large"))
     }
 
+    @Test("未授权的终端文件管理先关闭会话操作再显示付费墙")
+    func terminalFileBrowserPaywallWaitsForSessionSheetDismissal() throws {
+        let screen = try appSource("Terminal/TerminalScreen.swift")
+
+        #expect(screen.contains("case let .presentPaywall(context):\n            paywallContext = context"))
+        #expect(screen.contains("deferSessionAction(.presentPaywall(.fileManagement))"))
+        #expect(screen.contains(".sheet(item: $paywallContext)"))
+    }
+
+    @Test("使用条款仅保留在订阅页，设置页不显示入口")
+    func settingsHidesTermsOfUseEntry() throws {
+        let settings = try appSource("Me/MeView.swift")
+        let paywall = try appSource("Monetization/PaywallView.swift")
+
+        #expect(!settings.contains("showsTermsOfUse"))
+        #expect(!settings.contains("AppLegalLinks.termsOfUseURL"))
+        #expect(paywall.contains("Link(L(\"使用条款\"), destination: url)"))
+    }
+
     @Test("终端回放结束后同步 SwiftTerm 已解析的当前目录")
     func terminalReplayPublishesKnownWorkingDirectory() throws {
         let host = try packageSource("Sources/ConnTerminal/TerminalHostingView.swift")

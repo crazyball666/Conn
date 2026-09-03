@@ -19,6 +19,8 @@ final class ConnUITests: XCTestCase {
     @MainActor
     func testTerminalCenterOpensWithoutCrashing() {
         let app = XCUIApplication()
+        // 该测试验收已授权时的文件管理入口；订阅拦截由下面的专用测试覆盖。
+        app.launchEnvironment["CONN_SUBSCRIPTION_STATE"] = "pro"
         app.launch()
 
         XCTAssertTrue(app.tabBars.buttons["tab.servers"].waitForExistence(timeout: 10))
@@ -69,6 +71,31 @@ final class ConnUITests: XCTestCase {
                 app.otherElements["terminal.file-browser"].waitForExistence(timeout: 5)
             )
         }
+        XCTAssertEqual(app.state, .runningForeground)
+    }
+
+    @MainActor
+    func testFreeTerminalFileManagementPresentsPaywallAfterSessionActionsDismisses() throws {
+        let app = XCUIApplication()
+        app.launchEnvironment["CONN_SUBSCRIPTION_STATE"] = "free"
+        app.launch()
+
+        XCTAssertTrue(app.tabBars.buttons["tab.servers"].waitForExistence(timeout: 10))
+        app.tabBars.buttons["tab.terminal"].tap()
+
+        let sessionActions = app.buttons["terminal.keybar.session-actions"]
+        guard sessionActions.waitForExistence(timeout: 5) else {
+            throw XCTSkip("当前模拟器没有活动终端会话，无法验收文件管理的订阅拦截入口")
+        }
+
+        sessionActions.tap()
+        let files = app.buttons["terminal.session-actions.files"]
+        XCTAssertTrue(files.waitForExistence(timeout: 5))
+        files.tap()
+
+        let paywall = app.descendants(matching: .any)["paywall"].firstMatch
+        XCTAssertTrue(paywall.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.descendants(matching: .any)["paywall.context"].firstMatch.exists)
         XCTAssertEqual(app.state, .runningForeground)
     }
 

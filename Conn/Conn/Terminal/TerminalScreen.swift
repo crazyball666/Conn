@@ -384,6 +384,8 @@ private extension TerminalScreen {
         switch action {
         case .closeTerminal:
             dismiss()
+        case let .presentPaywall(context):
+            paywallContext = context
         }
     }
 
@@ -417,7 +419,7 @@ private extension TerminalScreen {
     private func openFileBrowser() {
         guard let tab = activeTab else { return }
         guard dependencies.subscription.gate.allowed(.fileManagement) else {
-            paywallContext = .fileManagement
+            deferSessionAction(.presentPaywall(.fileManagement))
             return
         }
 
@@ -547,6 +549,7 @@ private extension TerminalScreen {
 
 private enum DeferredTerminalSessionAction {
     case closeTerminal
+    case presentPaywall(PaywallContext)
 }
 
 private struct TerminalFileBrowserRoute: Hashable, Identifiable {
