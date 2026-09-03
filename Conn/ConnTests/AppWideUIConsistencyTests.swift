@@ -435,10 +435,10 @@ struct AppWideUIConsistencyTests {
 
         #expect(source.contains("settings.terminalConfiguration.theme.appearance"))
         #expect(source.contains("private var terminalColorScheme: ColorScheme"))
-        #expect(source.contains(".preferredColorScheme(terminalColorScheme)"))
+        #expect(source.contains(".environment(\\.colorScheme, terminalColorScheme)"))
         #expect(source.contains("TerminalHostingView(\n                    session:"))
-        #expect(source.contains("                .preferredColorScheme(terminalColorScheme)\n                .overlay"))
-        #expect(!source.contains("terminalContent\n            .preferredColorScheme(terminalColorScheme)"))
+        #expect(source.contains("                .environment(\\.colorScheme, terminalColorScheme)\n                .overlay"))
+        #expect(!source.contains(".preferredColorScheme(terminalColorScheme)"))
         #expect(!source.contains(".toolbarColorScheme("))
         #expect(!source.contains(".preferredColorScheme(.dark)"))
     }
@@ -675,7 +675,8 @@ struct AppWideUIConsistencyTests {
 
         #expect(sessionSheetSource.contains("sessionActionsSheet"))
         #expect(source.contains("@Environment(\\.colorScheme) private var appColorScheme"))
-        #expect(sessionSheetSource.contains(".preferredColorScheme(appColorScheme)"))
+        #expect(sessionSheetSource.contains(".environment(\\.colorScheme, appColorScheme)"))
+        #expect(!sessionSheetSource.contains(".preferredColorScheme"))
     }
 
     @Test("编辑器与终端字号设置使用一致默认值和语言无关图标")

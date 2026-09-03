@@ -102,7 +102,7 @@ struct TerminalScreen: View {
                 }
             ) {
                 sessionActionsSheet
-                    .preferredColorScheme(appColorScheme)
+                    .environment(\.colorScheme, appColorScheme)
             }
             .sheet(item: $paywallContext) { context in
                 PaywallView(dependencies: dependencies, context: context)
@@ -292,7 +292,7 @@ private extension TerminalScreen {
                         )
                     }
                 )
-                .preferredColorScheme(terminalColorScheme)
+                .environment(\.colorScheme, terminalColorScheme)
                 .overlay {
                     if case let .disconnected(message) = tab.status {
                         reconnectNotice(message)
