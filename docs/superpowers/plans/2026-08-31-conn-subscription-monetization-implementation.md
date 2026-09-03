@@ -10,6 +10,11 @@
 
 **Spec:** `docs/superpowers/specs/2026-08-31-conn-subscription-monetization-design.md`
 
+> **实施状态：** 基础实现已完成。当前 StoreKit 2 集成、商品状态、购买/恢复、交易更新和
+> Debug 测试注入均集中在 `Conn/Conn/Monetization/SubscriptionStore.swift`；App Store
+> Connect 商品配置和 StoreKit 沙盒验收仍需在外部后台完成。本计划保留为实施记录，当前
+> 代码与设计文档优先于历史文件清单和勾选状态。
+
 ---
 
 ## Current File Map
@@ -18,9 +23,8 @@
 - Create: `Packages/ConnPackages/Sources/ConnEntitlement/EntitlementGate.swift` — pure gate names, snapshot, provider protocol, and host-limit policy.
 - Create: `Packages/ConnPackages/Tests/ConnEntitlementTests/EntitlementGateTests.swift` — test free/Pro gates and two-host boundary.
 - Modify: `Conn/Conn/ConnApp.swift` — inject the entitlement service into `AppDependencies`, construct production/demo providers, and keep demo launch seams deterministic.
-- Create: `Conn/Conn/Monetization/StoreKitSubscriptionStore.swift` — StoreKit 2 product loading, verified transaction handling, transaction listener, purchase, restore, and observable state.
+- Modify: `Conn/Conn/Monetization/SubscriptionStore.swift` — StoreKit 2 product loading, verified transaction handling, transaction listener, purchase, restore, and observable state.
 - Create: `Conn/Conn/Monetization/PaywallView.swift` — one localized Pro page with monthly/yearly products and feature context.
-- Create: `Conn/Conn/Monetization/SubscriptionEnvironment.swift` — production and UI-test/demo dependency factories; no hard-coded Pro bypass in production.
 - Create: `Conn/ConnTests/SubscriptionStoreTests.swift` — app-target tests for the injectable StoreKit seam and transaction state transitions.
 - Modify: `Conn/Conn/Me/MeView.swift` — add the Pro entry card and subscription management/restore access.
 - Modify: `Conn/Conn/Servers/ServersView.swift` — enforce the two-host create boundary while preserving form drafts.
@@ -90,8 +94,7 @@ Run: `git add Packages/ConnPackages/Package.swift Packages/ConnPackages/Sources/
 ## Task 2: Add StoreKit 2 subscription state and dependency injection
 
 **Files:**
-- Create: `Conn/Conn/Monetization/StoreKitSubscriptionStore.swift`
-- Create: `Conn/Conn/Monetization/SubscriptionEnvironment.swift`
+- Modify: `Conn/Conn/Monetization/SubscriptionStore.swift`
 - Modify: `Conn/Conn/ConnApp.swift`
 - Modify: `Conn/Conn.xcodeproj/project.pbxproj` if required by package linkage
 

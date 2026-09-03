@@ -77,6 +77,15 @@ enum AppLegalLinks {
         else { return nil }
         return url
     }()
+
+    /// 使用 Apple 标准最终用户许可协议，直到 Conn 发布自有条款页面。
+    static let termsOfUseURL: URL? = {
+        guard let url = URL(string: "https://www.apple.com/legal/internet-services/itunes/dev/stdeula/"),
+              url.scheme?.lowercased() == "https",
+              url.host != nil
+        else { return nil }
+        return url
+    }()
 }
 
 /// App 偏好设置（UserDefaults 落盘）。外观即时应用、主题色改单点即整体换肤。

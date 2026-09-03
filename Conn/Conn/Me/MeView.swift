@@ -13,6 +13,7 @@ struct MeView: View {
     @Environment(LocalizationManager.self) private var localization
     @Environment(SettingsStore.self) private var settings
     @State private var showsPrivacyPolicy = false
+    @State private var showsTermsOfUse = false
     @State private var feedbackMailContent: FeedbackMailContent?
     @State private var showsFeedbackFallback = false
     @State private var paywallContext: PaywallContext?
@@ -131,6 +132,16 @@ struct MeView: View {
                     }
                     .buttonStyle(.plain)
                 }
+                if AppLegalLinks.termsOfUseURL != nil {
+                    Button {
+                        showsTermsOfUse = true
+                    } label: {
+                        settingsLabel(L("使用条款"), systemImage: "doc.text.fill")
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                }
                 NavigationLink {
                     OpenSourceLicensesView()
                 } label: {
@@ -152,6 +163,12 @@ struct MeView: View {
         .navigationTitle(L("设置"))
         .sheet(isPresented: $showsPrivacyPolicy) {
             if let url = AppLegalLinks.privacyPolicyURL {
+                InAppSafariView(url: url, tintColor: UIColor(ConnTheme.accent))
+                    .ignoresSafeArea()
+            }
+        }
+        .sheet(isPresented: $showsTermsOfUse) {
+            if let url = AppLegalLinks.termsOfUseURL {
                 InAppSafariView(url: url, tintColor: UIColor(ConnTheme.accent))
                     .ignoresSafeArea()
             }

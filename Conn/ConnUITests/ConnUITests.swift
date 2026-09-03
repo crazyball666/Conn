@@ -75,22 +75,43 @@ final class ConnUITests: XCTestCase {
     @MainActor
     func testPaywallPresentsFocusedPlanSelection() {
         let app = XCUIApplication()
+        app.launchEnvironment["CONN_SUBSCRIPTION_STATE"] = "free"
         app.launch()
 
-        XCTAssertTrue(app.navigationBars["主机"].waitForExistence(timeout: 10))
-        app.tabBars.buttons["设置"].tap()
+        XCTAssertTrue(app.tabBars.buttons["tab.servers"].waitForExistence(timeout: 10))
+        app.tabBars.buttons["tab.me"].tap()
 
-        XCTAssertTrue(app.navigationBars["设置"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.tabBars.buttons["tab.me"].waitForExistence(timeout: 10))
         app.buttons["settings.pro"].tap()
 
-        let paywall = app.otherElements["paywall"]
+        let paywall = app.descendants(matching: .any)["paywall"].firstMatch
         XCTAssertTrue(paywall.waitForExistence(timeout: 5))
-        XCTAssertTrue(app.otherElements["paywall.hero"].exists)
-        XCTAssertTrue(app.otherElements["paywall.features"].exists)
-        XCTAssertTrue(app.otherElements["paywall.plans"].exists)
+        XCTAssertTrue(app.descendants(matching: .any)["paywall.hero"].firstMatch.exists)
+        XCTAssertTrue(app.descendants(matching: .any)["paywall.features"].firstMatch.exists)
+        XCTAssertTrue(app.descendants(matching: .any)["paywall.plans"].firstMatch.exists)
         XCTAssertTrue(app.buttons["paywall.plan.monthly"].exists)
         XCTAssertTrue(app.buttons["paywall.plan.yearly"].exists)
         XCTAssertTrue(app.buttons["paywall.purchase"].exists)
+        XCTAssertTrue(app.buttons["paywall.restore"].exists)
+        XCTAssertEqual(app.state, .runningForeground)
+    }
+
+    @MainActor
+    func testActiveSubscriptionShowsManagementInsteadOfPurchase() {
+        let app = XCUIApplication()
+        app.launchEnvironment["CONN_SUBSCRIPTION_STATE"] = "pro"
+        app.launch()
+
+        XCTAssertTrue(app.tabBars.buttons["tab.servers"].waitForExistence(timeout: 10))
+        app.tabBars.buttons["tab.me"].tap()
+        XCTAssertTrue(app.buttons["settings.pro"].waitForExistence(timeout: 10))
+        app.buttons["settings.pro"].tap()
+
+        let paywall = app.descendants(matching: .any)["paywall"].firstMatch
+        XCTAssertTrue(paywall.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.descendants(matching: .any)["paywall.active"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["paywall.manage"].exists)
+        XCTAssertFalse(app.buttons["paywall.purchase"].exists)
         XCTAssertTrue(app.buttons["paywall.restore"].exists)
         XCTAssertEqual(app.state, .runningForeground)
     }
@@ -100,7 +121,7 @@ final class ConnUITests: XCTestCase {
         let app = XCUIApplication()
         app.launch()
 
-        XCTAssertTrue(app.navigationBars["主机"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.tabBars.buttons["tab.servers"].waitForExistence(timeout: 10))
         let alert = app.alerts["确认更新主机指纹"]
 
         // 真实的指纹变更取决于服务器状态，不能在生产代码中植入测试开关。
@@ -110,21 +131,21 @@ final class ConnUITests: XCTestCase {
             XCTAssertTrue(alert.buttons["更新指纹并重连"].exists)
             XCTAssertTrue(alert.buttons["取消"].exists)
             alert.buttons["取消"].tap()
-            XCTAssertTrue(app.navigationBars["主机"].waitForExistence(timeout: 5))
+            XCTAssertTrue(app.tabBars.buttons["tab.servers"].waitForExistence(timeout: 5))
         }
         XCTAssertEqual(app.state, .runningForeground)
     }
 
-#if CONN_DISABLE_SUBSCRIPTION
+#if DEBUG && CONN_DISABLE_SUBSCRIPTION
     @MainActor
     func testDisabledSubscriptionBuildShowsProEntitlement() {
         let app = XCUIApplication()
         app.launch()
 
-        XCTAssertTrue(app.navigationBars["主机"].waitForExistence(timeout: 10))
-        app.tabBars.buttons["设置"].tap()
+        XCTAssertTrue(app.tabBars.buttons["tab.servers"].waitForExistence(timeout: 10))
+        app.tabBars.buttons["tab.me"].tap()
 
-        XCTAssertTrue(app.navigationBars["设置"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.tabBars.buttons["tab.me"].waitForExistence(timeout: 10))
         XCTAssertTrue(app.staticTexts["订阅已生效"].waitForExistence(timeout: 5))
         XCTAssertEqual(app.state, .runningForeground)
     }

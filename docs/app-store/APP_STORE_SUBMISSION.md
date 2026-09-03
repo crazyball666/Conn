@@ -15,7 +15,7 @@
 | 支持 URL | `[部署后的 HTTPS 域名]/support/` | 必须替换为公开地址；页面内要配置有效邮箱及依法需要提供的电话、地址 |
 | 隐私政策 URL | `[部署后的 HTTPS 域名]/privacy/` | 必须替换为公开可访问的绝对 URL；网站源文件见 `docs/website/privacy/` |
 | 营销 URL | `[可选]` | 可选 |
-| 价格 | `[免费 / 付费下载]` | 首发建议免费；付费下载可直接配置价格，只有应用内购买或订阅才需要 StoreKit |
+| 价格 | `免费` | Pro 功能通过 App Store Connect 自动续费订阅提供；订阅商品和销售地区需在后台配置 |
 | Copyright | `2026 [个人或公司法定名称]` | 必填，Apple 会自动添加版权符号 |
 | Content Rights | `[按实际权利情况声明]` | 后台填写；用户只能连接其拥有或获授权的主机 |
 | DSA 交易者状态 | `[交易者 / 非交易者]` | 无论是否在欧盟销售都必须声明；交易者需验证公开联系信息 |
@@ -96,7 +96,7 @@ You need an SSH host that you own or are authorized to access. Review every comm
 - `PrivacyInfo.xcprivacy`：声明无跟踪、无收集数据，并声明 UserDefaults 的系统 API 使用理由；
 - `NSLocalNetworkUsageDescription`：解释本地网络用于连接 SSH 主机、文件、进程和 Docker 管理。
 
-如果未来加入 Crash 报告、分析、云同步、订阅或第三方登录，必须重新填写隐私问卷和隐私政策，不能继续沿用“无收集、无上传”的答案。
+如果未来加入 Crash 报告、分析、云同步或第三方登录，必须重新填写隐私问卷和隐私政策，不能继续沿用“无收集、无上传”的答案。当前版本的订阅仅由 StoreKit 和本机状态处理，不接入账号或自建服务端。
 
 ## 3. 出口合规（Export Compliance）填写草案
 
@@ -156,6 +156,7 @@ If the host is temporarily unavailable, please contact [review contact email].
 - [ ] 文件：搜索、进入目录、编辑、保存失败和重试；
 - [ ] Docker：容器/镜像/卷/网络/Compose 列表、详情、日志、创建表单和危险操作确认；
 - [ ] 密钥：生成、导入、改名、复制公钥、导出、删除，以及 Keychain 与本地元数据不一致时的恢复；
+- [ ] 订阅：首次购买、重复点击购买、取消购买、待处理购买、恢复购买、到期/撤销后的权益回收，以及已订阅用户仅显示“管理订阅”而不显示购买按钮；
 - [ ] 中英文切换、深色模式、动态字体、VoiceOver 基本导航；
 - [ ] iPhone 支持尺寸的竖屏布局；首发构建不声明 iPad 支持；
 - [ ] 从旧版本升级安装后，主机、脚本、密钥引用和历史记录仍可读取；
@@ -183,4 +184,4 @@ If the host is temporarily unavailable, please contact [review contact email].
 7. 完成出口合规问卷，再按问卷结果设置 Info.plist 或上传加密材料；
 8. 确认最终版本号和未被使用的 build number，完成 Archive、Validate App 和构建选择；
 9. 如果选择中国大陆销售，先完成适用的备案/许可信息；否则首发销售地区不包含中国大陆；
-10. 如果未来加入应用内购买或订阅，先实现并验证 StoreKit 产品、恢复购买和退款后状态处理，再提交相应商品审核。
+10. 在 App Store Connect 配置同一订阅组内的月付和年付商品，核对商品 ID、价格、销售地区、订阅条款、隐私政策、自动续订披露和恢复购买路径，再提交相应商品审核。

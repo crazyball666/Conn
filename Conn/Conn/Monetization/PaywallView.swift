@@ -2,6 +2,7 @@ import ConnEntitlement
 import ConnUI
 import StoreKit
 import SwiftUI
+import UIKit
 
 /// 触发 Pro 购买页的业务场景。
 enum PaywallContext: String, CaseIterable, Equatable, Identifiable, Sendable {
@@ -30,8 +31,7 @@ private struct PaywallFeature: Identifiable {
     let systemImage: String
 }
 
-/// Conn Pro 购买页。价格以 StoreKit 返回值为准，未配置商品时使用确定的开发兜底值，
-/// 保证商品配置前的 UI 验收仍然可用。
+/// Conn Pro 购买页。价格和购买资格均以 StoreKit 状态为准。
 struct PaywallView: View {
     let dependencies: AppDependencies
     let context: PaywallContext
@@ -46,16 +46,40 @@ struct PaywallView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: ConnSpacing.md) {
                     hero
-                    contextBanner
+                    if dependencies.subscription.isPro {
+                        activeSubscriptionCard
+                    } else {
+                        contextBanner
+                        planPicker
+                    }
                     featureList
-                    planPicker
-                    Text(L("订阅由 Apple 管理，可在系统设置中取消。"))
-                        .font(.connFootnote)
+                    VStack(spacing: ConnSpacing.xs) {
+                        Text(L("订阅由 Apple 管理，可在系统设置中取消。"))
+                            .font(.connFootnote)
+                            .foregroundStyle(.connMuted)
+                            .frame(maxWidth: .infinity)
+                            .multilineTextAlignment(.center)
+                        Text(L("订阅将自动续订，除非在当前计费周期结束前至少 24 小时取消。"))
+                            .font(.connCaption)
+                            .foregroundStyle(.connMuted)
+                            .frame(maxWidth: .infinity)
+                            .multilineTextAlignment(.center)
+                        HStack(spacing: ConnSpacing.sm) {
+                            if let url = AppLegalLinks.privacyPolicyURL {
+                                Link(L("隐私政策"), destination: url)
+                                    .accessibilityIdentifier("paywall.legal.privacy")
+                            }
+                            if let url = AppLegalLinks.termsOfUseURL {
+                                Link(L("使用条款"), destination: url)
+                                    .accessibilityIdentifier("paywall.legal.terms")
+                            }
+                        }
+                        .font(.connCaption)
                         .foregroundStyle(.connMuted)
-                        .frame(maxWidth: .infinity)
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal, ConnSpacing.xs)
-                        .padding(.bottom, ConnSpacing.sm)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.horizontal, ConnSpacing.xs)
+                    .padding(.bottom, ConnSpacing.sm)
                 }
                 .padding(ConnSpacing.page)
             }
@@ -91,9 +115,6 @@ struct PaywallView: View {
             .task {
                 dependencies.subscription.start()
                 await dependencies.subscription.refresh()
-            }
-            .onChange(of: dependencies.subscription.isPro) { _, isPro in
-                if isPro { dismiss() }
             }
         }
         .accessibilityIdentifier("paywall")
@@ -172,6 +193,28 @@ struct PaywallView: View {
         .accessibilityIdentifier("paywall.context")
     }
 
+    private var activeSubscriptionCard: some View {
+        VStack(alignment: .leading, spacing: ConnSpacing.xs) {
+            Label(L("当前已订阅"), systemImage: "checkmark.seal.fill")
+                .font(.connSectionTitle)
+                .fontWeight(.semibold)
+                .foregroundStyle(.connGood)
+            Text(L("当前账号已拥有全部 Conn Pro 功能。"))
+                .font(.connBody)
+                .foregroundStyle(.connMuted)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(ConnSpacing.cardPadding)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .connSurface(cornerRadius: ConnRadius.card)
+        .overlay {
+            RoundedRectangle(cornerRadius: ConnRadius.card, style: .continuous)
+                .strokeBorder(Color.connGood.opacity(0.35), lineWidth: 1)
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("paywall.active")
+    }
+
     private var featureList: some View {
         VStack(alignment: .leading, spacing: ConnSpacing.xs) {
             HStack(alignment: .firstTextBaseline) {
@@ -199,6 +242,7 @@ struct PaywallView: View {
         .padding(ConnSpacing.cardPadding)
         .frame(maxWidth: .infinity, alignment: .leading)
         .connSurface(cornerRadius: ConnRadius.card)
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("paywall.features")
     }
 
@@ -250,6 +294,7 @@ struct PaywallView: View {
                 }
             }
         }
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("paywall.plans")
     }
 
@@ -320,15 +365,36 @@ struct PaywallView: View {
 
     private var purchaseBar: some View {
         VStack(spacing: ConnSpacing.xxs) {
-            ConnButton(
-                String(format: L("订阅 Conn Pro · %@"), priceText(for: selectedPlan)),
-                height: ConnSize.buttonHeightLarge
-            ) {
-                Task { await purchase() }
+            if dependencies.subscription.isPro {
+                ConnButton(L("管理订阅"), height: ConnSize.buttonHeightLarge) {
+                    Task { await manageSubscription() }
+                }
+                .accessibilityIdentifier("paywall.manage")
+                .frame(maxWidth: .infinity)
+            } else {
+                ConnButton(
+                    String(format: L("订阅 Conn Pro · %@"), priceText(for: selectedPlan)),
+                    height: ConnSize.buttonHeightLarge
+                ) {
+                    Task { await purchase() }
+                }
+                .disabled(
+                    isPurchasing
+                        || dependencies.subscription.status != .free
+                        || dependencies.subscription.product(for: selectedPlan) == nil
+                )
+                .accessibilityIdentifier("paywall.purchase")
+                .frame(maxWidth: .infinity)
+
+                if dependencies.subscription.status == .unavailable {
+                    Text(L("订阅商品暂不可用，请稍后重试。"))
+                        .font(.connCaption)
+                        .foregroundStyle(.connMuted)
+                        .frame(maxWidth: .infinity)
+                        .multilineTextAlignment(.center)
+                        .accessibilityIdentifier("paywall.unavailable")
+                }
             }
-            .disabled(isPurchasing || dependencies.subscription.status == .loading)
-            .accessibilityIdentifier("paywall.purchase")
-            .frame(maxWidth: .infinity)
 
             Button {
                 Task { await restore() }
@@ -339,7 +405,7 @@ struct PaywallView: View {
                     .frame(maxWidth: .infinity)
                     .frame(minHeight: ConnSize.minTouchTarget)
             }
-            .disabled(isPurchasing)
+            .disabled(isPurchasing || dependencies.subscription.status == .loading)
             .accessibilityIdentifier("paywall.restore")
         }
         .padding(.horizontal, ConnSpacing.page)
@@ -418,7 +484,7 @@ struct PaywallView: View {
 
     private func priceText(for plan: SubscriptionStore.Plan) -> String {
         dependencies.subscription.product(for: plan)?.displayPrice
-            ?? dependencies.subscription.fallbackPrice(for: plan)
+            ?? L("价格暂不可用")
     }
 
     private func purchase() async {
@@ -440,11 +506,39 @@ struct PaywallView: View {
 
     private func restore() async {
         isPurchasing = true
-        await dependencies.subscription.restore()
+        let result = await dependencies.subscription.restore()
         isPurchasing = false
-        message = dependencies.subscription.isPro
-            ? L("订阅已恢复。")
-            : L("未找到有效订阅。")
+        switch result {
+        case .restored:
+            message = L("订阅已恢复。")
+        case .noActiveSubscription:
+            message = L("未找到有效订阅。")
+        case .inProgress:
+            message = L("已有操作正在处理中，请稍候。")
+        case .failed:
+            message = L("恢复购买失败，请稍后重试。")
+        }
         if dependencies.subscription.isPro { dismiss() }
+    }
+
+    private func manageSubscription() async {
+        guard let scene = UIApplication.shared.connectedScenes
+            .compactMap({ $0 as? UIWindowScene })
+            .first(where: { $0.activationState == .foregroundActive })
+                ?? UIApplication.shared.connectedScenes.compactMap({ $0 as? UIWindowScene }).first
+        else {
+            message = L("无法打开订阅管理。")
+            return
+        }
+
+        do {
+            try await AppStore.showManageSubscriptions(in: scene)
+        } catch {
+            guard let url = URL(string: "https://apps.apple.com/account/subscriptions") else {
+                message = L("无法打开订阅管理。")
+                return
+            }
+            await UIApplication.shared.open(url)
+        }
     }
 }

@@ -38,6 +38,9 @@ struct RootTabView: View {
             }
         }
         .onChange(of: scenePhase) { _, phase in
+            if phase == .active {
+                Task { await dependencies.subscription.refresh() }
+            }
             guard let idle = resumePolicy.idleDurationOnResume(for: phase) else { return }
             Task {
                 await dependencies.monitor.resumeAfterBackground(idleFor: idle)
