@@ -12,9 +12,11 @@ public enum TerminalKeybarMetrics {
     /// Compact row content keeps a symmetric breathing room on both screen edges.
     static let compactHorizontalInset: CGFloat = 8
     static let capVisualHeight: CGFloat = 28
-    static let compactCapWidth: CGFloat = 44
+    /// 紧凑栏按钮槽位略窄；纵向仍由 44pt 工具栏行提供。
+    static let compactCapWidth: CGFloat = 40
     static let compactActionWidth: CGFloat = compactCapWidth
-    static let compactPadSide: CGFloat = 44
+    /// 方向盘点击区域就是可见方形本体，不额外扩展到整行高度。
+    static let compactPadSide: CGFloat = capVisualHeight
     static let gridSpacing: CGFloat = 4
     static let commonColumnCount = 7
     static let providerColumnCount = 6

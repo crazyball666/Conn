@@ -538,7 +538,7 @@
             TerminalDirectionPad(onKey: onKey)
                 .frame(
                     width: TerminalKeybarMetrics.compactPadSide,
-                    height: TerminalKeybarMetrics.hitTargetHeight
+                    height: TerminalKeybarMetrics.capVisualHeight
                 )
         }
 

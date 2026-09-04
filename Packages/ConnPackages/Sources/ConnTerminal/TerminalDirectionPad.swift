@@ -91,7 +91,10 @@ enum TerminalDirectionResolver {
                 .contentShape(Rectangle())
                 .gesture(gesture(in: geometry.size))
             }
-            .frame(height: TerminalKeybarMetrics.hitTargetHeight)
+            .frame(
+                width: TerminalKeybarMetrics.capVisualHeight,
+                height: TerminalKeybarMetrics.capVisualHeight
+            )
             // 四个方向键合并成一个手势控件后，VoiceOver 用户就拖不出方向了，
             // 所以补四个具名动作把它们还回去。
             //

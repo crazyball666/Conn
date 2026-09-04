@@ -714,7 +714,7 @@ struct AppWideUIConsistencyTests {
         #expect(keybar.contains("TerminalKeybarMetrics.capVisualHeight"))
         #expect(directionPad.contains("width: TerminalKeybarMetrics.capVisualHeight"))
         #expect(directionPad.contains("height: TerminalKeybarMetrics.capVisualHeight"))
-        #expect(directionPad.contains(".frame(height: TerminalKeybarMetrics.hitTargetHeight)"))
+        #expect(!directionPad.contains(".frame(height: TerminalKeybarMetrics.hitTargetHeight)"))
         #expect(keybar.contains("@State private var touchGlowProgress: CGFloat = 0"))
         #expect(keybar.contains("Color.connInk.opacity(0.32)"))
         #expect(keybar.contains("Color.connInk.opacity(0.14)"))
