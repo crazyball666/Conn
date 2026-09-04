@@ -68,11 +68,14 @@ public extension TerminalTheme {
         gruvboxDark,
         tokyoNight,
         catppuccinMocha,
+        monokai,
+        githubDark,
         connLight,
         solarizedLight,
         gruvboxLight,
         oneLight,
         catppuccinLatte,
+        githubLight,
     ]
 
     /// 按持久化 id 查找主题；旧值或异常值统一安全回退到 Conn。
@@ -185,6 +188,34 @@ public extension TerminalTheme {
         ]
     )
 
+    /// Monokai：经典高饱和深色配色，适合长时间阅读代码和日志。
+    static let monokai = TerminalTheme(
+        id: "monokai", name: "Monokai", appearance: .dark,
+        background: RGB(hex: "272822"),
+        foreground: RGB(hex: "F8F8F2"),
+        cursor: RGB(hex: "F8F8F0"),
+        ansi: [
+            RGB(hex: "272822"), RGB(hex: "F92672"), RGB(hex: "A6E22E"), RGB(hex: "FD971F"),
+            RGB(hex: "66D9EF"), RGB(hex: "AE81FF"), RGB(hex: "A6E22E"), RGB(hex: "F8F8F2"),
+            RGB(hex: "75715E"), RGB(hex: "F92672"), RGB(hex: "A6E22E"), RGB(hex: "E6DB74"),
+            RGB(hex: "66D9EF"), RGB(hex: "AE81FF"), RGB(hex: "A6E22E"), RGB(hex: "F9F8F5")
+        ]
+    )
+
+    /// GitHub Dark：GitHub 深色界面的中性底色与高辨识度语法色。
+    static let githubDark = TerminalTheme(
+        id: "github-dark", name: "GitHub Dark", appearance: .dark,
+        background: RGB(hex: "0D1117"),
+        foreground: RGB(hex: "C9D1D9"),
+        cursor: RGB(hex: "58A6FF"),
+        ansi: [
+            RGB(hex: "484F58"), RGB(hex: "FF7B72"), RGB(hex: "7EE787"), RGB(hex: "D29922"),
+            RGB(hex: "79C0FF"), RGB(hex: "D2A8FF"), RGB(hex: "A5D6FF"), RGB(hex: "B1BAC4"),
+            RGB(hex: "6E7681"), RGB(hex: "FFA198"), RGB(hex: "56D364"), RGB(hex: "E3B341"),
+            RGB(hex: "A5D6FF"), RGB(hex: "BC8CFF"), RGB(hex: "79C0FF"), RGB(hex: "F0F6FC")
+        ]
+    )
+
     static let connLight = TerminalTheme(
         id: "conn-light", name: "Conn Light", appearance: .light,
         background: RGB(hex: "F7F8FC"),
@@ -247,6 +278,20 @@ public extension TerminalTheme {
             RGB(hex: "1E66F5"), RGB(hex: "EA76CB"), RGB(hex: "179299"), RGB(hex: "ACB0BE"),
             RGB(hex: "6C6F85"), RGB(hex: "D20F39"), RGB(hex: "40A02B"), RGB(hex: "DF8E1D"),
             RGB(hex: "1E66F5"), RGB(hex: "EA76CB"), RGB(hex: "179299"), RGB(hex: "BCC0CC")
+        ]
+    )
+
+    /// GitHub Light：明亮、中性的浅色终端配色，降低大面积纯白带来的刺眼感。
+    static let githubLight = TerminalTheme(
+        id: "github-light", name: "GitHub Light", appearance: .light,
+        background: RGB(hex: "F6F8FA"),
+        foreground: RGB(hex: "24292F"),
+        cursor: RGB(hex: "0969DA"),
+        ansi: [
+            RGB(hex: "24292F"), RGB(hex: "CF222E"), RGB(hex: "116329"), RGB(hex: "4D2D00"),
+            RGB(hex: "0969DA"), RGB(hex: "8250DF"), RGB(hex: "1B7C83"), RGB(hex: "6E7781"),
+            RGB(hex: "57606A"), RGB(hex: "A40E26"), RGB(hex: "1A7F37"), RGB(hex: "633C01"),
+            RGB(hex: "218BFF"), RGB(hex: "A475F9"), RGB(hex: "3192AA"), RGB(hex: "8C959F")
         ]
     )
 }

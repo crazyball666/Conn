@@ -14,24 +14,24 @@ struct TerminalThemeTests {
     func catalogIsCompleteAndUnique() {
         let themes = TerminalTheme.all
 
-        #expect(themes.count == 13)
+        #expect(themes.count == 16)
         #expect(Set(themes.map(\.id)).count == themes.count)
         #expect(Set(themes.map(paletteSignature)).count == themes.count)
         #expect(themes.allSatisfy { $0.ansi.count == 16 })
     }
 
-    @Test("主题目录保留全部深色 id 并提供五套浅色主题")
+    @Test("主题目录包含常用深色与浅色主题")
     func catalogContainsExpectedAppearances() {
         let darkIDs = Set(TerminalTheme.all.filter { $0.appearance == .dark }.map(\.id))
         let lightIDs = Set(TerminalTheme.all.filter { $0.appearance == .light }.map(\.id))
 
         #expect(darkIDs == [
             "conn", "dracula", "solarized-dark", "one-dark", "nord",
-            "gruvbox-dark", "tokyo-night", "catppuccin-mocha",
+            "gruvbox-dark", "tokyo-night", "catppuccin-mocha", "monokai", "github-dark",
         ])
         #expect(lightIDs == [
             "conn-light", "solarized-light", "gruvbox-light", "one-light",
-            "catppuccin-latte",
+            "catppuccin-latte", "github-light",
         ])
     }
 

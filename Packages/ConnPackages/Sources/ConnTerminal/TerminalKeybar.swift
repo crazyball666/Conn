@@ -30,6 +30,7 @@
         let onExpansionChange: (Bool) -> Void
         let attachmentState: TerminalAttachmentPanelState
         let onAttachmentAction: (TerminalAttachmentAction) -> Void
+        @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
         /// 触感的触发源。每次按键自增一次，`sensoryFeedback` 只认「值变了」。
         ///
@@ -38,7 +39,9 @@
         @State private var expandedSection: ExpandedSection = .common
         /// 工具栏级触点高亮。它属于整条栏的背景，不改变单个按钮的按下样式。
         @State private var touchLocation: CGPoint?
-        @State private var touchGlowProgress: CGFloat = 0
+        @State private var touchGlowScale: CGFloat = 0.22
+        @State private var touchGlowOpacity: CGFloat = 0
+        @State private var isTouchTracking = false
 
         private enum ExpandedSection: String {
             case common
@@ -80,10 +83,9 @@
                                 endRadius: 168
                             )
                             .frame(width: 336, height: 336)
-                            .scaleEffect(0.72 + 0.28 * touchGlowProgress)
-                            .opacity(touchGlowProgress)
+                            .scaleEffect(touchGlowScale)
+                            .opacity(touchGlowOpacity)
                             .position(touchLocation)
-                            .transition(.opacity.combined(with: .scale(scale: 0.72)))
                             .allowsHitTesting(false)
                         }
                     }
@@ -98,23 +100,40 @@
             .simultaneousGesture(
                 DragGesture(minimumDistance: 0)
                     .onChanged { value in
-                        if touchLocation == nil {
-                            withAnimation(.easeOut(duration: 0.18)) {
-                                touchLocation = value.location
-                                touchGlowProgress = 1
-                            }
-                        } else {
+                        guard !isTouchTracking else { return }
+                        isTouchTracking = true
+
+                        // Reset outside the animation so every touch starts as a
+                        // fresh ripple, even when the previous fade-out is still
+                        // finishing. The origin remains fixed for this gesture.
+                        let transaction = Transaction(animation: nil)
+                        withTransaction(transaction) {
                             touchLocation = value.location
-                            if touchGlowProgress < 1 {
-                                withAnimation(.easeOut(duration: 0.18)) {
-                                    touchGlowProgress = 1
-                                }
+                            touchGlowScale = 0.22
+                            touchGlowOpacity = 0
+                        }
+
+                        if reduceMotion {
+                            touchGlowScale = 1.08
+                            touchGlowOpacity = 1
+                        } else {
+                            withAnimation(.easeOut(duration: 0.34)) {
+                                touchGlowScale = 1.08
+                                touchGlowOpacity = 1
                             }
                         }
                     }
                     .onEnded { _ in
-                        withAnimation(.easeOut(duration: 0.18)) {
-                            touchGlowProgress = 0
+                        isTouchTracking = false
+                        if reduceMotion {
+                            touchGlowOpacity = 0
+                        } else {
+                            withAnimation(.easeOut(duration: 0.28)) {
+                                // Let the edge travel a little farther while
+                                // fading, which makes the diffusion visible.
+                                touchGlowScale = 1.18
+                                touchGlowOpacity = 0
+                            }
                         }
                     }
             )

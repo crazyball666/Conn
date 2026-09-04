@@ -13,15 +13,16 @@ struct SettingsStoreTests {
         #expect(url?.absoluteString == "https://crazyball.cc/ConnTerm/privacy/")
     }
 
-    @Test("首次启动默认使用深色模式和紫色主题")
-    func firstLaunchUsesDarkPurpleDefaults() {
+    @Test("首次启动默认跟随系统并使用紫色主题")
+    func firstLaunchUsesSystemPurpleDefaults() {
         let suiteName = "SettingsStoreTests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName)!
         defer { defaults.removePersistentDomain(forName: suiteName) }
 
         let settings = SettingsStore(defaults: defaults)
 
-        #expect(settings.appearance == .dark)
+        #expect(settings.appearance == .system)
+        #expect(settings.appearance.colorScheme == nil)
         #expect(settings.accent == .purple)
         #expect(settings.codeFontSize == 10)
         #expect(settings.codeEditorConfiguration.fontSize == 10)

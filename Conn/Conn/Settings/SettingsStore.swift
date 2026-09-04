@@ -171,7 +171,7 @@ final class SettingsStore {
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
         // 只在没有持久化值时使用默认值；已有用户偏好保持不变。
-        appearance = AppAppearance(rawValue: defaults.string(forKey: Key.appearance) ?? "") ?? .dark
+        appearance = AppAppearance(rawValue: defaults.string(forKey: Key.appearance) ?? "") ?? .system
         accent = AppAccent(rawValue: defaults.string(forKey: Key.accent) ?? "") ?? .purple
         let storedInterval = defaults.object(forKey: Key.refresh) as? Int ?? RefreshInterval.normal.rawValue
         refreshInterval = RefreshInterval(rawValue: storedInterval) ?? .normal
