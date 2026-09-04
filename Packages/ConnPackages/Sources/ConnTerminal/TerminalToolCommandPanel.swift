@@ -140,40 +140,32 @@ struct TerminalToolCommandCatalog: Sendable, Equatable {
             Button {
                 onCommand(action.command)
             } label: {
-                VStack(spacing: TerminalKeybarMetrics.providerContentSpacing) {
-                    Image(systemName: action.systemImageName)
-                        .font(
-                            .system(
-                                size: TerminalKeybarMetrics.providerIconSize,
-                                weight: .medium
-                            )
+                Text(action.command)
+                    .font(
+                        .system(
+                            size: TerminalKeybarMetrics.providerLabelSize,
+                            weight: .regular,
+                            design: .monospaced
                         )
-                        .frame(height: TerminalKeybarMetrics.providerIconSize)
-                    Text(action.command)
-                        .font(
-                            .system(
-                                size: TerminalKeybarMetrics.providerLabelSize,
-                                weight: .regular,
-                                design: .monospaced
-                            )
-                        )
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.58)
-                        .allowsTightening(true)
-                }
-                .foregroundStyle(Color.connInk)
-                .padding(.horizontal, TerminalKeybarMetrics.providerContentHorizontalPadding)
-                .padding(.vertical, TerminalKeybarMetrics.providerContentVerticalPadding)
-                .frame(maxWidth: .infinity)
-                .frame(height: TerminalKeybarMetrics.capVisualHeight)
-                .background(
-                    Color.connKey,
-                    in: .rect(cornerRadius: ConnRadius.key, style: .continuous)
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: ConnRadius.key, style: .continuous)
-                        .strokeBorder(Color.connKeyline, lineWidth: 1)
-                )
+                    )
+                    .lineLimit(2)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .minimumScaleFactor(0.58)
+                    .allowsTightening(true)
+                    .foregroundStyle(Color.connInk)
+                    .padding(.horizontal, TerminalKeybarMetrics.providerContentHorizontalPadding)
+                    .padding(.vertical, TerminalKeybarMetrics.providerContentVerticalPadding)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: TerminalKeybarMetrics.capVisualHeight)
+                    .background(
+                        Color.connKey,
+                        in: .rect(cornerRadius: ConnRadius.key, style: .continuous)
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: ConnRadius.key, style: .continuous)
+                            .strokeBorder(Color.connKeyline, lineWidth: 1)
+                    )
             }
             .buttonStyle(.plain)
             .accessibilityLabel(Text(action.command))

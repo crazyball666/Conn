@@ -1,9 +1,9 @@
 import CoreGraphics
 
 enum TerminalDirectionPadMetrics {
-    static let contentInset: CGFloat = 4
-    static let glyphFrame: CGFloat = 14
-    static let glyphSize: CGFloat = 11
+    static let contentInset: CGFloat = 2
+    static let glyphFrame: CGFloat = 10
+    static let glyphSize: CGFloat = 9
     static let centerDot: CGFloat = 3
 
     /// 箭头中心相对边缘的距离。按比例定位，并至少给 glyph 留出完整边界。
@@ -73,15 +73,18 @@ enum TerminalDirectionResolver {
                 ZStack {
                     RoundedRectangle(cornerRadius: ConnRadius.key, style: .continuous)
                         .fill(Color.connKey)
+                        .frame(height: TerminalKeybarMetrics.capVisualHeight)
                         .overlay(
                             RoundedRectangle(cornerRadius: ConnRadius.key, style: .continuous)
                                 .strokeBorder(Color.connKeyline, lineWidth: 1)
                         )
                     arrows
+                        .frame(height: TerminalKeybarMetrics.capVisualHeight)
                 }
                 .contentShape(Rectangle())
                 .gesture(gesture(in: geometry.size))
             }
+            .frame(height: TerminalKeybarMetrics.hitTargetHeight)
             // 四个方向键合并成一个手势控件后，VoiceOver 用户就拖不出方向了，
             // 所以补四个具名动作把它们还回去。
             //

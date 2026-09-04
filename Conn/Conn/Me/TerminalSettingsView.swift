@@ -65,9 +65,6 @@ struct TerminalSettingsView: View {
                     Label(L("回滚历史"), systemImage: "clock.arrow.circlepath")
                 }
 
-                Toggle(isOn: $settings.terminalKeybarEnabled) {
-                    Label(L("快捷键栏"), systemImage: "keyboard")
-                }
             }
         }
         .navigationTitle(L("终端设置"))

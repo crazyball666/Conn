@@ -80,11 +80,11 @@ struct TerminalKeyTests {
         #expect(TerminalKey.f12.bytes == [0x1B, 0x5B, 0x32, 0x34, 0x7E])
     }
 
-    @Test("快捷栏紧凑态只保留高频控制键，其余移入常用面板")
+    @Test("快捷栏紧凑态按使用频率排列高频控制键，其余移入常用面板")
     func mobileControlKeyLayout() {
         #expect(TerminalKeybarLayout.compactRows == [
             [
-                .esc, .tab, .ctrl, .ctrlC, .clearLine, .enter
+                .ctrl, .ctrlC, .esc, .tab, .clearLine, .enter
             ]
         ])
         #expect(TerminalKeybarLayout.compactKeys.count == 6)

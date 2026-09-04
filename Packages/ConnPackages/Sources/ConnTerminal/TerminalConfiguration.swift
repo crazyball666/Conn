@@ -18,21 +18,18 @@ public struct TerminalConfiguration: Sendable, Equatable {
     public let scrollback: Int
     public let cursorShape: TerminalCursorShape
     public let cursorBlinking: Bool
-    public let showsKeybar: Bool
 
     public init(
         theme: TerminalTheme = .conn,
         fontSize: Double = TerminalConfiguration.defaultFontSize,
         scrollback: Int = 500,
         cursorShape: TerminalCursorShape = .block,
-        cursorBlinking: Bool = true,
-        showsKeybar: Bool = true
+        cursorBlinking: Bool = true
     ) {
         self.theme = theme
         self.fontSize = fontSize
         self.scrollback = scrollback
         self.cursorShape = cursorShape
         self.cursorBlinking = cursorBlinking
-        self.showsKeybar = showsKeybar
     }
 }

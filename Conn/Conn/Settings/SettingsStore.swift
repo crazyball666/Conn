@@ -159,10 +159,6 @@ final class SettingsStore {
         didSet { defaults.set(terminalCursorBlinking, forKey: Key.terminalCursorBlinking) }
     }
 
-    var terminalKeybarEnabled: Bool {
-        didSet { defaults.set(terminalKeybarEnabled, forKey: Key.terminalKeybarEnabled) }
-    }
-
     /// v1 内置命令库是否曾导入；仅供版本化目录首次迁移使用。
     /// 新目录进度与 suppression 已迁入 SQLite，不再以此布尔值作为导入 gate。
     var builtinSnippetsImported: Bool {
@@ -218,9 +214,6 @@ final class SettingsStore {
         terminalCursorBlinking = defaults.object(forKey: Key.terminalCursorBlinking) == nil
             ? true
             : defaults.bool(forKey: Key.terminalCursorBlinking)
-        terminalKeybarEnabled = defaults.object(forKey: Key.terminalKeybarEnabled) == nil
-            ? true
-            : defaults.bool(forKey: Key.terminalKeybarEnabled)
         builtinSnippetsImported = defaults.bool(forKey: Key.builtinSnippetsImported)
         applyAccent()
     }
@@ -231,8 +224,7 @@ final class SettingsStore {
             fontSize: terminalFontSize,
             scrollback: terminalScrollback,
             cursorShape: terminalCursorShape,
-            cursorBlinking: terminalCursorBlinking,
-            showsKeybar: terminalKeybarEnabled
+            cursorBlinking: terminalCursorBlinking
         )
     }
 
@@ -272,7 +264,6 @@ final class SettingsStore {
         static let terminalScrollback = "conn.settings.terminalScrollback"
         static let terminalCursorShape = "conn.settings.terminalCursorShape"
         static let terminalCursorBlinking = "conn.settings.terminalCursorBlinking"
-        static let terminalKeybarEnabled = "conn.settings.terminalKeybarEnabled"
         static let builtinSnippetsImported = "conn.settings.builtinSnippetsImported"
     }
 }

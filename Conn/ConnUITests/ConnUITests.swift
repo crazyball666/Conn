@@ -34,48 +34,55 @@ final class ConnUITests: XCTestCase {
         if directionPad.waitForExistence(timeout: 2) {
             let keybar = app.descendants(matching: .any)["terminal.keybar"].firstMatch
             XCTAssertTrue(keybar.exists)
-            let sessionActions = app.buttons["terminal.keybar.session-actions"]
-            XCTAssertTrue(sessionActions.exists)
-            XCTAssertGreaterThanOrEqual(
-                sessionActions.frame.minX - keybar.frame.minX,
-                8,
-                "方向盘左侧应保留与右侧一致的快捷栏内边距"
-            )
-            XCTAssertGreaterThanOrEqual(
-                keybar.frame.maxX - directionPad.frame.maxX,
-                8,
-                "方向盘右侧应保留横向滑动安全间距"
-            )
-            XCTAssertLessThanOrEqual(directionPad.frame.width, 36)
-
-            let compactAction = app.buttons["terminal.keybar.commands"]
-            XCTAssertTrue(compactAction.exists)
-            XCTAssertLessThanOrEqual(compactAction.frame.width, 36)
-        }
-
-        let sessionActions = app.buttons["terminal.keybar.session-actions"]
-        if sessionActions.waitForExistence(timeout: 2) {
-            sessionActions.tap()
-            let switchTerminal = app.buttons["terminal.session-actions.switch"]
-            XCTAssertTrue(switchTerminal.waitForExistence(timeout: 5))
-            switchTerminal.tap()
-            let sessionListBack = app.navigationBars.buttons.element(boundBy: 0)
-            XCTAssertTrue(sessionListBack.waitForExistence(timeout: 5))
-            sessionListBack.tap()
-            XCTAssertTrue(switchTerminal.waitForExistence(timeout: 5))
-
-            let files = app.buttons["terminal.session-actions.files"]
-            XCTAssertTrue(files.waitForExistence(timeout: 5))
-            files.tap()
-            XCTAssertTrue(
-                app.otherElements["terminal.file-browser"].waitForExistence(timeout: 5)
-            )
+            XCTAssertTrue(app.buttons["terminal.keybar.close-terminal"].exists)
+            XCTAssertTrue(app.buttons["terminal.keybar.switch-session"].exists)
+            XCTAssertTrue(app.buttons["terminal.keybar.file-management"].exists)
+            XCTAssertTrue(app.buttons["terminal.keybar.commands"].exists)
+            XCTAssertTrue(app.buttons["terminal.keybar.expand"].exists)
+            XCTAssertTrue(app.buttons["terminal.keybar.dismissKeyboard"].exists)
+            XCTAssertGreaterThanOrEqual(directionPad.frame.height, 40)
+            XCTAssertFalse(app.buttons["terminal.keybar.session-actions"].exists)
         }
         XCTAssertEqual(app.state, .runningForeground)
     }
 
     @MainActor
-    func testFreeTerminalFileManagementPresentsPaywallAfterSessionActionsDismisses() throws {
+    func testConfiguredHostCanCreateActiveTerminalShortcutBar() throws {
+        let app = XCUIApplication()
+        app.launchEnvironment["CONN_SUBSCRIPTION_STATE"] = "pro"
+        app.launch()
+
+        XCTAssertTrue(app.tabBars.buttons["tab.servers"].waitForExistence(timeout: 10))
+        let hostCard = app.buttons.matching(
+            NSPredicate(format: "identifier BEGINSWITH %@", "servers.host.")
+        ).firstMatch
+        guard hostCard.waitForExistence(timeout: 5) else {
+            throw XCTSkip("当前模拟器没有已保存的主机配置")
+        }
+        hostCard.tap()
+
+        let openTerminal = app.buttons["host.open-terminal"]
+        XCTAssertTrue(openTerminal.waitForExistence(timeout: 5))
+        openTerminal.tap()
+
+        let plainTerminal = app.buttons["new-terminal.provider.plain"]
+        if plainTerminal.waitForExistence(timeout: 5) {
+            plainTerminal.tap()
+        }
+
+        let keybar = app.descendants(matching: .any)["terminal.keybar"]
+        XCTAssertTrue(keybar.waitForExistence(timeout: 20))
+        XCTAssertTrue(app.buttons["terminal.keybar.close-terminal"].exists)
+        XCTAssertTrue(app.buttons["terminal.keybar.expand"].exists)
+        XCTAssertTrue(app.buttons["terminal.keybar.dismissKeyboard"].exists)
+
+        app.buttons["terminal.keybar.close-terminal"].tap()
+        XCTAssertTrue(keybar.waitForNonExistence(timeout: 5))
+        XCTAssertEqual(app.state, .runningForeground)
+    }
+
+    @MainActor
+    func testFreeTerminalFileManagementPresentsPaywallDirectly() throws {
         let app = XCUIApplication()
         app.launchEnvironment["CONN_SUBSCRIPTION_STATE"] = "free"
         app.launch()
@@ -83,14 +90,11 @@ final class ConnUITests: XCTestCase {
         XCTAssertTrue(app.tabBars.buttons["tab.servers"].waitForExistence(timeout: 10))
         app.tabBars.buttons["tab.terminal"].tap()
 
-        let sessionActions = app.buttons["terminal.keybar.session-actions"]
-        guard sessionActions.waitForExistence(timeout: 5) else {
+        let files = app.buttons["terminal.keybar.file-management"]
+        guard files.waitForExistence(timeout: 5) else {
             throw XCTSkip("当前模拟器没有活动终端会话，无法验收文件管理的订阅拦截入口")
         }
 
-        sessionActions.tap()
-        let files = app.buttons["terminal.session-actions.files"]
-        XCTAssertTrue(files.waitForExistence(timeout: 5))
         files.tap()
 
         let paywall = app.descendants(matching: .any)["paywall"].firstMatch

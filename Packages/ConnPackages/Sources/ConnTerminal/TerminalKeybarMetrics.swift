@@ -2,7 +2,7 @@ import CoreGraphics
 
 /// 快捷键栏的视觉密度与触控尺寸。
 ///
-/// 视觉键帽可以更小；方向盘保持紧凑栏原有尺寸，展开面板保留 44pt 触控高度。
+    /// 紧凑栏与系统键盘保持一致的 44pt 触控高度。
 public enum TerminalKeybarMetrics {
     public static let compactHeight: CGFloat = 46
     /// Compact row + category row + about three provider action rows on a compact iPhone.
@@ -12,16 +12,12 @@ public enum TerminalKeybarMetrics {
     /// Compact row content keeps a symmetric breathing room on both screen edges.
     static let compactHorizontalInset: CGFloat = 8
     static let capVisualHeight: CGFloat = 28
-    static let compactCapWidth: CGFloat = 34
-    /// 会话入口承载页面级导航与关闭操作，始终保留完整的 44pt 触控宽度。
-    static let sessionActionsCapWidth: CGFloat = 44
-    static let compactPadSide: CGFloat = 34
-    /// 方向盘右侧留出独立的手指滑动余量，避免贴住屏幕边缘影响横向手势。
-    static let directionPadTrailingInset: CGFloat = 8
+    static let compactCapWidth: CGFloat = 44
+    static let compactActionWidth: CGFloat = 64
+    static let compactPadSide: CGFloat = 44
     static let gridSpacing: CGFloat = 4
     static let commonColumnCount = 7
     static let providerColumnCount = 6
-    static let providerIconSize: CGFloat = 12
     static let providerLabelSize: CGFloat = 10
     static let providerContentSpacing: CGFloat = 1
     static let providerContentHorizontalPadding: CGFloat = 4

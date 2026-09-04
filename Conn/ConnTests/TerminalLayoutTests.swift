@@ -260,10 +260,10 @@ struct TerminalLayoutTests {
         #expect(TerminalKeybarMetrics.compactHeight >= TerminalKeybarMetrics.hitTargetHeight)
         #expect(TerminalKeybarMetrics.compactHeight == TerminalKeybarMetrics.hitTargetHeight + 2)
         #expect(TerminalKeybarMetrics.hitTargetHeight == 44)
-        #expect(TerminalKeybarMetrics.sessionActionsCapWidth == 44)
         #expect(TerminalKeybarMetrics.capVisualHeight == 28)
-        #expect(TerminalKeybarMetrics.compactCapWidth == 34)
-        #expect(TerminalKeybarMetrics.compactPadSide == 34)
+        #expect(TerminalKeybarMetrics.compactCapWidth == 44)
+        #expect(TerminalKeybarMetrics.compactPadSide == 44)
+        #expect(TerminalKeybarMetrics.capVisualHeight < TerminalKeybarMetrics.hitTargetHeight)
         #expect(TerminalKeybarMetrics.commonColumnCount >= 7)
         #expect(TerminalKeybarMetrics.providerColumnCount >= 6)
         #expect(TerminalKeybarMetrics.gridSpacing <= 4)
@@ -277,14 +277,11 @@ struct TerminalLayoutTests {
             TerminalKeybarMetrics.expandedHeight - 212
                 >= TerminalKeybarMetrics.hitTargetHeight
         )
-        #expect(TerminalKeybarMetrics.providerIconSize <= 12)
         #expect(TerminalKeybarMetrics.providerLabelSize <= 10)
         #expect(TerminalKeybarMetrics.providerContentHorizontalPadding >= 4)
         #expect(TerminalKeybarMetrics.providerContentVerticalPadding >= 2)
         #expect(
-            TerminalKeybarMetrics.providerIconSize
-                + TerminalKeybarMetrics.providerLabelSize
-                + TerminalKeybarMetrics.providerContentSpacing
+            TerminalKeybarMetrics.providerLabelSize * 2
                 + TerminalKeybarMetrics.providerContentVerticalPadding * 2
                 <= TerminalKeybarMetrics.capVisualHeight
         )

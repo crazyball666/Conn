@@ -41,7 +41,6 @@ struct SettingsStoreTests {
         settings.terminalScrollback = 5_000
         settings.terminalCursorShape = .bar
         settings.terminalCursorBlinking = false
-        settings.terminalKeybarEnabled = false
 
         let restored = SettingsStore(defaults: defaults)
         #expect(restored.terminalThemeID == TerminalTheme.tokyoNight.id)
@@ -49,7 +48,7 @@ struct SettingsStoreTests {
         #expect(restored.terminalScrollback == 5_000)
         #expect(restored.terminalCursorShape == .bar)
         #expect(!restored.terminalCursorBlinking)
-        #expect(!restored.terminalKeybarEnabled)
+        #expect(restored.terminalConfiguration.fontSize == 17)
     }
 
     @Test("编辑器设置写入 UserDefaults 并可恢复")

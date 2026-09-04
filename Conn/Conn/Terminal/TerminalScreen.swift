@@ -21,11 +21,8 @@ struct TerminalScreen: View {
     @State private var tabID: String
     @State private var isReconnecting = false
     @State private var isCommandPickerPresented = false
-    @State private var isSessionActionsPresented = false
     @State private var isSessionListPresented = false
-    @State private var sessionActionsDetent: PresentationDetent = .medium
     @State private var isNewTerminalPresented = false
-    @State private var deferredSessionAction: DeferredTerminalSessionAction?
     @State private var createAfterSessionListDismisses = false
     @State private var pendingCompletion: NewTerminalFlowCompletion?
     @StateObject private var insertionMailbox: TerminalTextInsertionMailbox
@@ -93,16 +90,65 @@ struct TerminalScreen: View {
                 }
             }
             .sheet(
-                isPresented: $isSessionActionsPresented,
-                onDismiss: {
-                    isSessionListPresented = false
-                    performDeferredSessionAction()
-                    presentDeferredNewTerminal()
-                    sessionActionsDetent = .medium
-                }
+                isPresented: $isSessionListPresented,
+                onDismiss: presentDeferredNewTerminal
             ) {
-                sessionActionsSheet
-                    .environment(\.colorScheme, appColorScheme)
+                NavigationStack {
+                    TerminalSessionListSheet(
+                        host: host,
+                        store: terminalSessions.store,
+                        selectedTabID: tabID,
+                        onSelect: { selectedID in
+                            terminalSessions.store.select(selectedID)
+                            tabID = selectedID
+                            isSessionListPresented = false
+                        },
+                        onCreate: {
+                            createAfterSessionListDismisses = true
+                            isSessionListPresented = false
+                        },
+                        onRename: { id, alias in
+                            Task {
+                                if case let .failure(failure) = await terminalSessions.rename(id, to: alias),
+                                   let message = terminalSessions.consumeFailure(failure) {
+                                    toastCenter.show(message, style: .error)
+                                }
+                            }
+                        },
+                        onClose: { id in
+                            Task {
+                                await terminalSessions.close(id)
+                                if tabID == id {
+                                    if let recent = terminalSessions.store.recentTab(forHost: host.id) {
+                                        tabID = recent.id
+                                    } else {
+                                        dismiss()
+                                    }
+                                }
+                            }
+                        }
+                    )
+                }
+                .environment(\.colorScheme, appColorScheme)
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
+            }
+            .sheet(item: $terminalFileBrowserRoute) { route in
+                NavigationStack {
+                    FileBrowserView(
+                        host: host,
+                        dependencies: dependencies,
+                        viewModel: route.viewModel
+                    )
+                    .padding(.horizontal, ConnSpacing.page)
+                    .padding(.top, ConnSpacing.xs)
+                    .navigationTitle(L("文件"))
+                    .navigationBarTitleDisplayMode(.inline)
+                    .accessibilityIdentifier("terminal.file-browser")
+                }
+                .environment(\.colorScheme, appColorScheme)
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
             }
             .sheet(item: $paywallContext) { context in
                 PaywallView(dependencies: dependencies, context: context)
@@ -126,7 +172,7 @@ struct TerminalScreen: View {
                 isPresented: $isPhotoPickerPresented,
                 selection: $photoSelection,
                 maxSelectionCount: 10,
-                matching: .images,
+                matching: .any(of: [.images, .videos]),
                 preferredItemEncoding: .automatic
             )
             .onChange(of: photoSelection.count) { _, count in
@@ -173,66 +219,6 @@ struct TerminalScreen: View {
 }
 
 private extension TerminalScreen {
-    @ViewBuilder
-    private var sessionActionsSheet: some View {
-        if let tab = activeTab {
-            TerminalSessionActionsSheet(
-                host: host,
-                tab: tab,
-                dependencies: dependencies,
-                isSessionListPresented: $isSessionListPresented,
-                terminalFileBrowserRoute: $terminalFileBrowserRoute,
-                store: terminalSessions.store,
-                selectedTabID: tabID,
-                onSwitchTerminal: {
-                    sessionActionsDetent = .large
-                    isSessionListPresented = true
-                },
-                onOpenFileBrowser: {
-                    sessionActionsDetent = .large
-                    openFileBrowser()
-                },
-                onCloseTerminal: {
-                    deferSessionAction(.closeTerminal)
-                },
-                onSelectTerminal: { selectedID in
-                    terminalSessions.store.select(selectedID)
-                    tabID = selectedID
-                    isSessionListPresented = false
-                    isSessionActionsPresented = false
-                },
-                onCreateTerminal: {
-                    createAfterSessionListDismisses = true
-                    isSessionListPresented = false
-                    isSessionActionsPresented = false
-                },
-                onRenameTerminal: { id, alias in
-                    Task {
-                        if case let .failure(failure) = await terminalSessions.rename(id, to: alias),
-                           let message = terminalSessions.consumeFailure(failure) {
-                            toastCenter.show(message, style: .error)
-                        }
-                    }
-                },
-                onCloseSession: { id in
-                    Task {
-                        await terminalSessions.close(id)
-                        if tabID == id {
-                            if let recent = terminalSessions.store.recentTab(forHost: host.id) {
-                                tabID = recent.id
-                            } else {
-                                dismiss()
-                            }
-                        }
-                    }
-                }
-            )
-            .presentationDetents([.medium, .large], selection: $sessionActionsDetent)
-            .presentationDragIndicator(.visible)
-            .presentationBackground(Color.connBg)
-        }
-    }
-
     private var activeTab: TerminalTab? {
         terminalSessions.store.tab(id: tabID)
     }
@@ -261,9 +247,9 @@ private extension TerminalScreen {
                     terminalGeneration: tab.generation,
                     insertionMailbox: insertionMailbox,
                     configuration: configuration,
-                    onShowSessionActions: {
-                        isSessionActionsPresented = true
-                    },
+                    onCloseTerminal: { dismiss() },
+                    onSwitchTerminal: { isSessionListPresented = true },
+                    onOpenFileBrowser: openFileBrowser,
                     onChooseCommand: showCommandPicker,
                     onReconnect: { Task { await reconnect(tab.id) } },
                     onPersistentWorkspaceRenamed: { name in
@@ -375,22 +361,6 @@ private extension TerminalScreen {
         toastCenter.show(L("终端会话不存在"), style: .error)
     }
 
-    private func deferSessionAction(_ action: DeferredTerminalSessionAction) {
-        deferredSessionAction = action
-        isSessionActionsPresented = false
-    }
-
-    private func performDeferredSessionAction() {
-        guard let action = deferredSessionAction else { return }
-        deferredSessionAction = nil
-        switch action {
-        case .closeTerminal:
-            dismiss()
-        case let .presentPaywall(context):
-            paywallContext = context
-        }
-    }
-
     private func synchronizeWorkingDirectory(for tab: TerminalTab?) {
         guard let tab else { return }
         var resolver = terminalWorkingDirectoryResolvers[tab.id] ?? .init()
@@ -421,7 +391,7 @@ private extension TerminalScreen {
     private func openFileBrowser() {
         guard let tab = activeTab else { return }
         guard dependencies.subscription.gate.allowed(.fileManagement) else {
-            deferSessionAction(.presentPaywall(.fileManagement))
+            paywallContext = .fileManagement
             return
         }
 
@@ -452,7 +422,6 @@ private extension TerminalScreen {
                 terminalFileBrowserViewModels[tab.id] = viewModel
             }
             viewModel.resetTransientPresentationState()
-            sessionActionsDetent = .large
             terminalFileBrowserRoute = TerminalFileBrowserRoute(
                 tabID: tab.id,
                 viewModel: viewModel
@@ -549,11 +518,6 @@ private extension TerminalScreen {
     }
 }
 
-private enum DeferredTerminalSessionAction {
-    case closeTerminal
-    case presentPaywall(PaywallContext)
-}
-
 private struct TerminalFileBrowserRoute: Hashable, Identifiable {
     let tabID: String
     let viewModel: FileBrowserViewModel
@@ -569,206 +533,6 @@ private struct TerminalFileBrowserRoute: Hashable, Identifiable {
     }
 }
 
-private struct TerminalSessionActionsSheet: View {
-    let host: Host
-    let tab: TerminalTab
-    let dependencies: AppDependencies
-    @Binding var isSessionListPresented: Bool
-    @Binding var terminalFileBrowserRoute: TerminalFileBrowserRoute?
-    let store: TerminalSessionStore
-    let selectedTabID: String?
-    let onSwitchTerminal: () -> Void
-    let onOpenFileBrowser: () -> Void
-    let onCloseTerminal: () -> Void
-    let onSelectTerminal: (String) -> Void
-    let onCreateTerminal: () -> Void
-    let onRenameTerminal: (String, String) -> Void
-    let onCloseSession: (String) -> Void
-
-    var body: some View {
-        NavigationStack {
-            VStack(alignment: .leading, spacing: ConnSpacing.sm) {
-                Text(host.displayAddress)
-                    .font(.connData(.subheadline))
-                    .foregroundStyle(.connMuted)
-                    .lineLimit(1)
-
-                currentTerminalCard
-
-                actionRow(
-                    title: L("切换终端"),
-                    systemName: "rectangle.stack",
-                    identifier: "terminal.session-actions.switch",
-                    showsDisclosure: true,
-                    action: onSwitchTerminal
-                )
-                actionRow(
-                    title: L("文件管理"),
-                    systemName: "folder",
-                    identifier: "terminal.session-actions.files",
-                    action: onOpenFileBrowser
-                )
-                actionRow(
-                    title: L("关闭终端"),
-                    systemName: "xmark.circle",
-                    identifier: "terminal.session-actions.close",
-                    action: onCloseTerminal
-                )
-            }
-            .padding(.horizontal, ConnSpacing.page)
-            .padding(.top, ConnSpacing.xs)
-            .padding(.bottom, ConnSpacing.page)
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-            .navigationTitle(L("会话操作"))
-            .navigationBarTitleDisplayMode(.inline)
-            .background(Color.connBg.ignoresSafeArea())
-            .navigationDestination(isPresented: $isSessionListPresented) {
-                TerminalSessionListSheet(
-                    host: host,
-                    store: store,
-                    selectedTabID: selectedTabID,
-                    onSelect: onSelectTerminal,
-                    onCreate: onCreateTerminal,
-                    onRename: onRenameTerminal,
-                    onClose: onCloseSession
-                )
-            }
-            .navigationDestination(item: $terminalFileBrowserRoute) { route in
-                FileBrowserView(
-                    host: host,
-                    dependencies: dependencies,
-                    viewModel: route.viewModel
-                )
-                .padding(.horizontal, ConnSpacing.page)
-                .padding(.top, ConnSpacing.xs)
-                .navigationTitle(L("文件"))
-                .navigationBarTitleDisplayMode(.inline)
-                .accessibilityIdentifier("terminal.file-browser")
-            }
-        }
-        .accessibilityElement(children: .contain)
-        .accessibilityIdentifier("terminal.session-actions")
-    }
-
-    private var currentTerminalCard: some View {
-        HStack(spacing: ConnSpacing.sm) {
-            Image(systemName: sourceIcon)
-                .font(.system(size: 19, weight: .medium))
-                .foregroundStyle(.connAccent)
-                .frame(width: 28)
-            VStack(alignment: .leading, spacing: 3) {
-                Text(tab.displayName)
-                    .font(.connSubheadline)
-                    .foregroundStyle(.connInk)
-                    .lineLimit(1)
-                Text(sourceDescription)
-                    .font(.connFootnote)
-                    .foregroundStyle(.connMuted)
-                    .lineLimit(1)
-            }
-            Spacer(minLength: 0)
-            statusIndicator
-        }
-        .padding(.horizontal, ConnSpacing.sm)
-        .frame(maxWidth: .infinity)
-        .frame(height: 64)
-        .background(
-            Color.connSurface,
-            in: RoundedRectangle(cornerRadius: ConnRadius.control, style: .continuous)
-        )
-        .overlay {
-            RoundedRectangle(cornerRadius: ConnRadius.control, style: .continuous)
-                .strokeBorder(Color.connLine, lineWidth: 1)
-        }
-        .accessibilityElement(children: .combine)
-        .accessibilityIdentifier("terminal.session-actions.current")
-    }
-
-    private func actionRow(
-        title: String,
-        systemName: String,
-        identifier: String,
-        showsDisclosure: Bool = false,
-        destructive: Bool = false,
-        action: @escaping () -> Void
-    ) -> some View {
-        Button(role: destructive ? .destructive : nil, action: action) {
-            HStack(spacing: ConnSpacing.sm) {
-                Image(systemName: systemName)
-                    .font(.system(size: 18, weight: .medium))
-                    .foregroundStyle(.connAccent)
-                    .frame(width: 24)
-                Text(title)
-                    .font(.connSubheadline)
-                    .foregroundStyle(.connInk)
-                Spacer(minLength: 0)
-                if showsDisclosure {
-                    Image(systemName: "chevron.forward")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(.connMuted)
-                }
-            }
-            .padding(.horizontal, ConnSpacing.sm)
-            .frame(maxWidth: .infinity)
-            .frame(height: 50)
-            .background(
-                destructive ? Color.connCritFill : Color.connSurface,
-                in: RoundedRectangle(cornerRadius: ConnRadius.control, style: .continuous)
-            )
-            .overlay {
-                RoundedRectangle(cornerRadius: ConnRadius.control, style: .continuous)
-                    .strokeBorder(
-                        destructive ? Color.connCrit.opacity(0.35) : Color.connLine,
-                        lineWidth: 1
-                    )
-            }
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityIdentifier(identifier)
-    }
-
-    private var sourceIcon: String {
-        switch tab.source {
-        case .shell: "terminal"
-        case .docker: "shippingbox"
-        case .script: "command"
-        case .persistent: "rectangle.connected.to.line.below"
-        }
-    }
-
-    private var sourceDescription: String {
-        switch tab.source {
-        case .shell:
-            L("普通终端")
-        case let .docker(containerName):
-            String(format: L("容器：%@"), containerName)
-        case let .script(title):
-            String(format: L("脚本：%@"), title)
-        case let .persistent(providerID):
-            String(format: L("持久终端：%@"), providerID)
-        }
-    }
-
-    @ViewBuilder
-    private var statusIndicator: some View {
-        switch tab.status {
-        case .connected:
-            Circle()
-                .fill(Color.connGood)
-                .frame(width: 10, height: 10)
-                .accessibilityLabel(L("已连接"))
-        case .reconnecting:
-            ProgressView()
-                .controlSize(.small)
-                .accessibilityLabel(L("正在重新连接…"))
-        case .disconnected:
-            Image(systemName: "wifi.exclamationmark")
-                .foregroundStyle(.connWarn)
-                .accessibilityLabel(L("终端连接已断开"))
-        }
-    }
-}
 
 private struct TerminalReconnectingNotice: View {
     var body: some View {

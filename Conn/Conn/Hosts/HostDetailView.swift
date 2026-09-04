@@ -105,6 +105,7 @@ struct HostDetailView: View {
                     .font(.system(size: 17, weight: .semibold))
             }
             .accessibilityLabel(L("打开终端"))
+            .accessibilityIdentifier("host.open-terminal")
         }
     }
 

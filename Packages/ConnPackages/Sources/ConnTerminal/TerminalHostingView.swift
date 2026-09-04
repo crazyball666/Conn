@@ -31,7 +31,9 @@
         private let terminalGeneration: UInt64
         private let insertionMailbox: TerminalTextInsertionMailbox?
         private let configuration: TerminalConfiguration
-        private let onShowSessionActions: () -> Void
+        private let onCloseTerminal: () -> Void
+        private let onSwitchTerminal: () -> Void
+        private let onOpenFileBrowser: () -> Void
         private let onChooseCommand: () -> Void
         private let onReconnect: () -> Void
         private let onPersistentWorkspaceRenamed: (String) -> Void
@@ -52,7 +54,9 @@
             terminalGeneration: UInt64 = 0,
             insertionMailbox: TerminalTextInsertionMailbox? = nil,
             configuration: TerminalConfiguration = .init(),
-            onShowSessionActions: @escaping () -> Void = {},
+            onCloseTerminal: @escaping () -> Void = {},
+            onSwitchTerminal: @escaping () -> Void = {},
+            onOpenFileBrowser: @escaping () -> Void = {},
             onChooseCommand: @escaping () -> Void = {},
             onReconnect: @escaping () -> Void = {},
             onPersistentWorkspaceRenamed: @escaping (String) -> Void = { _ in },
@@ -73,7 +77,9 @@
             self.terminalGeneration = terminalGeneration
             self.insertionMailbox = insertionMailbox
             self.configuration = configuration
-            self.onShowSessionActions = onShowSessionActions
+            self.onCloseTerminal = onCloseTerminal
+            self.onSwitchTerminal = onSwitchTerminal
+            self.onOpenFileBrowser = onOpenFileBrowser
             self.onChooseCommand = onChooseCommand
             self.onReconnect = onReconnect
             self.onPersistentWorkspaceRenamed = onPersistentWorkspaceRenamed
@@ -95,7 +101,9 @@
                 terminalGeneration: terminalGeneration,
                 insertionMailbox: insertionMailbox,
                 configuration: configuration,
-                onShowSessionActions: onShowSessionActions,
+                onCloseTerminal: onCloseTerminal,
+                onSwitchTerminal: onSwitchTerminal,
+                onOpenFileBrowser: onOpenFileBrowser,
                 onChooseCommand: onChooseCommand,
                 onReconnect: onReconnect,
                 onPersistentWorkspaceRenamed: onPersistentWorkspaceRenamed,
@@ -125,7 +133,9 @@
         private let tabID: String
         private let terminalGeneration: UInt64
         private let insertionMailbox: TerminalTextInsertionMailbox?
-        private let onShowSessionActions: () -> Void
+        private let onCloseTerminal: () -> Void
+        private let onSwitchTerminal: () -> Void
+        private let onOpenFileBrowser: () -> Void
         private let onChooseCommand: () -> Void
         private let onReconnect: () -> Void
         private let attachmentState: TerminalAttachmentPanelState
@@ -143,7 +153,9 @@
             terminalGeneration: UInt64,
             insertionMailbox: TerminalTextInsertionMailbox?,
             configuration: TerminalConfiguration,
-            onShowSessionActions: @escaping () -> Void,
+            onCloseTerminal: @escaping () -> Void,
+            onSwitchTerminal: @escaping () -> Void,
+            onOpenFileBrowser: @escaping () -> Void,
             onChooseCommand: @escaping () -> Void,
             onReconnect: @escaping () -> Void,
             onPersistentWorkspaceRenamed: @escaping (String) -> Void,
@@ -173,7 +185,9 @@
             self.tabID = tabID
             self.terminalGeneration = terminalGeneration
             self.insertionMailbox = insertionMailbox
-            self.onShowSessionActions = onShowSessionActions
+            self.onCloseTerminal = onCloseTerminal
+            self.onSwitchTerminal = onSwitchTerminal
+            self.onOpenFileBrowser = onOpenFileBrowser
             self.onChooseCommand = onChooseCommand
             self.onReconnect = onReconnect
             self.attachmentState = attachmentState
@@ -190,39 +204,36 @@
                 )
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
 
-                if configuration.showsKeybar {
-                    TerminalKeybar(
-                        ctrlActive: controller.ctrlActive,
-                        isExpanded: isKeybarExpanded,
-                        onKey: controller.handleKey,
-                        onPaste: { controller.handlePaste($0) },
-                        onInsertToolCommand: insertToolCommand,
-                        onShowSessionActions: showSessionActions,
-                        onChooseCommand: onChooseCommand,
-                        onReconnect: onReconnect,
-                        pointerAvailable: controller.pointerAvailable,
-                        pointerActive: controller.pointerActive,
-                        onTogglePointer: controller.togglePointer,
-                        providerQuickActionGroup: controller.providerQuickActionGroup,
-                        performingProviderQuickActionID: controller.performingProviderQuickActionID,
-                        onProviderQuickAction: selectProviderQuickAction,
-                        keyboardVisible: controller.isSoftwareKeyboardVisible,
-                        onToggleKeyboard: controller.toggleKeyboard,
-                        onExpansionChange: setKeybarExpanded,
-                        attachmentState: attachmentState,
-                        onAttachmentAction: onAttachmentAction
-                    )
-                    .frame(
-                        height: isKeybarExpanded
-                            ? TerminalKeybarMetrics.expandedHeight
-                            : TerminalKeybarMetrics.compactHeight
-                    )
-                    .accessibilityElement(children: .contain)
-                    .accessibilityIdentifier("terminal.keybar")
-                } else {
-                    TerminalSessionActionsBar(onShowSessionActions: showSessionActions)
-                        .frame(height: TerminalKeybarMetrics.compactHeight)
-                }
+                TerminalKeybar(
+                    ctrlActive: controller.ctrlActive,
+                    isExpanded: isKeybarExpanded,
+                    onKey: controller.handleKey,
+                    onPaste: { controller.handlePaste($0) },
+                    onInsertToolCommand: insertToolCommand,
+                    onCloseTerminal: onCloseTerminal,
+                    onSwitchTerminal: onSwitchTerminal,
+                    onOpenFileBrowser: onOpenFileBrowser,
+                    onChooseCommand: onChooseCommand,
+                    onReconnect: onReconnect,
+                    pointerAvailable: controller.pointerAvailable,
+                    pointerActive: controller.pointerActive,
+                    onTogglePointer: controller.togglePointer,
+                    providerQuickActionGroup: controller.providerQuickActionGroup,
+                    performingProviderQuickActionID: controller.performingProviderQuickActionID,
+                    onProviderQuickAction: selectProviderQuickAction,
+                    keyboardVisible: controller.isSoftwareKeyboardVisible,
+                    onToggleKeyboard: controller.toggleKeyboard,
+                    onExpansionChange: setKeybarExpanded,
+                    attachmentState: attachmentState,
+                    onAttachmentAction: onAttachmentAction
+                )
+                .frame(
+                    height: isKeybarExpanded
+                        ? TerminalKeybarMetrics.expandedHeight
+                        : TerminalKeybarMetrics.compactHeight
+                )
+                .accessibilityElement(children: .contain)
+                .accessibilityIdentifier("terminal.keybar")
             }
             .alert(
                 pendingTextInputAction.map { L($0.textInput?.titleKey ?? $0.titleKey) } ?? "",
@@ -312,10 +323,6 @@
             withTransaction(transaction) {
                 isKeybarExpanded = expanded
             }
-        }
-
-        private func showSessionActions() {
-            onShowSessionActions()
         }
 
         private func synchronizeInsertionContext() {

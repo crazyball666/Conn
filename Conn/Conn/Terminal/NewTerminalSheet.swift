@@ -152,6 +152,7 @@ struct NewTerminalSheet: View {
                         systemImage: "terminal"
                     )
                 }
+                .accessibilityIdentifier("new-terminal.provider.plain")
                 ForEach(model.options) { option in
                     let availability = model.availability(for: option)
                     Button { Task { await model.selectOption(option) } } label: {

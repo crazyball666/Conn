@@ -14,7 +14,9 @@
         let onKey: (TerminalKey) -> Void
         let onPaste: (String) -> Void
         let onInsertToolCommand: (String) -> Void
-        let onShowSessionActions: () -> Void
+        let onCloseTerminal: () -> Void
+        let onSwitchTerminal: () -> Void
+        let onOpenFileBrowser: () -> Void
         let onChooseCommand: () -> Void
         let onReconnect: () -> Void
         let pointerAvailable: Bool
@@ -34,6 +36,8 @@
         /// 用计数器而不是「最后按下的键」：连按同一个键时后者的值不变，触感就不会响。
         @State private var pressCount = 0
         @State private var expandedSection: ExpandedSection = .common
+        /// 工具栏级触点高亮。它属于整条栏的背景，不改变单个按钮的按下样式。
+        @State private var touchLocation: CGPoint?
 
         private enum ExpandedSection: String {
             case common
@@ -59,11 +63,43 @@
             .padding(.horizontal, TerminalKeybarMetrics.compactHorizontalInset)
             .padding(.vertical, 1)
             .frame(maxWidth: .infinity)
-            .background(Color.connBar.ignoresSafeArea(edges: .bottom))
+            .background {
+                GeometryReader { _ in
+                    ZStack {
+                        Color.connBar
+                        if let touchLocation {
+                            RadialGradient(
+                                colors: [
+                                    Color.connInk.opacity(0.22),
+                                    Color.connInk.opacity(0.09),
+                                    .clear
+                                ],
+                                center: .center,
+                                startRadius: 0,
+                                endRadius: 128
+                            )
+                            .frame(width: 256, height: 256)
+                            .position(touchLocation)
+                            .allowsHitTesting(false)
+                        }
+                    }
+                }
+                .clipped()
+                .ignoresSafeArea(edges: .bottom)
+            }
             .overlay(alignment: .top) {
                 Rectangle().fill(Color.connLine).frame(height: 1)
             }
             .sensoryFeedback(ConnHapticFeedback.highImpact, trigger: pressCount)
+            .simultaneousGesture(
+                DragGesture(minimumDistance: 0)
+                    .onChanged { value in
+                        touchLocation = value.location
+                    }
+                    .onEnded { _ in
+                        touchLocation = nil
+                    }
+            )
             .onChange(of: providerQuickActionGroup?.id) { _, groupID in
                 if groupID == nil, expandedSection == .provider {
                     expandedSection = .common
@@ -71,33 +107,35 @@
             }
         }
 
-        /// 日常输入使用一行高密度快捷栏；四个方向合并为固定方向盘，其他按键横向
-        /// 滚动。这样方向始终可触达，同时比四个独立箭头多显示三个常用键位。
+        /// 紧凑态是一条连续的横向工具轨道；只有展开与键盘按钮固定在右侧。
         private func compactPanel(expanded: Bool) -> some View {
             HStack(spacing: 4) {
-                sessionActionsCap
-
-                ScrollView(.horizontal) {
-                    LazyHStack(spacing: 4) {
-                        ForEach(TerminalKeybarLayout.compactKeys) { key in
-                            keyCap(key, width: TerminalKeybarMetrics.compactCapWidth)
-                        }
-                        pasteCap(width: TerminalKeybarMetrics.compactCapWidth)
-                    }
-                }
-                .scrollIndicators(.hidden)
-
-                fixedCommandCap
+                compactActionRail
                 expansionCap(expanded: expanded)
                 keyboardCap
-
-                TerminalDirectionPad(onKey: onKey)
-                    .frame(
-                        width: TerminalKeybarMetrics.compactPadSide,
-                        height: TerminalKeybarMetrics.compactPadSide
-                    )
-                    .padding(.trailing, TerminalKeybarMetrics.directionPadTrailingInset)
             }
+            .frame(height: TerminalKeybarMetrics.hitTargetHeight)
+        }
+
+        private var compactActionRail: some View {
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: TerminalKeybarMetrics.gridSpacing) {
+                    compactCloseTerminalCap
+                    compactCommandCap
+                    compactSwitchTerminalCap
+                    compactFileBrowserCap
+                    compactDirectionPad
+
+                    ForEach(TerminalKeybarLayout.compactKeys) { key in
+                        keyCap(key, width: TerminalKeybarMetrics.compactCapWidth)
+                    }
+
+                    pasteCap(width: TerminalKeybarMetrics.compactCapWidth)
+                }
+                .padding(.horizontal, 2)
+            }
+            .frame(maxWidth: .infinity)
+            .frame(height: TerminalKeybarMetrics.hitTargetHeight)
         }
 
         /// 展开态保留完整紧凑栏，只在其下方追加分类和内容。内容区内部滚动，
@@ -264,24 +302,7 @@
                 pressCount &+= 1
                 onProviderQuickAction(action)
             } label: {
-                VStack(spacing: TerminalKeybarMetrics.providerContentSpacing) {
-                    if isPerforming {
-                        ProgressView()
-                            .controlSize(.mini)
-                            .frame(
-                                width: TerminalKeybarMetrics.providerIconSize,
-                                height: TerminalKeybarMetrics.providerIconSize
-                            )
-                    } else {
-                        Image(systemName: action.systemImageName)
-                            .font(
-                                .system(
-                                    size: TerminalKeybarMetrics.providerIconSize,
-                                    weight: .medium
-                                )
-                            )
-                            .frame(height: TerminalKeybarMetrics.providerIconSize)
-                    }
+                HStack(spacing: TerminalKeybarMetrics.providerContentSpacing) {
                     Text(L(action.titleKey))
                         .font(
                             .system(
@@ -290,9 +311,17 @@
                                 design: .monospaced
                             )
                         )
-                        .lineLimit(1)
+                        .lineLimit(2)
+                        .multilineTextAlignment(.center)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: .infinity)
                         .minimumScaleFactor(0.65)
                         .allowsTightening(true)
+
+                    if isPerforming {
+                        ProgressView()
+                            .controlSize(.mini)
+                    }
                 }
                 .foregroundStyle(Color.connInk)
                 .padding(.horizontal, TerminalKeybarMetrics.providerContentHorizontalPadding)
@@ -436,24 +465,63 @@
             .frame(width: width, height: TerminalKeybarMetrics.hitTargetHeight)
         }
 
-        private var fixedCommandCap: some View {
+        private func compactIconActionCap(
+            systemName: String,
+            accessibilityLabel: String,
+            identifier: String,
+            action: @escaping () -> Void
+        ) -> some View {
             actionCap(
-                systemName: "command",
+                systemName: systemName,
+                accessibilityLabel: accessibilityLabel,
+                identifier: identifier,
+                width: TerminalKeybarMetrics.compactActionWidth,
+                action: action
+            )
+        }
+
+        private var compactCloseTerminalCap: some View {
+            compactIconActionCap(
+                systemName: "rectangle.portrait.and.arrow.right",
+                accessibilityLabel: L("关闭终端"),
+                identifier: "terminal.keybar.close-terminal",
+                action: onCloseTerminal
+            )
+        }
+
+        private var compactCommandCap: some View {
+            compactIconActionCap(
+                systemName: "scroll",
                 accessibilityLabel: L("选择本地脚本"),
                 identifier: "terminal.keybar.commands",
-                width: TerminalKeybarMetrics.compactCapWidth,
                 action: onChooseCommand
             )
         }
 
-        private var sessionActionsCap: some View {
-            actionCap(
-                systemName: "rectangle.stack",
-                accessibilityLabel: L("会话操作"),
-                identifier: "terminal.keybar.session-actions",
-                width: TerminalKeybarMetrics.sessionActionsCapWidth,
-                action: onShowSessionActions
+        private var compactSwitchTerminalCap: some View {
+            compactIconActionCap(
+                systemName: "rectangle.on.rectangle",
+                accessibilityLabel: L("切换终端"),
+                identifier: "terminal.keybar.switch-session",
+                action: onSwitchTerminal
             )
+        }
+
+        private var compactFileBrowserCap: some View {
+            compactIconActionCap(
+                systemName: "folder",
+                accessibilityLabel: L("文件管理"),
+                identifier: "terminal.keybar.file-management",
+                action: onOpenFileBrowser
+            )
+        }
+
+        private var compactDirectionPad: some View {
+            TerminalDirectionPad(onKey: onKey)
+                .frame(
+                    width: TerminalKeybarMetrics.compactPadSide,
+                    height: TerminalKeybarMetrics.hitTargetHeight
+                )
         }
 
         private func expansionCap(expanded: Bool) -> some View {
@@ -478,55 +546,4 @@
         }
     }
 
-    /// When the optional terminal shortcut bar is hidden, page-level session actions
-    /// still need a persistent 44pt entry because the immersive terminal has no top bar.
-    struct TerminalSessionActionsBar: View {
-        let onShowSessionActions: () -> Void
-        @State private var pressCount = 0
-
-        var body: some View {
-            HStack(spacing: 0) {
-                Button {
-                    pressCount &+= 1
-                    onShowSessionActions()
-                } label: {
-                    Image(systemName: "rectangle.stack")
-                        .font(.system(size: 15, weight: .medium))
-                        .foregroundStyle(Color.connInk)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: TerminalKeybarMetrics.capVisualHeight)
-                        .background(
-                            Color.connKey,
-                            in: .rect(cornerRadius: ConnRadius.key, style: .continuous)
-                        )
-                        .overlay {
-                            RoundedRectangle(cornerRadius: ConnRadius.key, style: .continuous)
-                                .strokeBorder(Color.connKeyline, lineWidth: 1)
-                        }
-                        .frame(
-                            width: TerminalKeybarMetrics.sessionActionsCapWidth,
-                            height: TerminalKeybarMetrics.hitTargetHeight
-                        )
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel(Text(L("会话操作")))
-                .accessibilityIdentifier("terminal.keybar.session-actions")
-                .frame(
-                    width: TerminalKeybarMetrics.sessionActionsCapWidth,
-                    height: TerminalKeybarMetrics.hitTargetHeight
-                )
-
-                Spacer(minLength: 0)
-            }
-            .padding(.horizontal, 6)
-            .padding(.vertical, 1)
-            .frame(maxWidth: .infinity)
-            .background(Color.connBar.ignoresSafeArea(edges: .bottom))
-            .overlay(alignment: .top) {
-                Rectangle().fill(Color.connLine).frame(height: 1)
-            }
-            .sensoryFeedback(ConnHapticFeedback.highImpact, trigger: pressCount)
-        }
-    }
 #endif

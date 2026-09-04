@@ -47,6 +47,21 @@ struct AppWideUIConsistencyTests {
         #expect(!source.contains("title: L(\"Claude\")"))
     }
 
+    @Test("终端 Provider 与工具快捷操作仅显示文字并最多两行")
+    func terminalQuickActionsUseTextOnlyLabels() throws {
+        let keybar = try packageSource("Sources/ConnTerminal/TerminalKeybar.swift")
+        let tools = try packageSource("Sources/ConnTerminal/TerminalToolCommandPanel.swift")
+
+        #expect(!keybar.contains("Image(systemName: action.systemImageName)"))
+        #expect(!tools.contains("Image(systemName: action.systemImageName)"))
+        #expect(keybar.contains("Text(L(action.titleKey))"))
+        #expect(tools.contains("Text(action.command)"))
+        #expect(keybar.contains(".lineLimit(2)"))
+        #expect(tools.contains(".lineLimit(2)"))
+        #expect(keybar.contains(".multilineTextAlignment(.center)"))
+        #expect(tools.contains(".multilineTextAlignment(.center)"))
+    }
+
     @Test("终端快捷栏展开与收起禁用布局动画")
     func terminalKeybarExpansionDisablesLayoutAnimation() throws {
         let source = try packageSource("Sources/ConnTerminal/TerminalHostingView.swift")
@@ -362,30 +377,32 @@ struct AppWideUIConsistencyTests {
         #expect(source.contains("Button(L(\"重试\")) { model.start() }"))
     }
 
-    @Test("终端使用沉浸布局并从底部快捷栏打开会话操作")
-    func terminalUsesImmersiveLayoutAndKeybarSessionActions() throws {
+    @Test("终端使用沉浸布局并将会话操作直接放入快捷栏")
+    func terminalUsesImmersiveLayoutAndInlineSessionActions() throws {
         let source = try appSource("Terminal/TerminalScreen.swift")
         let host = try packageSource("Sources/ConnTerminal/TerminalHostingView.swift")
         let keybar = try packageSource("Sources/ConnTerminal/TerminalKeybar.swift")
 
         #expect(!source.contains(".navigationTitle(hostTitle)"))
         #expect(!source.contains("terminalToolbar"))
-        #expect(source.contains("TerminalSessionActionsSheet("))
-        #expect(source.contains("onShowSessionActions:"))
-        #expect(source.contains("isSessionActionsPresented"))
-        #expect(host.contains("onShowSessionActions"))
-        #expect(keybar.contains("sessionActionsCap"))
-        #expect(keybar.contains("terminal.keybar.session-actions"))
+        #expect(!source.contains("TerminalSessionActionsSheet("))
+        #expect(!source.contains("onShowSessionActions:"))
+        #expect(!source.contains("isSessionActionsPresented"))
+        #expect(!host.contains("onShowSessionActions"))
+        #expect(!keybar.contains("sessionActionsCap"))
+        #expect(!keybar.contains("terminal.keybar.session-actions"))
+        #expect(keybar.contains("onCloseTerminal"))
+        #expect(keybar.contains("onSwitchTerminal"))
+        #expect(keybar.contains("onOpenFileBrowser"))
     }
 
-    @Test("紧凑快捷栏两侧对称留白并为方向盘保留滑动安全间距")
+    @Test("紧凑快捷栏使用单一滚动轨道并保留两侧留白")
     func compactKeybarKeepsSymmetricEdgeSpace() throws {
         let keybar = try packageSource("Sources/ConnTerminal/TerminalKeybar.swift")
 
         #expect(keybar.contains(".padding(.horizontal, TerminalKeybarMetrics.compactHorizontalInset)"))
-        #expect(keybar.contains(
-            ".padding(.trailing, TerminalKeybarMetrics.directionPadTrailingInset)"
-        ))
+        #expect(keybar.contains("private var compactActionRail"))
+        #expect(keybar.contains(".padding(.horizontal, 2)"))
     }
 
     @Test("订阅页采用聚焦的价值主张、方案选择与底部主 CTA")
@@ -500,14 +517,17 @@ struct AppWideUIConsistencyTests {
         #expect(!host.contains("allowClipboardReadOnce"))
         #expect(keybar.components(separatedBy: "TerminalDirectionPad(").count == 2)
         #expect(keys.contains("static let compactKeys: [TerminalKey] = ["))
-        #expect(keys.contains(".esc, .tab, .ctrl, .ctrlC, .clearLine, .enter"))
+        #expect(keys.contains(".ctrl, .ctrlC, .esc, .tab, .clearLine, .enter"))
         #expect(keys.contains("case .clearLine: \"eraser\""))
         #expect(keys.contains("case .enter: \"return\""))
         #expect(!keys.contains("case .clearLine: \"Clear\""))
         #expect(keys.contains(".ctrl, .ctrlC, .ctrlD, .ctrlZ, .clearScreen, .deleteWord"))
         #expect(!keys.contains(".esc, .ctrl, .tab, .up, .down, .left, .right"))
         #expect(!screen.contains(".ignoresSafeArea(.container, edges: .bottom)"))
-        #expect(keybar.contains(".background(Color.connBar.ignoresSafeArea(edges: .bottom))"))
+        #expect(keybar.contains("Color.connBar"))
+        #expect(keybar.contains("RadialGradient("))
+        #expect(keybar.contains(".position(touchLocation)"))
+        #expect(keybar.contains(".clipped()"))
         #expect(host.contains("Button(L(\"保存\"))"))
         #expect(!keybar.contains("Button(L(\"执行\"))"))
     }
@@ -549,66 +569,66 @@ struct AppWideUIConsistencyTests {
         #expect(!toggleSource.contains("UIView.performWithoutAnimation"))
     }
 
-    @Test("快捷键栏展示不依赖终端 first responder")
+    @Test("快捷键栏始终存在且只有展开与收起两种状态")
     func terminalKeybarPresentationIsStable() throws {
         let host = try packageSource("Sources/ConnTerminal/TerminalHostingView.swift")
 
-        #expect(host.contains("if configuration.showsKeybar {"))
+        #expect(!host.contains("configuration.showsKeybar"))
+        #expect(!host.contains("TerminalSessionActionsBar"))
+        #expect(host.contains("TerminalKeybar("))
         #expect(!host.contains("keepsKeybarVisible"))
         #expect(!host.contains("TerminalKeybarVisibilityPolicy.shouldShow"))
     }
 
-    @Test("终端会话操作包含文件管理且关闭页面不释放会话")
-    func terminalSessionActionsClosePageWithoutClosingSession() throws {
+    @Test("快捷栏首个按钮关闭终端页面且不释放会话")
+    func terminalKeybarClosePageWithoutClosingSession() throws {
         let source = try appSource("Terminal/TerminalScreen.swift")
         let host = try packageSource("Sources/ConnTerminal/TerminalHostingView.swift")
+        let keybar = try packageSource("Sources/ConnTerminal/TerminalKeybar.swift")
 
-        #expect(!source.contains("onReturnToTerminalList"))
-        #expect(!source.contains("terminal.session-actions.return"))
-        #expect(!source.contains("closeTerminalAndDismiss"))
-        #expect(source.contains("case .closeTerminal:\n            dismiss()"))
-        #expect(source.contains("terminal.session-actions.switch"))
-        #expect(source.contains("terminal.session-actions.files"))
-        #expect(source.contains("terminal.session-actions.close"))
+        #expect(keybar.contains("compactCloseTerminalCap"))
+        #expect(keybar.contains("accessibilityLabel: L(\"关闭终端\")"))
+        #expect(source.contains("onCloseTerminal: { dismiss() }"))
+        #expect(!source.contains("terminalSessions.close(tabID)"))
+        #expect(keybar.contains("terminal.keybar.switch-session"))
+        #expect(keybar.contains("terminal.keybar.file-management"))
+        #expect(keybar.contains("terminal.keybar.close-terminal"))
         #expect(source.contains("onTerminalWorkingDirectoryChanged"))
         #expect(host.contains("onTerminalWorkingDirectoryChanged"))
         #expect(host.contains("hostCurrentDirectoryUpdate(source _: TerminalView, directory:"))
         #expect(host.contains("onPersistentWorkingDirectoryChanged(nil)"))
     }
 
-    @Test("会话操作切换终端在同一弹窗内导航")
-    func terminalSessionActionsNavigateWithinSameSheet() throws {
+    @Test("切换会话直接打开会话列表，不再经过会话操作弹窗")
+    func terminalSwitchSessionUsesDirectSheet() throws {
         let screen = try appSource("Terminal/TerminalScreen.swift")
         let sessionList = try appSource("Terminal/TerminalSessionListSheet.swift")
 
-        #expect(screen.contains(".navigationDestination(isPresented: $isSessionListPresented)"))
-        #expect(!screen.contains(".sheet(\n                isPresented: $isSessionListPresented,"))
+        #expect(screen.contains(".sheet(\n                isPresented: $isSessionListPresented"))
+        #expect(screen.contains("NavigationStack {\n                    TerminalSessionListSheet("))
         #expect(sessionList.contains(".navigationTitle(L(\"终端会话\"))"))
         #expect(!sessionList.contains("Button(L(\"完成\")"))
         #expect(!sessionList.contains("terminal.session-actions.sessions.done"))
     }
 
-    @Test("会话操作与文件管理在同一弹窗内导航")
-    func terminalFileBrowserNavigatesWithinSameSheet() throws {
+    @Test("文件管理直接打开页面并沿用 App 外观")
+    func terminalFileBrowserUsesDirectSheet() throws {
         let screen = try appSource("Terminal/TerminalScreen.swift")
 
-        #expect(screen.contains(".navigationDestination(item: $terminalFileBrowserRoute)"))
-        #expect(!screen.contains(".sheet(item: $terminalFileBrowserRoute)"))
+        #expect(screen.contains(".sheet(item: $terminalFileBrowserRoute)"))
+        #expect(screen.contains("NavigationStack {\n                    FileBrowserView("))
         #expect(screen.contains("terminal.file-browser"))
         #expect(screen.contains("viewModel: route.viewModel"))
         #expect(!screen.contains("if let viewModel = terminalFileBrowserViewModels[route.tabID]"))
-        #expect(screen.contains(
-            ".presentationDetents([.medium, .large], selection: $sessionActionsDetent)"
-        ))
-        #expect(screen.contains("sessionActionsDetent = .large"))
+        #expect(screen.contains(".environment(\\.colorScheme, appColorScheme)"))
     }
 
-    @Test("未授权的终端文件管理先关闭会话操作再显示付费墙")
-    func terminalFileBrowserPaywallWaitsForSessionSheetDismissal() throws {
+    @Test("未授权的终端文件管理直接显示付费墙")
+    func terminalFileBrowserPaywallIsDirect() throws {
         let screen = try appSource("Terminal/TerminalScreen.swift")
 
-        #expect(screen.contains("case let .presentPaywall(context):\n            paywallContext = context"))
-        #expect(screen.contains("deferSessionAction(.presentPaywall(.fileManagement))"))
+        #expect(screen.contains("paywallContext = .fileManagement"))
+        #expect(!screen.contains("deferSessionAction(.presentPaywall(.fileManagement))"))
         #expect(screen.contains(".sheet(item: $paywallContext)"))
     }
 
@@ -648,48 +668,53 @@ struct AppWideUIConsistencyTests {
         #expect(!screen.contains("@State private var fileVM: FileBrowserViewModel"))
     }
 
-    @Test("终端会话操作使用紧凑常规字重且仅图标使用主题色")
-    func terminalSessionActionsUseConsistentTypographyAndAccentIcons() throws {
-        let source = try appSource("Terminal/TerminalScreen.swift")
+    @Test("快捷栏只有右侧两个固定控制，其余操作进入滚动区")
+    func terminalKeybarUsesSingleScrollableActionRail() throws {
+        let keybar = try packageSource("Sources/ConnTerminal/TerminalKeybar.swift")
+        let panelStart = try #require(keybar.range(of: "private func compactPanel"))
+        let railStart = try #require(keybar.range(of: "private var compactActionRail"))
+        let panel = String(keybar[panelStart.lowerBound..<railStart.lowerBound])
+        let railEnd = try #require(keybar.range(of: "private var expandedPanel"))
+        let rail = String(keybar[railStart.lowerBound..<railEnd.lowerBound])
+        let expansion = try #require(panel.range(of: "expansionCap(expanded: expanded)"))
+        let keyboard = try #require(panel.range(of: "keyboardCap"))
+        let close = try #require(rail.range(of: "compactCloseTerminalCap"))
+        let direction = try #require(rail.range(of: "compactDirectionPad"))
 
-        #expect(source.contains("Text(title)\n                    .font(.connSubheadline)\n                    .foregroundStyle(.connInk)"))
-        #expect(!source.contains("Text(title)\n                    .font(.connBody.weight(.semibold))"))
-        #expect(source
-            .contains(
-                "Image(systemName: systemName)\n                    .font(.system(size: 18, weight: .medium))\n                    .foregroundStyle(.connAccent)"
-            ))
-        #expect(!source.contains(".foregroundStyle(destructive ? Color.connCrit : .connInk)"))
+        #expect(close.lowerBound < direction.lowerBound)
+        #expect(expansion.lowerBound < keyboard.lowerBound)
+        #expect(rail.contains("ScrollView(.horizontal, showsIndicators: false)"))
+        #expect(keybar.contains("ScrollView(.horizontal, showsIndicators: false)"))
+        #expect(keybar.contains(".frame(height: TerminalKeybarMetrics.hitTargetHeight)"))
     }
 
-    @Test("终端会话操作与会话列表统一居中标题和连接地址")
-    func terminalSessionActionsMatchSessionListHeader() throws {
-        let source = try appSource("Terminal/TerminalScreen.swift")
+    @Test("快捷栏高频功能使用图标并排在方向盘之前")
+    func compactKeybarUsesIconActionsAndPriorityOrder() throws {
+        let keybar = try packageSource("Sources/ConnTerminal/TerminalKeybar.swift")
+        let railStart = try #require(keybar.range(of: "private var compactActionRail"))
+        let railEnd = try #require(keybar.range(of: "private var expandedPanel"))
+        let rail = String(keybar[railStart.lowerBound..<railEnd.lowerBound])
 
-        #expect(source.contains("TerminalSessionActionsSheet("))
-        #expect(source.contains("host: host,"))
-        #expect(source.contains("NavigationStack"))
-        #expect(source.contains(".navigationTitle(L(\"会话操作\"))"))
-        #expect(source.contains(".navigationBarTitleDisplayMode(.inline)"))
-        #expect(source.contains("Text(host.displayAddress)"))
-        #expect(!source.contains("Text(host.name.isEmpty ? host.address : host.name)"))
-        #expect(!source.contains("Text(L(\"当前终端\"))"))
-    }
+        let close = try #require(rail.range(of: "compactCloseTerminalCap"))
+        let command = try #require(rail.range(of: "compactCommandCap"))
+        let switchTerminal = try #require(rail.range(of: "compactSwitchTerminalCap"))
+        let fileBrowser = try #require(rail.range(of: "compactFileBrowserCap"))
+        let direction = try #require(rail.range(of: "compactDirectionPad"))
 
-    @Test("会话操作弹窗跟随 App 外观而不是终端主题")
-    func terminalSessionActionsFollowAppAppearance() throws {
-        let source = try appSource("Terminal/TerminalScreen.swift")
-        let sheetStart = try #require(
-            source.range(of: ".sheet(\n                isPresented: $isSessionActionsPresented")
-        )
-        let sheetEnd = try #require(
-            source.range(of: ".sheet(item: $paywallContext", range: sheetStart.upperBound..<source.endIndex)
-        )
-        let sessionSheetSource = String(source[sheetStart.lowerBound..<sheetEnd.lowerBound])
-
-        #expect(sessionSheetSource.contains("sessionActionsSheet"))
-        #expect(source.contains("@Environment(\\.colorScheme) private var appColorScheme"))
-        #expect(sessionSheetSource.contains(".environment(\\.colorScheme, appColorScheme)"))
-        #expect(!sessionSheetSource.contains(".preferredColorScheme"))
+        #expect(close.lowerBound < command.lowerBound)
+        #expect(command.lowerBound < switchTerminal.lowerBound)
+        #expect(switchTerminal.lowerBound < fileBrowser.lowerBound)
+        #expect(fileBrowser.lowerBound < direction.lowerBound)
+        #expect(keybar.contains("systemName: \"rectangle.portrait.and.arrow.right\""))
+        #expect(keybar.contains("systemName: \"scroll\""))
+        #expect(keybar.contains("systemName: \"rectangle.on.rectangle\""))
+        #expect(keybar.contains("systemName: \"folder\""))
+        #expect(!rail.contains("compactTextActionCap"))
+        #expect(keybar.contains("TerminalKeybarMetrics.capVisualHeight"))
+        #expect(keybar.contains("Color.connInk.opacity(0.22)"))
+        #expect(keybar.contains("Color.connInk.opacity(0.09)"))
+        #expect(keybar.contains("endRadius: 128"))
+        #expect(keybar.contains(".frame(width: 256, height: 256)"))
     }
 
     @Test("编辑器与终端字号设置使用一致默认值和语言无关图标")
