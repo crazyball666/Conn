@@ -691,6 +691,7 @@ struct AppWideUIConsistencyTests {
     @Test("快捷栏高频功能使用图标并排在方向盘之前")
     func compactKeybarUsesIconActionsAndPriorityOrder() throws {
         let keybar = try packageSource("Sources/ConnTerminal/TerminalKeybar.swift")
+        let directionPad = try packageSource("Sources/ConnTerminal/TerminalDirectionPad.swift")
         let railStart = try #require(keybar.range(of: "private var compactActionRail"))
         let railEnd = try #require(keybar.range(of: "private var expandedPanel"))
         let rail = String(keybar[railStart.lowerBound..<railEnd.lowerBound])
@@ -711,6 +712,9 @@ struct AppWideUIConsistencyTests {
         #expect(keybar.contains("systemName: \"folder\""))
         #expect(!rail.contains("compactTextActionCap"))
         #expect(keybar.contains("TerminalKeybarMetrics.capVisualHeight"))
+        #expect(directionPad.contains("width: TerminalKeybarMetrics.capVisualHeight"))
+        #expect(directionPad.contains("height: TerminalKeybarMetrics.capVisualHeight"))
+        #expect(directionPad.contains(".frame(height: TerminalKeybarMetrics.hitTargetHeight)"))
         #expect(keybar.contains("Color.connInk.opacity(0.22)"))
         #expect(keybar.contains("Color.connInk.opacity(0.09)"))
         #expect(keybar.contains("endRadius: 128"))

@@ -13,7 +13,7 @@ public enum TerminalKeybarMetrics {
     static let compactHorizontalInset: CGFloat = 8
     static let capVisualHeight: CGFloat = 28
     static let compactCapWidth: CGFloat = 44
-    static let compactActionWidth: CGFloat = 64
+    static let compactActionWidth: CGFloat = compactCapWidth
     static let compactPadSide: CGFloat = 44
     static let gridSpacing: CGFloat = 4
     static let commonColumnCount = 7

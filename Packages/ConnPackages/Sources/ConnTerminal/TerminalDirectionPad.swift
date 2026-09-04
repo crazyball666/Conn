@@ -73,14 +73,21 @@ enum TerminalDirectionResolver {
                 ZStack {
                     RoundedRectangle(cornerRadius: ConnRadius.key, style: .continuous)
                         .fill(Color.connKey)
-                        .frame(height: TerminalKeybarMetrics.capVisualHeight)
+                        .frame(
+                            width: TerminalKeybarMetrics.capVisualHeight,
+                            height: TerminalKeybarMetrics.capVisualHeight
+                        )
                         .overlay(
                             RoundedRectangle(cornerRadius: ConnRadius.key, style: .continuous)
                                 .strokeBorder(Color.connKeyline, lineWidth: 1)
                         )
                     arrows
-                        .frame(height: TerminalKeybarMetrics.capVisualHeight)
+                        .frame(
+                            width: TerminalKeybarMetrics.capVisualHeight,
+                            height: TerminalKeybarMetrics.capVisualHeight
+                        )
                 }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .contentShape(Rectangle())
                 .gesture(gesture(in: geometry.size))
             }
