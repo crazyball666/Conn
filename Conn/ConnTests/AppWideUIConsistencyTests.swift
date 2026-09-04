@@ -726,7 +726,8 @@ struct AppWideUIConsistencyTests {
         #expect(keybar.contains("withAnimation(.easeOut(duration: 0.34))"))
         #expect(keybar.contains("withAnimation(.easeOut(duration: 0.28))"))
         #expect(keybar.contains("touchLocation = value.location"))
-        #expect(keybar.contains("guard !isTouchTracking else { return }"))
+        #expect(keybar.contains("if isTouchTracking {"))
+        #expect(keybar.contains("touchLocation = value.location\n                            return"))
         #expect(keybar.contains("@State private var isTouchTracking = false"))
     }
 

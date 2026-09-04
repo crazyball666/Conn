@@ -100,12 +100,17 @@
             .simultaneousGesture(
                 DragGesture(minimumDistance: 0)
                     .onChanged { value in
-                        guard !isTouchTracking else { return }
-                        isTouchTracking = true
+                        if isTouchTracking {
+                            // Keep the bar highlight under the moving finger. The
+                            // expansion animation is only started once per touch.
+                            touchLocation = value.location
+                            return
+                        }
 
                         // Reset outside the animation so every touch starts as a
                         // fresh ripple, even when the previous fade-out is still
-                        // finishing. The origin remains fixed for this gesture.
+                        // finishing.
+                        isTouchTracking = true
                         let transaction = Transaction(animation: nil)
                         withTransaction(transaction) {
                             touchLocation = value.location
