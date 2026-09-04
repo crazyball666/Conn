@@ -688,7 +688,7 @@ struct AppWideUIConsistencyTests {
         #expect(keybar.contains(".frame(height: TerminalKeybarMetrics.hitTargetHeight)"))
     }
 
-    @Test("快捷栏高频功能使用图标并排在方向盘之前")
+    @Test("快捷栏高频功能使用图标并按优先级排序")
     func compactKeybarUsesIconActionsAndPriorityOrder() throws {
         let keybar = try packageSource("Sources/ConnTerminal/TerminalKeybar.swift")
         let directionPad = try packageSource("Sources/ConnTerminal/TerminalDirectionPad.swift")
@@ -702,12 +702,12 @@ struct AppWideUIConsistencyTests {
         let fileBrowser = try #require(rail.range(of: "compactFileBrowserCap"))
         let direction = try #require(rail.range(of: "compactDirectionPad"))
 
-        #expect(close.lowerBound < command.lowerBound)
-        #expect(command.lowerBound < switchTerminal.lowerBound)
+        #expect(close.lowerBound < switchTerminal.lowerBound)
         #expect(switchTerminal.lowerBound < fileBrowser.lowerBound)
         #expect(fileBrowser.lowerBound < direction.lowerBound)
+        #expect(direction.lowerBound < command.lowerBound)
         #expect(keybar.contains("systemName: \"rectangle.portrait.and.arrow.right\""))
-        #expect(keybar.contains("systemName: \"scroll\""))
+        #expect(keybar.contains("systemName: \"command\""))
         #expect(keybar.contains("systemName: \"rectangle.on.rectangle\""))
         #expect(keybar.contains("systemName: \"folder\""))
         #expect(!rail.contains("compactTextActionCap"))
@@ -715,10 +715,14 @@ struct AppWideUIConsistencyTests {
         #expect(directionPad.contains("width: TerminalKeybarMetrics.capVisualHeight"))
         #expect(directionPad.contains("height: TerminalKeybarMetrics.capVisualHeight"))
         #expect(directionPad.contains(".frame(height: TerminalKeybarMetrics.hitTargetHeight)"))
-        #expect(keybar.contains("Color.connInk.opacity(0.22)"))
-        #expect(keybar.contains("Color.connInk.opacity(0.09)"))
-        #expect(keybar.contains("endRadius: 128"))
-        #expect(keybar.contains(".frame(width: 256, height: 256)"))
+        #expect(keybar.contains("@State private var touchGlowProgress: CGFloat = 0"))
+        #expect(keybar.contains("Color.connInk.opacity(0.32)"))
+        #expect(keybar.contains("Color.connInk.opacity(0.14)"))
+        #expect(keybar.contains("endRadius: 168"))
+        #expect(keybar.contains(".frame(width: 336, height: 336)"))
+        #expect(keybar.contains(".opacity(touchGlowProgress)"))
+        #expect(keybar.contains(".scaleEffect(0.72 + 0.28 * touchGlowProgress)"))
+        #expect(keybar.contains("withAnimation(.easeOut(duration: 0.18))"))
     }
 
     @Test("编辑器与终端字号设置使用一致默认值和语言无关图标")

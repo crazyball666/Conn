@@ -38,6 +38,7 @@
         @State private var expandedSection: ExpandedSection = .common
         /// 工具栏级触点高亮。它属于整条栏的背景，不改变单个按钮的按下样式。
         @State private var touchLocation: CGPoint?
+        @State private var touchGlowProgress: CGFloat = 0
 
         private enum ExpandedSection: String {
             case common
@@ -70,16 +71,19 @@
                         if let touchLocation {
                             RadialGradient(
                                 colors: [
-                                    Color.connInk.opacity(0.22),
-                                    Color.connInk.opacity(0.09),
+                                    Color.connInk.opacity(0.32),
+                                    Color.connInk.opacity(0.14),
                                     .clear
                                 ],
                                 center: .center,
                                 startRadius: 0,
-                                endRadius: 128
+                                endRadius: 168
                             )
-                            .frame(width: 256, height: 256)
+                            .frame(width: 336, height: 336)
+                            .scaleEffect(0.72 + 0.28 * touchGlowProgress)
+                            .opacity(touchGlowProgress)
                             .position(touchLocation)
+                            .transition(.opacity.combined(with: .scale(scale: 0.72)))
                             .allowsHitTesting(false)
                         }
                     }
@@ -94,10 +98,24 @@
             .simultaneousGesture(
                 DragGesture(minimumDistance: 0)
                     .onChanged { value in
-                        touchLocation = value.location
+                        if touchLocation == nil {
+                            withAnimation(.easeOut(duration: 0.18)) {
+                                touchLocation = value.location
+                                touchGlowProgress = 1
+                            }
+                        } else {
+                            touchLocation = value.location
+                            if touchGlowProgress < 1 {
+                                withAnimation(.easeOut(duration: 0.18)) {
+                                    touchGlowProgress = 1
+                                }
+                            }
+                        }
                     }
                     .onEnded { _ in
-                        touchLocation = nil
+                        withAnimation(.easeOut(duration: 0.18)) {
+                            touchGlowProgress = 0
+                        }
                     }
             )
             .onChange(of: providerQuickActionGroup?.id) { _, groupID in
@@ -121,10 +139,10 @@
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: TerminalKeybarMetrics.gridSpacing) {
                     compactCloseTerminalCap
-                    compactCommandCap
                     compactSwitchTerminalCap
                     compactFileBrowserCap
                     compactDirectionPad
+                    compactCommandCap
 
                     ForEach(TerminalKeybarLayout.compactKeys) { key in
                         keyCap(key, width: TerminalKeybarMetrics.compactCapWidth)
@@ -491,7 +509,7 @@
 
         private var compactCommandCap: some View {
             compactIconActionCap(
-                systemName: "scroll",
+                systemName: "command",
                 accessibilityLabel: L("选择本地脚本"),
                 identifier: "terminal.keybar.commands",
                 action: onChooseCommand
