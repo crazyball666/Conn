@@ -13965,37 +13965,37 @@
         }
       }
     },
-    "把复杂的主机运维，收进一个工作台" : {
-      "extractionState" : "stale",
+    "将复杂的远程工作，整合至一个工作台" : {
+      "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Bring complex host operations into one workspace"
+            "value" : "Bring complex remote work into a single workspace"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "複雑なホスト運用を、ひとつのワークスペースに集約"
+            "value" : "複雑なリモートワークを、ひとつのワークスペースに集約"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "복잡한 호스트 운영을 하나의 작업 공간으로"
+            "value" : "복잡한 원격 작업을 하나의 워크스페이스로 통합"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "把复杂的主机运维，收进一个工作台"
+            "value" : "将复杂的远程工作，整合至一个工作台"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "將複雜的主機維運收進一個工作空間"
+            "value" : "將複雜的遠端工作，整合至一個工作台"
           }
         }
       }
@@ -21146,7 +21146,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Username"
+            "value" : "User"
           }
         },
         "ja" : {
@@ -27452,37 +27452,37 @@
         }
       }
     },
-    "连接、文件、容器与批量执行，全部在一处完成。" : {
-      "extractionState" : "stale",
+    "连接、管理与执行，核心能力集中于一处。" : {
+      "extractionState" : "manual",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Connections, files, containers, and batch execution—all in one place."
+            "value" : "Connect, manage, and execute from one place."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "接続、ファイル、コンテナ、一括実行を、すべてひとつの場所で。"
+            "value" : "接続、管理、実行まで、すべてを一か所で。"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "연결, 파일, 컨테이너 및 일괄 실행을 한곳에서 관리하세요."
+            "value" : "연결, 관리, 실행을 하나의 공간에서 처리합니다."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "连接、文件、容器与批量执行，全部在一处完成。"
+            "value" : "连接、管理与执行，核心能力集中于一处。"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "連線、檔案、容器與批次執行，全部集中一處。"
+            "value" : "連接、管理與執行，核心能力集中於一處。"
           }
         }
       }

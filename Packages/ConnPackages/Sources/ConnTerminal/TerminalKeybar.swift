@@ -164,15 +164,13 @@
                 HStack(spacing: TerminalKeybarMetrics.gridSpacing) {
                     compactCloseTerminalCap
                     compactSwitchTerminalCap
-                    compactFileBrowserCap
                     compactDirectionPad
-                    compactCommandCap
-
                     ForEach(TerminalKeybarLayout.compactKeys) { key in
                         keyCap(key, width: TerminalKeybarMetrics.compactCapWidth)
                     }
-
                     pasteCap(width: TerminalKeybarMetrics.compactCapWidth)
+                    compactFileBrowserCap
+                    compactCommandCap
                 }
                 .padding(.horizontal, 2)
             }

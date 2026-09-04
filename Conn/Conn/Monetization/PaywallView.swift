@@ -46,43 +46,23 @@ struct PaywallView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: ConnSpacing.md) {
                     hero
+                        .padding(.horizontal, ConnSpacing.xs)
                     if dependencies.subscription.isPro {
                         activeSubscriptionCard
-                    } else {
+                    } else if context != .upgrade {
                         contextBanner
-                        planPicker
                     }
                     featureList
-                    VStack(spacing: ConnSpacing.xs) {
-                        Text(L("订阅由 Apple 管理，可在系统设置中取消。"))
-                            .font(.connFootnote)
-                            .foregroundStyle(.connMuted)
-                            .frame(maxWidth: .infinity)
-                            .multilineTextAlignment(.center)
-                        Text(L("订阅将自动续订，除非在当前计费周期结束前至少 24 小时取消。"))
-                            .font(.connCaption)
-                            .foregroundStyle(.connMuted)
-                            .frame(maxWidth: .infinity)
-                            .multilineTextAlignment(.center)
-                        HStack(spacing: ConnSpacing.sm) {
-                            if let url = AppLegalLinks.privacyPolicyURL {
-                                Link(L("隐私政策"), destination: url)
-                                    .accessibilityIdentifier("paywall.legal.privacy")
-                            }
-                            if let url = AppLegalLinks.termsOfUseURL {
-                                Link(L("使用条款"), destination: url)
-                                    .accessibilityIdentifier("paywall.legal.terms")
-                            }
-                        }
-                        .font(.connCaption)
-                        .foregroundStyle(.connMuted)
+                    if !dependencies.subscription.isPro {
+                        planPicker
                     }
-                    .frame(maxWidth: .infinity)
-                    .padding(.horizontal, ConnSpacing.xs)
-                    .padding(.bottom, ConnSpacing.sm)
+                    legalNotes
                 }
-                .padding(ConnSpacing.page)
+                .padding(.horizontal, ConnSpacing.page)
+                .padding(.top, ConnSpacing.sm)
+                .padding(.bottom, ConnSpacing.page)
             }
+            .contentMargins(.top, 0, for: .scrollContent)
             .safeAreaInset(edge: .bottom, spacing: 0) {
                 purchaseBar
             }
@@ -120,52 +100,99 @@ struct PaywallView: View {
         .accessibilityIdentifier("paywall")
     }
 
+    private var legalNotes: some View {
+        HStack(spacing: ConnSpacing.sm) {
+            if let url = AppLegalLinks.privacyPolicyURL {
+                Link(L("隐私政策"), destination: url)
+                    .accessibilityIdentifier("paywall.legal.privacy")
+            }
+            if let url = AppLegalLinks.termsOfUseURL {
+                Link(L("使用条款"), destination: url)
+                    .accessibilityIdentifier("paywall.legal.terms")
+            }
+        }
+        .font(.connCaption)
+        .foregroundStyle(.connMuted)
+        .frame(maxWidth: .infinity)
+        .padding(.horizontal, ConnSpacing.xs)
+        .padding(.bottom, ConnSpacing.sm)
+    }
+
     private var hero: some View {
-        ZStack(alignment: .bottomTrailing) {
+        ZStack(alignment: .topLeading) {
             LinearGradient(
-                colors: [.connAccentDeep, .connAccent],
+                colors: [Color.purple, Color.pink.opacity(0.92)],
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
             )
-            Circle()
-                .fill(Color.white.opacity(0.14))
-                .frame(width: 190, height: 190)
-                .blur(radius: 2)
-                .offset(x: 78, y: 74)
-            Image(systemName: "server.rack")
-                .font(.system(size: 112, weight: .bold))
-                .foregroundStyle(.white.opacity(0.11))
-                .rotationEffect(.degrees(-8))
-                .offset(x: 28, y: 18)
 
-            VStack(alignment: .leading, spacing: ConnSpacing.md) {
-                HStack {
-                    Label(L("CONN PRO"), systemImage: "bolt.fill")
-                        .font(.connCaption)
-                        .foregroundStyle(.white.opacity(0.94))
-                        .padding(.horizontal, ConnSpacing.sm)
-                        .padding(.vertical, ConnSpacing.xxs)
-                        .background(Color.white.opacity(0.14), in: Capsule())
-                    Spacer(minLength: 0)
-                }
+            GeometryReader { proxy in
+                Circle()
+                    .fill(Color.white.opacity(0.14))
+                    .frame(width: 210, height: 210)
+                    .blur(radius: 1)
+                    .offset(x: proxy.size.width - 92, y: -112)
+
+                Circle()
+                    .fill(Color.white.opacity(0.08))
+                    .frame(width: 156, height: 156)
+                    .blur(radius: 2)
+                    .offset(x: proxy.size.width - 190, y: proxy.size.height - 34)
+
+                PaywallHeroIllustration()
+                    .position(
+                        x: proxy.size.width - 70,
+                        y: proxy.size.height - 38
+                    )
+            }
+
+            VStack(alignment: .leading, spacing: ConnSpacing.lg) {
+                Label(L("CONN PRO"), systemImage: "sparkles")
+                    .font(.connCaption)
+                    .connEyebrowTracking()
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, ConnSpacing.md)
+                    .padding(.vertical, ConnSpacing.xs)
+                    .background(Color.white.opacity(0.15), in: Capsule())
+
                 VStack(alignment: .leading, spacing: ConnSpacing.xs) {
-                    Text(L("把复杂的主机运维，收进一个工作台"))
-                        .font(.connSectionTitle)
-                        .fontWeight(.bold)
+                    Text(L("将复杂的远程工作，整合至一个工作台"))
+                        .font(.title2.weight(.bold))
                         .foregroundStyle(.white)
                         .fixedSize(horizontal: false, vertical: true)
-                    Text(L("连接、文件、容器与批量执行，全部在一处完成。"))
-                        .font(.connFootnote)
-                        .foregroundStyle(.white.opacity(0.78))
+                    Text(L("连接、管理与执行，核心能力集中于一处。"))
+                        .font(.connSubheadline)
+                        .foregroundStyle(.white.opacity(0.82))
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
             .padding(ConnSpacing.lg)
         }
-        .frame(maxWidth: .infinity, minHeight: 194, alignment: .leading)
-        .clipShape(.rect(cornerRadius: ConnRadius.card, style: .continuous))
+        .frame(maxWidth: .infinity, minHeight: 204, alignment: .leading)
+        .clipShape(.rect(cornerRadius: ConnRadius.listCard, style: .continuous))
         .accessibilityElement(children: .combine)
         .accessibilityIdentifier("paywall.hero")
+    }
+
+    private struct PaywallHeroIllustration: View {
+        var body: some View {
+            VStack(spacing: 13) {
+                Capsule()
+                    .fill(Color.white.opacity(0.34))
+                    .frame(width: 126, height: 8)
+                Capsule()
+                    .fill(Color.white.opacity(0.28))
+                    .frame(width: 154, height: 8)
+            }
+            .frame(width: 174, height: 94)
+            .background(Color.white.opacity(0.12), in: .rect(cornerRadius: 20, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                    .stroke(Color.white.opacity(0.28), lineWidth: 1.2)
+            }
+            .rotationEffect(.degrees(-11))
+            .opacity(0.92)
+        }
     }
 
     private var contextBanner: some View {
@@ -173,11 +200,11 @@ struct PaywallView: View {
             IconChip("arrow.up.right", tint: .accent, size: ConnSize.iconChipCompact)
             VStack(alignment: .leading, spacing: 4) {
                 Text(contextTitle)
-                    .font(.connBody)
+                    .font(.connFootnote)
                     .fontWeight(.semibold)
                     .foregroundStyle(.connInk)
                 Text(contextMessage)
-                    .font(.connFootnote)
+                    .font(.connCaption)
                     .foregroundStyle(.connMuted)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -196,11 +223,11 @@ struct PaywallView: View {
     private var activeSubscriptionCard: some View {
         VStack(alignment: .leading, spacing: ConnSpacing.xs) {
             Label(L("当前已订阅"), systemImage: "checkmark.seal.fill")
-                .font(.connSectionTitle)
+                .font(.connFootnote)
                 .fontWeight(.semibold)
                 .foregroundStyle(.connGood)
             Text(L("当前账号已拥有全部 Conn Pro 功能。"))
-                .font(.connBody)
+                .font(.connFootnote)
                 .foregroundStyle(.connMuted)
                 .fixedSize(horizontal: false, vertical: true)
         }
@@ -216,67 +243,63 @@ struct PaywallView: View {
     }
 
     private var featureList: some View {
-        VStack(alignment: .leading, spacing: ConnSpacing.xs) {
-            HStack(alignment: .firstTextBaseline) {
+        VStack(alignment: .leading, spacing: ConnSpacing.sm) {
+            HStack(spacing: ConnSpacing.xs) {
                 Text(L("Pro 包含"))
-                    .font(.connSectionTitle)
-                    .fontWeight(.semibold)
-                    .foregroundStyle(.connInk)
-                Spacer()
+                Text("·")
                 Text(L("四项核心能力"))
-                    .font(.connCaption)
-                    .foregroundStyle(.connMuted)
             }
+            .font(.connCaption)
+            .connEyebrowTracking()
+            .foregroundStyle(.connMuted)
+
             LazyVGrid(
                 columns: [
-                    GridItem(.flexible(), spacing: ConnSpacing.sm),
-                    GridItem(.flexible(), spacing: ConnSpacing.sm),
+                    GridItem(.flexible(), spacing: ConnSpacing.md),
+                    GridItem(.flexible(), spacing: ConnSpacing.md),
                 ],
-                spacing: ConnSpacing.sm
+                spacing: ConnSpacing.xs
             ) {
                 ForEach(featureItems) { item in
                     featureItem(item)
                 }
             }
         }
-        .padding(ConnSpacing.cardPadding)
+        .padding(.horizontal, ConnSpacing.xs)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .connSurface(cornerRadius: ConnRadius.card)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("paywall.features")
     }
 
     private func featureItem(_ item: PaywallFeature) -> some View {
-        VStack(alignment: .leading, spacing: ConnSpacing.xs) {
-            HStack {
-                IconChip(item.systemImage, tint: .accent, size: ConnSize.iconChipCompact)
-                Spacer(minLength: 0)
-                Image(systemName: "checkmark")
-                    .font(.caption.weight(.bold))
-                    .foregroundStyle(.connGood)
-            }
+        HStack(spacing: ConnSpacing.xs) {
+            IconChip(item.systemImage, tint: .accent, size: ConnSize.iconChipCompact)
             Text(item.title)
-                .font(.connBody)
-                .fontWeight(.semibold)
+                .font(.connFootnote)
+                .fontWeight(.medium)
                 .foregroundStyle(.connInk)
                 .lineLimit(2)
-            Text(item.detail)
-                .font(.connCaption)
-                .foregroundStyle(.connMuted)
-                .lineLimit(2)
+                .fixedSize(horizontal: false, vertical: true)
         }
-        .frame(maxWidth: .infinity, minHeight: 104, alignment: .topLeading)
-        .padding(ConnSpacing.sm)
-        .background(Color.connBg.opacity(0.5), in: .rect(cornerRadius: ConnRadius.control, style: .continuous))
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(minHeight: 64, alignment: .leading)
+        .padding(.horizontal, ConnSpacing.sm)
+        .background(Color.connSurface, in: .rect(cornerRadius: ConnRadius.control, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: ConnRadius.control, style: .continuous)
+                .strokeBorder(Color.connLine, lineWidth: 1)
+        }
+        .accessibilityValue(Text(item.detail))
+        .accessibilityIdentifier("paywall.feature.\(item.id)")
     }
 
     private var planPicker: some View {
         VStack(alignment: .leading, spacing: ConnSpacing.xs) {
             HStack(alignment: .firstTextBaseline) {
                 Text(L("选择订阅周期"))
-                    .font(.connSectionTitle)
+                    .font(.connCaption)
                     .fontWeight(.semibold)
-                    .foregroundStyle(.connInk)
+                    .foregroundStyle(.connMuted)
                 Spacer()
                 Text(L("自动续订"))
                     .font(.connCaption)
@@ -294,6 +317,9 @@ struct PaywallView: View {
                 }
             }
         }
+        .padding(ConnSpacing.cardPadding)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .connSurface(cornerRadius: ConnRadius.card)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("paywall.plans")
     }
@@ -303,25 +329,20 @@ struct PaywallView: View {
         return Button {
             selectedPlan = plan
         } label: {
-            VStack(alignment: .leading, spacing: ConnSpacing.sm) {
+            VStack(alignment: .leading, spacing: ConnSpacing.xs) {
                 HStack(alignment: .top, spacing: ConnSpacing.xs) {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(planTitle(plan))
-                            .font(.connBody)
-                            .fontWeight(.semibold)
-                            .foregroundStyle(.connInk)
-                        Text(planSubtitle(plan))
-                            .font(.connCaption)
-                            .foregroundStyle(.connMuted)
-                    }
+                    Text(planTitle(plan))
+                        .font(.connFootnote)
+                        .fontWeight(.semibold)
+                        .foregroundStyle(.connInk)
                     Spacer(minLength: 0)
                     Image(systemName: selected ? "checkmark.circle.fill" : "circle")
-                        .font(.title3)
+                        .font(.connFootnote)
                         .foregroundStyle(selected ? Color.connAccent : Color.connDim)
                 }
                 HStack(alignment: .firstTextBaseline, spacing: 4) {
                     Text(priceText(for: plan))
-                        .font(.connData(.title3))
+                        .font(.connData(.subheadline))
                         .fontWeight(.bold)
                         .foregroundStyle(.connInk)
                         .connTabularNumbers()
@@ -344,8 +365,8 @@ struct PaywallView: View {
                         .accessibilityHidden(true)
                 }
             }
-            .frame(maxWidth: .infinity, minHeight: 132, alignment: .topLeading)
-            .padding(ConnSpacing.cardPadding)
+            .frame(maxWidth: .infinity, minHeight: 88, alignment: .topLeading)
+            .padding(ConnSpacing.sm)
             .background(
                 selected ? Color.connAccentFill : Color.connSurface,
                 in: .rect(cornerRadius: ConnRadius.card, style: .continuous)
@@ -472,13 +493,6 @@ struct PaywallView: View {
         switch plan {
         case .monthly: L("按月")
         case .yearly: L("按年")
-        }
-    }
-
-    private func planSubtitle(_ plan: SubscriptionStore.Plan) -> String {
-        switch plan {
-        case .monthly: L("按月自动续订")
-        case .yearly: L("按年自动续订")
         }
     }
 
