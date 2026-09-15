@@ -8,7 +8,7 @@ import Foundation
 public struct HostDraft: Sendable, Equatable {
     /// 可校验的字段标识（校验错误按字段归位到 UI）。
     public enum Field: Sendable, Hashable {
-        case name, address, port, username, key
+        case name, address, port, username, key, privateNetwork, proxy, jumpChain
     }
 
     public var name: String
@@ -18,6 +18,8 @@ public struct HostDraft: Sendable, Equatable {
     public var authKind: Host.AuthKind
     public var keyUUID: String?
     public var jumpChain: [String]
+    public var privateNetworkProfileID: String?
+    public var proxyConfiguration: SSHProxyConfiguration?
     public var groupIDs: [String]
     public var tags: [String]
     public var icon: String?
@@ -31,6 +33,8 @@ public struct HostDraft: Sendable, Equatable {
         authKind: Host.AuthKind = .password,
         keyUUID: String? = nil,
         jumpChain: [String] = [],
+        privateNetworkProfileID: String? = nil,
+        proxyConfiguration: SSHProxyConfiguration? = nil,
         groupIDs: [String] = [],
         tags: [String] = [],
         icon: String? = nil,
@@ -43,6 +47,8 @@ public struct HostDraft: Sendable, Equatable {
         self.authKind = authKind
         self.keyUUID = keyUUID
         self.jumpChain = jumpChain
+        self.privateNetworkProfileID = privateNetworkProfileID
+        self.proxyConfiguration = proxyConfiguration
         self.groupIDs = groupIDs
         self.tags = tags
         self.icon = icon
@@ -58,6 +64,8 @@ public struct HostDraft: Sendable, Equatable {
         authKind = host.authKind
         keyUUID = host.keyUUID
         jumpChain = host.jumpChain
+        privateNetworkProfileID = host.privateNetworkProfileID
+        proxyConfiguration = host.proxyConfiguration
         groupIDs = host.groupIDs
         tags = host.tags
         icon = host.icon
@@ -82,6 +90,21 @@ public struct HostDraft: Sendable, Equatable {
         if authKind == .key, keyUUID == nil {
             errors[.key] = L("请选择一把 SSH 密钥")
         }
+        if let proxy = proxyConfiguration {
+            switch proxy.validationError {
+            case .emptyHost:
+                errors[.proxy] = L("请填写代理地址")
+            case .invalidPort:
+                errors[.proxy] = L("代理端口需在 1–65535 之间")
+            case .missingUsername:
+                errors[.proxy] = L("请输入代理用户名")
+            case nil:
+                break
+            }
+        }
+        if privateNetworkProfileID != nil, proxyConfiguration != nil {
+            errors[.proxy] = L("内置 Tailscale/Headscale 与普通代理不能同时启用")
+        }
         return errors
     }
 
@@ -101,6 +124,8 @@ public struct HostDraft: Sendable, Equatable {
             authKind: authKind,
             keyUUID: keyUUID,
             jumpChain: jumpChain,
+            privateNetworkProfileID: privateNetworkProfileID,
+            proxyConfiguration: proxyConfiguration,
             groupIDs: groupIDs,
             tags: tags,
             icon: icon,

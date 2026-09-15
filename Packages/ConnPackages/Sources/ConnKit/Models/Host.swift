@@ -38,6 +38,10 @@ public struct Host: Identifiable, Codable, Sendable, Equatable, Hashable {
     public var keyUUID: String?
     /// 跳板链，按连接顺序排列的 `Host.id`（A→B→C）。
     public var jumpChain: [String]
+    /// 可选的嵌入式 Tailscale/Headscale 配置 id。为空时使用普通 TCP 直连。
+    public var privateNetworkProfileID: String?
+    /// 可选的 HTTP CONNECT / SOCKS5 代理配置。密码只存 Keychain。
+    public var proxyConfiguration: SSHProxyConfiguration?
     /// 所属分组的 `HostGroup.id`。允许为空，也允许同时属于多个分组。
     public var groupIDs: [String]
     public var tags: [String]
@@ -63,6 +67,8 @@ public struct Host: Identifiable, Codable, Sendable, Equatable, Hashable {
         credentialRef: String? = nil,
         keyUUID: String? = nil,
         jumpChain: [String] = [],
+        privateNetworkProfileID: String? = nil,
+        proxyConfiguration: SSHProxyConfiguration? = nil,
         groupIDs: [String] = [],
         tags: [String] = [],
         icon: String? = nil,
@@ -83,6 +89,8 @@ public struct Host: Identifiable, Codable, Sendable, Equatable, Hashable {
         self.credentialRef = credentialRef
         self.keyUUID = keyUUID
         self.jumpChain = jumpChain
+        self.privateNetworkProfileID = privateNetworkProfileID
+        self.proxyConfiguration = proxyConfiguration
         self.groupIDs = groupIDs
         self.tags = tags
         self.icon = icon
@@ -111,4 +119,6 @@ public struct Host: Identifiable, Codable, Sendable, Equatable, Hashable {
 
     /// 是否经由跳板机连接。
     public var usesJumpHost: Bool { !jumpChain.isEmpty }
+
+    public var usesProxy: Bool { proxyConfiguration != nil }
 }

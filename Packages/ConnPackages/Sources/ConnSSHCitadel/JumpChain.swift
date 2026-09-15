@@ -30,7 +30,8 @@ enum JumpChain {
         hops: [JumpHop],
         target: JumpHop,
         hostKeyStore: any HostKeyStore,
-        hostKeyPolicy: HostKeyPolicy
+        hostKeyPolicy: HostKeyPolicy,
+        firstConnectionEndpoint: SSHEndpoint? = nil
     ) async throws -> SSHClient {
         // 第一跳（或无跳板时直连目标）
         guard let firstHop = hops.first else {
@@ -41,7 +42,8 @@ enum JumpChain {
             firstHop,
             hopIndex: 0,
             hostKeyStore: hostKeyStore,
-            hostKeyPolicy: hostKeyPolicy
+            hostKeyPolicy: hostKeyPolicy,
+            connectionEndpoint: firstConnectionEndpoint
         )
 
         // 逐级跳到后续跳板
@@ -76,13 +78,15 @@ enum JumpChain {
         _ hop: JumpHop,
         hopIndex: Int,
         hostKeyStore: any HostKeyStore,
-        hostKeyPolicy: HostKeyPolicy
+        hostKeyPolicy: HostKeyPolicy,
+        connectionEndpoint: SSHEndpoint? = nil
     ) async throws -> SSHClient {
         do {
             return try await directConnect(
                 hop,
                 hostKeyStore: hostKeyStore,
-                hostKeyPolicy: hostKeyPolicy
+                hostKeyPolicy: hostKeyPolicy,
+                connectionEndpoint: connectionEndpoint
             )
         } catch let error as SSHError {
             // A host-key failure is a security decision, not merely a connectivity
@@ -102,13 +106,14 @@ enum JumpChain {
     private static func directConnect(
         _ hop: JumpHop,
         hostKeyStore: any HostKeyStore,
-        hostKeyPolicy: HostKeyPolicy
+        hostKeyPolicy: HostKeyPolicy,
+        connectionEndpoint: SSHEndpoint? = nil
     ) async throws -> SSHClient {
         let method = try AuthMapping.method(for: hop.auth, username: hop.username)
         do {
             return try await SSHClient.connect(
-                host: hop.endpoint.host,
-                port: hop.endpoint.port,
+                host: (connectionEndpoint ?? hop.endpoint).host,
+                port: (connectionEndpoint ?? hop.endpoint).port,
                 authenticationMethod: method,
                 hostKeyValidator: CitadelHostKeyVerifier.validator(
                     endpoint: hop.endpoint,

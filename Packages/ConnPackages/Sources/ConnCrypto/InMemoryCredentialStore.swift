@@ -6,6 +6,7 @@ import ConnKit
 /// 与 `KeychainCredentialStore` 同语义，但不落地，避免测试写入真实 Keychain。
 public final class InMemoryCredentialStore: CredentialStore, @unchecked Sendable {
     private var passwords: [String: String] = [:]
+    private var proxyPasswords: [String: String] = [:]
     private let lock = NSLock()
 
     public init() {}
@@ -18,9 +19,22 @@ public final class InMemoryCredentialStore: CredentialStore, @unchecked Sendable
         lock.withLock { passwords[hostID] }
     }
 
+    public func setProxyPassword(_ password: String?, forHost hostID: String) throws {
+        lock.withLock { proxyPasswords[hostID] = password }
+    }
+
+    public func proxyPassword(forHost hostID: String) throws -> String? {
+        lock.withLock { proxyPasswords[hostID] }
+    }
+
+    public func deleteProxyPassword(forHost hostID: String) throws {
+        lock.withLock { proxyPasswords[hostID] = nil }
+    }
+
     public func deleteAll(forHost hostID: String) throws {
         lock.withLock {
             passwords[hostID] = nil
+            proxyPasswords[hostID] = nil
         }
     }
 
@@ -35,6 +49,19 @@ public final class InMemoryCredentialStore: CredentialStore, @unchecked Sendable
     }
 
     private var keyMetadata: [String: SSHKey] = [:]
+    private var privateNetworkAuthKeys: [String: String] = [:]
+
+    public func setPrivateNetworkAuthKey(_ authKey: String?, forProfile profileID: String) throws {
+        lock.withLock { privateNetworkAuthKeys[profileID] = authKey }
+    }
+
+    public func privateNetworkAuthKey(forProfile profileID: String) throws -> String? {
+        lock.withLock { privateNetworkAuthKeys[profileID] }
+    }
+
+    public func deletePrivateNetworkAuthKey(forProfile profileID: String) throws {
+        lock.withLock { privateNetworkAuthKeys[profileID] = nil }
+    }
 
     public func setKeyMetadata(_ key: SSHKey?, forKey keyID: String) throws {
         lock.withLock { keyMetadata[keyID] = key }

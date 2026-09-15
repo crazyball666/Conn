@@ -10,11 +10,22 @@ struct DiagnosticsView: View {
     private let host: Host
     private let username: String
     private let auth: SSHAuth
+    private let hops: [SSHJumpHop]
+    private let proxyPassword: String?
 
-    init(host: Host, username: String, auth: SSHAuth, transport: any SSHTransport) {
+    init(
+        host: Host,
+        username: String,
+        auth: SSHAuth,
+        hops: [SSHJumpHop] = [],
+        proxyPassword: String? = nil,
+        transport: any SSHTransport
+    ) {
         self.host = host
         self.username = username
         self.auth = auth
+        self.hops = hops
+        self.proxyPassword = proxyPassword
         _tester = State(initialValue: ConnectionTester(transport: transport))
     }
 
@@ -105,6 +116,12 @@ struct DiagnosticsView: View {
     }
 
     private func runTest() async {
-        await tester.run(host: host, username: username, auth: auth)
+        await tester.run(
+            host: host,
+            username: username,
+            auth: auth,
+            hops: hops,
+            proxyPassword: proxyPassword
+        )
     }
 }

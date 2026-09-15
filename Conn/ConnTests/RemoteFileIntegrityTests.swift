@@ -171,11 +171,14 @@ struct RemoteFileIntegrityTests {
         let hostRepository = IntegrityHostRepository(host: Self.host)
         let transport = IntegrityTransport(fileSystem: fileSystem)
         let connectionManager = ConnectionManager(transport: transport)
+        let credentialStore = InMemoryCredentialStore()
         return AppDependencies(
             hostRepository: hostRepository,
             hostGroupRepository: IntegrityHostGroupRepository(),
             keyRepository: IntegrityKeyRepository(),
-            credentialStore: InMemoryCredentialStore(),
+            credentialStore: credentialStore,
+            privateNetworkProfileRepository: TestPrivateNetworkProfileRepository(),
+            privateNetworkRegistry: makeTestPrivateNetworkRegistry(credentialStore: credentialStore),
             connectionManager: connectionManager,
             snippetExecutionPlanner: SnippetExecutionPlanner(
                 connectionManager: connectionManager,

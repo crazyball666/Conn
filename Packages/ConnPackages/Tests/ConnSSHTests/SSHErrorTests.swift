@@ -21,6 +21,10 @@ struct SSHErrorTests {
             ),
             .unsupportedByEngine(.keyboardInteractive),
             .jumpChainFailed(hopIndex: 1, hopHost: "bastion"),
+            .proxyUnsupported,
+            .proxyUnavailable(reason: "unreachable"),
+            .proxyAuthenticationFailed,
+            .privateNetworkAndProxyConflict,
             .channelClosed
         ]
         for error in errors {

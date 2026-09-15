@@ -23,7 +23,7 @@ struct DatabaseSchemaTests {
         #expect(result.0 == [
             "builtin_snippet_catalog_state", "builtin_snippet_suppression",
             "host", "host_group", "host_group_membership", "known_host",
-            "persistent_terminal_resume_record", "run_history", "snippet", "snippet_group",
+            "persistent_terminal_resume_record", "private_network_profile", "run_history", "snippet", "snippet_group",
             "snippet_group_membership", "ssh_key"
         ])
         #expect(result.1 == ["v1_initial_schema"])

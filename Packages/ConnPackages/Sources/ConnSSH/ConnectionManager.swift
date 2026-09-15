@@ -7,6 +7,7 @@ import Foundation
 /// 凭据只在此刻现取现用，不长驻内存（技术方案 §4.7）。
 public typealias AuthResolver = @Sendable (ConnKit.Host) async throws -> SSHAuth
 public typealias JumpChainResolver = @Sendable (ConnKit.Host) async throws -> [SSHJumpHop]
+public typealias ProxyPasswordResolver = @Sendable (ConnKit.Host) async throws -> String?
 
 /// 决定一条 SSH 连接能否安全复用的非秘密身份。
 ///
@@ -21,6 +22,8 @@ public struct SSHConnectionIdentity: Sendable, Equatable, Hashable {
     public let credentialRef: String?
     public let keyUUID: String?
     public let jumpChain: [String]
+    public let privateNetworkProfileID: String?
+    public let proxyConfiguration: SSHProxyConfiguration?
 
     public init(host: ConnKit.Host) {
         hostID = host.id
@@ -31,6 +34,8 @@ public struct SSHConnectionIdentity: Sendable, Equatable, Hashable {
         credentialRef = host.credentialRef
         keyUUID = host.keyUUID
         jumpChain = host.jumpChain
+        privateNetworkProfileID = host.privateNetworkProfileID
+        proxyConfiguration = host.proxyConfiguration
     }
 }
 
@@ -75,6 +80,7 @@ public actor ConnectionManager {
     private let transport: any SSHTransport
     private let resolveAuth: AuthResolver
     private let resolveJumpChain: JumpChainResolver
+    private let resolveProxyPassword: ProxyPasswordResolver
     private let platformDetector: any RemotePlatformDetecting
 
     /// 连接池必须区分配置不同的主机，即使它们暂时指向同一端点。
@@ -110,9 +116,24 @@ public actor ConnectionManager {
             return []
         }
     ) {
+        self.init(
+            transport: transport,
+            resolveAuth: resolveAuth,
+            resolveJumpChain: resolveJumpChain,
+            resolveProxyPassword: { _ in nil }
+        )
+    }
+
+    public init(
+        transport: any SSHTransport,
+        resolveAuth: @escaping AuthResolver,
+        resolveJumpChain: @escaping JumpChainResolver,
+        resolveProxyPassword: @escaping ProxyPasswordResolver
+    ) {
         self.transport = transport
         self.resolveAuth = resolveAuth
         self.resolveJumpChain = resolveJumpChain
+        self.resolveProxyPassword = resolveProxyPassword
         platformDetector = RemotePlatformDetector()
     }
 
@@ -121,12 +142,29 @@ public actor ConnectionManager {
         transport: any SSHTransport,
         resolveAuth: @escaping AuthResolver,
         resolveJumpChain: @escaping JumpChainResolver,
-        platformDetector: any RemotePlatformDetecting
+        platformDetector: any RemotePlatformDetecting,
+        resolveProxyPassword: @escaping ProxyPasswordResolver
     ) {
         self.transport = transport
         self.resolveAuth = resolveAuth
         self.resolveJumpChain = resolveJumpChain
+        self.resolveProxyPassword = resolveProxyPassword
         self.platformDetector = platformDetector
+    }
+
+    public init(
+        transport: any SSHTransport,
+        resolveAuth: @escaping AuthResolver,
+        resolveJumpChain: @escaping JumpChainResolver,
+        platformDetector: any RemotePlatformDetecting
+    ) {
+        self.init(
+            transport: transport,
+            resolveAuth: resolveAuth,
+            resolveJumpChain: resolveJumpChain,
+            platformDetector: platformDetector,
+            resolveProxyPassword: { _ in nil }
+        )
     }
 
     /// 只替换平台探测器，其余依赖使用默认实现。
@@ -141,7 +179,8 @@ public actor ConnectionManager {
                 guard host.jumpChain.isEmpty else { throw SSHError.jumpChainUnsupported }
                 return []
             },
-            platformDetector: platformDetector
+            platformDetector: platformDetector,
+            resolveProxyPassword: { _ in nil }
         )
     }
 
@@ -157,7 +196,8 @@ public actor ConnectionManager {
             resolveJumpChain: { host in
                 guard host.jumpChain.isEmpty else { throw SSHError.jumpChainUnsupported }
                 return []
-            }
+            },
+            resolveProxyPassword: { _ in nil }
         )
     }
 
@@ -210,16 +250,27 @@ public actor ConnectionManager {
     private func connectionTask(for host: ConnKit.Host) -> Task<any SSHSession, Error> {
         let resolve = resolveAuth
         let resolveJumps = resolveJumpChain
+        let resolveProxy = resolveProxyPassword
         let engine = transport
         return Task<any SSHSession, Error> {
             let auth = try await resolve(host)
+            let proxyPassword = try await resolveProxy(host)
             let target = SSHJumpHop(
                 endpoint: SSHEndpoint(host: host.address, port: host.port),
                 username: host.username,
                 auth: auth
             )
             let hops = try await resolveJumps(host)
-            return try await engine.connect(via: hops, to: target, hostKeyPolicy: .tofu)
+            return try await engine.connect(
+                SSHConnectionPlan(
+                    hops: hops,
+                    target: target,
+                    privateNetworkProfileID: host.privateNetworkProfileID,
+                    proxyConfiguration: host.proxyConfiguration,
+                    proxyPassword: proxyPassword
+                ),
+                hostKeyPolicy: .tofu
+            )
         }
     }
 

@@ -43,7 +43,13 @@ final class ConnectionTester {
     }
 
     /// 对给定主机与认证材料跑一次诊断。
-    func run(host: Host, username: String, auth: SSHAuth) async {
+    func run(
+        host: Host,
+        username: String,
+        auth: SSHAuth,
+        hops: [SSHJumpHop] = [],
+        proxyPassword: String? = nil
+    ) async {
         isRunning = true
         succeeded = false
         steps = Self.freshSteps()
@@ -53,8 +59,16 @@ final class ConnectionTester {
 
         do {
             let endpoint = SSHEndpoint(host: host.address, port: host.port)
+            let target = SSHJumpHop(endpoint: endpoint, username: username, auth: auth)
             let session = try await transport.connect(
-                endpoint, username: username, auth: auth, hostKeyPolicy: .tofu
+                SSHConnectionPlan(
+                    hops: hops,
+                    target: target,
+                    privateNetworkProfileID: host.privateNetworkProfileID,
+                    proxyConfiguration: host.proxyConfiguration,
+                    proxyPassword: proxyPassword
+                ),
+                hostKeyPolicy: .tofu
             )
             // 连接成功 = 四步全过
             markAllOK()
@@ -91,6 +105,13 @@ final class ConnectionTester {
         case .sftpError, .commandTimeout:
             // 这两类在连接测试里都不应出现：本流程只走 SSH 握手，既不开 SFTP 子系统，
             // 也不跑命令。兜底归到「连接端口」失败，保证 switch 穷尽且用户仍看到诊断。
+            passUpTo(0)
+            fail(at: 1, detail: error.diagnosis)
+        case .privateNetworkUnsupported, .privateNetworkUnavailable:
+            passUpTo(0)
+            fail(at: 1, detail: error.diagnosis)
+        case .proxyUnsupported, .proxyUnavailable, .proxyAuthenticationFailed,
+             .privateNetworkAndProxyConflict:
             passUpTo(0)
             fail(at: 1, detail: error.diagnosis)
         }

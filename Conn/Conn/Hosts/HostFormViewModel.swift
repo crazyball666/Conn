@@ -17,6 +17,7 @@ struct HostFormSaveResult: Sendable {
 final class HostFormViewModel {
     var draft: HostDraft
     var password = ""
+    var proxyPassword = ""
     private(set) var fieldErrors: [HostDraft.Field: String] = [:]
     var saveError: String?
 
@@ -25,12 +26,16 @@ final class HostFormViewModel {
     private let credentialStore: any CredentialStore
     private let groupStore: any HostGroupRepository
     private let keyStore: any SSHKeyRepository
+    private let privateNetworkProfileStore: any PrivateNetworkProfileRepository
     private var previousHost: Host?
     private var previousPassword = ""
+    private var previousProxyPassword = ""
     var loadError: String?
     /// 可选分组。表单只做多选，新建分组走服务器页工具栏的「+」菜单。
     private(set) var availableGroups: [HostGroup] = []
     private(set) var availableKeys: [SSHKey] = []
+    private(set) var availablePrivateNetworkProfiles: [PrivateNetworkProfile] = []
+    private(set) var availableJumpHosts: [Host] = []
 
     var isEditing: Bool { editingHostID != nil }
     var title: String { isEditing ? L("编辑主机") : L("添加主机") }
@@ -39,6 +44,10 @@ final class HostFormViewModel {
     /// 静默降级成空密码，否则用户会得到误导性的“密码错误”。
     var canTestConnection: Bool {
         guard loadError == nil else { return false }
+        if draft.proxyConfiguration?.authentication == .password,
+           proxyPassword.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return false
+        }
         guard draft.authKind == .key else { return true }
         return hasPrivateKeyMaterial
     }
@@ -49,7 +58,8 @@ final class HostFormViewModel {
         hostStore: any HostRepository,
         credentialStore: any CredentialStore,
         groupStore: any HostGroupRepository,
-        keyStore: any SSHKeyRepository
+        keyStore: any SSHKeyRepository,
+        privateNetworkProfileStore: any PrivateNetworkProfileRepository
     ) {
         self.draft = draft
         self.editingHostID = editingHostID
@@ -57,6 +67,7 @@ final class HostFormViewModel {
         self.credentialStore = credentialStore
         self.groupStore = groupStore
         self.keyStore = keyStore
+        self.privateNetworkProfileStore = privateNetworkProfileStore
         loadReferences()
     }
 
@@ -71,16 +82,25 @@ final class HostFormViewModel {
             previousHost = try editingHostID.flatMap { try hostStore.host(id: $0) }
             availableGroups = try groupStore.allGroups()
             availableKeys = try keyStore.allKeys()
+            availablePrivateNetworkProfiles = try privateNetworkProfileStore.allProfiles()
+            let allHosts = try hostStore.allHosts()
+            availableJumpHosts = allHosts.filter { $0.id != editingHostID }
             if let id = editingHostID {
                 let storedPassword = try credentialStore.password(forHost: id) ?? ""
                 password = storedPassword
                 previousPassword = storedPassword
+                let storedProxyPassword = try credentialStore.proxyPassword(forHost: id) ?? ""
+                proxyPassword = storedProxyPassword
+                previousProxyPassword = storedProxyPassword
             } else {
                 previousPassword = ""
+                previousProxyPassword = ""
             }
         } catch {
             availableGroups = []
             availableKeys = []
+            availablePrivateNetworkProfiles = []
+            availableJumpHosts = []
             loadError = L("读取主机配置失败，请重试")
         }
     }
@@ -110,6 +130,27 @@ final class HostFormViewModel {
             fieldErrors[.key] = L("所选密钥不可用，请重新导入或生成密钥")
             return nil
         }
+        if let profileID = draft.privateNetworkProfileID {
+            guard let profile = availablePrivateNetworkProfiles.first(where: { $0.id == profileID }) else {
+                fieldErrors[.privateNetwork] = L("所选私有网络配置不存在，请重新选择")
+                return nil
+            }
+            if profile.validationError != nil {
+                fieldErrors[.privateNetwork] = L("私有网络配置不完整，请先编辑配置")
+                return nil
+            }
+        }
+        if let proxy = draft.proxyConfiguration,
+           proxy.authentication == .password,
+           proxyPassword.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            fieldErrors[.proxy] = L("请输入代理密码")
+            return nil
+        }
+        let jumpHostIDs = Set(availableJumpHosts.map(\.id))
+        if draft.jumpChain.contains(where: { !jumpHostIDs.contains($0) }) {
+            fieldErrors[.jumpChain] = L("请选择有效的跳板机")
+            return nil
+        }
 
         // 丢掉解析不到现存分组的悬空 id（分组在编辑期间被删是良性竞态）。
         // store 层也会过滤，这里是就近防御。
@@ -123,14 +164,20 @@ final class HostFormViewModel {
             if draft.authKind == .password {
                 try credentialStore.setPassword(password.isEmpty ? nil : password, forHost: host.id)
             } else {
-                // 切换到密钥认证后，旧密码不再是有效凭据，必须同步清理。
-                try credentialStore.deleteAll(forHost: host.id)
+                // 切换到密钥认证后，旧密码不再是有效凭据，必须同步清理；
+                // 代理密码属于另一条独立凭据，不应被顺带删除。
+                try credentialStore.setPassword(nil, forHost: host.id)
+            }
+            if let proxy = draft.proxyConfiguration, proxy.authentication == .password {
+                try credentialStore.setProxyPassword(proxyPassword, forHost: host.id)
+            } else {
+                try credentialStore.deleteProxyPassword(forHost: host.id)
             }
             do {
                 try hostStore.save(host)
             } catch {
-                // 数据库写入失败时恢复原密码，避免 Keychain 与 SQLite 分叉。
-                if !restorePreviousCredential(for: host.id) {
+                // 数据库写入失败时恢复原密码和代理密码，避免 Keychain 与 SQLite 分叉。
+                if !restorePreviousCredentials(for: host.id) {
                     credentialRollbackFailed = true
                 }
                 throw error
@@ -171,6 +218,49 @@ final class HostFormViewModel {
         }
     }
 
+    /// 构造连接测试使用的跳板链。跳板机必须是已保存主机，认证材料从同一
+    /// Keychain 入口解析，确保“测试连接”与正式连接使用完全相同的链路。
+    func currentJumpHops() throws -> [SSHJumpHop] {
+        try draft.jumpChain.enumerated().map { index, jumpID in
+            guard let jumpHost = try hostStore.host(id: jumpID) else {
+                throw SSHError.jumpChainFailed(hopIndex: index, hopHost: jumpID)
+            }
+            let auth = try resolvedAuth(for: jumpHost)
+            return SSHJumpHop(
+                endpoint: SSHEndpoint(host: jumpHost.address, port: jumpHost.port),
+                username: jumpHost.username,
+                auth: auth
+            )
+        }
+    }
+
+    private func resolvedAuth(for host: Host) throws -> SSHAuth {
+        guard host.authKind == .key else {
+            return .password(try credentialStore.password(forHost: host.id) ?? "")
+        }
+        guard let keyID = host.keyUUID,
+              let key = try keyStore.key(id: keyID),
+              let material = try credentialStore.privateKey(forKey: keyID),
+              !material.isEmpty
+        else { throw SSHError.missingPrivateKey }
+
+        switch key.kind {
+        case .ed25519, .ecdsaP256:
+            if material.contains("BEGIN ") {
+                return .key(SSHPrivateKeyMaterial(kind: key.kind, pem: material))
+            }
+            guard let raw = Data(base64Encoded: material) else { throw SSHError.missingPrivateKey }
+            return .key(SSHPrivateKeyMaterial(kind: key.kind, raw: raw))
+        case .rsa:
+            return .key(SSHPrivateKeyMaterial(kind: .rsa, pem: material))
+        }
+    }
+
+    var currentProxyPassword: String? {
+        guard draft.proxyConfiguration?.authentication == .password else { return nil }
+        return proxyPassword
+    }
+
     private var hasPrivateKeyMaterial: Bool {
         guard let keyID = draft.keyUUID else { return false }
         do {
@@ -184,13 +274,18 @@ final class HostFormViewModel {
         }
     }
 
-    private func restorePreviousCredential(for hostID: String) -> Bool {
+    private func restorePreviousCredentials(for hostID: String) -> Bool {
         var succeeded = true
         do {
             if previousHost?.authKind == .password {
                 try credentialStore.setPassword(previousPassword.isEmpty ? nil : previousPassword, forHost: hostID)
             } else {
-                try credentialStore.deleteAll(forHost: hostID)
+                try credentialStore.setPassword(nil, forHost: hostID)
+            }
+            if previousHost?.proxyConfiguration?.authentication == .password {
+                try credentialStore.setProxyPassword(previousProxyPassword, forHost: hostID)
+            } else {
+                try credentialStore.deleteProxyPassword(forHost: hostID)
             }
         } catch {
             succeeded = false
@@ -206,6 +301,9 @@ final class HostFormViewModel {
             || previousHost.authKind != host.authKind
             || previousHost.keyUUID != host.keyUUID
             || previousHost.jumpChain != host.jumpChain
+            || previousHost.privateNetworkProfileID != host.privateNetworkProfileID
+            || previousHost.proxyConfiguration != host.proxyConfiguration
             || (host.authKind == .password && previousPassword != password)
+            || (host.proxyConfiguration?.authentication == .password && previousProxyPassword != proxyPassword)
     }
 }

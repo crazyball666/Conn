@@ -17,6 +17,35 @@ struct MockSSHTransportTests {
         _ = session
     }
 
+    @Test("旧传输实现不会静默忽略代理配置")
+    func planRejectsProxyConfiguration() async throws {
+        let target = SSHJumpHop(endpoint: endpoint, username: "root", auth: .password("x"))
+        let plan = SSHConnectionPlan(
+            hops: [],
+            target: target,
+            proxyConfiguration: SSHProxyConfiguration(host: "proxy.local")
+        )
+
+        await #expect(throws: SSHError.proxyUnsupported) {
+            try await MockSSHTransport().connect(plan, hostKeyPolicy: .tofu)
+        }
+    }
+
+    @Test("代理与嵌入式私有网络同时配置会明确失败")
+    func planRejectsConflictingRoutes() async throws {
+        let target = SSHJumpHop(endpoint: endpoint, username: "root", auth: .password("x"))
+        let plan = SSHConnectionPlan(
+            hops: [],
+            target: target,
+            privateNetworkProfileID: "tailnet",
+            proxyConfiguration: SSHProxyConfiguration(host: "proxy.local")
+        )
+
+        await #expect(throws: SSHError.privateNetworkAndProxyConflict) {
+            try await MockSSHTransport().connect(plan, hostKeyPolicy: .tofu)
+        }
+    }
+
     @Test("注入连接拒绝 → 抛 connectionRefused")
     func injectedConnectionRefused() async throws {
         let transport = MockSSHTransport(behavior: .init(failConnect: .connectionRefused(endpoint: SSHEndpoint(

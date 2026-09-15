@@ -1,6 +1,62 @@
 {
   "sourceLanguage" : "zh-Hans",
   "strings" : {
+    "代理配置无效" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Invalid proxy configuration" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "プロキシ設定が無効です" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "잘못된 프록시 구성" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "代理設定無效" } }
+      }
+    },
+    "当前连接引擎不支持代理连接。\n请更新连接引擎或移除该主机的代理配置。" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "The current connection engine does not support proxy connections.\nUpdate the engine or remove the proxy configuration from this host." } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "現在の接続エンジンはプロキシ接続に対応していません。\nエンジンを更新するか、このホストからプロキシ設定を削除してください。" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "현재 연결 엔진은 프록시 연결을 지원하지 않습니다.\n엔진을 업데이트하거나 이 호스트에서 프록시 구성을 제거하세요." } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "目前的連線引擎不支援代理連線。\n請更新連線引擎或移除此主機的代理設定。" } }
+      }
+    },
+    "代理连接失败：%@\n请确认代理地址、端口和网络状态。" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Proxy connection failed: %@\nCheck the proxy address, port, and network status." } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "プロキシ接続に失敗しました：%@\nプロキシのアドレス、ポート、ネットワーク状態を確認してください。" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "프록시 연결 실패: %@\n프록시 주소, 포트 및 네트워크 상태를 확인하세요." } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "代理連線失敗：%@\n請確認代理位址、連接埠和網路狀態。" } }
+      }
+    },
+    "代理认证失败。\n请核对代理用户名和密码。" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Proxy authentication failed.\nCheck the proxy username and password." } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "プロキシ認証に失敗しました。\nプロキシのユーザー名とパスワードを確認してください。" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "프록시 인증 실패.\n프록시 사용자 이름과 암호를 확인하세요." } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "代理驗證失敗。\n請核對代理使用者名稱和密碼。" } }
+      }
+    },
+    "内置 Tailscale/Headscale 与普通代理不能同时启用。\n请只保留一种连接路径。" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Embedded Tailscale/Headscale and a regular proxy cannot be enabled together.\nKeep only one connection path." } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "組み込みの Tailscale/Headscale と通常のプロキシは同時に有効にできません。\n接続経路を 1 つだけ残してください。" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "내장 Tailscale/Headscale과 일반 프록시는 함께 사용할 수 없습니다.\n연결 경로를 하나만 남기세요." } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "內建 Tailscale/Headscale 與一般代理無法同時啟用。\n請只保留一種連線路徑。" } }
+      }
+    },
+    "私有网络配置 %@ 尚未接入当前连接引擎。\n请更新应用或移除该主机的私有网络配置。" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Private network profile %@ is not supported by the current connection engine.\nUpdate the app or remove the private network profile from this host." } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "プライベートネットワーク設定 %@ は現在の接続エンジンに未対応です。\nアプリを更新するか、このホストから設定を削除してください。" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "현재 연결 엔진은 프라이빗 네트워크 구성 %@을(를) 지원하지 않습니다.\n앱을 업데이트하거나 이 호스트에서 구성을 제거하세요." } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "目前連線引擎尚未支援私有網路設定 %@。\n請更新 App 或移除這部主機的私有網路設定。" } }
+      }
+    },
+    "私有网络 %@ 无法启动：%@\n请确认 auth key、控制端点和 Tailnet 状态。" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Private network %@ could not start: %@\nCheck the auth key, control endpoint, and Tailnet status." } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "プライベートネットワーク %@ を起動できません：%@\nauth key、コントロールエンドポイント、Tailnet の状態を確認してください。" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "프라이빗 네트워크 %@을(를) 시작할 수 없습니다: %@\nauth key, 제어 엔드포인트 및 Tailnet 상태를 확인하세요." } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "無法啟動私有網路 %@：%@\n請確認 auth key、控制端點和 Tailnet 狀態。" } }
+      }
+    },
     "find -delete 批量删除文件" : {
       "localizations" : {
         "en" : {

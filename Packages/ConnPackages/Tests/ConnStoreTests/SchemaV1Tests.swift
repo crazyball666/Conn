@@ -23,7 +23,7 @@ struct SchemaV1Tests {
         #expect(tables == [
             "builtin_snippet_catalog_state", "builtin_snippet_suppression",
             "host", "host_group", "host_group_membership", "known_host",
-            "persistent_terminal_resume_record", "run_history", "snippet", "snippet_group",
+            "persistent_terminal_resume_record", "private_network_profile", "run_history", "snippet", "snippet_group",
             "snippet_group_membership", "ssh_key"
         ])
     }
@@ -140,6 +140,13 @@ struct SchemaV1Tests {
             username: "root",
             port: 2222,
             jumpChain: ["bastion-uuid"],
+            proxyConfiguration: SSHProxyConfiguration(
+                kind: .httpConnect,
+                host: "proxy.example.com",
+                port: 8080,
+                authentication: .password,
+                username: "proxy-user"
+            ),
             tags: ["prod", "web"]
         )
         try db.writer.write { try HostRecord(host).insert($0) }
@@ -152,13 +159,21 @@ struct SchemaV1Tests {
     @Test("jump_chain 与 tags 以 JSON 存储，可正确往返")
     func jsonColumnsRoundTrip() throws {
         let db = try AppDatabase.inMemory()
-        let host = DomainHost(name: "a", address: "1", username: "r", jumpChain: ["x", "y"], tags: ["p"])
+        let host = DomainHost(
+            name: "a",
+            address: "1",
+            username: "r",
+            jumpChain: ["x", "y"],
+            proxyConfiguration: SSHProxyConfiguration(kind: .socks5, host: "proxy", port: 1080),
+            tags: ["p"]
+        )
         try db.writer.write { try HostRecord(host).insert($0) }
 
         let raw = try db.writer.read { database in
-            try Row.fetchOne(database, sql: "SELECT jump_chain, tags FROM host")
+            try Row.fetchOne(database, sql: "SELECT jump_chain, proxy_configuration, tags FROM host")
         }
         #expect(raw?["jump_chain"] == #"["x","y"]"#)
+        #expect(raw?["proxy_configuration"] != nil)
         #expect(raw?["tags"] == #"["p"]"#)
     }
 

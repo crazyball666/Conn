@@ -22,6 +22,29 @@ struct ConnectionTesterTests {
         #expect(tester.steps.allSatisfy { $0.state == .ok })
     }
 
+    @Test("连接测试会把跳板链传给传输层")
+    func forwardsJumpChainToTransport() async throws {
+        let transport = PlanRecordingTransport()
+        let hop = SSHJumpHop(
+            endpoint: SSHEndpoint(host: "bastion.example.com", port: 2200),
+            username: "ops",
+            auth: .password("jump-password")
+        )
+        let tester = ConnectionTester(transport: transport)
+
+        await tester.run(
+            host: host(),
+            username: "root",
+            auth: .password("target-password"),
+            hops: [hop]
+        )
+
+        let plan = try #require(await transport.plan)
+        #expect(plan.hops.map(\.endpoint) == [hop.endpoint])
+        #expect(plan.hops.first?.username == "ops")
+        #expect(tester.succeeded)
+    }
+
     @Test("DNS 失败 → 第 1 步（解析地址）失败")
     func dnsFailureAtStep0() async {
         let transport = MockSSHTransport(behavior: .init(failConnect: .dnsFailed(host: "bad")))
@@ -70,5 +93,44 @@ struct ConnectionTesterTests {
         #expect(tester.steps[0].state == .ok)
         #expect(tester.steps[2].state == .ok)
         #expect(tester.steps[3].state == .failed)
+    }
+}
+
+private actor PlanCapture {
+    private(set) var plan: SSHConnectionPlan?
+
+    func record(_ plan: SSHConnectionPlan) {
+        self.plan = plan
+    }
+}
+
+private final class PlanRecordingTransport: SSHTransport, @unchecked Sendable {
+    private let capture = PlanCapture()
+    private let base = MockSSHTransport()
+
+    var plan: SSHConnectionPlan? {
+        get async { await capture.plan }
+    }
+
+    func connect(
+        _ endpoint: SSHEndpoint,
+        username: String,
+        auth: SSHAuth,
+        hostKeyPolicy: HostKeyPolicy
+    ) async throws -> any SSHSession {
+        try await base.connect(endpoint, username: username, auth: auth, hostKeyPolicy: hostKeyPolicy)
+    }
+
+    func connect(
+        _ plan: SSHConnectionPlan,
+        hostKeyPolicy: HostKeyPolicy
+    ) async throws -> any SSHSession {
+        await capture.record(plan)
+        return try await base.connect(
+            plan.target.endpoint,
+            username: plan.target.username,
+            auth: plan.target.auth,
+            hostKeyPolicy: hostKeyPolicy
+        )
     }
 }

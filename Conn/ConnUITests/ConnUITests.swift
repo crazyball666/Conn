@@ -248,6 +248,72 @@ final class ConnUITests: XCTestCase {
     }
 
     @MainActor
+    func testHostFormExposesPrivateNetworkProfileEditor() {
+        let app = XCUIApplication()
+        app.launch()
+
+        XCTAssertTrue(app.tabBars.buttons["tab.servers"].waitForExistence(timeout: 10))
+        app.buttons["servers.add"].tap()
+        let addServer = app.buttons["servers.add-host"]
+        XCTAssertTrue(addServer.waitForExistence(timeout: 5))
+        addServer.tap()
+
+        XCTAssertTrue(app.descendants(matching: .any)["host-form"].waitForExistence(timeout: 5))
+        let advanced = app.descendants(matching: .any)["host-form.advanced"]
+        XCTAssertTrue(advanced.waitForExistence(timeout: 5), app.debugDescription)
+        advanced.tap()
+        let form = app.collectionViews["host-form"]
+        let scrollStart = form.coordinate(withNormalizedOffset: CGVector(dx: 0.01, dy: 0.85))
+        let scrollEnd = form.coordinate(withNormalizedOffset: CGVector(dx: 0.01, dy: 0.25))
+        scrollStart.press(forDuration: 0.1, thenDragTo: scrollEnd)
+        let privateNetworkPickerOption = app.buttons["普通网络直连"]
+        if privateNetworkPickerOption.exists {
+            privateNetworkPickerOption.tap()
+        }
+        XCTAssertTrue(app.descendants(matching: .any)["host-form.private-network"].exists, app.debugDescription)
+
+        let manage = app.buttons["host-form.private-network.manage"]
+        XCTAssertTrue(manage.waitForExistence(timeout: 5), app.debugDescription)
+        XCTAssertTrue(manage.isHittable, app.debugDescription)
+        manage.coordinate(withNormalizedOffset: CGVector(dx: 0.1, dy: 0.5)).tap()
+
+        XCTAssertTrue(app.descendants(matching: .any)["private-network-profile.name"]
+            .waitForExistence(timeout: 5), app.debugDescription)
+        XCTAssertTrue(app.textFields["private-network-profile.control-url"].exists)
+        XCTAssertTrue(app.buttons["private-network-profile.save"].exists)
+        app.buttons["private-network-profile.cancel"].tap()
+        XCTAssertTrue(app.descendants(matching: .any)["host-form"].waitForExistence(timeout: 5))
+        XCTAssertEqual(app.state, .runningForeground)
+    }
+
+    @MainActor
+    func testHostFormExposesProxyAndJumpHostSettings() {
+        let app = XCUIApplication()
+        app.launch()
+
+        XCTAssertTrue(app.tabBars.buttons["tab.servers"].waitForExistence(timeout: 10))
+        app.buttons["servers.add"].tap()
+        let addServer = app.buttons["servers.add-host"]
+        XCTAssertTrue(addServer.waitForExistence(timeout: 5))
+        addServer.tap()
+
+        XCTAssertTrue(app.descendants(matching: .any)["host-form"].waitForExistence(timeout: 5))
+        let advanced = app.descendants(matching: .any)["host-form.advanced"]
+        XCTAssertTrue(advanced.waitForExistence(timeout: 5))
+        advanced.tap()
+        app.swipeUp()
+
+        let proxyToggle = app.switches["host-form.proxy-toggle"]
+        XCTAssertTrue(proxyToggle.waitForExistence(timeout: 5), app.debugDescription)
+        XCTAssertTrue(app.switches["host-form.jump-toggle"].exists)
+        proxyToggle.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5)).tap()
+        XCTAssertTrue(app.descendants(matching: .any)["host-form.proxy-kind"].waitForExistence(timeout: 5), app.debugDescription)
+        XCTAssertTrue(app.textFields["host-form.proxy-host"].exists)
+        XCTAssertTrue(app.textFields["host-form.proxy-port"].exists)
+        XCTAssertEqual(app.state, .runningForeground)
+    }
+
+    @MainActor
     func testLaunchPerformance() {
         measure(metrics: [XCTApplicationLaunchMetric()]) {
             XCUIApplication().launch()

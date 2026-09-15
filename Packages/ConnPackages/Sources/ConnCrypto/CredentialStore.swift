@@ -12,6 +12,12 @@ public protocol CredentialStore: Sendable {
     func setPassword(_ password: String?, forHost hostID: String) throws
     func password(forHost hostID: String) throws -> String?
 
+    /// 存某台主机的代理密码。传 nil 删除；代理地址、端口和用户名属于普通配置，
+    /// 只有密码通过此接口进入 Keychain。
+    func setProxyPassword(_ password: String?, forHost hostID: String) throws
+    func proxyPassword(forHost hostID: String) throws -> String?
+    func deleteProxyPassword(forHost hostID: String) throws
+
     /// 删除某主机的全部凭据（主机被删除时调用）。
     func deleteAll(forHost hostID: String) throws
 
@@ -23,6 +29,11 @@ public protocol CredentialStore: Sendable {
     /// 这样卸载应用后仍能恢复名称、算法和公钥；私钥材料仍单独保存。
     func setKeyMetadata(_ key: SSHKey?, forKey keyID: String) throws
     func allKeyMetadata() throws -> [SSHKey]
+
+    /// 存储 Tailscale/Headscale auth key。明文只存在 Keychain，传 nil 删除。
+    func setPrivateNetworkAuthKey(_ authKey: String?, forProfile profileID: String) throws
+    func privateNetworkAuthKey(forProfile profileID: String) throws -> String?
+    func deletePrivateNetworkAuthKey(forProfile profileID: String) throws
 }
 
 /// 凭据存取错误。

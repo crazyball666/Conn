@@ -28,6 +28,31 @@ public struct SSHJumpHop: Sendable {
     }
 }
 
+/// 一次 SSH 握手的完整连接计划。私有网络是这次握手的路径属性，
+/// 不会修改系统路由，也不会影响其它主机连接。
+public struct SSHConnectionPlan: Sendable {
+    public let hops: [SSHJumpHop]
+    public let target: SSHJumpHop
+    public let privateNetworkProfileID: String?
+    public let proxyConfiguration: SSHProxyConfiguration?
+    /// 代理密码只在建立连接的瞬间存在于内存，不进入连接计划的持久化模型。
+    public let proxyPassword: String?
+
+    public init(
+        hops: [SSHJumpHop],
+        target: SSHJumpHop,
+        privateNetworkProfileID: String? = nil,
+        proxyConfiguration: SSHProxyConfiguration? = nil,
+        proxyPassword: String? = nil
+    ) {
+        self.hops = hops
+        self.target = target
+        self.privateNetworkProfileID = privateNetworkProfileID
+        self.proxyConfiguration = proxyConfiguration
+        self.proxyPassword = proxyPassword
+    }
+}
+
 /// 私钥材料。
 ///
 /// **只在建立连接的瞬间存在于内存**，由上层从 Keychain 取出后
@@ -161,6 +186,16 @@ public enum SSHError: Error, Sendable, Equatable {
     case unsupportedByEngine(SSHAuth.Feature)
     /// 跳板链在第 `hopIndex`（从 0 起）级失败，该级主机名为 `hopHost`。
     case jumpChainFailed(hopIndex: Int, hopHost: String)
+    /// 私有网络配置存在但当前 SSH 引擎没有接入对应 runtime。
+    case privateNetworkUnsupported(profileID: String)
+    /// 私有网络 runtime 启动或 SOCKS5 转发失败。
+    case privateNetworkUnavailable(profileID: String, reason: String)
+    /// 普通 HTTP CONNECT / SOCKS5 代理与当前传输层组合失败。
+    case proxyUnsupported
+    case proxyUnavailable(reason: String)
+    case proxyAuthenticationFailed
+    /// 代理和嵌入式 Tailscale/Headscale 都会接管同一条出站路径，不能同时启用。
+    case privateNetworkAndProxyConflict
     case channelClosed
     /// SFTP 子层错误：来自 Citadel 的 `SFTPMessage.Status`。
     ///
@@ -215,6 +250,18 @@ public enum SSHError: Error, Sendable, Equatable {
         case let .jumpChainFailed(hopIndex, hopHost):
             String(format: L("跳板链第 %d 级（%@）连接失败。\n请单独检查该级跳板机的连通性和凭据。"),
                    hopIndex + 1, hopHost)
+        case let .privateNetworkUnsupported(profileID):
+            String(format: L("私有网络配置 %@ 尚未接入当前连接引擎。\n请更新应用或移除该主机的私有网络配置。"), profileID)
+        case let .privateNetworkUnavailable(profileID, reason):
+            String(format: L("私有网络 %@ 无法启动：%@\n请确认 auth key、控制端点和 Tailnet 状态。"), profileID, reason)
+        case .proxyUnsupported:
+            L("当前连接引擎不支持代理连接。\n请更新连接引擎或移除该主机的代理配置。")
+        case let .proxyUnavailable(reason):
+            String(format: L("代理连接失败：%@\n请确认代理地址、端口和网络状态。"), reason)
+        case .proxyAuthenticationFailed:
+            L("代理认证失败。\n请核对代理用户名和密码。")
+        case .privateNetworkAndProxyConflict:
+            L("内置 Tailscale/Headscale 与普通代理不能同时启用。\n请只保留一种连接路径。")
         case .channelClosed:
             L("连接通道已关闭。\n请重新连接或检查远程会话是否已终止。")
         case let .sftpError(_, message):

@@ -1,4 +1,5 @@
 import ConnKit
+import ConnSSH
 import ConnUI
 import SwiftUI
 
@@ -10,8 +11,13 @@ struct HostFormView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var viewModel: HostFormViewModel
     @State private var showDiagnostics = false
+    @State private var diagnosticsHops: [SSHJumpHop] = []
+    @State private var diagnosticsError: String?
     @State private var isGroupExpanded = false
+    @State private var isAdvancedExpanded = false
     @State private var isPasswordVisible = false
+    @State private var isProxyPasswordVisible = false
+    @State private var privateNetworkProfileEditorRequest: PrivateNetworkProfileEditorRequest?
     @FocusState private var focus: HostDraft.Field?
     private let dependencies: AppDependencies
     private let onSaved: @MainActor (HostFormSaveResult) -> Void
@@ -27,13 +33,17 @@ struct HostFormView: View {
     ) {
         self.dependencies = dependencies
         self.onSaved = onSaved
+        _isAdvancedExpanded = State(initialValue: initialDraft.privateNetworkProfileID != nil
+            || initialDraft.proxyConfiguration != nil
+            || !initialDraft.jumpChain.isEmpty)
         _viewModel = State(initialValue: HostFormViewModel(
             draft: initialDraft,
             editingHostID: editingHostID,
             hostStore: dependencies.hostRepository,
             credentialStore: dependencies.credentialStore,
             groupStore: dependencies.hostGroupRepository,
-            keyStore: dependencies.keyRepository
+            keyStore: dependencies.keyRepository,
+            privateNetworkProfileStore: dependencies.privateNetworkProfileRepository
         ))
     }
 
@@ -44,8 +54,9 @@ struct HostFormView: View {
                 identitySection
                 connectionSection
                 authSection
-                groupSection
                 testSection
+                advancedSection
+                groupSection
             }
             .scrollContentBackground(.hidden)
             .background(Color.connBg.ignoresSafeArea())
@@ -68,7 +79,20 @@ struct HostFormView: View {
                     host: viewModel.draft.toHost(existingID: viewModel.editingHostID),
                     username: viewModel.draft.username,
                     auth: viewModel.currentAuth(),
+                    hops: diagnosticsHops,
+                    proxyPassword: viewModel.currentProxyPassword,
                     transport: dependencies.diagnosticsTransport
+                )
+            }
+            .sheet(item: $privateNetworkProfileEditorRequest) { request in
+                PrivateNetworkProfileEditorView(
+                    profileStore: dependencies.privateNetworkProfileRepository,
+                    credentialStore: dependencies.credentialStore,
+                    initialProfile: request.profile,
+                    onSaved: { profile in
+                        viewModel.draft.privateNetworkProfileID = profile.id
+                        viewModel.reloadReferences()
+                    }
                 )
             }
             .alert(L("保存失败"), isPresented: Binding(
@@ -87,6 +111,14 @@ struct HostFormView: View {
                 Button(L("取消"), role: .cancel) { dismiss() }
             } message: {
                 Text(viewModel.loadError ?? L("请稍后重试"))
+            }
+            .alert(L("连接测试失败"), isPresented: Binding(
+                get: { diagnosticsError != nil },
+                set: { if !$0 { diagnosticsError = nil } }
+            )) {
+                Button(L("确定"), role: .cancel) { diagnosticsError = nil }
+            } message: {
+                Text(diagnosticsError ?? "")
             }
         }
     }
@@ -150,6 +182,290 @@ struct HostFormView: View {
             }
         }
         .listRowBackground(Color.connSurface)
+    }
+
+    @ViewBuilder
+    private var advancedSection: some View {
+        Section {
+            DisclosureGroup(isExpanded: $isAdvancedExpanded) {
+                privateNetworkSettings
+                privateNetworkManagementRow
+                proxySettings
+                jumpSettings
+            } label: {
+                Label(L("高级设置"), systemImage: "gearshape")
+                    .foregroundStyle(.connInk)
+                    .accessibilityElement(children: .combine)
+                    .accessibilityIdentifier("host-form.advanced")
+            }
+            .listRowBackground(Color.connSurface)
+        }
+    }
+
+    private var privateNetworkSettings: some View {
+        VStack(alignment: .leading, spacing: ConnSpacing.sm) {
+            Picker(L("私有网络"), selection: Binding(
+                get: { viewModel.draft.privateNetworkProfileID ?? "" },
+                set: {
+                    viewModel.draft.privateNetworkProfileID = $0.isEmpty ? nil : $0
+                    if !$0.isEmpty {
+                        viewModel.draft.proxyConfiguration = nil
+                        viewModel.proxyPassword = ""
+                    }
+                }
+            )) {
+                Text(L("普通网络直连")).tag("")
+                ForEach(viewModel.availablePrivateNetworkProfiles) { profile in
+                    Text("\(profile.name) · \(privateNetworkProviderName(profile.provider))")
+                        .tag(profile.id)
+                }
+            }
+            .tint(.connMuted)
+            .accessibilityIdentifier("host-form.private-network")
+            if let error = viewModel.fieldErrors[.privateNetwork] {
+                Text(error).font(.connFootnote).foregroundStyle(.connCrit)
+            }
+            Text(L("仅当前主机使用嵌入式连接，不会启动系统 VPN；需要对应 Tailnet 的 auth key。"))
+                .font(.connFootnote)
+                .foregroundStyle(.connMuted)
+        }
+        .padding(.vertical, ConnSpacing.xs)
+    }
+
+    private var privateNetworkManagementRow: some View {
+        VStack(alignment: .leading, spacing: ConnSpacing.sm) {
+            Button {
+                privateNetworkProfileEditorRequest = .init(profile: nil)
+            } label: {
+                Label(L("管理 Tailscale / Headscale 配置"), systemImage: "network")
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .contentShape(Rectangle())
+            .accessibilityIdentifier("host-form.private-network.manage")
+            if let profileID = viewModel.draft.privateNetworkProfileID,
+               let profile = viewModel.availablePrivateNetworkProfiles.first(where: { $0.id == profileID }) {
+                Button {
+                    privateNetworkProfileEditorRequest = .init(profile: profile)
+                } label: {
+                    Label(L("编辑当前配置"), systemImage: "pencil")
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .contentShape(Rectangle())
+                .accessibilityIdentifier("host-form.private-network.edit")
+            }
+        }
+        .padding(.vertical, ConnSpacing.xs)
+    }
+
+    private var proxySettings: some View {
+        VStack(alignment: .leading, spacing: ConnSpacing.sm) {
+            Toggle(L("使用代理"), isOn: Binding(
+                get: { viewModel.draft.proxyConfiguration != nil },
+                set: { enabled in
+                    if enabled {
+                        viewModel.draft.privateNetworkProfileID = nil
+                        if viewModel.draft.proxyConfiguration == nil {
+                            viewModel.draft.proxyConfiguration = SSHProxyConfiguration()
+                        }
+                    } else {
+                        viewModel.draft.proxyConfiguration = nil
+                        viewModel.proxyPassword = ""
+                    }
+                }
+            ))
+            .tint(.connAccent)
+            .accessibilityIdentifier("host-form.proxy-toggle")
+
+            if viewModel.draft.proxyConfiguration != nil {
+                Picker(L("类型"), selection: proxyBinding(\.kind, fallback: .httpConnect)) {
+                    Text(L("HTTP CONNECT")).tag(SSHProxyConfiguration.Kind.httpConnect)
+                    Text(L("SOCKS5")).tag(SSHProxyConfiguration.Kind.socks5)
+                }
+                .tint(.connMuted)
+                .accessibilityIdentifier("host-form.proxy-kind")
+
+                textRow(
+                    L("代理 Host"), field: nil, text: proxyBinding(\.host, fallback: ""),
+                    placeholder: L("proxy.example.com"),
+                    keyboard: .URL,
+                    identifier: "proxy-host"
+                )
+                proxyPortRow
+                Picker(L("认证"), selection: proxyBinding(\.authentication, fallback: .none)) {
+                    Text(L("无")).tag(SSHProxyConfiguration.Authentication.none)
+                    Text(L("用户名/密码")).tag(SSHProxyConfiguration.Authentication.password)
+                }
+                .tint(.connMuted)
+                .accessibilityIdentifier("host-form.proxy-authentication")
+                if viewModel.draft.proxyConfiguration?.authentication == .password {
+                    textRow(
+                        L("用户名"), field: nil, text: proxyBinding(\.username, fallback: ""),
+                        placeholder: L("代理用户名"), identifier: "proxy-username"
+                    )
+                    proxyPasswordRow
+                }
+                if let error = viewModel.fieldErrors[.proxy] {
+                    Text(error).font(.connFootnote).foregroundStyle(.connCrit)
+                }
+                Text(L("通过 HTTP CONNECT 或 SOCKS5 代理隧道访问 SSH。"))
+                    .font(.connFootnote)
+                    .foregroundStyle(.connMuted)
+            }
+        }
+        .padding(.vertical, ConnSpacing.xs)
+    }
+
+    private var jumpSettings: some View {
+        VStack(alignment: .leading, spacing: ConnSpacing.sm) {
+            Toggle(L("使用跳板机"), isOn: Binding(
+                get: { !viewModel.draft.jumpChain.isEmpty },
+                set: { enabled in
+                    if enabled {
+                        if viewModel.draft.jumpChain.isEmpty,
+                           let first = viewModel.availableJumpHosts.first {
+                            viewModel.draft.jumpChain = [first.id]
+                        }
+                    } else {
+                        viewModel.draft.jumpChain = []
+                    }
+                }
+            ))
+            .tint(.connAccent)
+            .accessibilityIdentifier("host-form.jump-toggle")
+
+            ForEach(Array(viewModel.draft.jumpChain.enumerated()), id: \.offset) { index, _ in
+                HStack(spacing: ConnSpacing.sm) {
+                    Picker(L("跳板机"), selection: jumpBinding(at: index)) {
+                        Text(L("请选择")).tag("")
+                        ForEach(jumpOptions(for: index)) { host in
+                            Text(host.displayAddress).tag(host.id)
+                        }
+                    }
+                    .tint(.connMuted)
+                    .accessibilityIdentifier("host-form.jump-host-\(index)")
+                    Button {
+                        viewModel.draft.jumpChain.remove(at: index)
+                    } label: {
+                        Image(systemName: "minus.circle")
+                            .foregroundStyle(.connMuted)
+                    }
+                    .buttonStyle(.borderless)
+                    .accessibilityLabel(L("移除跳板机"))
+                }
+            }
+            if viewModel.draft.jumpChain.count < viewModel.availableJumpHosts.count {
+                Button {
+                    if let next = jumpOptions(for: viewModel.draft.jumpChain.count).first {
+                        viewModel.draft.jumpChain.append(next.id)
+                    }
+                } label: {
+                    Label(L("添加跳板机"), systemImage: "plus")
+                }
+                .accessibilityIdentifier("host-form.jump-add")
+            }
+            if let error = viewModel.fieldErrors[.jumpChain] {
+                Text(error).font(.connFootnote).foregroundStyle(.connCrit)
+            }
+            if viewModel.availableJumpHosts.isEmpty {
+                hint(L("暂无可用跳板机，请先保存另一台主机。"))
+            } else {
+                Text(L("跳板机使用已保存主机的地址、端口和认证方式。"))
+                    .font(.connFootnote)
+                    .foregroundStyle(.connMuted)
+            }
+        }
+        .padding(.vertical, ConnSpacing.xs)
+    }
+
+    private func privateNetworkProviderName(_ provider: PrivateNetworkProfile.Provider) -> String {
+        switch provider {
+        case .tailscale: L("Tailscale")
+        case .headscale: L("Headscale")
+        }
+    }
+
+    private func proxyBinding<Value>(
+        _ keyPath: WritableKeyPath<SSHProxyConfiguration, Value>,
+        fallback: Value
+    ) -> Binding<Value> {
+        Binding(
+            get: {
+                viewModel.draft.proxyConfiguration.map { $0[keyPath: keyPath] } ?? fallback
+            },
+            set: { value in
+                guard var proxy = viewModel.draft.proxyConfiguration else { return }
+                proxy[keyPath: keyPath] = value
+                viewModel.draft.proxyConfiguration = proxy
+            }
+        )
+    }
+
+    private var proxyPortRow: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: ConnSpacing.sm) {
+                Text(L("代理端口"))
+                    .foregroundStyle(.connMuted)
+                    .frame(width: labelWidth, alignment: .leading)
+                TextField("8080", value: proxyBinding(\.port, fallback: 8080), format: .number.grouping(.never))
+                    .foregroundStyle(.connInk)
+                    .keyboardType(.numberPad)
+                    .accessibilityIdentifier("host-form.proxy-port")
+            }
+        }
+    }
+
+    private var proxyPasswordRow: some View {
+        HStack(spacing: ConnSpacing.sm) {
+            Text(L("代理密码"))
+                .foregroundStyle(.connMuted)
+                .frame(width: labelWidth, alignment: .leading)
+            Group {
+                if isProxyPasswordVisible {
+                    TextField(L("请输入代理密码"), text: $viewModel.proxyPassword)
+                } else {
+                    SecureField(L("请输入代理密码"), text: $viewModel.proxyPassword)
+                }
+            }
+            .foregroundStyle(.connInk)
+            .textInputAutocapitalization(.never)
+            .autocorrectionDisabled()
+            .textContentType(.password)
+            .accessibilityIdentifier("host-form.proxy-password")
+
+            Button {
+                isProxyPasswordVisible.toggle()
+            } label: {
+                Image(systemName: isProxyPasswordVisible ? "eye.slash" : "eye")
+                    .foregroundStyle(.connMuted)
+                    .frame(width: 32, height: 32)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.borderless)
+            .accessibilityLabel(isProxyPasswordVisible ? L("隐藏密码") : L("显示密码"))
+        }
+    }
+
+    private func jumpBinding(at index: Int) -> Binding<String> {
+        Binding(
+            get: {
+                guard viewModel.draft.jumpChain.indices.contains(index) else { return "" }
+                return viewModel.draft.jumpChain[index]
+            },
+            set: { value in
+                guard viewModel.draft.jumpChain.indices.contains(index) else { return }
+                viewModel.draft.jumpChain[index] = value
+            }
+        )
+    }
+
+    private func jumpOptions(for index: Int) -> [Host] {
+        let currentID = viewModel.draft.jumpChain.indices.contains(index)
+            ? viewModel.draft.jumpChain[index]
+            : nil
+        let selectedIDs = Set(viewModel.draft.jumpChain)
+        return viewModel.availableJumpHosts.filter { host in
+            host.id == currentID || !selectedIDs.contains(host.id)
+        }
     }
 
     private var keyPicker: some View {
@@ -235,13 +551,22 @@ struct HostFormView: View {
     private var testSection: some View {
         Section {
             Button {
-                showDiagnostics = true
+                beginDiagnostics()
             } label: {
                 Label(L("连接测试"), systemImage: "bolt.horizontal.circle")
                     .foregroundStyle(viewModel.draft.isValid ? Color.connAccent : .connMuted)
             }
             .disabled(!viewModel.draft.isValid || !viewModel.canTestConnection)
             .listRowBackground(Color.connSurface)
+        }
+    }
+
+    private func beginDiagnostics() {
+        do {
+            diagnosticsHops = try viewModel.currentJumpHops()
+            showDiagnostics = true
+        } catch {
+            diagnosticsError = error.friendlyDiagnosis
         }
     }
 
@@ -254,7 +579,8 @@ struct HostFormView: View {
         text: Binding<String>,
         placeholder: String,
         error: String? = nil,
-        keyboard: UIKeyboardType = .default
+        keyboard: UIKeyboardType = .default,
+        identifier: String? = nil
     ) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack(spacing: ConnSpacing.sm) {
@@ -267,7 +593,7 @@ struct HostFormView: View {
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
                     .focused($focus, equals: field)
-                    .accessibilityIdentifier("host-form.\(fieldIdentifier(field))")
+                    .accessibilityIdentifier("host-form.\(identifier ?? fieldIdentifier(field))")
             }
             if let error {
                 Text(error)
@@ -341,6 +667,9 @@ struct HostFormView: View {
         case .port: "port"
         case .username: "username"
         case .key: "key"
+        case .privateNetwork: "private-network"
+        case .proxy: "proxy"
+        case .jumpChain: "jump-chain"
         case nil: "field"
         }
     }

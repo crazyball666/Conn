@@ -25,8 +25,21 @@ public struct KeychainCredentialStore: CredentialStore {
         try get(account: account(hostID, "password"))
     }
 
+    public func setProxyPassword(_ password: String?, forHost hostID: String) throws {
+        try set(password, account: account(hostID, "proxy-password"))
+    }
+
+    public func proxyPassword(forHost hostID: String) throws -> String? {
+        try get(account: account(hostID, "proxy-password"))
+    }
+
+    public func deleteProxyPassword(forHost hostID: String) throws {
+        try delete(account: account(hostID, "proxy-password"))
+    }
+
     public func deleteAll(forHost hostID: String) throws {
         try delete(account: account(hostID, "password"))
+        try deleteProxyPassword(forHost: hostID)
     }
 
     // MARK: - 密钥私钥材料
@@ -60,6 +73,18 @@ public struct KeychainCredentialStore: CredentialStore {
                 if $0.createdAt != $1.createdAt { return $0.createdAt > $1.createdAt }
                 return $0.id < $1.id
             }
+    }
+
+    public func setPrivateNetworkAuthKey(_ authKey: String?, forProfile profileID: String) throws {
+        try set(authKey, account: privateNetworkAuthKeyAccount(profileID))
+    }
+
+    public func privateNetworkAuthKey(forProfile profileID: String) throws -> String? {
+        try get(account: privateNetworkAuthKeyAccount(profileID))
+    }
+
+    public func deletePrivateNetworkAuthKey(forProfile profileID: String) throws {
+        try delete(account: privateNetworkAuthKeyAccount(profileID))
     }
 
     /// 恢复旧版本只保存了私钥、没有保存元数据的 Keychain 条目。
@@ -96,6 +121,10 @@ public struct KeychainCredentialStore: CredentialStore {
 
     private func keyMetadataAccount(_ keyID: String) -> String {
         "conn.key.\(keyID).metadata"
+    }
+
+    private func privateNetworkAuthKeyAccount(_ profileID: String) -> String {
+        "conn.private-network.\(profileID).auth-key"
     }
 
     private func allKeychainEntries() throws -> [[String: Any]] {

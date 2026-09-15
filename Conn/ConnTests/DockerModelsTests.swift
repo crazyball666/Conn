@@ -245,11 +245,14 @@ struct DockerModelsTests {
     private func makeDependencies(session: ScriptedSession) -> AppDependencies {
         let transport = ScriptedTransport(session: session)
         let connectionManager = ConnectionManager(transport: transport)
+        let credentialStore = InMemoryCredentialStore()
         return AppDependencies(
             hostRepository: StubHostRepository(),
             hostGroupRepository: StubHostGroupRepository(),
             keyRepository: StubSSHKeyRepository(),
-            credentialStore: InMemoryCredentialStore(),
+            credentialStore: credentialStore,
+            privateNetworkProfileRepository: TestPrivateNetworkProfileRepository(),
+            privateNetworkRegistry: makeTestPrivateNetworkRegistry(credentialStore: credentialStore),
             connectionManager: connectionManager,
             snippetExecutionPlanner: SnippetExecutionPlanner(
                 connectionManager: connectionManager,

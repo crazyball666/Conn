@@ -1,5 +1,6 @@
 import Citadel
 import ConnSSH
+import ConnPrivateNetwork
 import Foundation
 import NIOCore
 
@@ -8,15 +9,21 @@ final class CitadelSession: SSHSession, @unchecked Sendable {
     private let client: SSHClient
     /// 只为 `SSHError.commandTimeout` 的诊断文案而持有——超时报错要说清是哪台主机。
     private let endpoint: SSHEndpoint
+    private let privateNetworkLease: (any PrivateNetworkProxyLease)?
     private let stateContinuation: AsyncStream<SSHSessionState>.Continuation
     let state: AsyncStream<SSHSessionState>
 
     /// 底层 NIO 通道是否仍 active。Citadel 直接暴露了这个标志位，同步且无网络往返。
     var isConnected: Bool { client.isConnected }
 
-    init(client: SSHClient, endpoint: SSHEndpoint) {
+    init(
+        client: SSHClient,
+        endpoint: SSHEndpoint,
+        privateNetworkLease: (any PrivateNetworkProxyLease)? = nil
+    ) {
         self.client = client
         self.endpoint = endpoint
+        self.privateNetworkLease = privateNetworkLease
         (state, stateContinuation) = AsyncStream.makeStream()
         stateContinuation.yield(.connected)
     }
@@ -172,6 +179,7 @@ final class CitadelSession: SSHSession, @unchecked Sendable {
 
     func close() async {
         try? await client.close()
+        await privateNetworkLease?.close()
         stateContinuation.yield(.closed)
         stateContinuation.finish()
     }

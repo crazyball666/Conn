@@ -1,6 +1,38 @@
 {
   "sourceLanguage" : "zh-Hans",
   "strings" : {
+    "请填写代理地址" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Enter the proxy address" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "プロキシアドレスを入力してください" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "프록시 주소를 입력하세요" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "請填寫代理位址" } }
+      }
+    },
+    "代理端口需在 1–65535 之间" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Proxy port must be between 1 and 65535" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "プロキシポートは 1〜65535 の範囲で指定してください" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "프록시 포트는 1–65535 사이여야 합니다" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "代理連接埠須在 1–65535 之間" } }
+      }
+    },
+    "请输入代理用户名" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Enter the proxy username" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "プロキシユーザー名を入力してください" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "프록시 사용자 이름을 입력하세요" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "請輸入代理使用者名稱" } }
+      }
+    },
+    "内置 Tailscale/Headscale 与普通代理不能同时启用" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Embedded Tailscale/Headscale and a regular proxy cannot be enabled together" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "組み込みの Tailscale/Headscale と通常のプロキシは同時に有効にできません" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "내장 Tailscale/Headscale과 일반 프록시는 함께 사용할 수 없습니다" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "內建 Tailscale/Headscale 與一般代理無法同時啟用" } }
+      }
+    },
     "请填写主机地址" : {
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Enter the host address" } },

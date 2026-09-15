@@ -37,6 +37,18 @@ enum SchemaV1 {
                 t.column("sync_dirty", .integer).notNull().defaults(to: 0)
             }
 
+            try db.create(table: "private_network_profile") { t in
+                t.primaryKey("uuid", .text)
+                t.column("name", .text).notNull()
+                t.column("provider", .text).notNull()
+                t.column("control_url", .text).notNull()
+                // Keychain 引用键，auth key 明文绝不入库。
+                t.column("auth_key_ref", .text).notNull()
+                t.column("created_at", .integer).notNull()
+                t.column("updated_at", .integer).notNull()
+                t.column("sync_dirty", .integer).notNull().defaults(to: 0)
+            }
+
             try db.create(table: "host") { t in
                 t.primaryKey("uuid", .text)
                 t.column("name", .text).notNull()
@@ -48,6 +60,9 @@ enum SchemaV1 {
                 t.column("credential_ref", .text)
                 t.column("key_uuid", .text).references("ssh_key", column: "uuid", onDelete: .restrict)
                 t.column("jump_chain", .text).notNull().defaults(to: "[]") // JSON 数组
+                t.column("private_network_profile_uuid", .text)
+                    .references("private_network_profile", column: "uuid", onDelete: .restrict)
+                t.column("proxy_configuration", .text)
                 t.column("tags", .text).notNull().defaults(to: "[]") // JSON 数组
                 t.column("icon", .text)
                 t.column("color", .text)

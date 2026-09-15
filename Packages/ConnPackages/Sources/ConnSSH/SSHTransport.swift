@@ -28,6 +28,13 @@ public protocol SSHTransport: Sendable {
         to target: SSHJumpHop,
         hostKeyPolicy: HostKeyPolicy
     ) async throws -> any SSHSession
+
+    /// 按连接计划建立会话。旧引擎的默认实现只接受普通 TCP 路径，
+    /// 遇到需要额外路由的配置会明确失败，不会静默绕过用户选择。
+    func connect(
+        _ plan: SSHConnectionPlan,
+        hostKeyPolicy: HostKeyPolicy
+    ) async throws -> any SSHSession
 }
 
 public extension SSHTransport {
@@ -43,6 +50,22 @@ public extension SSHTransport {
             auth: target.auth,
             hostKeyPolicy: hostKeyPolicy
         )
+    }
+
+    func connect(
+        _ plan: SSHConnectionPlan,
+        hostKeyPolicy: HostKeyPolicy
+    ) async throws -> any SSHSession {
+        guard !(plan.privateNetworkProfileID != nil && plan.proxyConfiguration != nil) else {
+            throw SSHError.privateNetworkAndProxyConflict
+        }
+        guard plan.privateNetworkProfileID == nil else {
+            throw SSHError.privateNetworkUnsupported(profileID: plan.privateNetworkProfileID ?? "")
+        }
+        guard plan.proxyConfiguration == nil else {
+            throw SSHError.proxyUnsupported
+        }
+        return try await connect(via: plan.hops, to: plan.target, hostKeyPolicy: hostKeyPolicy)
     }
 }
 

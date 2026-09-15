@@ -4,6 +4,7 @@ import ConnKit
 import ConnMonitor
 import ConnMultiplexer
 import ConnOps
+import ConnPrivateNetwork
 import ConnRunner
 import ConnSSH
 import ConnSSHCitadel
@@ -178,6 +179,10 @@ struct AppDependencies {
     let hostGroupRepository: any HostGroupRepository
     let keyRepository: any SSHKeyRepository
     let credentialStore: any CredentialStore
+    /// Tailscale/Headscale 配置（只存控制端点和 Keychain 引用）。
+    let privateNetworkProfileRepository: any PrivateNetworkProfileRepository
+    /// 按 profile 惰性启动 embedded userspace runtime。
+    let privateNetworkRegistry: PrivateNetworkRegistry
     /// 连接池管理器。主机详情、监控采集、Docker/日志、片段执行都经它取会话。
     let connectionManager: ConnectionManager
     /// 片段执行准备器。复用连接池，并在 App 边界组合平台执行与能力适配器。
@@ -220,11 +225,20 @@ struct AppDependencies {
             let hostStore = makeHostStore(database: database)
             let groupStore = HostGroupStore(database: database)
             let keyStore = SSHKeyStore(database: database)
+            let privateNetworkProfileStore = PrivateNetworkProfileStore(database: database)
 
             // SSH 栈：Citadel 引擎 + GRDB 指纹库（TOFU 跨重启留存）。
             let hostKeyStore = GRDBHostKeyStore(database: database)
-            let transport = CitadelTransport(hostKeyStore: hostKeyStore)
             let credentialStore = KeychainCredentialStore()
+            let privateNetworkRegistry = PrivateNetworkRegistry(
+                profileRepository: privateNetworkProfileStore,
+                credentialStore: credentialStore,
+                factory: DefaultPrivateNetworkClientFactory()
+            )
+            let transport = CitadelTransport(
+                hostKeyStore: hostKeyStore,
+                privateNetworkRegistry: privateNetworkRegistry
+            )
             _ = try credentialStore.recoverLegacyKeyMetadata()
             // Keychain 在卸载应用后仍保留密钥元数据；SQLite 会随应用容器删除。
             // 启动时先恢复缺失的记录，保证主机表单和密钥管理页都能继续使用。
@@ -278,6 +292,9 @@ struct AppDependencies {
                         ))
                     }
                     return hops
+                },
+                resolveProxyPassword: { host in
+                    try credentialStore.proxyPassword(forHost: host.id)
                 }
             )
             let terminalSessions = TerminalSessionCoordinator(
@@ -307,6 +324,8 @@ struct AppDependencies {
                 hostGroupRepository: groupStore,
                 keyRepository: keyStore,
                 credentialStore: credentialStore,
+                privateNetworkProfileRepository: privateNetworkProfileStore,
+                privateNetworkRegistry: privateNetworkRegistry,
                 connectionManager: connectionManager,
                 snippetExecutionPlanner: snippetExecutionPlanner,
                 diagnosticsTransport: transport,

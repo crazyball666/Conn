@@ -20,6 +20,55 @@ struct ConnectionManagerTests {
         #expect(first === second)
     }
 
+    @Test("主机私有网络配置会进入 SSH 连接计划")
+    func forwardsPrivateNetworkProfileToTransport() async throws {
+        let recorder = PlanRecorder()
+        let manager = ConnectionManager(
+            transport: PlanCapturingTransport(recorder: recorder)
+        )
+        let host = DomainHost(
+            name: "tailnet-host",
+            address: "100.64.0.10",
+            username: "root",
+            privateNetworkProfileID: "profile-tailnet"
+        )
+
+        _ = try await manager.session(for: host)
+
+        let plan = try #require(await recorder.plan)
+        #expect(plan.privateNetworkProfileID == "profile-tailnet")
+        #expect(plan.hops.isEmpty)
+        #expect(plan.target.endpoint == SSHEndpoint(host: "100.64.0.10", port: 22))
+        #expect(plan.target.username == "root")
+    }
+
+    @Test("主机代理配置会进入 SSH 连接计划")
+    func forwardsProxyConfigurationToTransport() async throws {
+        let recorder = PlanRecorder()
+        let manager = ConnectionManager(
+            transport: PlanCapturingTransport(recorder: recorder)
+        )
+        let proxy = SSHProxyConfiguration(
+            kind: .socks5,
+            host: "proxy.example.com",
+            port: 1080,
+            authentication: .password,
+            username: "proxy-user"
+        )
+        let host = DomainHost(
+            name: "proxied-host",
+            address: "10.0.0.10",
+            username: "root",
+            proxyConfiguration: proxy
+        )
+
+        _ = try await manager.session(for: host)
+
+        let plan = try #require(await recorder.plan)
+        #expect(plan.proxyConfiguration == proxy)
+        #expect(plan.proxyPassword == nil)
+    }
+
     @Test("调用者拥有的独立会话不进入连接池")
     func dedicatedSessionIsNotPooled() async throws {
         let counter = ConnectCounter()
@@ -417,6 +466,50 @@ private actor ConnectCounter {
     private(set) var count = 0
     func increment() {
         count += 1
+    }
+}
+
+private actor PlanRecorder {
+    private(set) var plan: SSHConnectionPlan?
+
+    func record(_ plan: SSHConnectionPlan) {
+        self.plan = plan
+    }
+}
+
+private final class PlanCapturingTransport: SSHTransport, @unchecked Sendable {
+    private let recorder: PlanRecorder
+    private let base = MockSSHTransport()
+
+    init(recorder: PlanRecorder) {
+        self.recorder = recorder
+    }
+
+    func connect(
+        _ endpoint: SSHEndpoint,
+        username: String,
+        auth: SSHAuth,
+        hostKeyPolicy: HostKeyPolicy
+    ) async throws -> any SSHSession {
+        try await base.connect(
+            endpoint,
+            username: username,
+            auth: auth,
+            hostKeyPolicy: hostKeyPolicy
+        )
+    }
+
+    func connect(
+        _ plan: SSHConnectionPlan,
+        hostKeyPolicy: HostKeyPolicy
+    ) async throws -> any SSHSession {
+        await recorder.record(plan)
+        return try await base.connect(
+            plan.target.endpoint,
+            username: plan.target.username,
+            auth: plan.target.auth,
+            hostKeyPolicy: hostKeyPolicy
+        )
     }
 }
 

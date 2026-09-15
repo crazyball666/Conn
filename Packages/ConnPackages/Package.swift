@@ -22,6 +22,7 @@ let package = Package(
         .library(name: "ConnEditor", targets: ["ConnEditor"]),
         .library(name: "ConnUI", targets: ["ConnUI"]),
         .library(name: "ConnEntitlement", targets: ["ConnEntitlement"]),
+        .library(name: "ConnPrivateNetwork", targets: ["ConnPrivateNetwork"]),
     ],
     dependencies: [
         .package(url: "https://github.com/groue/GRDB.swift.git", from: "7.11.1"),
@@ -74,6 +75,7 @@ let package = Package(
             name: "ConnSSHCitadel",
             dependencies: [
                 "ConnSSH",
+                "ConnPrivateNetwork",
                 .product(name: "Citadel", package: "Citadel"),
             ]
         ),
@@ -153,6 +155,26 @@ let package = Package(
         // 本地订阅权益规则：不依赖 StoreKit、UI 或远端能力模块，保证额度和付费墙边界可独立测试。
         .target(name: "ConnEntitlement"),
 
+        // Embedded userspace Tailscale/Headscale runtime. The target is provider-neutral;
+        // the optional TailscaleKit adapter is compiled when the official framework is linked.
+        .target(
+            name: "ConnPrivateNetwork",
+            dependencies: [
+                "ConnKit",
+                "ConnCrypto",
+                "ConnSSH",
+                .target(name: "TailscaleKit", condition: .when(platforms: [.iOS])),
+            ]
+        ),
+
+        // The official userspace runtime is iOS-only in this repository. Keeping the
+        // dependency conditional lets `swift test` exercise the provider-neutral layer
+        // on macOS without pretending that the runtime is available there.
+        .binaryTarget(
+            name: "TailscaleKit",
+            path: "../Vendor/TailscaleKit.xcframework"
+        ),
+
         .testTarget(name: "ConnKitTests", dependencies: ["ConnKit"]),
         .testTarget(name: "ConnStoreTests", dependencies: ["ConnStore", "ConnMultiplexer"]),
         .testTarget(name: "ConnSSHTests", dependencies: ["ConnSSH"]),
@@ -179,5 +201,6 @@ let package = Package(
         .testTarget(name: "ConnEditorTests", dependencies: ["ConnEditor"]),
         .testTarget(name: "ConnUITests", dependencies: ["ConnUI"]),
         .testTarget(name: "ConnEntitlementTests", dependencies: ["ConnEntitlement"]),
+        .testTarget(name: "ConnPrivateNetworkTests", dependencies: ["ConnPrivateNetwork", "ConnCrypto", "ConnSSH"]),
     ]
 )

@@ -1,6 +1,358 @@
 {
   "sourceLanguage" : "zh-Hans",
   "strings" : {
+    "高级设置" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Advanced settings" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "詳細設定" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "고급 설정" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "進階設定" } }
+      }
+    },
+    "使用代理" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Use proxy" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "プロキシを使用" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "프록시 사용" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "使用代理伺服器" } }
+      }
+    },
+    "HTTP CONNECT" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "HTTP CONNECT" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "HTTP CONNECT" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "HTTP CONNECT" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "HTTP CONNECT" } }
+      }
+    },
+    "SOCKS5" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "SOCKS5" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "SOCKS5" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "SOCKS5" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "SOCKS5" } }
+      }
+    },
+    "代理 Host" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Proxy host" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "プロキシホスト" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "프록시 호스트" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "代理主機" } }
+      }
+    },
+    "proxy.example.com" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "proxy.example.com" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "proxy.example.com" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "proxy.example.com" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "proxy.example.com" } }
+      }
+    },
+    "代理端口" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Proxy port" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "プロキシポート" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "프록시 포트" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "代理連接埠" } }
+      }
+    },
+    "认证" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Authentication" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "認証" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "인증" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "驗證" } }
+      }
+    },
+    "无" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "None" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "なし" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "없음" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "無" } }
+      }
+    },
+    "用户名/密码" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Username/password" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "ユーザー名とパスワード" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "사용자 이름/암호" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "使用者名稱／密碼" } }
+      }
+    },
+    "代理用户名" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Proxy username" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "プロキシユーザー名" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "프록시 사용자 이름" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "代理使用者名稱" } }
+      }
+    },
+    "代理密码" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Proxy password" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "プロキシパスワード" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "프록시 암호" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "代理密碼" } }
+      }
+    },
+    "请输入代理密码" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Enter proxy password" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "プロキシパスワードを入力" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "프록시 암호를 입력하세요" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "請輸入代理密碼" } }
+      }
+    },
+    "通过 HTTP CONNECT 或 SOCKS5 代理隧道访问 SSH。" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Access SSH through an HTTP CONNECT or SOCKS5 proxy tunnel." } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "HTTP CONNECT または SOCKS5 プロキシトンネル経由で SSH に接続します。" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "HTTP CONNECT 또는 SOCKS5 프록시 터널을 통해 SSH에 연결합니다." } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "透過 HTTP CONNECT 或 SOCKS5 代理通道連線至 SSH。" } }
+      }
+    },
+    "使用跳板机" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Use jump host" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "踏み台ホストを使用" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "점프 호스트 사용" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "使用跳板主機" } }
+      }
+    },
+    "跳板机" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Jump host" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "踏み台ホスト" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "점프 호스트" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "跳板主機" } }
+      }
+    },
+    "请选择" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Select" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "選択" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "선택" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "請選擇" } }
+      }
+    },
+    "请选择有效的跳板机" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Select a valid jump host" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "有効な踏み台ホストを選択してください" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "유효한 점프 호스트를 선택하세요" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "請選擇有效的跳板主機" } }
+      }
+    },
+    "添加跳板机" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Add jump host" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "踏み台ホストを追加" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "점프 호스트 추가" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "新增跳板主機" } }
+      }
+    },
+    "移除跳板机" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Remove jump host" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "踏み台ホストを削除" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "점프 호스트 제거" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "移除跳板主機" } }
+      }
+    },
+    "暂无可用跳板机，请先保存另一台主机。" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "No jump hosts are available. Save another host first." } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "利用可能な踏み台ホストがありません。先に別のホストを保存してください。" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "사용 가능한 점프 호스트가 없습니다. 먼저 다른 호스트를 저장하세요." } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "沒有可用的跳板主機，請先儲存另一部主機。" } }
+      }
+    },
+    "跳板机使用已保存主机的地址、端口和认证方式。" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Jump hosts use the saved host address, port, and authentication." } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "踏み台ホストでは、保存済みホストのアドレス、ポート、認証方式を使用します。" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "점프 호스트는 저장된 호스트의 주소, 포트 및 인증 방식을 사용합니다." } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "跳板主機會使用已儲存主機的位址、連接埠和驗證方式。" } }
+      }
+    },
+    "私有网络" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Private network" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "プライベートネットワーク" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "프라이빗 네트워크" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "私有網路" } }
+      }
+    },
+    "连接路径" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Connection path" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "接続経路" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "연결 경로" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "連線路徑" } }
+      }
+    },
+    "普通网络直连" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Direct network" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "通常のネットワークで直接接続" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "일반 네트워크로 직접 연결" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "一般網路直連" } }
+      }
+    },
+    "管理 Tailscale / Headscale 配置" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Manage Tailscale / Headscale profiles" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "Tailscale / Headscale の設定を管理" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "Tailscale / Headscale 구성 관리" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "管理 Tailscale / Headscale 設定" } }
+      }
+    },
+    "编辑当前配置" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Edit current profile" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "現在の設定を編集" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "현재 구성 편집" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "編輯目前設定" } }
+      }
+    },
+    "仅当前主机使用嵌入式连接，不会启动系统 VPN；需要对应 Tailnet 的 auth key。" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Only this host uses the embedded connection; no system VPN is started. An auth key for the Tailnet is required." } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "埋め込み接続はこのホストだけで使用し、システム VPN は起動しません。対象 Tailnet の auth key が必要です。" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "임베디드 연결은 이 호스트에만 적용되며 시스템 VPN을 시작하지 않습니다. 해당 Tailnet의 auth key가 필요합니다." } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "僅目前主機使用嵌入式連線，不會啟動系統 VPN；需要對應 Tailnet 的 auth key。" } }
+      }
+    },
+    "Tailscale" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Tailscale" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "Tailscale" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "Tailscale" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "Tailscale" } }
+      }
+    },
+    "Headscale" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Headscale" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "Headscale" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "Headscale" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "Headscale" } }
+      }
+    },
+    "新增私有网络" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Add private network" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "プライベートネットワークを追加" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "프라이빗 네트워크 추가" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "新增私有網路" } }
+      }
+    },
+    "编辑私有网络" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Edit private network" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "プライベートネットワークを編集" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "프라이빗 네트워크 편집" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "編輯私有網路" } }
+      }
+    },
+    "配置" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Profile" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "設定" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "구성" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "設定" } }
+      }
+    },
+    "控制端点" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Control endpoint" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "コントロールエンドポイント" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "제어 엔드포인트" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "控制端點" } }
+      }
+    },
+    "auth key" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "auth key" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "auth key" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "auth key" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "auth key" } }
+      }
+    },
+    "隐藏 auth key" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Hide auth key" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "auth key を隠す" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "auth key 숨기기" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "隱藏 auth key" } }
+      }
+    },
+    "显示 auth key" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Show auth key" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "auth key を表示" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "auth key 표시" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "顯示 auth key" } }
+      }
+    },
+    "auth key 仅保存到设备 Keychain；建议使用可撤销、最小权限的预授权密钥。" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "The auth key is stored only in the device Keychain. Use a revocable, least-privilege preauthorized key." } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "auth key はデバイスの Keychain にのみ保存されます。取り消し可能で最小権限の事前承認キーを使用してください。" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "auth key는 기기 Keychain에만 저장됩니다. 취소 가능하고 최소 권한인 사전 인증 키를 사용하세요." } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "auth key 僅儲存在裝置 Keychain；建議使用可撤銷、最小權限的預先授權金鑰。" } }
+      }
+    },
+    "请填写配置名称" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Enter a profile name" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "設定名を入力してください" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "구성 이름을 입력하세요" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "請輸入設定名稱" } }
+      }
+    },
+    "控制端点必须是有效的 HTTPS 地址" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "The control endpoint must be a valid HTTPS URL" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "コントロールエンドポイントは有効な HTTPS URL である必要があります" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "제어 엔드포인트는 유효한 HTTPS URL이어야 합니다" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "控制端點必須是有效的 HTTPS 位址" } }
+      }
+    },
+    "请填写 auth key" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Enter an auth key" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "auth key を入力してください" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "auth key를 입력하세요" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "請輸入 auth key" } }
+      }
+    },
+    "保存私有网络失败：%@" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Failed to save private network: %@" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "プライベートネットワークの保存に失敗しました：%@" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "프라이빗 네트워크 저장 실패: %@" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "儲存私有網路失敗：%@" } }
+      }
+    },
+    "所选私有网络配置不存在，请重新选择" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "The selected private network profile no longer exists. Select another one." } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "選択したプライベートネットワーク設定が存在しません。もう一度選択してください" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "선택한 프라이빗 네트워크 구성이 없습니다. 다시 선택하세요" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "所選的私有網路設定不存在，請重新選擇" } }
+      }
+    },
+    "私有网络配置不完整，请先编辑配置" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "The private network profile is incomplete. Edit it first." } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "プライベートネットワーク設定が不完全です。先に編集してください" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "프라이빗 네트워크 구성이 완전하지 않습니다. 먼저 편집하세요" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "私有網路設定不完整，請先編輯設定" } }
+      }
+    },
     "—" : {
       "localizations" : {
         "en" : {
@@ -27715,6 +28067,35 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "連線未通過，請依上方提示排查"
+          }
+        }
+      }
+    },
+    "连接测试失败" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Connection test failed"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "接続テストに失敗しました"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "연결 테스트 실패"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "連線測試失敗"
           }
         }
       }

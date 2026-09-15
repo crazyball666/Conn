@@ -17,6 +17,8 @@ struct HostRecord: Codable, FetchableRecord, PersistableRecord, Sendable {
     var credentialRef: String?
     var keyUUID: String?
     var jumpChain: String // JSON 数组
+    var privateNetworkProfileUUID: String?
+    var proxyConfiguration: String?
     var tags: String // JSON 数组
     var icon: String?
     var color: String?
@@ -33,6 +35,8 @@ struct HostRecord: Codable, FetchableRecord, PersistableRecord, Sendable {
         case credentialRef = "credential_ref"
         case keyUUID = "key_uuid"
         case jumpChain = "jump_chain"
+        case privateNetworkProfileUUID = "private_network_profile_uuid"
+        case proxyConfiguration = "proxy_configuration"
         case expireAt = "expire_at"
         case sortOrder = "sort_order"
         case createdAt = "created_at"
@@ -52,6 +56,8 @@ extension HostRecord {
         credentialRef = host.credentialRef
         keyUUID = host.keyUUID
         jumpChain = Self.encodeJSON(host.jumpChain)
+        privateNetworkProfileUUID = host.privateNetworkProfileID
+        proxyConfiguration = Self.encodeJSON(host.proxyConfiguration)
         tags = Self.encodeJSON(host.tags)
         icon = host.icon
         color = host.color
@@ -77,6 +83,8 @@ extension HostRecord {
             credentialRef: credentialRef,
             keyUUID: keyUUID,
             jumpChain: Self.decodeJSON(jumpChain),
+            privateNetworkProfileID: privateNetworkProfileUUID,
+            proxyConfiguration: Self.decodeProxy(proxyConfiguration),
             groupIDs: groupIDs,
             tags: Self.decodeJSON(tags),
             icon: icon,
@@ -102,5 +110,19 @@ extension HostRecord {
               let values = try? JSONDecoder().decode([String].self, from: data)
         else { return [] }
         return values
+    }
+
+    private static func encodeJSON<T: Encodable>(_ value: T?) -> String? {
+        guard let value,
+              let data = try? JSONEncoder().encode(value)
+        else { return nil }
+        return String(data: data, encoding: .utf8)
+    }
+
+    private static func decodeProxy(_ json: String?) -> SSHProxyConfiguration? {
+        guard let json,
+              let data = json.data(using: .utf8)
+        else { return nil }
+        return try? JSONDecoder().decode(SSHProxyConfiguration.self, from: data)
     }
 }

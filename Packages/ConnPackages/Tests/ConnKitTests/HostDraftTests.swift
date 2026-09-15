@@ -60,4 +60,16 @@ struct HostDraftTests {
         #expect(draft.toHost(existingID: "fixed-id").id == "fixed-id")
         #expect(draft.toHost().id != draft.toHost().id) // 两次新增 id 不同
     }
+
+    @Test("主机草稿保留私有网络配置")
+    func preservesPrivateNetworkProfile() {
+        let draft = HostDraft(
+            address: "100.64.0.10",
+            username: "root",
+            privateNetworkProfileID: "tailnet-prod"
+        )
+        let host = draft.toHost(existingID: "host-1")
+        #expect(host.privateNetworkProfileID == "tailnet-prod")
+        #expect(HostDraft(from: host).privateNetworkProfileID == "tailnet-prod")
+    }
 }
