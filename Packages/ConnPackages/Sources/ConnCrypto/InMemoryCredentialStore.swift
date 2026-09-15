@@ -50,6 +50,15 @@ public final class InMemoryCredentialStore: CredentialStore, @unchecked Sendable
 
     private var keyMetadata: [String: SSHKey] = [:]
     private var privateNetworkAuthKeys: [String: String] = [:]
+    private var privateNetworkNodeStates: [String: String] = [:]
+
+    public func setPrivateNetworkNodeState(_ state: String?, forProfile profileID: String) throws {
+        lock.withLock { privateNetworkNodeStates[profileID] = state }
+    }
+
+    public func privateNetworkNodeState(forProfile profileID: String) throws -> String? {
+        lock.withLock { privateNetworkNodeStates[profileID] }
+    }
 
     public func setPrivateNetworkAuthKey(_ authKey: String?, forProfile profileID: String) throws {
         lock.withLock { privateNetworkAuthKeys[profileID] = authKey }

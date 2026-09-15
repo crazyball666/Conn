@@ -87,6 +87,14 @@ public struct KeychainCredentialStore: CredentialStore {
         try delete(account: privateNetworkAuthKeyAccount(profileID))
     }
 
+    public func setPrivateNetworkNodeState(_ state: String?, forProfile profileID: String) throws {
+        try set(state, account: "conn.private-network.\(profileID).node-state")
+    }
+
+    public func privateNetworkNodeState(forProfile profileID: String) throws -> String? {
+        try get(account: "conn.private-network.\(profileID).node-state")
+    }
+
     /// 恢复旧版本只保存了私钥、没有保存元数据的 Keychain 条目。
     /// 仅用于升级/重装后的启动恢复；无法推断算法的条目会被安全跳过。
     public func recoverLegacyKeyMetadata() throws -> [SSHKey] {

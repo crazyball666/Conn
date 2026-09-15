@@ -28,13 +28,13 @@ struct SchemaV1Tests {
         ])
     }
 
-    @Test("建库只记录一份完整 Schema")
-    func registersSingleSchema() throws {
+    @Test("迁移按已发布基线和前向变更顺序记录")
+    func registersVersionedMigrations() throws {
         let database = try AppDatabase.inMemory()
         let identifiers = try database.writer.read { db in
             try String.fetchAll(db, sql: "SELECT identifier FROM grdb_migrations ORDER BY identifier")
         }
-        #expect(identifiers == ["v1_initial_schema"])
+        #expect(identifiers == ["v1_initial_schema", "v2_host_connection_routes"])
     }
 
     @Test("初始 schema 的 run_history 包含状态列及已知默认值")

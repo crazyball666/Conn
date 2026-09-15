@@ -26,6 +26,6 @@ struct DatabaseSchemaTests {
             "persistent_terminal_resume_record", "private_network_profile", "run_history", "snippet", "snippet_group",
             "snippet_group_membership", "ssh_key"
         ])
-        #expect(result.1 == ["v1_initial_schema"])
+        #expect(result.1 == ["v1_initial_schema", "v2_host_connection_routes"])
     }
 }

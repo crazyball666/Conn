@@ -3,7 +3,7 @@ import Foundation
 import GRDB
 
 enum SchemaV1 {
-    /// 注册当前开发期的完整 Schema。
+    /// 已发布的 v1 基线 Schema。发布后保持不变，后续结构变化追加前向迁移。
     ///
     /// 命名遵循技术实现方案 §3：蛇形字段名；所有实体表带 `uuid` 主键、
     /// `created_at`/`updated_at`（毫秒）与 `sync_dirty`。
@@ -13,7 +13,7 @@ enum SchemaV1 {
     /// `WHERE deleted_at IS NULL`（漏一次即数据泄漏）。删除传播留待 v1.1
     /// 立项时重新决策，详见 docs/superpowers/specs/2026-07-27-server-groups-design.md。
     ///
-    /// 长度由表数量决定而非逻辑复杂度；开发阶段只维护这一份完整建库定义。
+    /// 此迁移已随旧版 App 发布；不能在这里追加新表或字段。
     static func register(in migrator: inout DatabaseMigrator) { // swiftlint:disable:this function_body_length
         migrator.registerMigration("v1_initial_schema") { db in
             try db.create(table: "host_group") { t in
@@ -37,18 +37,6 @@ enum SchemaV1 {
                 t.column("sync_dirty", .integer).notNull().defaults(to: 0)
             }
 
-            try db.create(table: "private_network_profile") { t in
-                t.primaryKey("uuid", .text)
-                t.column("name", .text).notNull()
-                t.column("provider", .text).notNull()
-                t.column("control_url", .text).notNull()
-                // Keychain 引用键，auth key 明文绝不入库。
-                t.column("auth_key_ref", .text).notNull()
-                t.column("created_at", .integer).notNull()
-                t.column("updated_at", .integer).notNull()
-                t.column("sync_dirty", .integer).notNull().defaults(to: 0)
-            }
-
             try db.create(table: "host") { t in
                 t.primaryKey("uuid", .text)
                 t.column("name", .text).notNull()
@@ -60,9 +48,6 @@ enum SchemaV1 {
                 t.column("credential_ref", .text)
                 t.column("key_uuid", .text).references("ssh_key", column: "uuid", onDelete: .restrict)
                 t.column("jump_chain", .text).notNull().defaults(to: "[]") // JSON 数组
-                t.column("private_network_profile_uuid", .text)
-                    .references("private_network_profile", column: "uuid", onDelete: .restrict)
-                t.column("proxy_configuration", .text)
                 t.column("tags", .text).notNull().defaults(to: "[]") // JSON 数组
                 t.column("icon", .text)
                 t.column("color", .text)

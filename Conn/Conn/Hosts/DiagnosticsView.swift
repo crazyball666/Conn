@@ -47,6 +47,7 @@ struct DiagnosticsView: View {
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button(L("完成")) { dismiss() }
+                        .accessibilityIdentifier("diagnostics.done")
                 }
             }
             .task { await runTest() }
@@ -110,8 +111,10 @@ struct DiagnosticsView: View {
     private var resultBanner: some View {
         if tester.succeeded {
             ConnBanner(L("连接成功"), systemImage: "checkmark.circle", kind: .info)
+                .accessibilityIdentifier("diagnostics.success")
         } else {
             ConnBanner(L("连接未通过，请按上方提示排查"), systemImage: "exclamationmark.triangle", kind: .warn)
+                .accessibilityIdentifier("diagnostics.failure")
         }
     }
 

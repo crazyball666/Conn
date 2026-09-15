@@ -4,6 +4,18 @@ import ConnSSH
 import Foundation
 import Observation
 
+enum HostNetworkConnectionMode: String, CaseIterable {
+    case direct, privateNetwork, proxy
+
+    var title: String {
+        switch self {
+        case .direct: L("直连")
+        case .privateNetwork: L("私有网络")
+        case .proxy: L("代理")
+        }
+    }
+}
+
 /// 主机保存后的会话联动所需信息。密码文本仍只在表单内比较，绝不写入此结果。
 struct HostFormSaveResult: Sendable {
     let host: Host
@@ -30,6 +42,9 @@ final class HostFormViewModel {
     private var previousHost: Host?
     private var previousPassword = ""
     private var previousProxyPassword = ""
+    private var privateNetworkSelectionPending = false
+    private var cachedPrivateNetworkProfileID: String?
+    private var cachedProxyConfiguration: SSHProxyConfiguration?
     var loadError: String?
     /// 可选分组。表单只做多选，新建分组走服务器页工具栏的「+」菜单。
     private(set) var availableGroups: [HostGroup] = []
@@ -40,10 +55,61 @@ final class HostFormViewModel {
     var isEditing: Bool { editingHostID != nil }
     var title: String { isEditing ? L("编辑主机") : L("添加主机") }
 
+    var networkConnectionMode: HostNetworkConnectionMode {
+        if draft.privateNetworkProfileID != nil || privateNetworkSelectionPending { return .privateNetwork }
+        return draft.proxyConfiguration == nil ? .direct : .proxy
+    }
+
+    var selectedPrivateNetworkProfile: PrivateNetworkProfile? {
+        availablePrivateNetworkProfiles.first { $0.id == draft.privateNetworkProfileID }
+    }
+
+    var networkConnectionSummary: String {
+        switch networkConnectionMode {
+        case .direct: return L("直连")
+        case .privateNetwork:
+            guard let profile = selectedPrivateNetworkProfile else { return L("请选择配置") }
+            let provider = profile.provider == .tailscale ? L("Tailscale") : L("Headscale")
+            return "\(provider) · \(profile.name)"
+        case .proxy:
+            return draft.proxyConfiguration?.kind == .socks5 ? L("SOCKS5") : L("HTTP CONNECT")
+        }
+    }
+
+    /// 未启用的输入仅留在本次表单内；持久化与连接测试只使用 draft 中的活动方式。
+    func selectNetworkConnectionMode(_ mode: HostNetworkConnectionMode) {
+        if networkConnectionMode == .privateNetwork {
+            cachedPrivateNetworkProfileID = draft.privateNetworkProfileID
+        }
+        if networkConnectionMode == .proxy {
+            cachedProxyConfiguration = draft.proxyConfiguration
+        }
+        privateNetworkSelectionPending = mode == .privateNetwork
+        draft.privateNetworkProfileID = mode == .privateNetwork ? cachedPrivateNetworkProfileID : nil
+        draft.proxyConfiguration = mode == .proxy ? (cachedProxyConfiguration ?? SSHProxyConfiguration()) : nil
+        fieldErrors[.privateNetwork] = nil
+        fieldErrors[.proxy] = nil
+    }
+
+    func selectPrivateNetworkProfile(_ id: String?) {
+        privateNetworkSelectionPending = true
+        draft.privateNetworkProfileID = id
+        fieldErrors[.privateNetwork] = nil
+    }
+
+    func reloadPrivateNetworkProfiles() {
+        do {
+            availablePrivateNetworkProfiles = try privateNetworkProfileStore.allProfiles()
+        } catch {
+            saveError = L("读取私有网络配置失败，请重试")
+        }
+    }
+
     /// 连接测试和保存都必须使用真实存在的私钥材料，不能把缺失密钥
     /// 静默降级成空密码，否则用户会得到误导性的“密码错误”。
     var canTestConnection: Bool {
         guard loadError == nil else { return false }
+        if networkConnectionMode == .privateNetwork, selectedPrivateNetworkProfile?.isValid != true { return false }
         if draft.proxyConfiguration?.authentication == .password,
            proxyPassword.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             return false
@@ -62,6 +128,7 @@ final class HostFormViewModel {
         privateNetworkProfileStore: any PrivateNetworkProfileRepository
     ) {
         self.draft = draft
+        self.privateNetworkSelectionPending = draft.privateNetworkProfileID != nil
         self.editingHostID = editingHostID
         self.hostStore = hostStore
         self.credentialStore = credentialStore
@@ -125,6 +192,9 @@ final class HostFormViewModel {
         saveError = nil
         guard loadError == nil else { return nil }
         fieldErrors = draft.validate()
+        if networkConnectionMode == .privateNetwork, draft.privateNetworkProfileID == nil {
+            fieldErrors[.privateNetwork] = L("请选择私有网络配置")
+        }
         guard fieldErrors.isEmpty else { return nil }
         if draft.authKind == .key, !hasPrivateKeyMaterial {
             fieldErrors[.key] = L("所选密钥不可用，请重新导入或生成密钥")

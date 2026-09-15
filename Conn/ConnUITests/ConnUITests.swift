@@ -5,6 +5,39 @@ final class ConnUITests: XCTestCase {
         continueAfterFailure = false
     }
 
+    /// Opt in with an authorized saved host UUID in the test-runner environment.
+    /// Tests the actual app graph, including Keychain and embedded node restart.
+    @MainActor
+    func testSavedPrivateNetworkHostConnectsAfterAppRestart() throws {
+        guard let hostID = ProcessInfo.processInfo.environment["CONN_TEST_PRIVATE_NETWORK_HOST_ID"],
+              !hostID.isEmpty else {
+            throw XCTSkip("Requires an explicitly authorized saved private-network host")
+        }
+        let app = XCUIApplication()
+        for attempt in 1...2 {
+            app.launch()
+            XCTAssertTrue(app.tabBars.buttons["tab.servers"].waitForExistence(timeout: 15))
+            let hostCard = app.buttons["servers.host.\(hostID)"]
+            XCTAssertTrue(hostCard.waitForExistence(timeout: 10))
+            hostCard.press(forDuration: 1)
+            let edit = app.buttons["servers.host.edit.\(hostID)"]
+            XCTAssertTrue(edit.waitForExistence(timeout: 5))
+            edit.tap()
+            let form = app.descendants(matching: .any)["host-form"]
+            XCTAssertTrue(form.waitForExistence(timeout: 5))
+            let testConnection = app.buttons["host-form.test-connection"]
+            for _ in 0..<6 where !testConnection.isHittable { form.swipeUp() }
+            XCTAssertTrue(testConnection.isHittable)
+            testConnection.tap()
+            let success = app.descendants(matching: .any)["diagnostics.success"].firstMatch
+            XCTAssertTrue(success.waitForExistence(timeout: 45), "Saved private-network connection must succeed")
+            XCTAssertEqual(app.state, .runningForeground)
+            print("CONN-INTEGRATION: saved private-network SSH connection succeeded, attempt \(attempt)")
+            app.buttons["diagnostics.done"].tap()
+            if attempt == 1 { app.terminate() }
+        }
+    }
+
     @MainActor
     func testLaunchShowsServersTab() {
         let app = XCUIApplication()
@@ -248,71 +281,159 @@ final class ConnUITests: XCTestCase {
     }
 
     @MainActor
-    func testHostFormExposesPrivateNetworkProfileEditor() {
-        let app = XCUIApplication()
+    private func openNewHost(_ app: XCUIApplication) {
+        // Form tests exercise editing, not the separately tested free-tier host limit.
+        app.launchEnvironment["CONN_SUBSCRIPTION_STATE"] = "pro"
         app.launch()
-
         XCTAssertTrue(app.tabBars.buttons["tab.servers"].waitForExistence(timeout: 10))
         app.buttons["servers.add"].tap()
-        let addServer = app.buttons["servers.add-host"]
-        XCTAssertTrue(addServer.waitForExistence(timeout: 5))
-        addServer.tap()
+        XCTAssertTrue(app.buttons["servers.add-host"].waitForExistence(timeout: 5))
+        app.buttons["servers.add-host"].tap()
+        XCTAssertTrue(app.descendants(matching: .any)["host-form"].firstMatch.waitForExistence(timeout: 5))
+    }
 
-        XCTAssertTrue(app.descendants(matching: .any)["host-form"].waitForExistence(timeout: 5))
-        let advanced = app.descendants(matching: .any)["host-form.advanced"]
-        XCTAssertTrue(advanced.waitForExistence(timeout: 5), app.debugDescription)
-        advanced.tap()
-        let form = app.collectionViews["host-form"]
-        let scrollStart = form.coordinate(withNormalizedOffset: CGVector(dx: 0.01, dy: 0.85))
-        let scrollEnd = form.coordinate(withNormalizedOffset: CGVector(dx: 0.01, dy: 0.25))
-        scrollStart.press(forDuration: 0.1, thenDragTo: scrollEnd)
-        let privateNetworkPickerOption = app.buttons["普通网络直连"]
-        if privateNetworkPickerOption.exists {
-            privateNetworkPickerOption.tap()
+    @MainActor
+    private func openNetworkSettings(_ app: XCUIApplication) {
+        let route = app.descendants(matching: .any)["host-form.network-route"].firstMatch
+        for _ in 0..<4 where !route.isHittable { app.descendants(matching: .any)["host-form"].firstMatch.swipeUp() }
+        XCTAssertTrue(route.waitForExistence(timeout: 5))
+        guard route.isHittable else { return XCTFail("Network route is not reachable") }
+        route.tap()
+        XCTAssertTrue(app.descendants(matching: .any)["network-route.form"].firstMatch.waitForExistence(timeout: 5))
+    }
+
+    @MainActor
+    private func networkMode(_ mode: String, in app: XCUIApplication) -> XCUIElement {
+        let segmented = app.segmentedControls["network-route.mode"]
+        if segmented.exists {
+            let index = ["direct", "privateNetwork", "proxy"].firstIndex(of: mode)!
+            return segmented.buttons.element(boundBy: index)
         }
-        XCTAssertTrue(app.descendants(matching: .any)["host-form.private-network"].exists, app.debugDescription)
+        return app.buttons["network-route.mode.\(mode)"]
+    }
 
-        let manage = app.buttons["host-form.private-network.manage"]
-        XCTAssertTrue(manage.waitForExistence(timeout: 5), app.debugDescription)
-        XCTAssertTrue(manage.isHittable, app.debugDescription)
-        manage.coordinate(withNormalizedOffset: CGVector(dx: 0.1, dy: 0.5)).tap()
-
-        XCTAssertTrue(app.descendants(matching: .any)["private-network-profile.name"]
-            .waitForExistence(timeout: 5), app.debugDescription)
-        XCTAssertTrue(app.textFields["private-network-profile.control-url"].exists)
-        XCTAssertTrue(app.buttons["private-network-profile.save"].exists)
+    @MainActor
+    func testHostFormExposesPrivateNetworkProfileEditor() {
+        let app = XCUIApplication()
+        openNewHost(app)
+        openNetworkSettings(app)
+        networkMode("privateNetwork", in: app).tap()
+        app.buttons["host-form.private-network.add"].tap()
+        XCTAssertTrue(app.textFields["private-network-profile.name"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.textFields["private-network-profile.control-url"].exists)
+        app.buttons["private-network-profile.provider"].tap()
+        app.buttons["Headscale"].tap()
+        XCTAssertTrue(app.textFields["private-network-profile.control-url"].waitForExistence(timeout: 5))
+        let controlURL = app.textFields["private-network-profile.control-url"]
+        controlURL.tap()
+        controlURL.typeText("https://headscale.example.com")
+        app.buttons["private-network-profile.provider"].tap()
+        app.buttons["Tailscale"].tap()
+        XCTAssertFalse(controlURL.exists)
+        app.buttons["private-network-profile.provider"].tap()
+        app.buttons["Headscale"].tap()
+        XCTAssertEqual(controlURL.value as? String, "https://headscale.example.com")
+        XCTAssertTrue(app.secureTextFields["private-network-profile.auth-key"].exists)
+        let profileScreenshot = XCTAttachment(screenshot: app.screenshot())
+        profileScreenshot.name = "headscale-profile"
+        profileScreenshot.lifetime = .keepAlways
+        add(profileScreenshot)
         app.buttons["private-network-profile.cancel"].tap()
-        XCTAssertTrue(app.descendants(matching: .any)["host-form"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.descendants(matching: .any)["network-route.form"].firstMatch.waitForExistence(timeout: 5))
+        XCTAssertTrue(networkMode("privateNetwork", in: app).isSelected)
         XCTAssertEqual(app.state, .runningForeground)
     }
 
     @MainActor
     func testHostFormExposesProxyAndJumpHostSettings() {
         let app = XCUIApplication()
-        app.launch()
-
-        XCTAssertTrue(app.tabBars.buttons["tab.servers"].waitForExistence(timeout: 10))
-        app.buttons["servers.add"].tap()
-        let addServer = app.buttons["servers.add-host"]
-        XCTAssertTrue(addServer.waitForExistence(timeout: 5))
-        addServer.tap()
-
-        XCTAssertTrue(app.descendants(matching: .any)["host-form"].waitForExistence(timeout: 5))
-        let advanced = app.descendants(matching: .any)["host-form.advanced"]
-        XCTAssertTrue(advanced.waitForExistence(timeout: 5))
-        advanced.tap()
-        app.swipeUp()
-
-        let proxyToggle = app.switches["host-form.proxy-toggle"]
-        XCTAssertTrue(proxyToggle.waitForExistence(timeout: 5), app.debugDescription)
-        XCTAssertTrue(app.switches["host-form.jump-toggle"].exists)
-        proxyToggle.coordinate(withNormalizedOffset: CGVector(dx: 0.9, dy: 0.5)).tap()
-        XCTAssertTrue(app.descendants(matching: .any)["host-form.proxy-kind"].waitForExistence(timeout: 5), app.debugDescription)
-        XCTAssertTrue(app.textFields["host-form.proxy-host"].exists)
+        app.launchArguments += ["-conn.settings.appearance", "light"]
+        openNewHost(app)
+        openNetworkSettings(app)
+        networkMode("proxy", in: app).tap()
+        let proxyHost = app.textFields["host-form.proxy-host"]
+        XCTAssertTrue(proxyHost.waitForExistence(timeout: 5))
+        proxyHost.tap()
+        proxyHost.typeText("proxy.example.com")
+        networkMode("direct", in: app).tap()
+        XCTAssertFalse(proxyHost.exists)
+        networkMode("proxy", in: app).tap()
+        XCTAssertEqual(proxyHost.value as? String, "proxy.example.com")
         XCTAssertTrue(app.textFields["host-form.proxy-port"].exists)
+        let screenshot = XCTAttachment(screenshot: app.screenshot())
+        screenshot.name = "network-proxy-light"
+        screenshot.lifetime = .keepAlways
+        add(screenshot)
+        XCUIDevice.shared.press(.home)
+        app.activate()
+        XCTAssertEqual(proxyHost.value as? String, "proxy.example.com")
+        app.navigationBars.buttons.element(boundBy: 0).tap()
+        openNetworkSettings(app)
+        XCTAssertEqual(proxyHost.value as? String, "proxy.example.com")
+        app.navigationBars.buttons.element(boundBy: 0).tap()
+        let jump = app.descendants(matching: .any)["host-form.jump-route"].firstMatch
+        for _ in 0..<3 where !jump.isHittable { app.descendants(matching: .any)["host-form"].firstMatch.swipeUp() }
+        XCTAssertTrue(jump.isHittable)
+        let summaryScreenshot = XCTAttachment(screenshot: app.screenshot())
+        summaryScreenshot.name = "host-advanced-summary"
+        summaryScreenshot.lifetime = .keepAlways
+        add(summaryScreenshot)
+        jump.tap()
+        XCTAssertTrue(app.descendants(matching: .any)["jump-route.form"].firstMatch.waitForExistence(timeout: 5))
+        XCTAssertFalse(app.switches["host-form.jump-toggle"].exists)
+        XCTAssertEqual(app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "jump-route.remove.")).count, 0)
+        let choose = app.descendants(matching: .any)["host-form.jump-add"].firstMatch
+        XCTAssertTrue(choose.exists)
+        choose.tap()
+        XCTAssertTrue(app.descendants(matching: .any)["jump-route.picker"].firstMatch.waitForExistence(timeout: 5))
+        app.navigationBars.buttons.element(boundBy: 0).tap()
+        XCTAssertTrue(app.descendants(matching: .any)["jump-route.form"].firstMatch.waitForExistence(timeout: 5))
+        // Opening and cancelling the picker must not silently choose the first saved host.
+        XCTAssertEqual(app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "jump-route.remove.")).count, 0)
+        choose.tap()
+        let savedHost = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "jump-route.select.")).firstMatch
+        XCTAssertTrue(savedHost.waitForExistence(timeout: 5), "Requires at least one saved host for jump selection")
+        savedHost.tap()
+        let remove = app.buttons["jump-route.remove.0"]
+        XCTAssertTrue(remove.waitForExistence(timeout: 5))
+        app.navigationBars.buttons.element(boundBy: 0).tap()
+        app.descendants(matching: .any)["host-form.jump-route"].firstMatch.tap()
+        XCTAssertTrue(remove.waitForExistence(timeout: 5))
+        remove.tap()
+        XCTAssertFalse(remove.exists)
+        let jumpScreenshot = XCTAttachment(screenshot: app.screenshot())
+        jumpScreenshot.name = "empty-jump-selection"
+        jumpScreenshot.lifetime = .keepAlways
+        add(jumpScreenshot)
         XCTAssertEqual(app.state, .runningForeground)
     }
 
+    @MainActor
+    func testAdvancedSettingsSupportsLargeTextAndDarkAppearance() {
+        let app = XCUIApplication()
+        app.launchArguments += [
+            "-conn.settings.appearance", "dark",
+            "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"
+        ]
+        openNewHost(app)
+        openNetworkSettings(app)
+        let proxy = networkMode("proxy", in: app)
+        XCTAssertTrue(proxy.waitForExistence(timeout: 5))
+        proxy.tap()
+        let proxyHost = app.textFields["host-form.proxy-host"]
+        let form = app.descendants(matching: .any)["network-route.form"].firstMatch
+        for _ in 0..<4 where !proxyHost.isHittable { form.swipeUp() }
+        XCTAssertTrue(proxyHost.isHittable)
+        proxyHost.tap()
+        proxyHost.typeText("proxy.example.com")
+        form.swipeUp()
+        XCTAssertEqual(proxyHost.value as? String, "proxy.example.com")
+        let screenshot = XCTAttachment(screenshot: app.screenshot())
+        screenshot.name = "network-proxy-dark-large-text"
+        screenshot.lifetime = .keepAlways
+        add(screenshot)
+        XCTAssertEqual(app.state, .runningForeground)
+    }
     @MainActor
     func testLaunchPerformance() {
         measure(metrics: [XCTApplicationLaunchMetric()]) {

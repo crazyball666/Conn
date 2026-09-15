@@ -34,6 +34,11 @@ public protocol CredentialStore: Sendable {
     func setPrivateNetworkAuthKey(_ authKey: String?, forProfile profileID: String) throws
     func privateNetworkAuthKey(forProfile profileID: String) throws -> String?
     func deletePrivateNetworkAuthKey(forProfile profileID: String) throws
+
+    /// Embedded node identity snapshot (contains machine/node private keys).
+    /// Persist only in device Keychain; never in SQLite or backups.
+    func setPrivateNetworkNodeState(_ state: String?, forProfile profileID: String) throws
+    func privateNetworkNodeState(forProfile profileID: String) throws -> String?
 }
 
 /// 凭据存取错误。

@@ -46,10 +46,11 @@ public struct AppDatabase: @unchecked Sendable {
         }
     }
 
-    /// 当前开发期只维护一份完整建库 Schema；旧开发库由 App 的重试流程删除后重建。
+    /// v1 是已发布基线；所有后续结构变化必须追加有序、可重试的前向迁移。
     public static var migrator: DatabaseMigrator {
         var migrator = DatabaseMigrator()
         SchemaV1.register(in: &migrator)
+        SchemaV2.register(in: &migrator)
         return migrator
     }
 

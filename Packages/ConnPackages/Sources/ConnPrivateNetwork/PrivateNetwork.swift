@@ -60,20 +60,26 @@ public actor PrivateNetworkRegistry {
         var leaseCount: Int
     }
 
+    private struct Closing {
+        let id = UUID()
+        let task: Task<Void, Never>
+    }
+
     private let profileRepository: any PrivateNetworkProfileRepository
     private let credentialStore: any CredentialStore
     private let factory: any PrivateNetworkClientFactory
     private var runtimes: [String: Runtime] = [:]
     private var startingClients: [String: Task<any PrivateNetworkClient, Error>] = [:]
+    private var closingClients: [String: Closing] = [:]
 
     public init(
         profileRepository: any PrivateNetworkProfileRepository,
         credentialStore: any CredentialStore,
-        factory: any PrivateNetworkClientFactory = DefaultPrivateNetworkClientFactory()
+        factory: (any PrivateNetworkClientFactory)? = nil
     ) {
         self.profileRepository = profileRepository
         self.credentialStore = credentialStore
-        self.factory = factory
+        self.factory = factory ?? DefaultPrivateNetworkClientFactory(credentialStore: credentialStore)
     }
 
     public func openProxy(
@@ -81,7 +87,8 @@ public actor PrivateNetworkRegistry {
         to endpoint: SSHEndpoint
     ) async throws -> any PrivateNetworkProxyLease {
         let client = try await client(for: profileID)
-        guard let runtime = runtimes[profileID] else {
+        let clientID = ObjectIdentifier(client)
+        guard let runtime = runtimes[profileID], ObjectIdentifier(runtime.client) == clientID else {
             throw PrivateNetworkError.proxyUnavailable
         }
 
@@ -94,11 +101,11 @@ public actor PrivateNetworkRegistry {
         do {
             rawLease = try await client.openTCPProxy(to: endpoint)
         } catch {
-            await release(profileID: profileID)
+            await release(profileID: profileID, clientID: clientID)
             throw error
         }
         return RegistryLease(rawLease: rawLease) { [weak self] in
-            await self?.release(profileID: profileID)
+            await self?.release(profileID: profileID, clientID: clientID)
         }
     }
 
@@ -107,30 +114,46 @@ public actor PrivateNetworkRegistry {
     }
 
     public func stop(profileID: String) async {
-        guard let runtime = runtimes.removeValue(forKey: profileID) else { return }
-        await runtime.client.close()
+        if let runtime = runtimes.removeValue(forKey: profileID) {
+            closingClients[profileID] = Closing(task: Task { await runtime.client.close() })
+        }
+        await waitForClose(profileID: profileID)
     }
 
     public func stopAll() async {
-        let current = runtimes.values.map(\.client)
+        let current = runtimes
         runtimes.removeAll()
-        for client in current { await client.close() }
+        for (profileID, runtime) in current {
+            closingClients[profileID] = Closing(task: Task { await runtime.client.close() })
+        }
+        for profileID in Array(closingClients.keys) { await waitForClose(profileID: profileID) }
     }
 
-    private func release(profileID: String) async {
-        guard let runtime = runtimes[profileID] else { return }
+    private func release(profileID: String, clientID: ObjectIdentifier) async {
+        guard let runtime = runtimes[profileID], ObjectIdentifier(runtime.client) == clientID else { return }
         guard runtime.leaseCount > 1 else {
-            runtimes.removeValue(forKey: profileID)
-            await runtime.client.close()
+            await stop(profileID: profileID)
             return
         }
         runtimes[profileID] = Runtime(client: runtime.client, leaseCount: runtime.leaseCount - 1)
+    }
+
+    private func waitForClose(profileID: String) async {
+        while let closing = closingClients[profileID] {
+            await closing.task.value
+            if closingClients[profileID]?.id == closing.id {
+                closingClients.removeValue(forKey: profileID)
+            }
+        }
     }
 
     /// Coordinates the one-time async start. An actor serializes synchronous
     /// access, but it is still reentrant across `await`; keeping the in-flight
     /// task makes concurrent first connections share one node.
     private func client(for profileID: String) async throws -> any PrivateNetworkClient {
+        // close checkpoints Keychain and removes the working directory. Reopening
+        // sooner races with that write and can erase the new client's state.
+        await waitForClose(profileID: profileID)
         if let runtime = runtimes[profileID] {
             return runtime.client
         }
@@ -260,15 +283,38 @@ public final class PrivateNetworkSOCKSProxy: PrivateNetworkProxyLease, @unchecke
         let listener = try NWListener(using: parameters, on: .any)
         self.listener = listener
         listener.newConnectionHandler = { [weak self] connection in self?.accept(connection) }
-        listener.start(queue: queue)
-
-        while true {
-            if let port = listener.port?.rawValue {
-                endpoint = .init(host: "127.0.0.1", port: Int(port))
-                return self
+        do {
+            let port: UInt16 = try await withTaskCancellationHandler {
+                try await withCheckedThrowingContinuation { continuation in
+                    listener.stateUpdateHandler = { state in
+                        switch state {
+                        case .ready:
+                            listener.stateUpdateHandler = nil
+                            guard let port = listener.port?.rawValue, port != 0 else {
+                                continuation.resume(throwing: PrivateNetworkError.proxyUnavailable)
+                                return
+                            }
+                            continuation.resume(returning: port)
+                        case .failed, .cancelled:
+                            listener.stateUpdateHandler = nil
+                            continuation.resume(throwing: PrivateNetworkError.proxyUnavailable)
+                        default: break
+                        }
+                    }
+                    // port can be zero until .ready; publishing it sooner makes
+                    // Citadel connect to 127.0.0.1:0 and never reach the tailnet.
+                    listener.start(queue: queue)
+                    if Task.isCancelled { listener.cancel() }
+                }
+            } onCancel: {
+                listener.cancel()
             }
-            if case .failed = listener.state { throw PrivateNetworkError.proxyUnavailable }
-            try await Task.sleep(for: .milliseconds(2))
+            try Task.checkCancellation()
+            endpoint = .init(host: "127.0.0.1", port: Int(port))
+            return self
+        } catch {
+            await close()
+            throw error
         }
     }
 
@@ -477,14 +523,18 @@ public final class PrivateNetworkSOCKSProxy: PrivateNetworkProxyLease, @unchecke
 }
 
 public struct DefaultPrivateNetworkClientFactory: PrivateNetworkClientFactory {
-    public init() {}
+    private let credentialStore: any CredentialStore
+
+    public init(credentialStore: any CredentialStore = KeychainCredentialStore()) {
+        self.credentialStore = credentialStore
+    }
 
     public func makeClient(
         for profile: PrivateNetworkProfile,
         authKey: String?
     ) async throws -> any PrivateNetworkClient {
         #if canImport(TailscaleKit)
-        return try TailscaleKitPrivateNetworkClient(profile: profile, authKey: authKey)
+        return try TailscaleKitPrivateNetworkClient(profile: profile, authKey: authKey, credentialStore: credentialStore)
         #else
         _ = profile
         _ = authKey
@@ -498,22 +548,20 @@ import TailscaleKit
 
 private final class TailscaleKitPrivateNetworkClient: PrivateNetworkClient, @unchecked Sendable {
     private let node: TailscaleNode
-    private let statePath: URL
+    private let state: PrivateNetworkNodeState
     private var loopbackConfig: TailscaleNode.LoopbackConfig?
     private(set) var status: PrivateNetworkStatus = .stopped
 
-    init(profile: PrivateNetworkProfile, authKey: String?) throws {
+    init(profile: PrivateNetworkProfile, authKey: String?, credentialStore: any CredentialStore) throws {
         guard profile.isValid else { throw PrivateNetworkError.invalidControlURL(profile.controlURL) }
-        let path = FileManager.default.temporaryDirectory
-            .appendingPathComponent("Conn-Tailscale-\(profile.id)", isDirectory: true)
-        try FileManager.default.createDirectory(at: path, withIntermediateDirectories: true)
-        statePath = path
+        state = PrivateNetworkNodeState(profile: profile, credentialStore: credentialStore)
+        try state.prepare()
         node = try TailscaleNode(config: Configuration(
             hostName: "Conn-\(profile.id.prefix(24))",
-            path: path.path,
+            path: state.directory.path,
             authKey: authKey,
             controlURL: profile.controlURL,
-            ephemeral: true
+            ephemeral: false
         ), logger: nil)
     }
 
@@ -521,6 +569,9 @@ private final class TailscaleKitPrivateNetworkClient: PrivateNetworkClient, @unc
         status = .starting
         do {
             try await node.up()
+            // Save immediately after registration, before a failed SSH attempt or
+            // force-quit can discard the device identity.
+            try state.checkpoint()
             loopbackConfig = try await node.loopback()
             status = .running
         } catch {
@@ -545,7 +596,13 @@ private final class TailscaleKitPrivateNetworkClient: PrivateNetworkClient, @unc
     func close() async {
         status = .stopped
         try? await node.close()
-        try? FileManager.default.removeItem(at: statePath)
+        do {
+            try state.checkpoint()
+            try state.removeWorkingDirectory()
+        } catch {
+            // Preserve the protected working copy when Keychain is unavailable
+            // (e.g. the device just locked); never erase the only current identity.
+        }
     }
 }
 #endif

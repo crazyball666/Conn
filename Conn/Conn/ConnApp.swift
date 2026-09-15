@@ -233,7 +233,7 @@ struct AppDependencies {
             let privateNetworkRegistry = PrivateNetworkRegistry(
                 profileRepository: privateNetworkProfileStore,
                 credentialStore: credentialStore,
-                factory: DefaultPrivateNetworkClientFactory()
+                factory: DefaultPrivateNetworkClientFactory(credentialStore: credentialStore)
             )
             let transport = CitadelTransport(
                 hostKeyStore: hostKeyStore,
