@@ -23,6 +23,7 @@
     /// 终端视口与快捷键栏是同一个 `VStack` 里的相邻区域；系统键盘位于两者下方。
     /// 快捷键栏展开时会真实压缩终端视口，不再通过 `inputAccessoryView` 悬浮覆盖内容。
     public struct TerminalHostingView: View {
+        @Binding private var composerState: TerminalCommandComposerState
         private let session: TerminalSession
         private let transcript: TerminalTranscript
         private let persistentAttachment: (any PersistentTerminalAttachment)?
@@ -44,6 +45,7 @@
         private let onPersistentWorkingDirectoryChanged: (String?) -> Void
         private let onTerminalWorkingDirectoryChanged:
             (TerminalWorkingDirectorySource, UInt64, String?) -> Void
+        private let speechInputService: (any TerminalSpeechInputService)?
 
         public init(
             session: TerminalSession,
@@ -52,6 +54,7 @@
             persistentInteraction: (any PersistentTerminalInteractionFacet)? = nil,
             tabID: String = "",
             terminalGeneration: UInt64 = 0,
+            composerState: Binding<TerminalCommandComposerState> = .constant(.init()),
             insertionMailbox: TerminalTextInsertionMailbox? = nil,
             configuration: TerminalConfiguration = .init(),
             onCloseTerminal: @escaping () -> Void = {},
@@ -67,8 +70,10 @@
             onPersistentWorkingDirectoryChanged: @escaping (String?) -> Void = { _ in },
             onTerminalWorkingDirectoryChanged: @escaping (
                 TerminalWorkingDirectorySource, UInt64, String?
-            ) -> Void = { _, _, _ in }
+            ) -> Void = { _, _, _ in },
+            speechInputService: (any TerminalSpeechInputService)? = nil
         ) {
+            _composerState = composerState
             self.session = session
             self.transcript = transcript
             self.persistentAttachment = persistentAttachment
@@ -89,6 +94,7 @@
             self.onAttachmentAction = onAttachmentAction
             self.onPersistentWorkingDirectoryChanged = onPersistentWorkingDirectoryChanged
             self.onTerminalWorkingDirectoryChanged = onTerminalWorkingDirectoryChanged
+            self.speechInputService = speechInputService
         }
 
         public var body: some View {
@@ -99,6 +105,7 @@
                 persistentInteraction: persistentInteraction,
                 tabID: tabID,
                 terminalGeneration: terminalGeneration,
+                composerState: $composerState,
                 insertionMailbox: insertionMailbox,
                 configuration: configuration,
                 onCloseTerminal: onCloseTerminal,
@@ -112,7 +119,8 @@
                 attachmentState: attachmentState,
                 onAttachmentAction: onAttachmentAction,
                 onPersistentWorkingDirectoryChanged: onPersistentWorkingDirectoryChanged,
-                onTerminalWorkingDirectoryChanged: onTerminalWorkingDirectoryChanged
+                onTerminalWorkingDirectoryChanged: onTerminalWorkingDirectoryChanged,
+                speechInputService: speechInputService
             )
             // 重连会换一个 TerminalSession；显式换身份，避免 @StateObject 继续持有旧会话。
             .id(ObjectIdentifier(session))
@@ -121,11 +129,14 @@
 
     private struct TerminalHostContent: View {
         @StateObject private var controller: TerminalInputController
+        @Binding private var composerState: TerminalCommandComposerState
         @State private var isKeybarExpanded: Bool
         /// Provider 快捷操作弹窗必须由终端宿主持有，不能依赖快捷键栏的局部状态。
         @State private var pendingTextInputAction: PersistentTerminalQuickActionDescriptor?
         @State private var pendingConfirmationAction: PersistentTerminalQuickActionDescriptor?
         @State private var quickActionText = ""
+        @State private var speechState: TerminalSpeechComposerState = .idle
+        @State private var speechDraft = TerminalSpeechDraft()
         @Environment(\.scenePhase) private var scenePhase
         @Environment(\.connToastCenter) private var toastCenter
 
@@ -143,6 +154,7 @@
         private let onPersistentWorkingDirectoryChanged: (String?) -> Void
         private let onTerminalWorkingDirectoryChanged:
             (TerminalWorkingDirectorySource, UInt64, String?) -> Void
+        private let speechInputService: (any TerminalSpeechInputService)?
 
         init(
             session: TerminalSession,
@@ -151,6 +163,7 @@
             persistentInteraction: (any PersistentTerminalInteractionFacet)?,
             tabID: String,
             terminalGeneration: UInt64,
+            composerState: Binding<TerminalCommandComposerState>,
             insertionMailbox: TerminalTextInsertionMailbox?,
             configuration: TerminalConfiguration,
             onCloseTerminal: @escaping () -> Void,
@@ -166,13 +179,16 @@
             onPersistentWorkingDirectoryChanged: @escaping (String?) -> Void,
             onTerminalWorkingDirectoryChanged: @escaping (
                 TerminalWorkingDirectorySource, UInt64, String?
-            ) -> Void
+            ) -> Void,
+            speechInputService: (any TerminalSpeechInputService)?
         ) {
+            _composerState = composerState
             _controller = StateObject(wrappedValue: TerminalInputController(
                 session: session,
                 transcript: transcript,
                 persistentAttachment: persistentAttachment,
                 persistentInteraction: persistentInteraction,
+                tabID: tabID,
                 terminalGeneration: terminalGeneration,
                 onPersistentWorkspaceRenamed: onPersistentWorkspaceRenamed,
                 onPersistentWorkspaceChanged: onPersistentWorkspaceChanged,
@@ -194,6 +210,7 @@
             self.onAttachmentAction = onAttachmentAction
             self.onPersistentWorkingDirectoryChanged = onPersistentWorkingDirectoryChanged
             self.onTerminalWorkingDirectoryChanged = onTerminalWorkingDirectoryChanged
+            self.speechInputService = speechInputService
         }
 
         var body: some View {
@@ -203,6 +220,20 @@
                     controller: controller
                 )
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+                TerminalCommandComposer(
+                    text: Binding(
+                        get: { composerState.text },
+                        set: { composerState.updateText($0) }
+                    ),
+                    isSubmitting: Binding(
+                        get: { composerState.isSubmitting },
+                        set: { _ in }
+                    ),
+                    speechState: composerSpeechState,
+                    onSubmit: submitComposerText,
+                    onToggleSpeech: toggleSpeechInput
+                )
 
                 TerminalKeybar(
                     ctrlActive: controller.ctrlActive,
@@ -313,8 +344,95 @@
             }
             .onChange(of: scenePhase) { _, phase in
                 controller.setApplicationActive(phase == .active)
+                if phase != .active {
+                    stopSpeechInput()
+                }
             }
-            .onDisappear { controller.detach() }
+            .onDisappear {
+                stopSpeechInput()
+                controller.detach()
+            }
+        }
+
+        private var composerSpeechState: TerminalSpeechComposerState {
+            if speechState == .listening { return .listening }
+            guard let speechInputService,
+                  speechInputService.availability(for: .current) == .available
+            else { return .unavailable }
+            return .idle
+        }
+
+        private func toggleSpeechInput() {
+            guard let speechInputService else {
+                toastCenter.show(L("当前设备不支持语音输入"), style: .warning)
+                return
+            }
+
+            if speechState == .listening {
+                stopSpeechInput()
+                return
+            }
+            guard speechState != .stopping else { return }
+
+            guard speechInputService.availability(for: .current) == .available else {
+                toastCenter.show(L("当前设备不支持离线语音输入"), style: .warning)
+                return
+            }
+
+            speechDraft = TerminalSpeechDraft(baseText: composerState.text)
+            speechState = .listening
+            speechInputService.start(
+                locale: .current,
+                onEvent: { event in
+                    applySpeechEvent(event)
+                },
+                onError: { error in
+                    handleSpeechError(error)
+                }
+            )
+        }
+
+        private func stopSpeechInput() {
+            guard speechState == .listening || speechState == .stopping else { return }
+            speechState = .stopping
+            speechInputService?.stop()
+        }
+
+        private func applySpeechEvent(_ event: TerminalSpeechInputEvent) {
+            guard speechState == .listening || speechState == .stopping else { return }
+            switch event {
+            case let .partial(transcript):
+                composerState.updateText(speechDraft.update(transcript: transcript))
+            case let .final(transcript):
+                composerState.updateText(speechDraft.update(transcript: transcript))
+                speechState = .idle
+                speechDraft.reset()
+            }
+        }
+
+        private func handleSpeechError(_ error: TerminalSpeechInputError) {
+            guard speechState == .listening || speechState == .stopping else { return }
+            composerState.updateText(speechDraft.baseText)
+            speechState = .idle
+            speechDraft.reset()
+            toastCenter.show(speechErrorMessage(error), style: .warning)
+        }
+
+        private func speechErrorMessage(_ error: TerminalSpeechInputError) -> String {
+            switch error {
+            case .permissionDenied:
+                L("语音输入需要麦克风和语音识别权限")
+            case .unavailable:
+                L("当前设备不支持离线语音输入")
+            case .microphoneUnavailable:
+                L("麦克风暂不可用，请重试")
+            case .recognitionFailed:
+                L("语音识别失败，请重试")
+            case .interrupted:
+                L("语音输入已中断，请重试")
+            case .cancelled:
+                L("语音输入已取消")
+            }
         }
 
         private func setKeybarExpanded(_ expanded: Bool) {
@@ -344,6 +462,17 @@
                 return
             }
             insertionMailbox.enqueue(command, expectedContext: context)
+        }
+
+        private func submitComposerText(_ text: String) {
+            guard let target = controller.currentComposerTarget(),
+                  let draft = composerState.beginSubmission()
+            else {
+                controller.notifyComposerUnavailable()
+                return
+            }
+            let accepted = controller.submitComposerText(draft, target: target)
+            composerState.finishSubmission(accepted: accepted)
         }
 
         private func selectProviderQuickAction(
@@ -454,6 +583,7 @@
         private let transcript: TerminalTranscript
         private let persistentAttachment: (any PersistentTerminalAttachment)?
         private let persistentInteraction: (any PersistentTerminalInteractionFacet)?
+        private let tabID: String
         private let terminalGeneration: UInt64
         private let onPersistentWorkspaceRenamed: (String) -> Void
         private let onPersistentWorkspaceChanged: (String, String?) -> Void
@@ -486,6 +616,8 @@
         private var clipboardPolicy = TerminalClipboardPolicy()
         private var focusState = TerminalFocusState()
         private var isTypedPaste = false
+        private var isComposerSubmission = false
+        private var composerSubmissionAccepted = true
         private var isHostProtocolEmission = false
         private var applicationActive = true
         private var rendererReadyForRemoteViewport = false
@@ -512,6 +644,7 @@
             transcript: TerminalTranscript,
             persistentAttachment: (any PersistentTerminalAttachment)?,
             persistentInteraction: (any PersistentTerminalInteractionFacet)?,
+            tabID: String,
             terminalGeneration: UInt64,
             onPersistentWorkspaceRenamed: @escaping (String) -> Void,
             onPersistentWorkspaceChanged: @escaping (String, String?) -> Void,
@@ -525,6 +658,7 @@
             self.transcript = transcript
             self.persistentAttachment = persistentAttachment
             self.persistentInteraction = persistentInteraction
+            self.tabID = tabID
             self.terminalGeneration = terminalGeneration
             self.onPersistentWorkspaceRenamed = onPersistentWorkspaceRenamed
             self.onPersistentWorkspaceChanged = onPersistentWorkspaceChanged
@@ -760,8 +894,10 @@
         /// user input outside a terminal feed.
         func send(source: TerminalView, data: ArraySlice<UInt8>) {
             guard replayOutboundGate.allowsTerminalDelegateOutput else { return }
+            let isComposerInput = isComposerSubmission
             let isUserInput = replayOutboundGate.currentFeedProvenance == .outsideFeed
                 && !isHostProtocolEmission
+                && !isComposerInput
             if isUserInput {
                 dismissHistoryReviewIfNeeded()
                 source.clearSelection()
@@ -787,7 +923,10 @@
             if isUserInput {
                 enqueueUserInput(encoded)
             } else {
-                session.enqueue(encoded)
+                let accepted = session.enqueue(encoded)
+                if isComposerInput {
+                    composerSubmissionAccepted = composerSubmissionAccepted && accepted
+                }
             }
         }
 
@@ -874,6 +1013,52 @@
             // Provider modes such as tmux copy mode consume their own keyboard input on
             // the attached PTY. Typed bytes must never be coupled to Control Mode.
             session.enqueue(bytes)
+        }
+
+        func currentComposerTarget() -> TerminalComposerTarget? {
+            guard terminalView != nil,
+                  replayOutboundGate.allowsTerminalDelegateOutput,
+                  !isReviewActive
+            else { return nil }
+            return TerminalComposerTarget(
+                tabID: tabID,
+                generation: terminalGeneration,
+                persistentTarget: persistentTarget
+            )
+        }
+
+        func notifyComposerUnavailable() {
+            showNotice(L("远程终端状态暂不可用，请重试"), style: .warning)
+        }
+
+        @discardableResult
+        func submitComposerText(_ text: String, target: TerminalComposerTarget) -> Bool {
+            guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+                  let terminalView,
+                  target == currentComposerTarget()
+            else { return false }
+
+            guard TerminalCommandComposerSubmissionPolicy.allows(
+                text,
+                bracketedPasteEnabled: terminalView.hostProtocolState.bracketedPasteEnabled
+            ) else {
+                showNotice(L("当前终端不支持安全的多行粘贴"), style: .warning)
+                return false
+            }
+
+            dismissHistoryReviewIfNeeded()
+            terminalView.clearSelection()
+            inputEpoch &+= 1
+
+            let previousSubmission = isComposerSubmission
+            let previousAcceptance = composerSubmissionAccepted
+            isComposerSubmission = true
+            composerSubmissionAccepted = true
+            terminalView.paste(text: text)
+            let accepted = composerSubmissionAccepted
+            isComposerSubmission = previousSubmission
+            composerSubmissionAccepted = previousAcceptance
+            return accepted
         }
 
         func handlePaste(_ text: String, source: TerminalPasteSource = .keybar) {

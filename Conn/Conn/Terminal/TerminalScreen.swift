@@ -31,6 +31,8 @@ struct TerminalScreen: View {
     @State private var isFileImporterPresented = false
     @State private var photoSelection: [PhotosPickerItem] = []
     @State private var providerWorkingDirectory: String?
+    /// 仅在本次 TerminalScreen 生命周期内按 tab 保存草稿；不写入数据库。
+    @State private var composerStates: [String: TerminalCommandComposerState] = [:]
     @State private var terminalWorkingDirectoryResolvers: [String: TerminalWorkingDirectoryResolver] = [:]
     @State private var terminalFileBrowserViewModels: [String: FileBrowserViewModel] = [:]
     @State private var terminalFileBrowserRoute: TerminalFileBrowserRoute?
@@ -116,6 +118,7 @@ struct TerminalScreen: View {
                             }
                         },
                         onClose: { id in
+                            composerStates.removeValue(forKey: id)
                             Task {
                                 await terminalSessions.close(id)
                                 if tabID == id {
@@ -230,6 +233,13 @@ private extension TerminalScreen {
         }
     }
 
+    private func composerBinding(for tabID: String) -> Binding<TerminalCommandComposerState> {
+        Binding(
+            get: { composerStates[tabID] ?? TerminalCommandComposerState() },
+            set: { composerStates[tabID] = $0 }
+        )
+    }
+
     @ViewBuilder
     private var terminalContent: some View {
         let configuration = settings.terminalConfiguration
@@ -245,6 +255,7 @@ private extension TerminalScreen {
                     )?.interaction,
                     tabID: tab.id,
                     terminalGeneration: tab.generation,
+                    composerState: composerBinding(for: tab.id),
                     insertionMailbox: insertionMailbox,
                     configuration: configuration,
                     onCloseTerminal: { dismiss() },
@@ -276,7 +287,8 @@ private extension TerminalScreen {
                             path: path,
                             terminalSource: tab.source
                         )
-                    }
+                    },
+                    speechInputService: AppleSpeechInputService.shared
                 )
                 .environment(\.colorScheme, terminalColorScheme)
                 .overlay {
@@ -300,6 +312,7 @@ private extension TerminalScreen {
     }
 
     private func closePersistentWorkspace(_ id: String) {
+        composerStates.removeValue(forKey: id)
         Task {
             await terminalSessions.close(id)
             guard tabID == id, activeTab == nil else { return }

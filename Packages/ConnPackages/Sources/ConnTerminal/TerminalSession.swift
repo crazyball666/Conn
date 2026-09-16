@@ -28,14 +28,15 @@ private final class TerminalOutboundQueue: @unchecked Sendable {
         lock.withLock { failureHandler = handler }
     }
 
-    func enqueue(_ data: Data) {
+    @discardableResult
+    func enqueue(_ data: Data) -> Bool {
         register(.init(data: data, continuation: nil))
     }
 
     func send(_ data: Data) async throws {
         try await withCheckedThrowingContinuation {
             (continuation: CheckedContinuation<Void, any Error>) in
-            register(.init(data: data, continuation: continuation))
+            _ = register(.init(data: data, continuation: continuation))
         }
     }
 
@@ -54,23 +55,23 @@ private final class TerminalOutboundQueue: @unchecked Sendable {
         }
     }
 
-    private func register(_ request: Request) {
-        var immediateError: (any Error)?
-        let startsDrain = lock.withLock { () -> Bool in
+    @discardableResult
+    private func register(_ request: Request) -> Bool {
+        let result = lock.withLock { () -> (accepted: Bool, startsDrain: Bool, error: (any Error)?) in
             if let terminalError {
-                immediateError = terminalError
-                return false
+                return (false, false, terminalError)
             }
             pending.append(request)
-            guard !draining else { return false }
+            guard !draining else { return (true, false, nil) }
             draining = true
-            return true
+            return (true, true, nil)
         }
-        if let immediateError {
-            request.continuation?.resume(throwing: immediateError)
-        } else if startsDrain {
+        if let error = result.error {
+            request.continuation?.resume(throwing: error)
+        } else if result.startsDrain {
             Task { [weak self] in await self?.drain() }
         }
+        return result.accepted
     }
 
     private func drain() async {
@@ -224,9 +225,10 @@ public actor TerminalSession {
 
     /// UI delegate callbacks register bytes synchronously, preserving their source order
     /// without creating one unstructured Task per key or terminal protocol response.
-    public nonisolated func enqueue(_ bytes: [UInt8]) {
-        guard !bytes.isEmpty else { return }
-        outboundQueue.enqueue(Data(bytes))
+    @discardableResult
+    public nonisolated func enqueue(_ bytes: [UInt8]) -> Bool {
+        guard !bytes.isEmpty else { return false }
+        return outboundQueue.enqueue(Data(bytes))
     }
 
     /// 终端尺寸变化 → PTY resize（SIGWINCH）。

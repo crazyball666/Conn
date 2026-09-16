@@ -115,6 +115,49 @@ final class ConnUITests: XCTestCase {
     }
 
     @MainActor
+    func testTerminalComposerKeepsMultilineDraftUntilExplicitSend() throws {
+        let app = XCUIApplication()
+        app.launchEnvironment["CONN_SUBSCRIPTION_STATE"] = "pro"
+        app.launch()
+
+        let hostCard = app.buttons.matching(
+            NSPredicate(format: "identifier BEGINSWITH %@", "servers.host.")
+        ).firstMatch
+        guard hostCard.waitForExistence(timeout: 15) else {
+            throw XCTSkip("当前模拟器没有已保存的主机配置")
+        }
+        hostCard.tap()
+
+        let openTerminal = app.buttons["host.open-terminal"]
+        XCTAssertTrue(openTerminal.waitForExistence(timeout: 5))
+        openTerminal.tap()
+
+        let plainTerminal = app.buttons["new-terminal.provider.plain"]
+        if plainTerminal.waitForExistence(timeout: 5) {
+            plainTerminal.tap()
+        }
+
+        let input = app.textFields["terminal.composer.input"]
+        XCTAssertTrue(input.waitForExistence(timeout: 20))
+        XCTAssertTrue(app.buttons["terminal.composer.voice"].waitForExistence(timeout: 5))
+        let emptyValue = input.value as? String ?? ""
+        input.tap()
+        input.typeText("printf one\nprintf two")
+
+        let draft = input.value as? String ?? ""
+        XCTAssertTrue(draft.contains("printf one"))
+        XCTAssertTrue(draft.contains("printf two"))
+        XCTAssertTrue(draft.contains("\n"), "Return should add a newline to the draft")
+
+        let send = app.buttons["terminal.composer.send"]
+        XCTAssertTrue(send.exists)
+        send.tap()
+        XCTAssertTrue(input.waitForExistence(timeout: 5))
+        XCTAssertEqual(input.value as? String, emptyValue)
+        XCTAssertEqual(app.state, .runningForeground)
+    }
+
+    @MainActor
     func testFreeTerminalFileManagementPresentsPaywallDirectly() throws {
         let app = XCUIApplication()
         app.launchEnvironment["CONN_SUBSCRIPTION_STATE"] = "free"

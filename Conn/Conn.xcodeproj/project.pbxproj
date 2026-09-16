@@ -456,6 +456,8 @@
 				INFOPLIST_KEY_CFBundleDisplayName = ConnTerm;
 				INFOPLIST_KEY_NSFaceIDUsageDescription = "ConnTerm uses Face ID to unlock the app when App Lock is enabled.";
 				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "ConnTerm needs local network access to connect to your SSH hosts and manage files, processes, and Docker.";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "ConnTerm uses the microphone for voice input in the terminal composer.";
+				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "ConnTerm uses speech recognition to fill terminal input without executing it.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -492,6 +494,8 @@
 				INFOPLIST_KEY_CFBundleDisplayName = ConnTerm;
 				INFOPLIST_KEY_NSFaceIDUsageDescription = "ConnTerm uses Face ID to unlock the app when App Lock is enabled.";
 				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "ConnTerm needs local network access to connect to your SSH hosts and manage files, processes, and Docker.";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "ConnTerm uses the microphone for voice input in the terminal composer.";
+				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "ConnTerm uses speech recognition to fill terminal input without executing it.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -672,10 +676,6 @@
 			isa = XCSwiftPackageProductDependency;
 			productName = ConnCrypto;
 		};
-		7CAA0017300CF0AD00307624 /* ConnPrivateNetwork */ = {
-			isa = XCSwiftPackageProductDependency;
-			productName = ConnPrivateNetwork;
-		};
 		7C181B0F300CF0AD00307624 /* ConnTerminal */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = ConnTerminal;
@@ -699,6 +699,10 @@
 		7CAA0015300CF0AD00307624 /* ConnEntitlement */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = ConnEntitlement;
+		};
+		7CAA0017300CF0AD00307624 /* ConnPrivateNetwork */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = ConnPrivateNetwork;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

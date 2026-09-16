@@ -141,6 +141,29 @@ struct TerminalSessionTests {
         await session.close()
     }
 
+    @Test("关闭后拒绝新的快速入队")
+    func rejectsEnqueueAfterClose() async {
+        let channel = TestShellChannel()
+        let session = TerminalSession(channel: channel, transcript: TerminalTranscript(), generation: 1)
+
+        #expect(session.enqueue(Array("before-close".utf8)))
+        await session.close()
+        #expect(session.enqueue(Array("after-close".utf8)) == false)
+    }
+
+    @Test("多行待发送内容按原文入队且不追加回车")
+    func preservesComposerBytesWithoutImplicitReturn() async throws {
+        let channel = TestShellChannel()
+        let session = TerminalSession(channel: channel, transcript: TerminalTranscript(), generation: 1)
+        let draft = "  printf one  \nprintf two  "
+
+        #expect(session.enqueue(Array(draft.utf8)))
+        #expect(await waitUntil { channel.writtenData.count == 1 })
+        #expect(channel.writtenData == [Data(draft.utf8)])
+
+        await session.close()
+    }
+
     @Test("并发提交的终端输入严格串行写入")
     func serializesConcurrentInput() async throws {
         let channel = OrderedWriteShellChannel()
