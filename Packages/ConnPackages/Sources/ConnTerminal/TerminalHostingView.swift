@@ -137,6 +137,10 @@
         @State private var quickActionText = ""
         @State private var speechState: TerminalSpeechComposerState = .idle
         @State private var speechDraft = TerminalSpeechDraft()
+        @State private var isComposerFocused = false
+        @State private var dismissComposerKeyboardRequest: UInt = 0
+        @State private var focusComposerKeyboardRequest: UInt = 0
+        @State private var lastKeyboardOwnerWasComposer = false
         @Environment(\.scenePhase) private var scenePhase
         @Environment(\.connToastCenter) private var toastCenter
 
@@ -221,50 +225,67 @@
                 )
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
 
-                TerminalCommandComposer(
-                    text: Binding(
-                        get: { composerState.text },
-                        set: { composerState.updateText($0) }
-                    ),
-                    isSubmitting: Binding(
-                        get: { composerState.isSubmitting },
-                        set: { _ in }
-                    ),
-                    speechState: composerSpeechState,
-                    onSubmit: submitComposerText,
-                    onToggleSpeech: toggleSpeechInput
-                )
+                TerminalInputBar {
+                    TerminalCommandComposer(
+                        text: Binding(
+                            get: { composerState.text },
+                            set: { composerState.updateText($0) }
+                        ),
+                        isSubmitting: Binding(
+                            get: { composerState.isSubmitting },
+                            set: { _ in }
+                        ),
+                        speechState: composerSpeechState,
+                        onSubmit: submitComposerText,
+                        onToggleSpeech: toggleSpeechInput,
+                        dismissKeyboardRequest: dismissComposerKeyboardRequest,
+                        focusKeyboardRequest: focusComposerKeyboardRequest,
+                        onFocusChange: {
+                            isComposerFocused = $0
+                            if $0 { lastKeyboardOwnerWasComposer = true }
+                        }
+                    )
 
-                TerminalKeybar(
-                    ctrlActive: controller.ctrlActive,
-                    isExpanded: isKeybarExpanded,
-                    onKey: controller.handleKey,
-                    onPaste: { controller.handlePaste($0) },
-                    onInsertToolCommand: insertToolCommand,
-                    onCloseTerminal: onCloseTerminal,
-                    onSwitchTerminal: onSwitchTerminal,
-                    onOpenFileBrowser: onOpenFileBrowser,
-                    onChooseCommand: onChooseCommand,
-                    onReconnect: onReconnect,
-                    pointerAvailable: controller.pointerAvailable,
-                    pointerActive: controller.pointerActive,
-                    onTogglePointer: controller.togglePointer,
-                    providerQuickActionGroup: controller.providerQuickActionGroup,
-                    performingProviderQuickActionID: controller.performingProviderQuickActionID,
-                    onProviderQuickAction: selectProviderQuickAction,
-                    keyboardVisible: controller.isSoftwareKeyboardVisible,
-                    onToggleKeyboard: controller.toggleKeyboard,
-                    onExpansionChange: setKeybarExpanded,
-                    attachmentState: attachmentState,
-                    onAttachmentAction: onAttachmentAction
-                )
-                .frame(
-                    height: isKeybarExpanded
-                        ? TerminalKeybarMetrics.expandedHeight
-                        : TerminalKeybarMetrics.compactHeight
-                )
-                .accessibilityElement(children: .contain)
-                .accessibilityIdentifier("terminal.keybar")
+                    TerminalKeybar(
+                        ctrlActive: controller.ctrlActive,
+                        isExpanded: isKeybarExpanded,
+                        onKey: controller.handleKey,
+                        onPaste: { controller.handlePaste($0) },
+                        onInsertToolCommand: insertToolCommand,
+                        onCloseTerminal: onCloseTerminal,
+                        onSwitchTerminal: onSwitchTerminal,
+                        onOpenFileBrowser: onOpenFileBrowser,
+                        onChooseCommand: onChooseCommand,
+                        onReconnect: onReconnect,
+                        pointerAvailable: controller.pointerAvailable,
+                        pointerActive: controller.pointerActive,
+                        onTogglePointer: controller.togglePointer,
+                        providerQuickActionGroup: controller.providerQuickActionGroup,
+                        performingProviderQuickActionID: controller.performingProviderQuickActionID,
+                        onProviderQuickAction: selectProviderQuickAction,
+                        keyboardVisible: controller.isSoftwareKeyboardVisible || isComposerFocused,
+                        keyboardToggleEnabled: !composerSpeechState.isCapturing,
+                        onToggleKeyboard: {
+                            if isComposerFocused {
+                                dismissComposerKeyboardRequest &+= 1
+                            } else if lastKeyboardOwnerWasComposer {
+                                focusComposerKeyboardRequest &+= 1
+                            } else {
+                                controller.toggleKeyboard()
+                            }
+                        },
+                        onExpansionChange: setKeybarExpanded,
+                        attachmentState: attachmentState,
+                        onAttachmentAction: onAttachmentAction
+                    )
+                    .frame(
+                        height: isKeybarExpanded
+                            ? TerminalKeybarMetrics.expandedHeight
+                            : TerminalKeybarMetrics.compactHeight
+                    )
+                    .accessibilityElement(children: .contain)
+                    .accessibilityIdentifier("terminal.keybar")
+                }
             }
             .alert(
                 pendingTextInputAction.map { L($0.textInput?.titleKey ?? $0.titleKey) } ?? "",
@@ -333,6 +354,9 @@
                 toastCenter.show(notice.text, style: notice.style)
             }
             .onChange(of: controller.inputEpoch) { _, _ in synchronizeInsertionContext() }
+            .onChange(of: controller.isTerminalFocused) { _, focused in
+                if focused { lastKeyboardOwnerWasComposer = false }
+            }
             .onChange(of: controller.persistentTarget) { _, _ in synchronizeInsertionContext() }
             .onChange(of: insertionMailbox?.pending?.id) { _, _ in
                 guard let text = insertionMailbox?.consumeIfCurrent() else { return }
@@ -355,7 +379,7 @@
         }
 
         private var composerSpeechState: TerminalSpeechComposerState {
-            if speechState == .listening { return .listening }
+            if speechState.isCapturing { return speechState }
             guard let speechInputService,
                   speechInputService.availability(for: .current) == .available
             else { return .unavailable }
@@ -429,7 +453,7 @@
             case .recognitionFailed:
                 L("语音识别失败，请重试")
             case .interrupted:
-                L("语音输入已中断，请重试")
+                L("语音输入已中断")
             case .cancelled:
                 L("语音输入已取消")
             }

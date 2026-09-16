@@ -26,6 +26,7 @@
         let performingProviderQuickActionID: String?
         let onProviderQuickAction: (PersistentTerminalQuickActionDescriptor) -> Void
         let keyboardVisible: Bool
+        var keyboardToggleEnabled: Bool = true
         let onToggleKeyboard: () -> Void
         let onExpansionChange: (Bool) -> Void
         let attachmentState: TerminalAttachmentPanelState
@@ -91,10 +92,7 @@
                     }
                 }
                 .clipped()
-                .ignoresSafeArea(edges: .bottom)
-            }
-            .overlay(alignment: .top) {
-                Rectangle().fill(Color.connLine).frame(height: 1)
+                .accessibilityHidden(true)
             }
             .sensoryFeedback(ConnHapticFeedback.highImpact, trigger: pressCount)
             .simultaneousGesture(
@@ -412,6 +410,9 @@
             } else {
                 Text(key.label)
                     .font(.connData(.footnote))
+                    .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.5)
             }
         }
 
@@ -583,6 +584,8 @@
                 width: TerminalKeybarMetrics.compactCapWidth,
                 action: onToggleKeyboard
             )
+            .disabled(!keyboardToggleEnabled)
+            .opacity(keyboardToggleEnabled ? 1 : 0.4)
         }
     }
 

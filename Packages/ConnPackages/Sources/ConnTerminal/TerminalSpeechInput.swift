@@ -33,6 +33,9 @@ public enum TerminalSpeechComposerState: Equatable, Sendable {
     case listening
     case stopping
     case unavailable
+
+    /// 缺少语音能力不能阻止键盘编辑和手动发送。
+    public var isCapturing: Bool { self == .listening || self == .stopping }
 }
 
 /// 终端语音输入服务抽象。

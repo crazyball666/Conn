@@ -116,6 +116,7 @@ final class ConnUITests: XCTestCase {
 
     @MainActor
     func testTerminalComposerKeepsMultilineDraftUntilExplicitSend() throws {
+        continueAfterFailure = true
         let app = XCUIApplication()
         app.launchEnvironment["CONN_SUBSCRIPTION_STATE"] = "pro"
         app.launch()
@@ -142,7 +143,11 @@ final class ConnUITests: XCTestCase {
         XCTAssertTrue(app.buttons["terminal.composer.voice"].waitForExistence(timeout: 5))
         let emptyValue = input.value as? String ?? ""
         input.tap()
-        input.typeText("printf one\nprintf two")
+        // typeText lets XCTest switch a simulator's hardware-keyboard mode to software input.
+        input.typeText("p")
+        waitForComposerKeyboard(app, visible: true)
+        assertComposerBelongsToBottomBar(app, aboveKeyboard: true)
+        input.typeText("rintf one\nprintf two")
 
         let draft = input.value as? String ?? ""
         XCTAssertTrue(draft.contains("printf one"))
@@ -151,10 +156,102 @@ final class ConnUITests: XCTestCase {
 
         let send = app.buttons["terminal.composer.send"]
         XCTAssertTrue(send.exists)
+        XCTAssertTrue(send.isEnabled, "Unavailable speech must not disable typed input")
+        assertComposerBelongsToBottomBar(app, aboveKeyboard: true)
         send.tap()
         XCTAssertTrue(input.waitForExistence(timeout: 5))
         XCTAssertEqual(input.value as? String, emptyValue)
+        input.typeText("draft")
+        XCTAssertEqual(input.value as? String, "draft", "Send must preserve focus for continuous editing")
+        app.buttons["terminal.keybar.dismissKeyboard"].tap()
+        waitForComposerKeyboard(app, visible: false)
+        assertComposerBelongsToBottomBar(app)
+        app.buttons["terminal.keybar.dismissKeyboard"].tap()
+        input.typeText(" stays here")
+        waitForComposerKeyboard(app, visible: true)
+        XCTAssertEqual(input.value as? String, "draft stays here", "Reopening must retain the composer as input destination")
+        input.typeText("\nline two\nline three\nline four\nline five\nline six")
+        assertComposerBelongsToBottomBar(app, aboveKeyboard: true)
+        app.buttons["terminal.keybar.dismissKeyboard"].tap()
+        waitForComposerKeyboard(app, visible: false)
+        app.buttons["terminal.keybar.expand"].tap()
+        XCTAssertTrue(app.buttons["terminal.keybar.collapse"].waitForExistence(timeout: 5))
+        assertComposerBelongsToBottomBar(app)
+        app.buttons["terminal.keybar.collapse"].tap()
+        app.buttons["terminal.keybar.close-terminal"].tap()
         XCTAssertEqual(app.state, .runningForeground)
+    }
+
+    @MainActor
+    private func waitForComposerKeyboard(
+        _ app: XCUIApplication, visible: Bool, file: StaticString = #filePath, line: UInt = #line
+    ) {
+        // UIKit can retain an offscreen keyboard preview after dismissal; existence is not visibility.
+        let settled = NSPredicate { _, _ in
+            let keyboard = app.keyboards.firstMatch
+            let isVisible = keyboard.exists && keyboard.frame.minY < app.frame.maxY - 100
+            return isVisible == visible
+        }
+        XCTAssertEqual(
+            XCTWaiter.wait(for: [XCTNSPredicateExpectation(predicate: settled, object: nil)], timeout: 8),
+            .completed, file: file, line: line
+        )
+    }
+
+    @MainActor
+    private func assertComposerBelongsToBottomBar(
+        _ app: XCUIApplication,
+        aboveKeyboard: Bool = false,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        let bar = app.descendants(matching: .any)["terminal.input-bar"].firstMatch
+        let composer = app.descendants(matching: .any)["terminal.composer"].firstMatch
+        let field = app.descendants(matching: .any)["terminal.composer.field"].firstMatch
+        let voice = app.buttons["terminal.composer.voice"]
+        let send = app.buttons["terminal.composer.send"]
+        XCTAssertTrue(bar.exists, file: file, line: line)
+        // AX excludes the composer's 4pt bottom padding from its container bounds.
+        let keyboardButton = app.buttons["terminal.keybar.dismissKeyboard"]
+        let rowGap = keyboardButton.frame.minY - composer.frame.maxY
+        XCTAssertGreaterThanOrEqual(rowGap, 0, file: file, line: line)
+        XCTAssertLessThanOrEqual(rowGap, 5, file: file, line: line)
+        XCTAssertGreaterThanOrEqual(voice.frame.height, 44, file: file, line: line)
+        XCTAssertGreaterThanOrEqual(send.frame.height, 44, file: file, line: line)
+        XCTAssertLessThanOrEqual(send.frame.maxX, field.frame.maxX + 1, file: file, line: line)
+        XCTAssertGreaterThan(voice.frame.minX, field.frame.maxX, file: file, line: line)
+        if aboveKeyboard {
+            // iOS exposes the prediction/IME row separately from the keyboard's key grid.
+            let assistant = app.otherElements["SystemInputAssistantView"].firstMatch
+            let keyboardTop = assistant.exists && assistant.frame.minY < app.frame.maxY
+                ? assistant.frame.minY : app.keyboards.firstMatch.frame.minY
+            XCTAssertEqual(keyboardButton.frame.maxY + 1, keyboardTop, accuracy: 2, file: file, line: line)
+        } else {
+            if app.buttons["terminal.keybar.expand"].exists {
+                let bottomInset = app.frame.maxY - keyboardButton.frame.maxY
+                XCTAssertGreaterThanOrEqual(bottomInset, 0, file: file, line: line)
+                XCTAssertLessThanOrEqual(bottomInset, 36, "Only the Home Indicator inset may remain below the bar", file: file, line: line)
+            }
+        }
+        // Capture only the accessory, excluding private host names and terminal output.
+        // Decorative touch ripples inflate AX container bounds even when hidden from accessibility.
+        let screenshot = app.screenshot().image
+        guard let fullImage = screenshot.cgImage else {
+            XCTFail("Could not capture the accessory", file: file, line: line)
+            return
+        }
+        let scale = CGFloat(fullImage.width) / app.frame.width
+        let crop = CGRect(x: 0, y: composer.frame.minY - 8, width: app.frame.width,
+                          height: app.frame.maxY - composer.frame.minY + 8)
+        let pixels = CGRect(x: 0, y: crop.minY * scale, width: crop.width * scale, height: crop.height * scale)
+        guard let image = fullImage.cropping(to: pixels) else {
+            XCTFail("Could not capture the accessory", file: file, line: line)
+            return
+        }
+        let attachment = XCTAttachment(image: UIImage(cgImage: image))
+        attachment.name = aboveKeyboard ? "composer-keyboard-visible" : "composer-keyboard-hidden"
+        attachment.lifetime = .keepAlways
+        add(attachment)
     }
 
     @MainActor

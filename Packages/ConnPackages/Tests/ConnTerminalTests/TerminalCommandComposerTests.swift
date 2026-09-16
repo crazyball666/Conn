@@ -103,4 +103,12 @@ struct TerminalCommandComposerTests {
         #expect(TerminalSpeechComposerState.listening != .stopping)
         #expect(TerminalSpeechComposerState.idle != .unavailable)
     }
+
+    @Test("语音不可用时仍可手动发送，仅活动语音会话锁定草稿")
+    func unavailableSpeechDoesNotDisableManualInput() {
+        #expect(!TerminalSpeechComposerState.unavailable.isCapturing)
+        #expect(!TerminalSpeechComposerState.idle.isCapturing)
+        #expect(TerminalSpeechComposerState.listening.isCapturing)
+        #expect(TerminalSpeechComposerState.stopping.isCapturing)
+    }
 }

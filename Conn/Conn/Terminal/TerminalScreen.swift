@@ -66,6 +66,9 @@ struct TerminalScreen: View {
 
     var body: some View {
         terminalContent
+            // Apply the terminal theme to the presentation, including the system
+            // keyboard and status bar, not only SwiftUI's environment colors.
+            .preferredColorScheme(terminalColorScheme)
             // TerminalScreen is presented as a full-screen modal. The App-root toast
             // overlay sits below that presentation, so terminal interaction notices need
             // a presentation-local overlay backed by the same environment toast center.

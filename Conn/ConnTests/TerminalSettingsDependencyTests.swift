@@ -38,4 +38,10 @@ struct TerminalSettingsDependencyTests {
             encoding: .utf8
         )
     }
+
+    @Test("终端主题作用于完整模态呈现，使系统键盘和状态栏跟随终端")
+    func terminalThemeIncludesSystemChrome() throws {
+        let terminalScreen = try source("Terminal/TerminalScreen.swift")
+        #expect(terminalScreen.contains(".preferredColorScheme(terminalColorScheme)"))
+    }
 }
