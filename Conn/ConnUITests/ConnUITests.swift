@@ -138,7 +138,7 @@ final class ConnUITests: XCTestCase {
             plainTerminal.tap()
         }
 
-        let input = app.textFields["terminal.composer.input"]
+        let input = app.textViews["terminal.composer.input"]
         XCTAssertTrue(input.waitForExistence(timeout: 20))
         XCTAssertTrue(app.buttons["terminal.composer.voice"].waitForExistence(timeout: 5))
         let emptyValue = input.value as? String ?? ""
@@ -147,22 +147,61 @@ final class ConnUITests: XCTestCase {
         input.typeText("p")
         waitForComposerKeyboard(app, visible: true)
         assertComposerBelongsToBottomBar(app, aboveKeyboard: true)
-        input.typeText("rintf one\nprintf two")
+        input.typeText("rintf conn_composer_keyboard")
+        input.typeText("\n")
+        XCTAssertEqual(input.value as? String, emptyValue, "Compact Return must submit and clear instead of adding a newline")
+        input.typeText("printf one")
 
         let draft = input.value as? String ?? ""
         XCTAssertTrue(draft.contains("printf one"))
-        XCTAssertTrue(draft.contains("printf two"))
-        XCTAssertTrue(draft.contains("\n"), "Return should add a newline to the draft")
+        XCTAssertFalse(draft.contains("\n"))
+
+        let expandEditor = app.buttons["terminal.composer.expand"]
+        XCTAssertTrue(expandEditor.waitForExistence(timeout: 5))
+        expandEditor.tap()
+        let editor = app.textViews["terminal.composer.expanded-input"]
+        XCTAssertTrue(editor.waitForExistence(timeout: 5))
+        waitForComposerKeyboard(app, visible: true)
+        // The terminal intentionally stays mounted. XCTest may still resolve
+        // hidden descendants, so existence is not a visibility/interaction test.
+        XCTAssertFalse(app.buttons["terminal.keybar.expand"].isHittable, "Fullscreen editing must prevent interaction with the underlying terminal")
+        XCTAssertEqual(editor.value as? String, draft)
+        XCTAssertGreaterThan(editor.frame.height, 150)
+        editor.tap()
+        editor.typeText("\nprintf two\nprintf three")
+        let expandedDraft = editor.value as? String
+        XCTAssertEqual(expandedDraft, draft + "\nprintf two\nprintf three")
+        let fullImage = XCTAttachment(screenshot: app.screenshot())
+        fullImage.name = "composer-fullscreen"
+        fullImage.lifetime = .keepAlways
+        add(fullImage)
+        app.buttons["terminal.composer.done"].tap()
+        XCTAssertTrue(editor.waitForNonExistence(timeout: 5))
+        // Assert before any tap/typeText that could reopen a dismissed keyboard.
+        waitForComposerKeyboard(app, visible: true)
+        XCTAssertEqual(input.value as? String, expandedDraft, "Done must retain the multiline draft without sending")
 
         let send = app.buttons["terminal.composer.send"]
         XCTAssertTrue(send.exists)
         XCTAssertTrue(send.isEnabled, "Unavailable speech must not disable typed input")
         assertComposerBelongsToBottomBar(app, aboveKeyboard: true)
         send.tap()
+        let confirmSend = app.buttons["terminal.composer.confirm-send"]
+        if confirmSend.waitForExistence(timeout: 2) {
+            app.buttons["terminal.composer.cancel-send"].tap()
+            XCTAssertEqual(input.value as? String, expandedDraft, "Cancelling unsafe paste must retain the draft")
+            XCTAssertTrue(send.isEnabled, "Cancelling must unlock submission")
+            send.tap()
+            XCTAssertTrue(confirmSend.waitForExistence(timeout: 5))
+            confirmSend.tap()
+        }
         XCTAssertTrue(input.waitForExistence(timeout: 5))
         XCTAssertEqual(input.value as? String, emptyValue)
         input.typeText("draft")
         XCTAssertEqual(input.value as? String, "draft", "Send must preserve focus for continuous editing")
+        input.doubleTap()
+        input.typeText("draft")
+        XCTAssertEqual(input.value as? String, "draft", "Shared touch feedback must not prevent native word selection")
         app.buttons["terminal.keybar.dismissKeyboard"].tap()
         waitForComposerKeyboard(app, visible: false)
         assertComposerBelongsToBottomBar(app)
@@ -170,7 +209,20 @@ final class ConnUITests: XCTestCase {
         input.typeText(" stays here")
         waitForComposerKeyboard(app, visible: true)
         XCTAssertEqual(input.value as? String, "draft stays here", "Reopening must retain the composer as input destination")
-        input.typeText("\nline two\nline three\nline four\nline five\nline six")
+        expandEditor.tap()
+        XCTAssertTrue(editor.waitForExistence(timeout: 5))
+        waitForComposerKeyboard(app, visible: true)
+        editor.tap()
+        editor.typeText("\nline two\nline three\nline four\nline five\nline six")
+        app.buttons["terminal.composer.done"].tap()
+        XCTAssertTrue(editor.waitForNonExistence(timeout: 5))
+        waitForComposerKeyboard(app, visible: true)
+        XCTAssertEqual(input.value as? String, "draft stays here\nline two\nline three\nline four\nline five\nline six")
+        assertComposerBelongsToBottomBar(app, aboveKeyboard: true)
+        input.swipeDown(velocity: .slow)
+        assertComposerBelongsToBottomBar(app, aboveKeyboard: true)
+        input.swipeUp(velocity: .slow)
+        XCTAssertEqual(input.value as? String, "draft stays here\nline two\nline three\nline four\nline five\nline six", "Scrolling must not mutate or submit the draft")
         assertComposerBelongsToBottomBar(app, aboveKeyboard: true)
         app.buttons["terminal.keybar.dismissKeyboard"].tap()
         waitForComposerKeyboard(app, visible: false)
@@ -180,6 +232,51 @@ final class ConnUITests: XCTestCase {
         app.buttons["terminal.keybar.collapse"].tap()
         app.buttons["terminal.keybar.close-terminal"].tap()
         XCTAssertEqual(app.state, .runningForeground)
+    }
+
+    @MainActor
+    func testTerminalComposerVoiceButtonsKeepKeyboard() throws {
+        let app = XCUIApplication()
+        app.launchEnvironment["CONN_SUBSCRIPTION_STATE"] = "pro"
+        app.launch()
+        let host = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "servers.host.")).firstMatch
+        guard host.waitForExistence(timeout: 15) else {
+            throw XCTSkip("当前模拟器没有已保存的主机配置")
+        }
+        host.tap()
+        let open = app.buttons["host.open-terminal"]
+        XCTAssertTrue(open.waitForExistence(timeout: 5))
+        open.tap()
+        let plain = app.buttons["new-terminal.provider.plain"]
+        if plain.waitForExistence(timeout: 5) { plain.tap() }
+        let input = app.textViews["terminal.composer.input"]
+        XCTAssertTrue(input.waitForExistence(timeout: 20))
+        let voice = app.buttons["terminal.composer.voice"]
+        XCTAssertTrue(voice.waitForExistence(timeout: 5))
+        guard voice.isEnabled else {
+            throw XCTSkip("当前模拟器未提供离线语音识别，无法验收真实录音按钮")
+        }
+        input.tap()
+        input.typeText("voice focus check")
+        waitForComposerKeyboard(app, visible: true)
+        let idleLabel = voice.label
+        voice.tap()
+        if app.alerts.firstMatch.waitForExistence(timeout: 1) {
+            throw XCTSkip("系统正在请求语音权限；需用户授权后验收录音，不将权限弹窗计作焦点回归")
+        }
+        let recording = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+            voice.exists && voice.label != idleLabel && voice.isEnabled
+        }, object: nil)
+        XCTAssertEqual(XCTWaiter.wait(for: [recording], timeout: 5), .completed)
+        waitForComposerKeyboard(app, visible: true)
+        voice.tap()
+        waitForComposerKeyboard(app, visible: true)
+        let stopped = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+            voice.exists && voice.label == idleLabel && voice.isEnabled
+        }, object: nil)
+        XCTAssertEqual(XCTWaiter.wait(for: [stopped], timeout: 5), .completed)
+        XCTAssertEqual(app.state, .runningForeground)
+        app.buttons["terminal.keybar.close-terminal"].tap()
     }
 
     @MainActor
@@ -210,14 +307,21 @@ final class ConnUITests: XCTestCase {
         let field = app.descendants(matching: .any)["terminal.composer.field"].firstMatch
         let voice = app.buttons["terminal.composer.voice"]
         let send = app.buttons["terminal.composer.send"]
+        let expand = app.buttons["terminal.composer.expand"]
         XCTAssertTrue(bar.exists, file: file, line: line)
-        // AX excludes the composer's 4pt bottom padding from its container bounds.
+        // Measure semantic controls, not decorative background bounds.
         let keyboardButton = app.buttons["terminal.keybar.dismissKeyboard"]
         let rowGap = keyboardButton.frame.minY - composer.frame.maxY
         XCTAssertGreaterThanOrEqual(rowGap, 0, file: file, line: line)
         XCTAssertLessThanOrEqual(rowGap, 5, file: file, line: line)
-        XCTAssertGreaterThanOrEqual(voice.frame.height, 44, file: file, line: line)
-        XCTAssertGreaterThanOrEqual(send.frame.height, 44, file: file, line: line)
+        XCTAssertEqual(voice.frame.height, 36, accuracy: 1, file: file, line: line)
+        XCTAssertEqual(send.frame.height, 26, accuracy: 1, file: file, line: line)
+        XCTAssertEqual(expand.frame.size, send.frame.size, "Expand and send must have the same visible/hit bounds", file: file, line: line)
+        XCTAssertLessThan(expand.frame.maxX, send.frame.minX, file: file, line: line)
+        XCTAssertGreaterThanOrEqual(expand.frame.minX, field.frame.minX, file: file, line: line)
+        XCTAssertEqual(expand.frame.midY, send.frame.midY, accuracy: 1, file: file, line: line)
+        XCTAssertEqual(field.frame.height, 36, accuracy: 1, "Draft length must not grow the input row", file: file, line: line)
+        XCTAssertEqual(voice.frame.height, field.frame.height, accuracy: 1, file: file, line: line)
         XCTAssertLessThanOrEqual(send.frame.maxX, field.frame.maxX + 1, file: file, line: line)
         XCTAssertGreaterThan(voice.frame.minX, field.frame.maxX, file: file, line: line)
         if aboveKeyboard {
@@ -225,7 +329,12 @@ final class ConnUITests: XCTestCase {
             let assistant = app.otherElements["SystemInputAssistantView"].firstMatch
             let keyboardTop = assistant.exists && assistant.frame.minY < app.frame.maxY
                 ? assistant.frame.minY : app.keyboards.firstMatch.frame.minY
-            XCTAssertEqual(keyboardButton.frame.maxY + 1, keyboardTop, accuracy: 2, file: file, line: line)
+            // iOS 26's keyboard AX frame excludes its rounded top margin (17pt
+            // on this device). Its panel is flush in screenshots; the key-grid
+            // boundary is not the panel boundary. Assert no overlap or extra row.
+            let keyboardGap = keyboardTop - keyboardButton.frame.maxY
+            XCTAssertGreaterThanOrEqual(keyboardGap, -2, file: file, line: line)
+            XCTAssertLessThanOrEqual(keyboardGap, 22, file: file, line: line)
         } else {
             if app.buttons["terminal.keybar.expand"].exists {
                 let bottomInset = app.frame.maxY - keyboardButton.frame.maxY

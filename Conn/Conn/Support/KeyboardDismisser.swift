@@ -38,7 +38,9 @@ final class KeyboardDismisser: NSObject, UIGestureRecognizerDelegate {
             // Button action 可能已弹出 Alert 或将焦点交给新输入框；这些情况
             // 不得被迟到的全局收键盘再次干扰。
             guard !Self.containsSystemAlert(in: window.rootViewController) else { return }
-            guard Self.firstInputResponder(in: window) === responderAtTouchEnd else { return }
+            let currentResponder = Self.firstInputResponder(in: window)
+            guard currentResponder === responderAtTouchEnd,
+                  !Self.composerOwnsKeyboard(currentResponder) else { return }
             window.endEditing(true)
         }
     }
@@ -93,6 +95,12 @@ final class KeyboardDismisser: NSObject, UIGestureRecognizerDelegate {
             return false
         }
 
+        // Terminal drafts manage their own keyboard (including explicit hide).
+        // SwiftUI voice/expand/Done buttons may report the hosting render view,
+        // not a UIControl or an identifiable button ancestor. Recording leaves
+        // the responder unchanged, so the deferred identity check is not enough.
+        if composerOwnsKeyboard(activeInputView) { return false }
+
         // SwiftUI/UIKit 的覆盖视图有时会成为 `touch.view`，它不一定挂在真正的
         // 输入控件下面。因此先用当前第一响应者的真实坐标判断：点仍在终端内容
         // 范围内时，不允许全局手势触发 `endEditing(true)`。
@@ -129,12 +137,20 @@ final class KeyboardDismisser: NSObject, UIGestureRecognizerDelegate {
             // 终端快捷键栏是终端视口下面的独立 SwiftUI 区域，不属于 UIKeyInput。
             // 它的按钮必须保持当前终端为第一响应者，否则全局空白点击手势会先
             // 收起键盘，再让展开/方向/Ctrl 等快捷操作失效。
-            if node.accessibilityIdentifier?.hasPrefix("terminal.keybar") == true {
+            if node.accessibilityIdentifier?.hasPrefix("terminal.keybar") == true
+                || node.accessibilityIdentifier?.hasPrefix("terminal.composer") == true
+                || node.accessibilityIdentifier == "terminal.input-bar" {
                 return false
             }
             view = node.superview
         }
         return true
+    }
+
+    static func composerOwnsKeyboard(_ view: UIView?) -> Bool {
+        guard view is any UIKeyInput else { return false }
+        return view?.accessibilityIdentifier == "terminal.composer.input"
+            || view?.accessibilityIdentifier == "terminal.composer.expanded-input"
     }
 
     static func containsSystemAlert(in viewController: UIViewController?) -> Bool {

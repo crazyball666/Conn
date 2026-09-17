@@ -107,6 +107,39 @@ struct KeyboardDismisserTests {
         #expect(!KeyboardDismisser.shouldDismissKeyboard(for: buttonContent))
     }
 
+    @Test("录音与全屏按钮属于终端编辑区，不是点击空白收键盘")
+    func composerControlsDoNotDismissKeyboard() {
+        for identifier in ["terminal.composer.voice", "terminal.composer.expand", "terminal.composer.done", "terminal.input-bar"] {
+            let container = UIView()
+            container.accessibilityIdentifier = identifier
+            let renderedButton = UIView()
+            container.addSubview(renderedButton)
+            #expect(!KeyboardDismisser.shouldDismissKeyboard(for: renderedButton))
+        }
+    }
+
+    @Test("SwiftUI 渲染视图丢失按钮标识时，由当前编辑器管理键盘")
+    func activeComposerOwnsKeyboardDismissal() {
+        for identifier in ["terminal.composer.input", "terminal.composer.expanded-input"] {
+            let input = UITextView(frame: CGRect(x: 0, y: 0, width: 200, height: 20))
+            input.accessibilityIdentifier = identifier
+            #expect(!KeyboardDismisser.shouldDismissKeyboard(
+                for: UIView(), activeInputView: input,
+                touchLocationInActiveInput: CGPoint(x: 250, y: 10)
+            ))
+        }
+    }
+
+    @Test("普通表单仍然允许点击输入框外的空白收键盘")
+    func ordinaryFormStillDismissesFromBackground() {
+        let input = UITextView(frame: CGRect(x: 0, y: 0, width: 200, height: 20))
+        input.accessibilityIdentifier = "host.notes"
+        #expect(KeyboardDismisser.shouldDismissKeyboard(
+            for: UIView(), activeInputView: input,
+            touchLocationInActiveInput: CGPoint(x: 250, y: 10)
+        ))
+    }
+
     @Test("SwiftUI 触点视图无法识别时，终端下方快捷键区域仍不收键盘")
     func terminalKeybarCoordinatesDoNotDismissKeyboard() {
         let terminal = KeybarTerminalView(frame: CGRect(x: 0, y: 0, width: 320, height: 480))

@@ -40,14 +40,28 @@ public struct TerminalCommandComposerState: Equatable, Sendable {
     }
 }
 
-/// 多行内容只有在目标终端声明 bracketed paste 时才允许注入。
-///
-/// 普通 shell 会把裸换行当作回车；没有 bracketed paste 保护时无法同时保证
-/// 保留换行和不触发执行，因此这里选择保留草稿并让用户重试，而不是冒险发送。
+/// 纸飞机只填入；收起状态的键盘发送键额外向终端发送回车。
+public enum TerminalComposerSubmissionIntent: Equatable, Sendable {
+    case insert
+    case execute
+}
+
 public enum TerminalCommandComposerSubmissionPolicy {
-    public static func allows(_ text: String, bracketedPasteEnabled: Bool) -> Bool {
-        !text.contains(where: \.isNewline) || bracketedPasteEnabled
+    public static func allows(
+        _ text: String,
+        bracketedPasteEnabled: Bool,
+        intent: TerminalComposerSubmissionIntent = .insert,
+        confirmsUnsafeMultiline: Bool = false
+    ) -> Bool {
+        intent == .execute || confirmsUnsafeMultiline
+            || !text.contains(where: \.isNewline) || bracketedPasteEnabled
     }
+}
+
+enum TerminalComposerSubmissionResult: Equatable {
+    case accepted
+    case requiresConfirmation
+    case unavailable
 }
 
 /// 提交时捕获的终端身份。提交动作只接受仍属于当前会话的 target。
@@ -73,15 +87,19 @@ import ConnUI
 
 /// 终端底部的待发送内容编辑器。
 ///
-/// Return 仅插入换行。发送按钮把整个草稿作为一次 paste 插入当前终端，不追加
-/// 回车，因此不会触发远端命令执行。
+/// 键盘 Return 提交并执行；纸飞机仅填入，展开编辑器的 Return 保留换行。
 public struct TerminalCommandComposer: View {
     @Binding private var text: String
     @Binding private var isSubmitting: Bool
-    @FocusState private var isFocused: Bool
+    @State private var isFocused = false
+    @ScaledMetric(relativeTo: .callout) private var visualHeight: CGFloat = 36
+    @ScaledMetric(relativeTo: .callout) private var iconSize: CGFloat = 16
+    @ScaledMetric(relativeTo: .callout) private var sendDiameter: CGFloat = 26
     private let speechState: TerminalSpeechComposerState
     private let onSubmit: (String) -> Void
+    private let onExecute: (String) -> Void
     private let onToggleSpeech: () -> Void
+    private let onExpand: () -> Void
     private let dismissKeyboardRequest: UInt
     private let focusKeyboardRequest: UInt
     private let onFocusChange: (Bool) -> Void
@@ -91,7 +109,9 @@ public struct TerminalCommandComposer: View {
         isSubmitting: Binding<Bool>,
         speechState: TerminalSpeechComposerState = .unavailable,
         onSubmit: @escaping (String) -> Void,
+        onExecute: @escaping (String) -> Void = { _ in },
         onToggleSpeech: @escaping () -> Void = {},
+        onExpand: @escaping () -> Void = {},
         dismissKeyboardRequest: UInt = 0,
         focusKeyboardRequest: UInt = 0,
         onFocusChange: @escaping (Bool) -> Void = { _ in }
@@ -100,80 +120,92 @@ public struct TerminalCommandComposer: View {
         _isSubmitting = isSubmitting
         self.speechState = speechState
         self.onSubmit = onSubmit
+        self.onExecute = onExecute
         self.onToggleSpeech = onToggleSpeech
+        self.onExpand = onExpand
         self.dismissKeyboardRequest = dismissKeyboardRequest
         self.focusKeyboardRequest = focusKeyboardRequest
         self.onFocusChange = onFocusChange
     }
 
     public var body: some View {
-        HStack(alignment: .bottom, spacing: ConnSpacing.xs) {
-            HStack(alignment: .bottom, spacing: 0) {
-                VStack(alignment: .leading, spacing: ConnSpacing.xxs) {
-                    if speechState.isCapturing {
-                        Label(
-                            speechState == .stopping ? L("正在结束语音输入…") : L("正在聆听…"),
-                            systemImage: "waveform"
-                        )
-                        .font(.caption)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .foregroundStyle(Color.connAccent)
-                        .accessibilityIdentifier("terminal.composer.speech-status")
+        HStack(spacing: ConnSpacing.xs) {
+            HStack(spacing: 0) {
+                ZStack(alignment: .leading) {
+                    if text.isEmpty {
+                        Text(placeholder)
+                            .font(.system(size: iconSize))
+                            .foregroundStyle(speechState.isCapturing ? Color.connAccent : Color.connMuted)
+                            .lineLimit(1)
+                            .allowsHitTesting(false)
+                            .accessibilityHidden(true)
                     }
-
-                    TextField(
-                        "",
-                        text: $text,
-                        prompt: Text(L("待发送内容")).foregroundColor(.connMuted),
-                        axis: .vertical
+                    TerminalComposerTextEditor(
+                        text: $text, isFocused: $isFocused,
+                        isReadOnly: speechState.isCapturing || isSubmitting,
+                        fontSize: iconSize, compact: true,
+                        onSubmit: {
+                            guard canSend else { return }
+                            onExecute(text)
+                        }
                     )
-                    .lineLimit(1...4)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .textFieldStyle(.plain)
-                    .font(.body)
-                    .foregroundStyle(.connInk)
-                    .textInputAutocapitalization(.never)
-                    .autocorrectionDisabled()
-                    .focused($isFocused)
-                    // Submission is synchronous. Disabling the native field during it
-                    // makes UIKit resign first responder, breaking continuous editing.
-                    .disabled(speechState.isCapturing)
-                    .accessibilityLabel(L("待发送内容"))
-                    .accessibilityIdentifier("terminal.composer.input")
+                    .frame(height: UIFont.systemFont(ofSize: iconSize).lineHeight)
                 }
+                .frame(height: visualHeight)
+                .contentShape(Rectangle())
+                .simultaneousGesture(TapGesture().onEnded { isFocused = true })
                 .padding(.leading, ConnSpacing.md)
-                .padding(.vertical, ConnSpacing.xs)
-                .frame(minHeight: ConnSize.minTouchTarget)
-
-                sendButton
+                HStack(spacing: ConnSpacing.xs) {
+                    Button(action: onExpand) {
+                        Image(systemName: "arrow.up.left.and.arrow.down.right")
+                            .font(.system(size: iconSize - 2, weight: .semibold))
+                            .foregroundStyle(Color.connInk)
+                            .frame(width: sendDiameter, height: sendDiameter)
+                            .background(Color.connTrack, in: Circle())
+                            .contentShape(Circle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(L("全屏编辑"))
+                    .accessibilityIdentifier("terminal.composer.expand")
+                    sendButton
+                }
+                .padding(.leading, ConnSpacing.xs)
+                .padding(.trailing, (visualHeight - sendDiameter) / 2)
             }
-            .background(Color.connKey, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
-            .overlay {
-                RoundedRectangle(cornerRadius: 22, style: .continuous)
-                    .strokeBorder(
-                        speechState.isCapturing ? Color.connAccent.opacity(0.5) : .clear,
-                        lineWidth: 1
-                    )
+            .frame(height: visualHeight)
+            .background {
+                Capsule()
+                    .fill(Color.connKey)
+                    .overlay {
+                        Capsule().strokeBorder(
+                            speechState.isCapturing ? Color.connAccent.opacity(0.5) : .clear,
+                            lineWidth: 1
+                        )
+                    }
+                    .frame(height: visualHeight)
                     .allowsHitTesting(false)
+                    .accessibilityHidden(true)
             }
             .accessibilityElement(children: .contain)
             .accessibilityIdentifier("terminal.composer.field")
-            speechButton
+            TerminalComposerVoiceButton(state: speechState, isSubmitting: isSubmitting, action: onToggleSpeech)
         }
         .padding(.horizontal, ConnSpacing.sm)
         .padding(.top, ConnSpacing.xs)
-        .padding(.bottom, ConnSpacing.xxs)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("terminal.composer")
         .onChange(of: isFocused) { _, focused in onFocusChange(focused) }
         .onChange(of: dismissKeyboardRequest) { _, _ in isFocused = false }
-        .onChange(of: focusKeyboardRequest) { _, _ in
-            if !speechState.isCapturing { isFocused = true }
-        }
-        .onChange(of: speechState) { _, state in
-            if state.isCapturing { isFocused = false }
-        }
+        .onChange(of: focusKeyboardRequest) { _, _ in isFocused = true }
         .onDisappear { onFocusChange(false) }
+    }
+
+    private var placeholder: String {
+        switch speechState {
+        case .listening: L("正在聆听…")
+        case .stopping: L("正在结束语音输入…")
+        default: L("待发送内容")
+        }
     }
 
     private var canSend: Bool {
@@ -182,7 +214,7 @@ public struct TerminalCommandComposer: View {
     }
 
     private var sendButton: some View {
-        Button {
+        TerminalComposerSendButton(canSend: canSend) {
             guard canSend else { return }
             let restoreFocus = isFocused
             onSubmit(text)
@@ -191,14 +223,24 @@ public struct TerminalCommandComposer: View {
             if restoreFocus {
                 DispatchQueue.main.async { isFocused = true }
             }
-        } label: {
+        }
+    }
+}
+
+struct TerminalComposerSendButton: View {
+    var canSend: Bool
+    var action: () -> Void
+    @ScaledMetric(relativeTo: .callout) private var diameter: CGFloat = 26
+    @ScaledMetric(relativeTo: .callout) private var iconSize: CGFloat = 14
+
+    var body: some View {
+        Button(action: action) {
             Image(systemName: "paperplane.fill")
-                .font(.system(size: 16, weight: .semibold))
+                .font(.system(size: iconSize, weight: .semibold))
                 .foregroundStyle(canSend ? Color.connInk : Color.connMuted)
-                .frame(width: 32, height: 32)
+                .frame(width: diameter, height: diameter)
                 .background(canSend ? Color.connAccentFill : Color.connTrack, in: Circle())
-                .frame(width: ConnSize.minTouchTarget, height: ConnSize.minTouchTarget)
-                .contentShape(Rectangle())
+                .contentShape(Circle())
         }
         .buttonStyle(.plain)
         .disabled(!canSend)
@@ -206,42 +248,52 @@ public struct TerminalCommandComposer: View {
         .accessibilityIdentifier("terminal.composer.send")
     }
 
-    private var speechButton: some View {
-        Button {
-            isFocused = false
-            onToggleSpeech()
-        } label: {
+}
+
+struct TerminalComposerVoiceButton: View {
+    var state: TerminalSpeechComposerState
+    var isSubmitting: Bool
+    var action: () -> Void
+    @ScaledMetric(relativeTo: .callout) private var diameter: CGFloat = 36
+    @ScaledMetric(relativeTo: .callout) private var iconSize: CGFloat = 16
+
+    var body: some View {
+        Button(action: action) {
             ZStack {
-                Circle().fill(speechState.isCapturing ? Color.connAccentFill : Color.connKey)
-                if speechState == .stopping {
+                Circle().fill(state.isCapturing ? Color.connAccentFill : Color.connKey)
+                if state == .stopping {
                     ProgressView().tint(.connAccent)
                 } else {
-                    Image(systemName: speechState == .listening ? "stop.fill" : "mic.fill")
-                        .font(.system(size: 17, weight: .semibold))
+                    Image(systemName: state == .listening ? "stop.fill" : "mic.fill")
+                        .font(.system(size: iconSize, weight: .semibold))
                 }
             }
-            .frame(width: ConnSize.minTouchTarget, height: ConnSize.minTouchTarget)
-            .contentShape(Rectangle())
+            .frame(width: diameter, height: diameter)
+            .contentShape(Circle())
         }
         .buttonStyle(.plain)
         .foregroundStyle(
-            speechState == .unavailable
+            state == .unavailable
                 ? Color.connDim
-                : speechState.isCapturing ? Color.connAccent : Color.connInk
+                : state.isCapturing ? Color.connAccent : Color.connInk
         )
         .disabled(
             isSubmitting
-                || speechState == .unavailable
-                || speechState == .stopping
+                || state == .unavailable
+                || state == .stopping
         )
         .accessibilityLabel(
             L(
-                speechState.isCapturing
+                state.isCapturing
                     ? "停止语音输入"
                     : "语音输入"
             )
         )
-        .accessibilityValue(speechState == .unavailable ? L("当前设备不支持离线语音输入") : "")
+        .accessibilityValue(
+            state == .unavailable ? L("当前设备不支持离线语音输入")
+                : state == .listening ? L("正在聆听…")
+                : state == .stopping ? L("正在结束语音输入…") : ""
+        )
         .accessibilityIdentifier("terminal.composer.voice")
     }
 }
@@ -249,19 +301,90 @@ public struct TerminalCommandComposer: View {
 /// 输入区与快捷键共用一张贴底表面；背景延续到 Home Indicator，但不覆盖键盘。
 struct TerminalInputBar<Content: View>: View {
     @ViewBuilder var content: () -> Content
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var touchLocation: CGPoint?
+    @State private var touchGlowScale: CGFloat = 0.22
+    @State private var touchGlowOpacity: CGFloat = 0
+    @State private var isTouchTracking = false
 
     var body: some View {
         VStack(spacing: 0, content: content)
-            .background(
-                Color.connBar.ignoresSafeArea(.container, edges: .bottom)
-                    .accessibilityHidden(true)
-            )
+            .background {
+                TerminalInputBarBackground(
+                    touchLocation: touchLocation, scale: touchGlowScale, opacity: touchGlowOpacity
+                )
+            }
             .overlay(alignment: .top) {
                 Rectangle().fill(Color.connLine).frame(height: 0.5)
                     .allowsHitTesting(false).accessibilityHidden(true)
             }
             .accessibilityElement(children: .contain)
             .accessibilityIdentifier("terminal.input-bar")
+            // Track in the shared surface's coordinates. Individual fields and
+            // buttons retain their native taps, scrolling and selection gestures.
+            .simultaneousGesture(
+                DragGesture(minimumDistance: 0)
+                    .onChanged { value in
+                        if isTouchTracking {
+                            touchLocation = value.location
+                            return
+                        }
+                        isTouchTracking = true
+                        withTransaction(Transaction(animation: nil)) {
+                            touchLocation = value.location
+                            touchGlowScale = 0.22
+                            touchGlowOpacity = 0
+                        }
+                        if reduceMotion {
+                            touchGlowScale = 1.08
+                            touchGlowOpacity = 1
+                        } else {
+                            withAnimation(.easeOut(duration: 0.34)) {
+                                touchGlowScale = 1.08
+                                touchGlowOpacity = 1
+                            }
+                        }
+                    }
+                    .onEnded { _ in
+                        isTouchTracking = false
+                        if reduceMotion {
+                            touchGlowOpacity = 0
+                        } else {
+                            withAnimation(.easeOut(duration: 0.28)) {
+                                touchGlowScale = 1.18
+                                touchGlowOpacity = 0
+                            }
+                        }
+                    }
+            )
+    }
+}
+
+/// One continuous background for both rows; only the outer surface clips the glow.
+struct TerminalInputBarBackground: View {
+    var touchLocation: CGPoint?
+    var scale: CGFloat
+    var opacity: CGFloat
+
+    var body: some View {
+        Color.connBar.ignoresSafeArea(.container, edges: .bottom)
+            .overlay {
+                GeometryReader { _ in
+                    if let touchLocation {
+                        RadialGradient(
+                            colors: [Color.connInk.opacity(0.32), Color.connInk.opacity(0.14), .clear],
+                            center: .center, startRadius: 0, endRadius: 168
+                        )
+                        .frame(width: 336, height: 336)
+                        .scaleEffect(scale)
+                        .opacity(opacity)
+                        .position(touchLocation)
+                    }
+                }
+                .clipped()
+            }
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
     }
 }
 #endif

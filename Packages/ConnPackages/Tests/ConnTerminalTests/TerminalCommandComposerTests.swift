@@ -82,6 +82,33 @@ struct TerminalCommandComposerTests {
         #expect(TerminalCommandComposerSubmissionPolicy.allows("echo one\necho two", bracketedPasteEnabled: false) == false)
     }
 
+    @Test("执行意图或明确确认后，多行内容不再被粘贴保护永久阻断")
+    func permitsMultilineExecutionAndConfirmedInsertion() {
+        for draft in ["one\ntwo", "one\r\ntwo", "one\rtwo"] {
+            for bracketed in [false, true] {
+                #expect(TerminalCommandComposerSubmissionPolicy.allows(
+                    draft, bracketedPasteEnabled: bracketed, intent: .execute
+                ))
+                #expect(TerminalCommandComposerSubmissionPolicy.allows(
+                    draft, bracketedPasteEnabled: bracketed, confirmsUnsafeMultiline: true
+                ))
+            }
+        }
+    }
+
+    @Test("待确认期间锁定原文，取消后保留原文并可重试")
+    func pendingConfirmationKeepsOriginalDraft() {
+        var state = TerminalCommandComposerState()
+        state.updateText("one\ntwo")
+        #expect(state.beginSubmission() == "one\ntwo")
+        state.updateText("other text")
+        #expect(state.beginSubmission() == nil)
+        #expect(state.text == "one\ntwo")
+        state.finishSubmission(accepted: false)
+        #expect(state.canSubmit)
+        #expect(state.text == "one\ntwo")
+    }
+
     @Test("语音临时结果替换而不是重复追加")
     func speechDraftReplacesPartialTranscript() {
         var draft = TerminalSpeechDraft(baseText: "echo")

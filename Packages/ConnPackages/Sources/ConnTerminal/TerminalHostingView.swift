@@ -12,7 +12,7 @@
         category: "TerminalInteraction"
     )
 
-    private struct TerminalInteractionNotice: Equatable {
+    struct TerminalInteractionNotice: Equatable {
         let id = UUID()
         let text: String
         let style: ConnToastStyle
@@ -128,6 +128,11 @@
     }
 
     private struct TerminalHostContent: View {
+        private struct PendingComposerSubmission {
+            let text: String
+            let target: TerminalComposerTarget
+            let inputEpoch: UInt64
+        }
         @StateObject private var controller: TerminalInputController
         @Binding private var composerState: TerminalCommandComposerState
         @State private var isKeybarExpanded: Bool
@@ -138,6 +143,9 @@
         @State private var speechState: TerminalSpeechComposerState = .idle
         @State private var speechDraft = TerminalSpeechDraft()
         @State private var isComposerFocused = false
+        @State private var isComposerExpanded = false
+        @State private var composerFocusHandoff = TerminalComposerFocusHandoff()
+        @State private var pendingComposerSubmission: PendingComposerSubmission?
         @State private var dismissComposerKeyboardRequest: UInt = 0
         @State private var focusComposerKeyboardRequest: UInt = 0
         @State private var lastKeyboardOwnerWasComposer = false
@@ -217,7 +225,7 @@
             self.speechInputService = speechInputService
         }
 
-        var body: some View {
+        private var terminalContent: some View {
             VStack(spacing: 0) {
                 TerminalViewportRepresentable(
                     configuration: configuration,
@@ -236,8 +244,12 @@
                             set: { _ in }
                         ),
                         speechState: composerSpeechState,
-                        onSubmit: submitComposerText,
+                        onSubmit: { submitComposerText($0) },
+                        onExecute: { submitComposerText($0, intent: .execute) },
                         onToggleSpeech: toggleSpeechInput,
+                        onExpand: {
+                            isComposerExpanded = true
+                        },
                         dismissKeyboardRequest: dismissComposerKeyboardRequest,
                         focusKeyboardRequest: focusComposerKeyboardRequest,
                         onFocusChange: {
@@ -264,7 +276,6 @@
                         performingProviderQuickActionID: controller.performingProviderQuickActionID,
                         onProviderQuickAction: selectProviderQuickAction,
                         keyboardVisible: controller.isSoftwareKeyboardVisible || isComposerFocused,
-                        keyboardToggleEnabled: !composerSpeechState.isCapturing,
                         onToggleKeyboard: {
                             if isComposerFocused {
                                 dismissComposerKeyboardRequest &+= 1
@@ -286,6 +297,52 @@
                     .accessibilityElement(children: .contain)
                     .accessibilityIdentifier("terminal.keybar")
                 }
+            }
+            // Keep the compact UIKit client interactive until focus transfers.
+            // Disabling hit testing resigns it before the overlay can take over.
+            // The opaque fullscreen overlay covers touch input; hide the base
+            // descendants from accessibility without detaching either client.
+            .accessibilityElement(children: isComposerExpanded ? .ignore : .contain)
+            .accessibilityHidden(isComposerExpanded)
+            .overlay {
+                if isComposerExpanded {
+                    TerminalComposerExpandedEditor(
+                        text: Binding(
+                            get: { composerState.text },
+                            set: { composerState.updateText($0) }
+                        ),
+                        isSubmitting: composerState.isSubmitting,
+                        speechState: composerSpeechState,
+                        onSubmit: { submitComposerText($0) },
+                        onToggleSpeech: toggleSpeechInput,
+                        onDone: {
+                            guard composerFocusHandoff.returnToCompact() else { return }
+                            isComposerExpanded = false
+                        }
+                    )
+                }
+            }
+        }
+
+        var body: some View {
+            terminalContent
+            .environment(\.terminalComposerFocusHandoff, composerFocusHandoff)
+            .alert(
+                L("发送多行内容？"),
+                isPresented: Binding(
+                    get: { pendingComposerSubmission != nil },
+                    set: { if !$0 { cancelComposerConfirmation() } }
+                ),
+                presenting: pendingComposerSubmission
+            ) { submission in
+                Button(L("仍然发送"), role: .destructive) {
+                    confirmComposerSubmission(submission)
+                }
+                .accessibilityIdentifier("terminal.composer.confirm-send")
+                Button(L("取消"), role: .cancel) { cancelComposerConfirmation() }
+                    .accessibilityIdentifier("terminal.composer.cancel-send")
+            } message: { _ in
+                Text(L("当前终端未启用安全多行粘贴，直接发送可能逐行执行。取消可保留草稿。"))
             }
             .alert(
                 pendingTextInputAction.map { L($0.textInput?.titleKey ?? $0.titleKey) } ?? "",
@@ -373,6 +430,7 @@
                 }
             }
             .onDisappear {
+                cancelComposerConfirmation()
                 stopSpeechInput()
                 controller.detach()
             }
@@ -387,6 +445,7 @@
         }
 
         private func toggleSpeechInput() {
+            guard !composerState.isSubmitting else { return }
             guard let speechInputService else {
                 toastCenter.show(L("当前设备不支持语音输入"), style: .warning)
                 return
@@ -488,15 +547,50 @@
             insertionMailbox.enqueue(command, expectedContext: context)
         }
 
-        private func submitComposerText(_ text: String) {
+        private func submitComposerText(
+            _ text: String, intent: TerminalComposerSubmissionIntent = .insert
+        ) {
+            guard !composerSpeechState.isCapturing, !composerState.isSubmitting else { return }
             guard let target = controller.currentComposerTarget(),
                   let draft = composerState.beginSubmission()
             else {
                 controller.notifyComposerUnavailable()
                 return
             }
-            let accepted = controller.submitComposerText(draft, target: target)
-            composerState.finishSubmission(accepted: accepted)
+            let result = controller.submitComposerText(draft, target: target, intent: intent)
+            if result == .requiresConfirmation {
+                pendingComposerSubmission = PendingComposerSubmission(
+                    text: draft, target: target, inputEpoch: controller.inputEpoch
+                )
+            } else {
+                finishComposerSubmission(result)
+            }
+        }
+
+        private func cancelComposerConfirmation() {
+            pendingComposerSubmission = nil
+            // This state outlives the host across reconnection; never leave it locked.
+            composerState.finishSubmission(accepted: false)
+        }
+
+        private func confirmComposerSubmission(_ submission: PendingComposerSubmission) {
+            pendingComposerSubmission = nil
+            // The alert binding may have already released the lock. Validate the
+            // captured draft and terminal again, never submit a new target/draft.
+            guard composerState.text == submission.text,
+                  controller.inputEpoch == submission.inputEpoch,
+                  !composerSpeechState.isCapturing else {
+                finishComposerSubmission(.unavailable)
+                return
+            }
+            finishComposerSubmission(controller.submitComposerText(
+                submission.text, target: submission.target, confirmsUnsafeMultiline: true
+            ))
+        }
+
+        private func finishComposerSubmission(_ result: TerminalComposerSubmissionResult) {
+            composerState.finishSubmission(accepted: result == .accepted)
+            if result == .unavailable { controller.notifyComposerUnavailable() }
         }
 
         private func selectProviderQuickAction(
@@ -602,7 +696,7 @@
 
     /// SwiftTerm delegate、会话输入和 SwiftUI 键条共享的单一状态源。
     @MainActor
-    private final class TerminalInputController: NSObject, @preconcurrency TerminalViewDelegate, ObservableObject {
+    final class TerminalInputController: NSObject, @preconcurrency TerminalViewDelegate, ObservableObject {
         private let session: TerminalSession
         private let transcript: TerminalTranscript
         private let persistentAttachment: (any PersistentTerminalAttachment)?
@@ -640,8 +734,7 @@
         private var clipboardPolicy = TerminalClipboardPolicy()
         private var focusState = TerminalFocusState()
         private var isTypedPaste = false
-        private var isComposerSubmission = false
-        private var composerSubmissionAccepted = true
+        private var composerSubmissionBytes: [UInt8]?
         private var isHostProtocolEmission = false
         private var applicationActive = true
         private var rendererReadyForRemoteViewport = false
@@ -918,10 +1011,12 @@
         /// user input outside a terminal feed.
         func send(source: TerminalView, data: ArraySlice<UInt8>) {
             guard replayOutboundGate.allowsTerminalDelegateOutput else { return }
-            let isComposerInput = isComposerSubmission
+            if composerSubmissionBytes != nil {
+                composerSubmissionBytes?.append(contentsOf: data)
+                return
+            }
             let isUserInput = replayOutboundGate.currentFeedProvenance == .outsideFeed
                 && !isHostProtocolEmission
-                && !isComposerInput
             if isUserInput {
                 dismissHistoryReviewIfNeeded()
                 source.clearSelection()
@@ -947,10 +1042,7 @@
             if isUserInput {
                 enqueueUserInput(encoded)
             } else {
-                let accepted = session.enqueue(encoded)
-                if isComposerInput {
-                    composerSubmissionAccepted = composerSubmissionAccepted && accepted
-                }
+                session.enqueue(encoded)
             }
         }
 
@@ -1056,33 +1148,39 @@
         }
 
         @discardableResult
-        func submitComposerText(_ text: String, target: TerminalComposerTarget) -> Bool {
+        func submitComposerText(
+            _ text: String,
+            target: TerminalComposerTarget,
+            intent: TerminalComposerSubmissionIntent = .insert,
+            confirmsUnsafeMultiline: Bool = false
+        ) -> TerminalComposerSubmissionResult {
             guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
                   let terminalView,
                   target == currentComposerTarget()
-            else { return false }
+            else { return .unavailable }
 
             guard TerminalCommandComposerSubmissionPolicy.allows(
                 text,
-                bracketedPasteEnabled: terminalView.hostProtocolState.bracketedPasteEnabled
+                bracketedPasteEnabled: terminalView.hostProtocolState.bracketedPasteEnabled,
+                intent: intent,
+                confirmsUnsafeMultiline: confirmsUnsafeMultiline
             ) else {
-                showNotice(L("当前终端不支持安全的多行粘贴"), style: .warning)
-                return false
+                return .requiresConfirmation
             }
 
             dismissHistoryReviewIfNeeded()
             terminalView.clearSelection()
             inputEpoch &+= 1
 
-            let previousSubmission = isComposerSubmission
-            let previousAcceptance = composerSubmissionAccepted
-            isComposerSubmission = true
-            composerSubmissionAccepted = true
+            // Let SwiftTerm own paste framing. Register paste + optional Return
+            // as one packet so failure cannot accept only half of a submission.
+            composerSubmissionBytes = []
             terminalView.paste(text: text)
-            let accepted = composerSubmissionAccepted
-            isComposerSubmission = previousSubmission
-            composerSubmissionAccepted = previousAcceptance
-            return accepted
+            var bytes = composerSubmissionBytes ?? []
+            composerSubmissionBytes = nil
+            guard !bytes.isEmpty else { return .unavailable }
+            if intent == .execute { bytes.append(0x0D) }
+            return session.enqueue(bytes) ? .accepted : .unavailable
         }
 
         func handlePaste(_ text: String, source: TerminalPasteSource = .keybar) {

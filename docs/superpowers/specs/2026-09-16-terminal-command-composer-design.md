@@ -12,16 +12,18 @@ Conn 当前终端支持 SwiftTerm 原生实时输入、快捷键栏、命令选�
 ## 用户交互
 
 - 输入区位于终端视口和现有快捷键栏之间，始终参与垂直布局，终端视口按实际高度压缩，不覆盖输出。
-- 默认显示约一行高度；内容变长时自动扩展，最多约四行，超出部分在输入区内部滚动。
-- 占位文案为“待发送内容”，右侧提供至少 44pt 触控热区的纸飞机发送按钮。
-- 回车只插入换行，不触发发送；发送按钮才是唯一提交入口。
-- 发送按钮把内容按原样作为一次程序化粘贴插入当前终端输入行，不追加 `CR` 或 `LF`，不自动执行命令。
+- 固定为单行视口；长文本和多行草稿在输入区内部滚动，不改变终端可用高度。收起时键盘为系统发送键，提交草稿并追加终端回车；展开编辑时 Return 保留原始换行。
+- 占位文案为“待发送内容”，全屏和纸飞机发送按钮均位于输入框内；按用户明确要求，点击热区不外扩。
+- 键盘发送与纸飞机区分意图：前者发送并执行，后者仅填入；输入法候选确认、粘贴和拖入换行均不能误判为键盘提交。
+- 纸飞机按原样粘贴，不额外追加 `CR` 或 `LF`。多行仅填入需要远端启用 bracketed paste；否则明确警告裸换行可能逐行执行，用户取消保留草稿，选择“仍然发送”才发送原文。
 - 发送动作在当前页面主线程同步完成目标绑定和出站队列登记；`TerminalSession.enqueue` 返回 `true` 代表数据已被当前出站队列接受，Composer 以此作为本次提交成功点，随后清空草稿并保持输入区焦点，方便连续发送；空白内容不可发送。
 - 未 attach、正在回放、已断开或没有当前终端视图时不登记发送，返回失败并保留草稿；登记后的后续 transport 写入失败仍由现有 Session 生命周期处理，不伪造 Composer 级重试。
 - 草稿只存在当前 `TerminalScreen` 生命周期内，并按 tab 隔离；切换 tab 时保留各自草稿，重连时保留未提交草稿但重新校验目标，关闭 tab 或离开终端页面时清理，不写入数据库或 Keychain。
 - 现有终端直接输入、快捷键、命令选择器和附件插入保持原行为，不把它们统一改为待发送区。
 
 ### 2026-09-16：按竞品截图重做底栏
+
+以下为首轮重做记录，尺寸和语音状态布局由下一节的 2026-09-17 修订替代。
 
 - 输入区和快捷键栏由 `TerminalInputBar` 统一承载，使用同一背景、仅保留最顶部的一条分隔线，背景延续到 Home Indicator。两行之间没有独立卡片外边距或第二条分隔线。
 - 输入为单行 44pt 胶囊，文字垂直居中；发送按钮位于胶囊内部的右侧，独立圆形语音按钮紧邻胶囊右侧。两者触控区域至少 44pt。多行内容最多显示四行，然后内部滚动。
@@ -30,31 +32,54 @@ Conn 当前终端支持 SwiftTerm 原生实时输入、快捷键栏、命令选�
 - 快捷栏键盘按钮同时识别终端与草稿输入焦点，编辑草稿时点击可直接收起键盘，不把焦点转回终端。
 - 验收必须检查实际渲染截图，覆盖深浅色、窄屏、多行、大字号、聆听/收尾态；XCUITest 验证输入区与快捷栏相邻、发送位于胶囊内、语音按钮位于右侧、键盘开关和快捷栏展开。模拟器截图不代表真实音频转写验收。
 
+### 2026-09-17：统一紧凑高度与触摸光效
+
+- 默认字号下，输入胶囊与语音圆按钮的高度均为 36pt，全屏和发送圆按钮为 26pt；按最新用户要求热区不外扩。输入行顶部留白由 4pt 调整为 8pt，下方间距不变，与 46pt 快捷栏组合为 90pt 底栏（不含安全区）。
+- 空草稿、长文本、多行、聆听与收尾状态保持同一高度；不再插入第二行状态标签。空草稿时占位提示显示语音状态，有转写文本后通过描边、停止/进度图标和 VoiceOver 值表达状态。
+- Dynamic Type 按字号同步放大输入框、语音按钮与图标；同一字号下各状态等高，不限制辅助功能字号。
+- 触摸光效由整个 `TerminalInputBar` 统一绘制和跟踪，快捷键栏不再绘制不透明背景或单独裁剪光效。渐变跨越两行的接缝，仅在整个底栏边界裁剪，不能盖住终端输出或拦截文字编辑和按钮操作。
+- 保留减少动态效果支持；键盘、发送后续写及原始多行文本语义不变。此轮的 Return 不发送约定由下方“提交意图修订”替代。
+
 ## 架构与数据流
+
+### 2026-09-17：单行 / 全屏编辑与录音焦点修订
+
+- 底栏始终为单行视口，全屏按钮在输入胶囊内、发送按钮左边，与发送按钮等大；语音按钮位于胶囊外右侧。完整多行内容在全屏编辑器中编辑。两者绑定同一份草稿，完成只收起编辑器，不发送或执行。
+- 全屏编辑器覆盖在现有终端宿主上，不卸载终端、不触发 detach；保留标题、完成按钮、多行编辑区、录音和填入终端操作。
+- 录音开始、停止、收尾均保持已有第一响应者及键盘状态。录音期间通过原生编辑代理阻止手动修改，不禁用输入控件；转写仍更新草稿，避免手动内容被后续识别回调覆盖。
+- 键盘保持必须同时覆盖 App 全局手势：当前输入为紧凑或全屏 Composer 时，由编辑器和显式键盘按钮管理收起，不让全局“点击空白”在语音按钮 action 后执行 `endEditing`；普通表单的空白收键盘不变。
+- 展开全屏不先发出收键盘请求，原输入保持在视图树中直到全屏输入接过焦点。完成时通过共享的弱引用 handoff 先把第一响应者交回紧凑输入，再移除全屏视图；若键盘已隐藏则不强行弹出。焦点移交失败时保留当前编辑器，避免先拆除第一响应者再异步补开键盘。
+- 不在展开时对底层输入调用 `allowsHitTesting(false)`，该操作会让 UIKit 输入提前失焦；由全屏不透明覆盖层接管触摸，底层保留挂载并从可访问性树隐藏。原生输入在挂入窗口后重新核对最新焦点请求，避免请求先于挂载而丢失。
+- 按用户最新明确要求，输入行按钮不再扩展点击热区：语音 36pt、全屏/发送 26pt，点击边界等于可见边界。该要求覆盖通常的 44pt 热区规范；取消外扩后两行视觉间距减少约 4pt，顶部增加至 8pt 留白后底栏总高度为 90pt（默认字号、不含安全区）。
+
 
 ### 组件职责
 
 - `TerminalCommandComposerState`：位于 `ConnTerminal` 的纯状态模型，提供文本、空白校验、发送状态和一次提交生命周期，便于 host 单测覆盖。
-- `TerminalCommandComposer`：位于 `ConnTerminal` 的 SwiftUI 视图，负责多行输入、动态高度、发送按钮和可访问性；不直接操作 SSH 或 `TerminalSession`。
+- `TerminalCommandComposer`：位于 `ConnTerminal` 的 SwiftUI 视图，负责固定视口的多行编辑、发送按钮和可访问性；不直接操作 SSH 或 `TerminalSession`。
 - `TerminalHostContent`：持有页面级草稿和 Composer 视图，在发送回调中先取得当前 `TerminalComposerTarget`，再调用已有 `TerminalInputController`。
-- `TerminalInputController`：新增“提交 Composer 文本”入口，并记录固定的 `tabID` 与 PTY generation。提交时同步捕获并校验 `tabID`、generation 和当前持久终端 target；校验通过后在当前 attach 的 SwiftTerm 视图上清除终端选区并调用 `paste(text:)`，让普通 PTY、tmux 和 zellij 都走现有终端输入与发送队列；不创建异步完成回调，因此不会把旧草稿结果应用到后续 tab 或 pane。
+- `TerminalInputController`：提交时校验 `tabID`、generation 和当前持久终端 target；在当前 attach 的 SwiftTerm 视图上调用 `paste(text:)` 并收集其字节，执行意图在粘贴结束标记之后追加 `CR`，最后一次入队。普通 PTY、tmux 和 zellij 共享同一路径，不引入另一条执行通道。
 - `TerminalSession` 出站队列：将 `enqueue` 改为返回是否接受本次数据。`true` 只表示在出站队列锁内完成登记，不代表 transport 已写成功；`false` 表示队列已因关闭/失败先在线性化锁内终止。close/fail 与 enqueue 的先后由同一把锁决定，先取得锁的一方生效。队列拒绝时 Composer 不清空草稿，已接受后由原有 Session 负责后续 transport 错误和生命周期状态。
 
 ### 发送流程
 
-1. Composer 接收系统键盘输入，换行保留在草稿中，不进入 PTY。
-2. 用户点击发送，Composer 校验文本非空白并锁定发送按钮；Host 在同一主线程事件中创建不可变的 `TerminalComposerTarget(tabID, generation, persistentTarget?)`。`tabID` 和 generation 来自当前 `TerminalHostContent`，普通 PTY 的 persistent target 固定为 `nil`，持久终端的 target 来自 Controller 最近一次确认的 provider-owned state。
+1. Composer 接收系统键盘输入。展开时 Return 编辑换行；收起时系统发送键提交整段草稿，不在草稿中插入换行。粘贴/拖放通过 UIKit 最终插入回调区分，单个换行也只编辑。
+2. 用户点击纸飞机或键盘发送，Composer 校验文本非空白并锁定发送；Host 在同一主线程事件中创建不可变的 `TerminalComposerTarget(tabID, generation, persistentTarget?)`。`tabID` 和 generation 来自当前 `TerminalHostContent`，普通 PTY 的 persistent target 固定为 `nil`，持久终端的 target 来自 Controller 最近一次确认的 provider-owned state。
 3. Controller 在同一同步调用链内校验 target 与自身固定 session/generation、当前 attach 和当前 provider target 完全相等；不匹配时返回失败，SwiftUI 保留草稿。
-4. 校验通过后调用 SwiftTerm 的程序化粘贴入口；SwiftTerm 根据当前 bracketed paste 状态编码整段内容，Controller 将每个生成片段立即登记到现有 `TerminalSession` 出站队列，维持与终端按键、快捷键和系统粘贴的顺序。
-5. 所有片段均被出站队列接受后清空 Composer；登记后 transport 失败仍由现有 Session 生命周期/断开提示负责，不创建第二条错误通道。离开页面或显式关闭 tab 只清理 Composer UI；尚未完成的队列数据按 Session 关闭语义终止，已写出的数据不撤销。
+4. 多行仅填入未获安全协议保护时，显示风险确认，保留原文、target 和 inputEpoch；确认后再次核对，取消或宿主退出解锁而不清空草稿。
+5. SwiftTerm 根据当前 bracketed paste 状态编码整段内容，Controller 收集粘贴字节，执行意图才追加一个 `CR`。整包一次登记到现有 `TerminalSession` 出站队列，维持与终端按键、快捷键和系统粘贴的顺序。
+6. 队列接受后清空 Composer；登记后 transport 失败仍由现有 Session 生命周期/断开提示负责，不伪造远端执行成功。已写出的数据不撤销。
+
+### 2026-09-17：提交意图修订
+
+按用户新要求，收起输入框的键盘 Return 改为 `.send` 并发送后回车执行；全屏编辑器仍使用 `.default` 换行。系统键显示箭头或文字由 iOS/输入法决定，不使用私有 API 覆盖。纸飞机保留原来的仅填入语义，不安全的多行场景允许在明确确认风险后继续，不再永久拦截。此次不改输入区尺寸、间距、按钮热区或录音焦点行为。
 
 ## 边界与错误处理
 
-- 不追加回车，避免多行 shell 内容、交互式程序和危险命令因一次点击自动执行。
-- 多行提交要求目标终端已声明 bracketed paste；否则裸换行无法同时保留且不触发 shell 执行，Composer 保留草稿并提示用户重试。
+- 只有明确的键盘发送意图追加回车；纸飞机不追加，裸多行原文需风险确认。远端未开启 bracketed paste 时不能保证原样多行只填入而不执行，不伪造该能力。
 - 不对用户内容做 trim 或 shell 转义；只用 trim 后结果判断是否为空，原始前后空格和换行保持不变。
 - 未 attach、正在回放、已断开或没有当前终端视图时不提交，并保留草稿。
-- 点击处理是同步的，按钮在处理期间防重入；草稿按 tab 隔离，关闭 tab 或离开页面时清理，重连时保留但下一次点击会基于最新 target 重新校验。提交没有异步 UI 回调，因此不存在旧提交清理新 tab 草稿的问题；已登记数据是否完成由 Session 关闭语义决定。未提交草稿不会因为 provider pane target 变化而自动发送。
+- 字节提交处理是同步的，确认期间禁止重复提交和修改草稿；确认回调核对原文、原 target 与 inputEpoch。宿主退出/重连必须结束提交锁而不清空未发送草稿，旧确认不能发送给新的 tab/pane。已登记数据是否完成由 Session 关闭语义决定。
 - Composer 不影响终端焦点协议、PTY resize、持久终端 viewport 和 provider action queue。
 
 ### 生命周期矩阵
@@ -70,9 +95,10 @@ Conn 当前终端支持 SwiftTerm 原生实时输入、快捷键栏、命令选�
 
 ## 测试与验收
 
-- `ConnTerminal` 单测：空白不可提交、文本/换行/前后空白原样保留、提交状态防重复、目标匹配时提交成功并清理、未 attach/目标过期时保留，以及未开启 bracketed paste 时拒绝不安全多行内容；`TerminalSession` recording channel 验证整段输入和 bracketed paste 两种 payload，使用写入记录和显式完成闸门断言队列顺序，不用 sleep 猜测。
+- `ConnTerminal` 单测：空白不可提交、文本/换行/前后空白原样保留、提交状态防重复、取消确认保留原文，以及插入/执行/确认三种安全策略。App recording channel 覆盖实际 SwiftTerm 编码、CR 位置、整包入队、目标过期与关闭后拒绝。
 - `ConnTerminal` 回归单测：程序化粘贴仍走同一 planner，实时按键和已有插入 mailbox 不受影响。
-- App/XCUITest：在现有 demo/fixture 终端中验证输入区显示、多行编辑、回车不发送、发送按钮可用性、发送后清空，以及键盘、快捷键栏展开、深色模式、Dynamic Type 和 tab 切换不破坏布局；字节内容、bracketed paste、过期 target、关闭/重连队列竞态由包级 recording channel 和 Controller 单测验证，不从 UI 测试强行注入远端 transport。
+- App/XCUITest：验证收起 Return 发送、展开 Return 换行、IME/粘贴不误发送、取消/确认及发送后清空，以及键盘、快捷键栏展开、深浅色、Dynamic Type 不破坏布局。字节内容、bracketed paste、过期 target、关闭队列由 recording channel 和 Controller 测试验证，不在生产代码植入隐藏测试入口。
+- 焦点专项：覆盖全局手势的按钮层级与 SwiftUI 非 UIControl 触点；原生 UIWindow 测试记录 `keyboardWillHideNotification` 验证完整移交不隐藏键盘。UI 测试必须在切换后的任何 tap/typeText 之前检查键盘，不能用再次输入把键盘唤起后当作切换正常。真实录音用例要求设备离线识别可用且已授权，不可用须单独记录跳过。
 - 设备验收优先复用当前用户已授权设备；若设备不可用，报告真实限制，不切换或创建设备。
 
 ## 明确不做

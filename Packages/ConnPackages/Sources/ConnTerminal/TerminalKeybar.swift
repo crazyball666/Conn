@@ -31,18 +31,12 @@
         let onExpansionChange: (Bool) -> Void
         let attachmentState: TerminalAttachmentPanelState
         let onAttachmentAction: (TerminalAttachmentAction) -> Void
-        @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
         /// 触感的触发源。每次按键自增一次，`sensoryFeedback` 只认「值变了」。
         ///
         /// 用计数器而不是「最后按下的键」：连按同一个键时后者的值不变，触感就不会响。
         @State private var pressCount = 0
         @State private var expandedSection: ExpandedSection = .common
-        /// 工具栏级触点高亮。它属于整条栏的背景，不改变单个按钮的按下样式。
-        @State private var touchLocation: CGPoint?
-        @State private var touchGlowScale: CGFloat = 0.22
-        @State private var touchGlowOpacity: CGFloat = 0
-        @State private var isTouchTracking = false
 
         private enum ExpandedSection: String {
             case common
@@ -68,78 +62,7 @@
             .padding(.horizontal, TerminalKeybarMetrics.compactHorizontalInset)
             .padding(.vertical, 1)
             .frame(maxWidth: .infinity)
-            .background {
-                GeometryReader { _ in
-                    ZStack {
-                        Color.connBar
-                        if let touchLocation {
-                            RadialGradient(
-                                colors: [
-                                    Color.connInk.opacity(0.32),
-                                    Color.connInk.opacity(0.14),
-                                    .clear
-                                ],
-                                center: .center,
-                                startRadius: 0,
-                                endRadius: 168
-                            )
-                            .frame(width: 336, height: 336)
-                            .scaleEffect(touchGlowScale)
-                            .opacity(touchGlowOpacity)
-                            .position(touchLocation)
-                            .allowsHitTesting(false)
-                        }
-                    }
-                }
-                .clipped()
-                .accessibilityHidden(true)
-            }
             .sensoryFeedback(ConnHapticFeedback.highImpact, trigger: pressCount)
-            .simultaneousGesture(
-                DragGesture(minimumDistance: 0)
-                    .onChanged { value in
-                        if isTouchTracking {
-                            // Keep the bar highlight under the moving finger. The
-                            // expansion animation is only started once per touch.
-                            touchLocation = value.location
-                            return
-                        }
-
-                        // Reset outside the animation so every touch starts as a
-                        // fresh ripple, even when the previous fade-out is still
-                        // finishing.
-                        isTouchTracking = true
-                        let transaction = Transaction(animation: nil)
-                        withTransaction(transaction) {
-                            touchLocation = value.location
-                            touchGlowScale = 0.22
-                            touchGlowOpacity = 0
-                        }
-
-                        if reduceMotion {
-                            touchGlowScale = 1.08
-                            touchGlowOpacity = 1
-                        } else {
-                            withAnimation(.easeOut(duration: 0.34)) {
-                                touchGlowScale = 1.08
-                                touchGlowOpacity = 1
-                            }
-                        }
-                    }
-                    .onEnded { _ in
-                        isTouchTracking = false
-                        if reduceMotion {
-                            touchGlowOpacity = 0
-                        } else {
-                            withAnimation(.easeOut(duration: 0.28)) {
-                                // Let the edge travel a little farther while
-                                // fading, which makes the diffusion visible.
-                                touchGlowScale = 1.18
-                                touchGlowOpacity = 0
-                            }
-                        }
-                    }
-            )
             .onChange(of: providerQuickActionGroup?.id) { _, groupID in
                 if groupID == nil, expandedSection == .provider {
                     expandedSection = .common
