@@ -35,7 +35,7 @@ struct ConnToastTests {
         #expect(center.item?.style.systemImageName == "checkmark.circle.fill")
 
         center.show("连接失败", style: .error)
-        #expect(center.item?.style.systemImageName == "xmark.octagon.fill")
+        #expect(center.item?.style.systemImageName == "xmark.circle.fill")
         center.dismiss()
         #expect(center.item == nil)
     }
@@ -43,9 +43,20 @@ struct ConnToastTests {
     @Test("不同语义使用匹配的图标和停留时长")
     func semanticPresentation() {
         #expect(ConnToastStyle.success.autoDismissDuration == .seconds(1.5))
-        #expect(ConnToastStyle.info.systemImageName == "info.circle.fill")
-        #expect(ConnToastStyle.warning.systemImageName == "exclamationmark.triangle.fill")
+        #expect(ConnToastStyle.success.systemImageName == "checkmark.circle.fill")
+        #expect(ConnToastStyle.info.systemImageName == nil)
+        #expect(ConnToastStyle.warning.systemImageName == "exclamationmark.circle.fill")
+        #expect(ConnToastStyle.error.systemImageName == "xmark.circle.fill")
         #expect(ConnToastStyle.error.autoDismissDuration == .seconds(3.5))
+    }
+
+    @Test("视觉规格保持紧凑并支持多行文案")
+    func visualLayoutMetrics() {
+        #expect(ConnToastLayout.maxWidth == 320)
+        #expect(ConnToastLayout.messageFontSize == 14)
+        #expect(ConnToastLayout.cornerRadius == 16)
+        #expect(ConnToastLayout.horizontalPadding == 12)
+        #expect(ConnToastLayout.verticalPadding == 8)
     }
 
     @Test("App 统一触感使用最高强度")

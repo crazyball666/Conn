@@ -56,3 +56,31 @@ git diff --check
 - 真实 App 点击测试使用当前模拟器已存主机的普通 PTY；未额外执行 tmux/zellij 真实远端测试。
 - 未执行全量包、App 或 UI suite，不将定向结果描述为全量通过。
 - 不提交、不 push；所有本次和原有工作区改动保留。
+
+## 2026-09-17：展开态发送按钮尺寸修正
+
+- 根因：全屏独立按钮复用了紧凑胶囊内的 26pt 发送样式，语音按钮则是 36pt。
+- 展开态改为 36pt 圆形、16pt 图标，与语音按钮相同，按 `.callout` 同步缩放；紧凑态保持 26pt / 14pt。不外扩热区，不改发送或键盘焦点逻辑，不新增文案。
+- 实际设备：用户已启动的 iPhone 17 Pro Simulator，iOS 26.0，UDID `DDACC334-4130-4FA3-AC0A-A28B62F71FC1`；未启动、重启、克隆或切换设备。
+
+本轮命令：
+
+```bash
+xcodebuild test -quiet -project Conn/Conn.xcodeproj -scheme Conn \
+  -destination 'id=DDACC334-4130-4FA3-AC0A-A28B62F71FC1' \
+  -parallel-testing-enabled NO -maximum-concurrent-test-simulator-destinations 1 \
+  -only-testing:ConnTests/TerminalComposerAppearanceTests \
+  -only-testing:ConnTests/KeyboardDismisserTests \
+  -only-testing:ConnUITests/ConnUITests/testExpandedComposerSendMatchesVoiceButton \
+  -resultBundlePath /tmp/conn-expanded-send.7kswWV/green.xcresult
+swift test --package-path Packages/ConnPackages --filter TerminalCommandComposerTests
+git diff --check
+```
+
+- RED：同一 Xcode 设备参数，仅选择 `testExpandedComposerSendMatchesVoiceButton`，结果 `/tmp/conn-expanded-send.7kswWV/red.xcresult`。真实点击展开后，尺寸断言复现 `26.0 != 36.0`。
+- 修复后新增 UI 测试通过，未跳过；覆盖展开按钮等宽/等高/中心对齐、空草稿禁用、有内容启用、完成后保留草稿与紧凑发送仍为 26pt。仅编辑草稿，没有向远端执行命令。
+- 新增 App 组件尺寸测试通过，覆盖默认与辅助字号、启用/禁用状态；包测试 12 项通过。
+- 已实际查看从 UI 测试导出的截图：`/tmp/conn-expanded-send.7kswWV/attachments/D0BD02CF-458E-4272-8660-32C4694A8C6C.png`，两按钮同尺寸、居中，未修改原有底栏间距。
+- 扩展回归整体为 **34 通过、1 失败、0 跳过，exit 65**，不能称为整组通过。失败为原有 `testProductionEditorsRoundTripWithoutKeyboardHide`，iOS 26 下观测到一次键盘隐藏通知。
+- 在相同设备参数下单独选择尺寸与该焦点测试复跑，`/tmp/conn-expanded-send.7kswWV/focus-recheck.xcresult` 为 1 通过、1 失败：尺寸继续通过，焦点断言继续失败。该问题尚待定位，本轮没有扩大到键盘逻辑修复，也不据此声称键盘交互已通过 iPhone 17 Pro 验收。
+- 未运行全量测试、真实录音或 tmux/zellij 集成；只读复查未发现此次尺寸改动的阻断问题。保留原有本地化改动及用户图片，未提交、未 push。

@@ -45,7 +45,7 @@ struct TerminalComposerExpandedEditor: View {
                 TerminalComposerVoiceButton(
                     state: speechState, isSubmitting: isSubmitting, action: onToggleSpeech
                 )
-                TerminalComposerSendButton(canSend: canSend) {
+                TerminalComposerSendButton(canSend: canSend, isExpanded: true) {
                     guard canSend else { return }
                     onSubmit(text)
                 }

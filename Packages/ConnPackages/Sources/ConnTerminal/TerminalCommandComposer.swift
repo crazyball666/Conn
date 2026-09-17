@@ -230,8 +230,15 @@ public struct TerminalCommandComposer: View {
 struct TerminalComposerSendButton: View {
     var canSend: Bool
     var action: () -> Void
-    @ScaledMetric(relativeTo: .callout) private var diameter: CGFloat = 26
-    @ScaledMetric(relativeTo: .callout) private var iconSize: CGFloat = 14
+    @ScaledMetric private var diameter: CGFloat
+    @ScaledMetric private var iconSize: CGFloat
+
+    init(canSend: Bool, isExpanded: Bool = false, action: @escaping () -> Void) {
+        self.canSend = canSend
+        self.action = action
+        _diameter = ScaledMetric(wrappedValue: isExpanded ? 36 : 26, relativeTo: .callout)
+        _iconSize = ScaledMetric(wrappedValue: isExpanded ? 16 : 14, relativeTo: .callout)
+    }
 
     var body: some View {
         Button(action: action) {

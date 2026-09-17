@@ -50,6 +50,72 @@ final class ConnUITests: XCTestCase {
     }
 
     @MainActor
+    func testToastUsesCompactMultilineStatusCard() {
+        let app = XCUIApplication()
+        app.launchArguments += [
+            "-conn.settings.appearance", "light",
+            "-conn.ui-test.toast", "error"
+        ]
+        app.launchEnvironment["CONN_UI_TEST_TOAST_MESSAGE"] =
+            "连接失败：目标设备无响应，请检查地址、防火墙和 SSH 服务状态。"
+        app.launch()
+
+        let toast = app.descendants(matching: .any)["conn.toast.error"].firstMatch
+        XCTAssertTrue(toast.waitForExistence(timeout: 10))
+        XCTAssertLessThanOrEqual(toast.frame.width, 320, "Toast 不应再铺满页面")
+        XCTAssertGreaterThan(toast.frame.height, 44, "长文案应自然换行并撑开卡片")
+        XCTAssertEqual(app.state, .runningForeground)
+
+        let screenshot = XCTAttachment(screenshot: toast.screenshot())
+        screenshot.name = "toast-compact-multiline"
+        screenshot.lifetime = .keepAlways
+        add(screenshot)
+    }
+
+    @MainActor
+    func testToastUsesLightSurfaceInDarkAppearance() {
+        let app = XCUIApplication()
+        app.launchArguments += [
+            "-conn.settings.appearance", "dark",
+            "-conn.ui-test.toast", "warning"
+        ]
+        app.launchEnvironment["CONN_UI_TEST_TOAST_MESSAGE"] =
+            "警告：当前连接质量较差，请检查网络后再继续操作。"
+        app.launch()
+
+        let toast = app.descendants(matching: .any)["conn.toast.warning"].firstMatch
+        XCTAssertTrue(toast.waitForExistence(timeout: 10))
+        XCTAssertLessThanOrEqual(toast.frame.width, 320, "Toast 不应再铺满页面")
+        XCTAssertGreaterThan(toast.frame.height, 44, "长文案应自然换行并撑开卡片")
+        XCTAssertEqual(app.state, .runningForeground)
+
+        let screenshot = XCTAttachment(screenshot: toast.screenshot())
+        screenshot.name = "toast-theme-aware-dark"
+        screenshot.lifetime = .keepAlways
+        add(screenshot)
+    }
+
+    @MainActor
+    func testToastUsesContentWidthForShortMessage() {
+        let app = XCUIApplication()
+        app.launchArguments += [
+            "-conn.settings.appearance", "light",
+            "-conn.ui-test.toast", "error"
+        ]
+        app.launchEnvironment["CONN_UI_TEST_TOAST_MESSAGE"] = "已保存"
+        app.launch()
+
+        let toast = app.descendants(matching: .any)["conn.toast.error"].firstMatch
+        XCTAssertTrue(toast.waitForExistence(timeout: 10))
+        XCTAssertLessThan(toast.frame.width, 180, "短文案应按内容收缩，而不是固定成大卡片")
+
+        let window = app.windows.firstMatch
+        XCTAssertTrue(window.exists)
+        XCTAssertEqual(toast.frame.midX, window.frame.midX, accuracy: 1, "Toast 应水平居中")
+        XCTAssertEqual(app.state, .runningForeground)
+    }
+
+    @MainActor
     func testTerminalCenterOpensWithoutCrashing() {
         let app = XCUIApplication()
         // 该测试验收已授权时的文件管理入口；订阅拦截由下面的专用测试覆盖。
@@ -232,6 +298,52 @@ final class ConnUITests: XCTestCase {
         app.buttons["terminal.keybar.collapse"].tap()
         app.buttons["terminal.keybar.close-terminal"].tap()
         XCTAssertEqual(app.state, .runningForeground)
+    }
+
+    @MainActor
+    func testExpandedComposerSendMatchesVoiceButton() throws {
+        let app = XCUIApplication()
+        app.launchEnvironment["CONN_SUBSCRIPTION_STATE"] = "pro"
+        app.launch()
+        let host = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "servers.host.")).firstMatch
+        guard host.waitForExistence(timeout: 15) else {
+            throw XCTSkip("当前模拟器没有已保存的主机配置")
+        }
+        host.tap()
+        let open = app.buttons["host.open-terminal"]
+        XCTAssertTrue(open.waitForExistence(timeout: 5))
+        open.tap()
+        let plain = app.buttons["new-terminal.provider.plain"]
+        if plain.waitForExistence(timeout: 5) { plain.tap() }
+        let input = app.textViews["terminal.composer.input"]
+        XCTAssertTrue(input.waitForExistence(timeout: 20))
+        app.buttons["terminal.composer.expand"].tap()
+        let editor = app.textViews["terminal.composer.expanded-input"]
+        XCTAssertTrue(editor.waitForExistence(timeout: 5))
+        let expanded = app.descendants(matching: .any)["terminal.composer.expanded"].firstMatch
+        let send = expanded.buttons["terminal.composer.send"]
+        let voice = expanded.buttons["terminal.composer.voice"]
+        XCTAssertTrue(send.exists)
+        XCTAssertTrue(voice.exists)
+        XCTAssertEqual(send.frame.width, voice.frame.width, accuracy: 0.5)
+        XCTAssertEqual(send.frame.height, voice.frame.height, accuracy: 0.5)
+        XCTAssertEqual(send.frame.midY, voice.frame.midY, accuracy: 0.5)
+        XCTAssertFalse(send.isEnabled, "An empty draft must not become sendable when resized")
+        editor.tap()
+        editor.typeText("draft only")
+        XCTAssertTrue(send.isEnabled)
+        XCTAssertEqual(send.frame.size, voice.frame.size)
+        let screenshot = XCTAttachment(screenshot: expanded.screenshot())
+        screenshot.name = "expanded-composer-matching-actions"
+        screenshot.lifetime = .keepAlways
+        add(screenshot)
+        app.buttons["terminal.composer.done"].tap()
+        XCTAssertTrue(editor.waitForNonExistence(timeout: 5))
+        XCTAssertEqual(input.value as? String, "draft only")
+        XCTAssertEqual(app.buttons["terminal.composer.send"].frame.height, 26, accuracy: 1,
+                       "Compact send must retain its smaller in-field size")
+        XCTAssertEqual(app.state, .runningForeground)
+        app.buttons["terminal.keybar.close-terminal"].tap()
     }
 
     @MainActor

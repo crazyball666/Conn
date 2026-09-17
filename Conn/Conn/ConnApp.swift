@@ -68,8 +68,27 @@ struct ConnApp: App {
             .environment(\.connToastCenter, toastCenter)
             // 全局「点击空白处收起键盘」。
             .onAppear { KeyboardDismisser.shared.installIfNeeded() }
+#if DEBUG
+            .onAppear { presentUITestToastIfRequested() }
+#endif
         }
     }
+
+#if DEBUG
+    /// 仅供 UI 测试驱动视觉验收，不进入 Release，也不暴露业务入口。
+    private func presentUITestToastIfRequested() {
+        let arguments = ProcessInfo.processInfo.arguments
+        guard let markerIndex = arguments.firstIndex(of: "-conn.ui-test.toast"),
+              arguments.indices.contains(markerIndex + 1),
+              let style = ConnToastStyle(rawValue: arguments[markerIndex + 1]) else {
+            return
+        }
+
+        let message = ProcessInfo.processInfo.environment["CONN_UI_TEST_TOAST_MESSAGE"]
+            ?? "Toast UI test"
+        toastCenter.show(message, style: style)
+    }
+#endif
 
     private func retryBootstrap() {
         bootstrap = .loading

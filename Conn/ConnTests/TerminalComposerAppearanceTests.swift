@@ -10,6 +10,34 @@ import XCTest
 /// Render the production accessory itself, with no SSH accounts or test routes in the app.
 @MainActor
 final class TerminalComposerAppearanceTests: XCTestCase {
+    func testExpandedSendMatchesVoiceSizeWithoutChangingCompactSend() {
+        func measure<V: View>(_ view: V, typeSize: DynamicTypeSize) -> CGSize {
+            let host = UIHostingController(rootView: view.environment(\.dynamicTypeSize, typeSize))
+            host.safeAreaRegions = []
+            return host.sizeThatFits(in: CGSize(width: 400, height: 200))
+        }
+        for typeSize in [DynamicTypeSize.large, .accessibility3] {
+            let voice = measure(TerminalComposerVoiceButton(
+                state: .idle, isSubmitting: false, action: {}
+            ), typeSize: typeSize)
+            for canSend in [false, true] {
+                let expanded = measure(TerminalComposerSendButton(
+                    canSend: canSend, isExpanded: true, action: {}
+                ), typeSize: typeSize)
+                let compact = measure(TerminalComposerSendButton(
+                    canSend: canSend, action: {}
+                ), typeSize: typeSize)
+                XCTAssertEqual(expanded.width, voice.width, accuracy: 0.5)
+                XCTAssertEqual(expanded.height, voice.height, accuracy: 0.5)
+                XCTAssertLessThan(compact.width, expanded.width)
+                if typeSize == .large {
+                    XCTAssertEqual(expanded.width, 36, accuracy: 0.5)
+                    XCTAssertEqual(compact.width, 26, accuracy: 0.5)
+                }
+            }
+        }
+    }
+
     func testExpandedEditorFocusesWhenAttachedToWindow() async throws {
         let host = UIHostingController(rootView: TerminalComposerExpandedEditor(
             text: .constant("draft"), isSubmitting: false, speechState: .idle,

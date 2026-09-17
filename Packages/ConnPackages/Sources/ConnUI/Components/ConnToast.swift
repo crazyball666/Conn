@@ -7,12 +7,12 @@ public enum ConnToastStyle: String, Sendable, Equatable, CaseIterable {
     case warning
     case error
 
-    public var systemImageName: String {
+    public var systemImageName: String? {
         switch self {
         case .success: "checkmark.circle.fill"
-        case .info: "info.circle.fill"
-        case .warning: "exclamationmark.triangle.fill"
-        case .error: "xmark.octagon.fill"
+        case .info: nil
+        case .warning: "exclamationmark.circle.fill"
+        case .error: "xmark.circle.fill"
         }
     }
 
@@ -23,6 +23,15 @@ public enum ConnToastStyle: String, Sendable, Equatable, CaseIterable {
         case .error: ConnToastTimer.autoDismissDuration
         }
     }
+}
+
+/// Toast 的紧凑视觉规格。
+public enum ConnToastLayout {
+    public static let maxWidth: CGFloat = 320
+    public static let messageFontSize: CGFloat = 14
+    public static let cornerRadius: CGFloat = ConnRadius.card
+    public static let horizontalPadding: CGFloat = 12
+    public static let verticalPadding: CGFloat = 8
 }
 
 public struct ConnToastItem: Identifiable, Sendable, Equatable {
@@ -107,25 +116,39 @@ public enum ConnToastTimer {
 struct ConnToast: View {
     let item: ConnToastItem
     let onDismiss: () -> Void
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
-        HStack(alignment: .top, spacing: ConnSpacing.xs) {
-            Image(systemName: item.style.systemImageName)
-                .font(.system(size: 14, weight: .semibold))
-                .foregroundStyle(iconColor)
+        ViewThatFits(in: .horizontal) {
+            // 短文案保持内容宽度；超出可用宽度时由下一个候选自然换行。
+            toastCard(maxWidth: nil)
+                .fixedSize(horizontal: true, vertical: false)
+            toastCard(maxWidth: ConnToastLayout.maxWidth)
+        }
+    }
+
+    private func toastCard(maxWidth: CGFloat?) -> some View {
+        HStack(alignment: .center, spacing: ConnSpacing.xs) {
+            if let systemImageName = item.style.systemImageName {
+                Image(systemName: systemImageName)
+                    .symbolRenderingMode(.hierarchical)
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundStyle(iconColor)
+                    .frame(width: 22, height: 22)
+                    .accessibilityHidden(true)
+            }
             Text(item.message)
-                .font(.connFootnote)
-                .foregroundStyle(.connInk)
+                .font(.system(size: ConnToastLayout.messageFontSize, weight: .medium))
+                .foregroundStyle(messageColor)
                 .multilineTextAlignment(.leading)
                 .lineLimit(nil)
                 .fixedSize(horizontal: false, vertical: true)
-            Spacer(minLength: 0)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, ConnSpacing.sm)
-        .padding(.vertical, ConnSpacing.xs)
-        .connSurface(cornerRadius: ConnRadius.control)
-        .shadow(color: .black.opacity(0.16), radius: 12, y: 4)
+        .padding(.horizontal, ConnToastLayout.horizontalPadding)
+        .padding(.vertical, ConnToastLayout.verticalPadding)
+        .frame(maxWidth: maxWidth, alignment: .leading)
+        .background(toastBackground, in: toastShape)
+        .overlay(toastShape.strokeBorder(toastBorder, lineWidth: 1))
         .contentShape(Rectangle())
         .onTapGesture(perform: onDismiss)
         .gesture(
@@ -139,6 +162,10 @@ struct ConnToast: View {
         .accessibilityIdentifier("conn.toast.\(item.style.rawValue)")
     }
 
+    private var toastShape: RoundedRectangle {
+        .rect(cornerRadius: ConnToastLayout.cornerRadius, style: .continuous)
+    }
+
     private var iconColor: Color {
         switch item.style {
         case .success: .connGood
@@ -147,40 +174,83 @@ struct ConnToast: View {
         case .error: .connCrit
         }
     }
+
+    private var toastBackground: LinearGradient {
+        colorScheme == .dark
+            ? LinearGradient(
+                colors: [.white.opacity(0.96), .white.opacity(0.84)],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            : LinearGradient(
+                colors: [.black.opacity(0.88), .black.opacity(0.76)],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+    }
+
+    private var messageColor: Color {
+        colorScheme == .dark
+            ? .black.opacity(0.88)
+            : .white.opacity(0.96)
+    }
+
+    private var toastBorder: Color {
+        colorScheme == .dark
+            ? .black.opacity(0.08)
+            : .white.opacity(0.14)
+    }
 }
 
 private struct ConnToastModifier: ViewModifier {
     @Binding var item: ConnToastItem?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
+    private var toastTransition: AnyTransition {
+        guard !reduceMotion else { return .opacity }
+
+        // 插入从上方落下；移除向上离场，形成明确的上下方向感。
+        let insertion = AnyTransition.move(edge: .top)
+            .combined(with: .opacity)
+            .animation(.easeOut(duration: 0.24))
+        let removal = AnyTransition.move(edge: .top)
+            .combined(with: .opacity)
+            .animation(.easeIn(duration: 0.20))
+        return .asymmetric(insertion: insertion, removal: removal)
+    }
+
     func body(content: Content) -> some View {
         ZStack(alignment: .top) {
             content
             if let item {
-                ConnToast(item: item) { self.item = nil }
-                    .frame(maxWidth: .infinity, alignment: .top)
-                    .padding(.horizontal, ConnSpacing.page)
-                    .padding(.top, ConnSpacing.sm)
-                    .zIndex(1)
-                    .transition(
-                        reduceMotion
-                            ? .opacity
-                            : .move(edge: .top).combined(with: .opacity)
-                    )
-                    .task(id: item.id) {
-                        if await ConnToastTimer.waitForAutoDismiss(
-                            item.style.autoDismissDuration
-                        ) {
-                            guard self.item?.id == item.id else { return }
-                            self.item = nil
+                GeometryReader { proxy in
+                    ConnToast(item: item) { self.item = nil }
+                        .frame(
+                            maxWidth: min(
+                                ConnToastLayout.maxWidth,
+                                max(0, proxy.size.width - 2 * ConnSpacing.page)
+                            ),
+                            alignment: .top
+                        )
+                        .frame(maxWidth: .infinity, alignment: .top)
+                        .padding(.top, ConnSpacing.sm)
+                        .zIndex(1)
+                        .transition(toastTransition)
+                        .task(id: item.id) {
+                            if await ConnToastTimer.waitForAutoDismiss(
+                                item.style.autoDismissDuration
+                            ) {
+                                guard self.item?.id == item.id else { return }
+                                self.item = nil
+                            }
                         }
-                    }
+                }
             }
         }
         .animation(
             reduceMotion
                 ? .easeInOut(duration: 0.18)
-                : .spring(response: 0.34, dampingFraction: 0.86),
+                : .easeInOut(duration: 0.24),
             value: item
         )
     }
