@@ -88,7 +88,7 @@ final class DockerOperationsModel {
             context.report(message)
             return .rejected(message: message)
         }
-        return await execute(.runContainer, label: L("创建容器")) { session, runtime in
+        return await execute(.runContainer, label: L("创建容器"), reportsResult: false) { session, runtime in
             try await DockerService.runContainer(draft, on: session, runtime: runtime)
         }
     }
@@ -370,6 +370,7 @@ final class DockerOperationsModel {
     private func execute(
         _ operation: DockerOperation,
         label: String,
+        reportsResult: Bool = true,
         remote: (any SSHSession, DockerRuntimeContext) async throws -> ExecResult
     ) async -> DockerOperationOutcome {
         if let rejection = begin(operation) { return rejection }
@@ -392,9 +393,11 @@ final class DockerOperationsModel {
                     ranAt: pendingEntry.ranAt
                 ).historyEntry(hostUUID: audit.hostUUID, id: pendingEntry.id)
             )
-            context.report(DockerOperationFeedback.message(
-                for: outcome, label: label, auditSaved: auditSaved
-            ))
+            if reportsResult {
+                context.report(DockerOperationFeedback.message(
+                    for: outcome, label: label, auditSaved: auditSaved
+                ))
+            }
             // 非零退出码仍是一个已知终态；Docker 可能已部分完成，刷新才不会留旧列表。
             await context.refresh(operation.refreshScope)
             return outcome
@@ -408,9 +411,11 @@ final class DockerOperationsModel {
             )
             // 连接中断、超时或 stream 没有终态时，远端实际状态无法推断，不能刷新覆盖当前视图。
             let outcome = DockerOperationOutcome.unknown(remoteMessage: error.friendlyDiagnosis)
-            context.report(DockerOperationFeedback.message(
-                for: outcome, label: label, auditSaved: auditSaved
-            ))
+            if reportsResult {
+                context.report(DockerOperationFeedback.message(
+                    for: outcome, label: label, auditSaved: auditSaved
+                ))
+            }
             return outcome
         }
     }

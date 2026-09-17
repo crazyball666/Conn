@@ -42,6 +42,16 @@ struct DockerFormSwipeDeleteTests {
         #expect(advancedIndex.lowerBound < commandIndex.lowerBound)
     }
 
+    @Test("挂载行使用稳定 ID Binding，提交时不依赖数组下标")
+    func mountRowsUseStableBindings() throws {
+        let runForm = try source(named: "Conn/Hosts/DockerRunFormView.swift")
+
+        #expect(runForm.contains("ForEach(state.mounts) { mount in"))
+        #expect(runForm.contains("mountBinding(for: mount.id)"))
+        #expect(runForm.contains("firstIndex(where: { $0.id == id })"))
+        #expect(!runForm.contains("ForEach($state.mounts)"))
+    }
+
     private func source(named relativePath: String) throws -> String {
         let projectURL = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()

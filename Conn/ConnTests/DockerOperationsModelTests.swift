@@ -144,6 +144,23 @@ struct DockerOperationsModelTests {
         #expect(!session.didExecute)
     }
 
+    @Test("创建容器结果由表单消费，不在表单 Sheet 内触发父级提示")
+    func runContainerDoesNotReportResultToParent() async {
+        let session = OperationSession()
+        var reports: [String] = []
+        let operations = DockerOperationsModel(
+            context: makeContext(session: { session }, report: { reports.append($0) }),
+            hostUUID: "host-1",
+            runHistory: RecordingHistory()
+        )
+
+        let outcome = await operations.runContainer(DockerRunDraft(image: "nginx"))
+
+        #expect(outcome.isSuccess)
+        #expect(session.didExecute)
+        #expect(reports.isEmpty)
+    }
+
     @Test("审计摘要不保留命令、环境变量或远端输出")
     func auditSummaryRedactsSecretsAndRawOutput() async {
         let session = OperationSession(result: ExecResult(

@@ -88,6 +88,44 @@ struct DockerMountRow: Identifiable {
     }
 }
 
+private struct DockerMountEditorRow: View {
+    @Binding var mount: DockerMountRow
+    let volumes: DockerVolumesModel
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: ConnSpacing.xs) {
+            Picker(L("类型"), selection: $mount.sourceKind) {
+                ForEach(DockerMountSourceKind.allCases) { Text($0.title).tag($0) }
+            }
+            if mount.sourceKind == .namedVolume {
+                HStack(spacing: ConnSpacing.sm) {
+                    TextField("\(L("卷"))（可手动填写）", text: $mount.source)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                    if !volumes.items.isEmpty {
+                        Menu {
+                            ForEach(volumes.items) { volume in
+                                Button(volume.name) { mount.source = volume.name }
+                            }
+                        } label: {
+                            Image(systemName: "chevron.up.chevron.down")
+                                .foregroundStyle(.connAccent)
+                                .frame(width: 34, height: 34)
+                        }
+                        .accessibilityLabel(L("选择已有卷"))
+                    }
+                }
+            } else {
+                TextField(L("主机路径"), text: $mount.source)
+                    .textInputAutocapitalization(.never)
+            }
+            TextField(L("容器路径"), text: $mount.target)
+                .textInputAutocapitalization(.never)
+            Toggle(L("只读"), isOn: $mount.readOnly)
+        }
+    }
+}
+
 struct DockerTokenRow: Identifiable {
     let id: UUID
     var value: String
@@ -440,37 +478,11 @@ struct DockerRunFormView: View {
         } else {
             Section {
                 DisclosureGroup(isExpanded: $isMountsExpanded) {
-                    ForEach($state.mounts) { $mount in
-                        VStack(alignment: .leading, spacing: ConnSpacing.xs) {
-                            Picker(L("类型"), selection: $mount.sourceKind) {
-                                ForEach(DockerMountSourceKind.allCases) { Text($0.title).tag($0) }
-                            }
-                            if mount.sourceKind == .namedVolume {
-                                HStack(spacing: ConnSpacing.sm) {
-                                    TextField("\(L("卷"))（可手动填写）", text: $mount.source)
-                                        .textInputAutocapitalization(.never)
-                                        .autocorrectionDisabled()
-                                    if !volumes.items.isEmpty {
-                                        Menu {
-                                            ForEach(volumes.items) { volume in
-                                                Button(volume.name) { mount.source = volume.name }
-                                            }
-                                        } label: {
-                                            Image(systemName: "chevron.up.chevron.down")
-                                                .foregroundStyle(.connAccent)
-                                                .frame(width: 34, height: 34)
-                                        }
-                                        .accessibilityLabel(L("选择已有卷"))
-                                    }
-                                }
-                            } else {
-                                TextField(L("主机路径"), text: $mount.source)
-                                    .textInputAutocapitalization(.never)
-                            }
-                            TextField(L("容器路径"), text: $mount.target)
-                                .textInputAutocapitalization(.never)
-                            Toggle(L("只读"), isOn: $mount.readOnly)
-                        }
+                    ForEach(state.mounts) { mount in
+                        DockerMountEditorRow(
+                            mount: mountBinding(for: mount.id),
+                            volumes: volumes
+                        )
                     }
                     .onDelete { offsets in
                         state.mounts.remove(atOffsets: offsets)
@@ -490,6 +502,18 @@ struct DockerRunFormView: View {
             }
             .listRowBackground(Color.connSurface)
         }
+    }
+
+    private func mountBinding(for id: UUID) -> Binding<DockerMountRow> {
+        Binding(
+            get: {
+                state.mounts.first(where: { $0.id == id }) ?? DockerMountRow(id: id)
+            },
+            set: { updated in
+                guard let index = state.mounts.firstIndex(where: { $0.id == id }) else { return }
+                state.mounts[index] = updated
+            }
+        )
     }
 
     private var advancedSection: some View {
