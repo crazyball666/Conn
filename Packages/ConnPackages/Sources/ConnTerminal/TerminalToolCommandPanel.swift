@@ -105,6 +105,7 @@ struct TerminalToolCommandCatalog: Sendable, Equatable {
 
     struct TerminalToolCommandPanelView: View {
         let catalog: TerminalToolCommandCatalog
+        var backgroundColor: Color = Color.connKey
         let onCommand: (String) -> Void
 
         var body: some View {
@@ -159,7 +160,7 @@ struct TerminalToolCommandCatalog: Sendable, Equatable {
                     .frame(maxWidth: .infinity)
                     .frame(height: TerminalKeybarMetrics.capVisualHeight)
                     .background(
-                        Color.connKey,
+                        backgroundColor,
                         in: .rect(cornerRadius: ConnRadius.key, style: .continuous)
                     )
                     .overlay(

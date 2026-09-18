@@ -56,6 +56,7 @@ enum TerminalDirectionResolver {
     /// 手感与系统键盘一致，不用另造一套。
     struct TerminalDirectionPad: View {
         let onKey: (TerminalKey) -> Void
+        var backgroundColor: Color = Color.connKey
 
         /// 当前方向。`nil` 表示手指在死区里或已抬起。
         @State private var active: TerminalKey?
@@ -72,7 +73,7 @@ enum TerminalDirectionResolver {
             GeometryReader { geometry in
                 ZStack {
                     RoundedRectangle(cornerRadius: ConnRadius.key, style: .continuous)
-                        .fill(Color.connKey)
+                        .fill(backgroundColor)
                         .frame(
                             width: TerminalKeybarMetrics.capVisualHeight,
                             height: TerminalKeybarMetrics.capVisualHeight

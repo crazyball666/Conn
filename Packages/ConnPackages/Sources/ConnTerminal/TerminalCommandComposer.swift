@@ -96,6 +96,7 @@ public struct TerminalCommandComposer: View {
     @ScaledMetric(relativeTo: .callout) private var iconSize: CGFloat = 16
     @ScaledMetric(relativeTo: .callout) private var sendDiameter: CGFloat = 26
     private let speechState: TerminalSpeechComposerState
+    private let backgroundColor: Color
     private let onSubmit: (String) -> Void
     private let onExecute: (String) -> Void
     private let onToggleSpeech: () -> Void
@@ -108,6 +109,7 @@ public struct TerminalCommandComposer: View {
         text: Binding<String>,
         isSubmitting: Binding<Bool>,
         speechState: TerminalSpeechComposerState = .unavailable,
+        backgroundColor: Color = Color.connKey,
         onSubmit: @escaping (String) -> Void,
         onExecute: @escaping (String) -> Void = { _ in },
         onToggleSpeech: @escaping () -> Void = {},
@@ -119,6 +121,7 @@ public struct TerminalCommandComposer: View {
         _text = text
         _isSubmitting = isSubmitting
         self.speechState = speechState
+        self.backgroundColor = backgroundColor
         self.onSubmit = onSubmit
         self.onExecute = onExecute
         self.onToggleSpeech = onToggleSpeech
@@ -161,7 +164,10 @@ public struct TerminalCommandComposer: View {
                             .font(.system(size: iconSize - 2, weight: .semibold))
                             .foregroundStyle(Color.connInk)
                             .frame(width: sendDiameter, height: sendDiameter)
-                            .background(Color.connTrack, in: Circle())
+                            .background(backgroundColor, in: Circle())
+                            .overlay(
+                                Circle().strokeBorder(Color.connKeyline, lineWidth: 1)
+                            )
                             .contentShape(Circle())
                     }
                     .buttonStyle(.plain)
@@ -175,10 +181,12 @@ public struct TerminalCommandComposer: View {
             .frame(height: visualHeight)
             .background {
                 Capsule()
-                    .fill(Color.connKey)
+                    .fill(backgroundColor)
                     .overlay {
                         Capsule().strokeBorder(
-                            speechState.isCapturing ? Color.connAccent.opacity(0.5) : .clear,
+                            speechState.isCapturing
+                                ? Color.connAccent
+                                : (isFocused ? Color.connAccent.opacity(0.8) : Color.connKeyline),
                             lineWidth: 1
                         )
                     }
@@ -188,7 +196,12 @@ public struct TerminalCommandComposer: View {
             }
             .accessibilityElement(children: .contain)
             .accessibilityIdentifier("terminal.composer.field")
-            TerminalComposerVoiceButton(state: speechState, isSubmitting: isSubmitting, action: onToggleSpeech)
+            TerminalComposerVoiceButton(
+                state: speechState,
+                backgroundColor: backgroundColor,
+                isSubmitting: isSubmitting,
+                action: onToggleSpeech
+            )
         }
         .padding(.horizontal, ConnSpacing.sm)
         .padding(.top, ConnSpacing.xs)
@@ -214,7 +227,7 @@ public struct TerminalCommandComposer: View {
     }
 
     private var sendButton: some View {
-        TerminalComposerSendButton(canSend: canSend) {
+        TerminalComposerSendButton(canSend: canSend, backgroundColor: backgroundColor) {
             guard canSend else { return }
             let restoreFocus = isFocused
             onSubmit(text)
@@ -229,12 +242,19 @@ public struct TerminalCommandComposer: View {
 
 struct TerminalComposerSendButton: View {
     var canSend: Bool
+    var backgroundColor: Color = Color.connKey
     var action: () -> Void
     @ScaledMetric private var diameter: CGFloat
     @ScaledMetric private var iconSize: CGFloat
 
-    init(canSend: Bool, isExpanded: Bool = false, action: @escaping () -> Void) {
+    init(
+        canSend: Bool,
+        backgroundColor: Color = Color.connKey,
+        isExpanded: Bool = false,
+        action: @escaping () -> Void
+    ) {
         self.canSend = canSend
+        self.backgroundColor = backgroundColor
         self.action = action
         _diameter = ScaledMetric(wrappedValue: isExpanded ? 36 : 26, relativeTo: .callout)
         _iconSize = ScaledMetric(wrappedValue: isExpanded ? 16 : 14, relativeTo: .callout)
@@ -244,9 +264,15 @@ struct TerminalComposerSendButton: View {
         Button(action: action) {
             Image(systemName: "paperplane.fill")
                 .font(.system(size: iconSize, weight: .semibold))
-                .foregroundStyle(canSend ? Color.connInk : Color.connMuted)
+                .foregroundStyle(canSend ? Color.connAccent : Color.connMuted)
                 .frame(width: diameter, height: diameter)
-                .background(canSend ? Color.connAccentFill : Color.connTrack, in: Circle())
+                .background(canSend ? Color.connAccentFill : backgroundColor, in: Circle())
+                .overlay(
+                    Circle().strokeBorder(
+                        canSend ? Color.connAccent : Color.connKeyline,
+                        lineWidth: 1
+                    )
+                )
                 .contentShape(Circle())
         }
         .buttonStyle(.plain)
@@ -259,6 +285,7 @@ struct TerminalComposerSendButton: View {
 
 struct TerminalComposerVoiceButton: View {
     var state: TerminalSpeechComposerState
+    var backgroundColor: Color = Color.connKey
     var isSubmitting: Bool
     var action: () -> Void
     @ScaledMetric(relativeTo: .callout) private var diameter: CGFloat = 36
@@ -267,7 +294,7 @@ struct TerminalComposerVoiceButton: View {
     var body: some View {
         Button(action: action) {
             ZStack {
-                Circle().fill(state.isCapturing ? Color.connAccentFill : Color.connKey)
+                Circle().fill(state.isCapturing ? Color.connAccentFill : backgroundColor)
                 if state == .stopping {
                     ProgressView().tint(.connAccent)
                 } else {
@@ -276,6 +303,12 @@ struct TerminalComposerVoiceButton: View {
                 }
             }
             .frame(width: diameter, height: diameter)
+            .overlay(
+                Circle().strokeBorder(
+                    state.isCapturing ? Color.connAccent : Color.connKeyline,
+                    lineWidth: 1
+                )
+            )
             .contentShape(Circle())
         }
         .buttonStyle(.plain)

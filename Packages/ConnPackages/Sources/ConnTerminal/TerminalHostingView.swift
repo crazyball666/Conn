@@ -245,6 +245,7 @@
                             set: { _ in }
                         ),
                         speechState: composerSpeechState,
+                        backgroundColor: configuration.theme.backgroundColor,
                         onSubmit: { submitComposerText($0) },
                         onExecute: { submitComposerText($0, intent: .execute) },
                         onToggleSpeech: toggleSpeechInput,
@@ -261,7 +262,9 @@
                             if $0 {
                                 lastKeyboardOwnerWasComposer = true
                                 if isKeybarExpanded {
-                                    withAnimation(.easeInOut(duration: keyboardObserver.animationDuration)) {
+                                    var transaction = Transaction()
+                                    transaction.disablesAnimations = true
+                                    withTransaction(transaction) {
                                         isKeybarExpanded = false
                                     }
                                 }
@@ -289,7 +292,9 @@
                         keyboardVisible: controller.isSoftwareKeyboardVisible || isComposerFocused,
                         onToggleKeyboard: {
                             if isKeybarExpanded {
-                                withAnimation(.easeInOut(duration: keyboardObserver.animationDuration)) {
+                                var transaction = Transaction()
+                                transaction.disablesAnimations = true
+                                withTransaction(transaction) {
                                     isKeybarExpanded = false
                                 }
                                 if lastKeyboardOwnerWasComposer {
@@ -310,7 +315,8 @@
                         onExpansionChange: setKeybarExpanded,
                         attachmentState: attachmentState,
                         onAttachmentAction: onAttachmentAction,
-                        expandedContentHeight: dynamicExpandedContentHeight
+                        expandedContentHeight: dynamicExpandedContentHeight,
+                        backgroundColor: configuration.theme.backgroundColor
                     )
                     .frame(
                         height: isKeybarExpanded
@@ -439,7 +445,9 @@
             }
             .onChange(of: controller.isSoftwareKeyboardVisible) { _, visible in
                 if visible && isKeybarExpanded {
-                    withAnimation(.easeInOut(duration: keyboardObserver.animationDuration)) {
+                    var transaction = Transaction()
+                    transaction.disablesAnimations = true
+                    withTransaction(transaction) {
                         isKeybarExpanded = false
                     }
                 }
@@ -557,8 +565,17 @@
         }
 
         private func setKeybarExpanded(_ expanded: Bool) {
+            let wasKeyboardVisible = controller.isSoftwareKeyboardVisible || isComposerFocused
             if expanded {
                 dismissAllKeyboards()
+                if wasKeyboardVisible {
+                    var transaction = Transaction()
+                    transaction.disablesAnimations = true
+                    withTransaction(transaction) {
+                        isKeybarExpanded = true
+                    }
+                    return
+                }
             }
             withAnimation(.easeInOut(duration: keyboardObserver.animationDuration)) {
                 isKeybarExpanded = expanded

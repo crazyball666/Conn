@@ -35,6 +35,7 @@ public struct TerminalAttachmentPanelState: Sendable, Equatable {
 #if canImport(UIKit)
     struct TerminalAttachmentPanelView: View {
         let state: TerminalAttachmentPanelState
+        var backgroundColor: Color = Color.connKey
         let onAction: (TerminalAttachmentAction) -> Void
 
         var body: some View {
@@ -137,7 +138,7 @@ public struct TerminalAttachmentPanelState: Sendable, Equatable {
                 .foregroundStyle(Color.connInk)
                 .frame(maxWidth: .infinity)
                 .frame(height: TerminalKeybarMetrics.capVisualHeight)
-                .background(Color.connKey, in: .rect(cornerRadius: ConnRadius.key, style: .continuous))
+                .background(backgroundColor, in: .rect(cornerRadius: ConnRadius.key, style: .continuous))
                 .overlay(
                     RoundedRectangle(cornerRadius: ConnRadius.key, style: .continuous)
                         .strokeBorder(Color.connKeyline, lineWidth: 1)
