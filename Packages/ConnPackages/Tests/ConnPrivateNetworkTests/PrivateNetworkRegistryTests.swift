@@ -28,7 +28,7 @@ struct PrivateNetworkRegistryTests {
         let credentials = InMemoryCredentialStore()
         try credentials.setPrivateNetworkAuthKey("auth", forProfile: "p")
         let factory = FakeFactory(closeDelay: .milliseconds(100))
-        let registry = PrivateNetworkRegistry(profileRepository: profiles, credentialStore: credentials, factory: factory)
+        let registry = PrivateNetworkRegistry(profileRepository: profiles, credentialStore: credentials, factory: factory, idleTimeout: .zero)
         let first = try await registry.openProxy(profileID: "p", to: SSHEndpoint(host: "host.example"))
         let closing = Task { await first.close() }
         while !(await factory.isClosing) { await Task.yield() }
@@ -38,7 +38,7 @@ struct PrivateNetworkRegistryTests {
         await next.close()
     }
 
-    @Test("同一 profile 共享 runtime，租约全部关闭后停止")
+    @Test("无空闲宽限期时，租约全部关闭后立即停止")
     func sharesRuntimeAndStopsAfterLastLease() async throws {
         let profile = PrivateNetworkProfile(
             id: "p",
@@ -53,7 +53,8 @@ struct PrivateNetworkRegistryTests {
         let registry = PrivateNetworkRegistry(
             profileRepository: profiles,
             credentialStore: credentials,
-            factory: factory
+            factory: factory,
+            idleTimeout: .zero
         )
 
         let first = try await registry.openProxy(profileID: "p", to: SSHEndpoint(host: "100.64.0.1"))
@@ -83,7 +84,8 @@ struct PrivateNetworkRegistryTests {
         let registry = PrivateNetworkRegistry(
             profileRepository: profiles,
             credentialStore: credentials,
-            factory: factory
+            factory: factory,
+            idleTimeout: .zero
         )
 
         async let first = registry.openProxy(
@@ -98,6 +100,44 @@ struct PrivateNetworkRegistryTests {
 
         #expect(await factory.makeCount == 1)
         for lease in leases { await lease.close() }
+        #expect(await factory.closeCount == 1)
+    }
+
+    @Test("空闲宽限期内保持活跃并在后续连接中复用节点")
+    func idleTimeoutKeepsRuntimeAliveAndReusesNode() async throws {
+        let profile = PrivateNetworkProfile(
+            id: "p",
+            name: "Tailnet",
+            provider: .tailscale,
+            controlURL: "https://controlplane.tailscale.com"
+        )
+        let profiles = InMemoryProfiles(profile: profile)
+        let credentials = InMemoryCredentialStore()
+        try credentials.setPrivateNetworkAuthKey("auth", forProfile: "p")
+        let factory = FakeFactory()
+        let registry = PrivateNetworkRegistry(
+            profileRepository: profiles,
+            credentialStore: credentials,
+            factory: factory,
+            idleTimeout: .milliseconds(100)
+        )
+
+        let first = try await registry.openProxy(profileID: "p", to: SSHEndpoint(host: "100.64.0.1"))
+        #expect(await factory.makeCount == 1)
+        await first.close()
+
+        // 租约释放后，但在 100ms 宽限期内，runtime 仍保持 running，未执行 close
+        #expect(await registry.status(profileID: "p") == .running)
+        #expect(await factory.closeCount == 0)
+
+        // 在宽限期内发起新连接，应该复用既有 node，不重复创建
+        let second = try await registry.openProxy(profileID: "p", to: SSHEndpoint(host: "100.64.0.2"))
+        #expect(await factory.makeCount == 1)
+        await second.close()
+
+        // 等待宽限期超时后，自动停止
+        try await Task.sleep(for: .milliseconds(150))
+        #expect(await registry.status(profileID: "p") == .stopped)
         #expect(await factory.closeCount == 1)
     }
 }

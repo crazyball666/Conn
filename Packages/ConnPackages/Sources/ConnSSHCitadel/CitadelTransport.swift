@@ -8,8 +8,10 @@ import NIOCore
 /// SSH 传输层统一的连接策略。
 ///
 /// 显式覆盖 Citadel 的 30 秒默认值，避免不可达的内网主机长时间停留在连接中。
+/// 对私有网络或代理场景使用宽限超时，为 WireGuard 握手、NAT 穿透及中继保留裕量。
 enum CitadelConnectionPolicy {
     static let tcpConnectTimeout: TimeAmount = .seconds(10)
+    static let proxyConnectTimeout: TimeAmount = .seconds(25)
 }
 
 /// 基于 Citadel（SwiftNIO SSH）的 `SSHTransport` 实现。
@@ -112,40 +114,11 @@ public final class CitadelTransport: SSHTransport {
         }
 
         do {
-            if plan.hops.isEmpty {
-                let client = try await connectDirect(
-                    connectionEndpoint: SSHEndpoint(host: lease.endpoint.host, port: lease.endpoint.port),
-                    hostKeyEndpoint: plan.target.endpoint,
-                    username: plan.target.username,
-                    auth: plan.target.auth,
-                    hostKeyPolicy: hostKeyPolicy
-                )
-                return CitadelSession(
-                    client: client,
-                    endpoint: plan.target.endpoint,
-                    privateNetworkLease: lease
-                )
-            }
-
-            let citadelHops = plan.hops.map {
-                JumpHop(endpoint: $0.endpoint, username: $0.username, auth: $0.auth)
-            }
-            let citadelTarget = JumpHop(
-                endpoint: plan.target.endpoint,
-                username: plan.target.username,
-                auth: plan.target.auth
-            )
-            let client = try await JumpChain.connect(
-                hops: citadelHops,
-                target: citadelTarget,
-                hostKeyStore: hostKeyStore,
+            return try await connectUsingLease(
+                lease,
+                plan: plan,
                 hostKeyPolicy: hostKeyPolicy,
-                firstConnectionEndpoint: SSHEndpoint(host: lease.endpoint.host, port: lease.endpoint.port)
-            )
-            return CitadelSession(
-                client: client,
-                endpoint: plan.target.endpoint,
-                privateNetworkLease: lease
+                connectTimeout: CitadelConnectionPolicy.proxyConnectTimeout
             )
         } catch {
             await lease.close()
@@ -208,7 +181,8 @@ public final class CitadelTransport: SSHTransport {
             return try await connectUsingLease(
                 lease,
                 plan: plan,
-                hostKeyPolicy: hostKeyPolicy
+                hostKeyPolicy: hostKeyPolicy,
+                connectTimeout: CitadelConnectionPolicy.proxyConnectTimeout
             )
         } catch {
             await lease.close()
@@ -220,7 +194,8 @@ public final class CitadelTransport: SSHTransport {
     private func connectUsingLease(
         _ lease: any PrivateNetworkProxyLease,
         plan: SSHConnectionPlan,
-        hostKeyPolicy: HostKeyPolicy
+        hostKeyPolicy: HostKeyPolicy,
+        connectTimeout: TimeAmount = CitadelConnectionPolicy.proxyConnectTimeout
     ) async throws -> any SSHSession {
         if plan.hops.isEmpty {
             let client = try await connectDirect(
@@ -228,7 +203,8 @@ public final class CitadelTransport: SSHTransport {
                 hostKeyEndpoint: plan.target.endpoint,
                 username: plan.target.username,
                 auth: plan.target.auth,
-                hostKeyPolicy: hostKeyPolicy
+                hostKeyPolicy: hostKeyPolicy,
+                connectTimeout: connectTimeout
             )
             return CitadelSession(
                 client: client,
@@ -250,7 +226,8 @@ public final class CitadelTransport: SSHTransport {
             target: citadelTarget,
             hostKeyStore: hostKeyStore,
             hostKeyPolicy: hostKeyPolicy,
-            firstConnectionEndpoint: SSHEndpoint(host: lease.endpoint.host, port: lease.endpoint.port)
+            firstConnectionEndpoint: SSHEndpoint(host: lease.endpoint.host, port: lease.endpoint.port),
+            firstConnectionTimeout: connectTimeout
         )
         return CitadelSession(
             client: client,
@@ -264,7 +241,8 @@ public final class CitadelTransport: SSHTransport {
         hostKeyEndpoint: SSHEndpoint,
         username: String,
         auth: SSHAuth,
-        hostKeyPolicy: HostKeyPolicy
+        hostKeyPolicy: HostKeyPolicy,
+        connectTimeout: TimeAmount = CitadelConnectionPolicy.tcpConnectTimeout
     ) async throws -> SSHClient {
         let method = try AuthMapping.method(for: auth, username: username)
         do {
@@ -279,7 +257,7 @@ public final class CitadelTransport: SSHTransport {
                 ),
                 reconnect: .never,
                 algorithms: .all,
-                connectTimeout: CitadelConnectionPolicy.tcpConnectTimeout
+                connectTimeout: connectTimeout
             )
         } catch {
             throw AuthMapping.mapConnectError(error, endpoint: hostKeyEndpoint, auth: auth)

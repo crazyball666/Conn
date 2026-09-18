@@ -1,6 +1,7 @@
 import Citadel
 import ConnSSH
 import Foundation
+import NIOCore
 
 /// 跳板链的一跳。
 public struct JumpHop: Sendable {
@@ -31,11 +32,17 @@ enum JumpChain {
         target: JumpHop,
         hostKeyStore: any HostKeyStore,
         hostKeyPolicy: HostKeyPolicy,
-        firstConnectionEndpoint: SSHEndpoint? = nil
+        firstConnectionEndpoint: SSHEndpoint? = nil,
+        firstConnectionTimeout: TimeAmount = CitadelConnectionPolicy.tcpConnectTimeout
     ) async throws -> SSHClient {
         // 第一跳（或无跳板时直连目标）
         guard let firstHop = hops.first else {
-            return try await directConnect(target, hostKeyStore: hostKeyStore, hostKeyPolicy: hostKeyPolicy)
+            return try await directConnect(
+                target,
+                hostKeyStore: hostKeyStore,
+                hostKeyPolicy: hostKeyPolicy,
+                connectTimeout: firstConnectionTimeout
+            )
         }
 
         var client = try await connectHop(
@@ -43,7 +50,8 @@ enum JumpChain {
             hopIndex: 0,
             hostKeyStore: hostKeyStore,
             hostKeyPolicy: hostKeyPolicy,
-            connectionEndpoint: firstConnectionEndpoint
+            connectionEndpoint: firstConnectionEndpoint,
+            connectTimeout: firstConnectionTimeout
         )
 
         // 逐级跳到后续跳板
@@ -79,14 +87,16 @@ enum JumpChain {
         hopIndex: Int,
         hostKeyStore: any HostKeyStore,
         hostKeyPolicy: HostKeyPolicy,
-        connectionEndpoint: SSHEndpoint? = nil
+        connectionEndpoint: SSHEndpoint? = nil,
+        connectTimeout: TimeAmount = CitadelConnectionPolicy.tcpConnectTimeout
     ) async throws -> SSHClient {
         do {
             return try await directConnect(
                 hop,
                 hostKeyStore: hostKeyStore,
                 hostKeyPolicy: hostKeyPolicy,
-                connectionEndpoint: connectionEndpoint
+                connectionEndpoint: connectionEndpoint,
+                connectTimeout: connectTimeout
             )
         } catch let error as SSHError {
             // A host-key failure is a security decision, not merely a connectivity
@@ -107,7 +117,8 @@ enum JumpChain {
         _ hop: JumpHop,
         hostKeyStore: any HostKeyStore,
         hostKeyPolicy: HostKeyPolicy,
-        connectionEndpoint: SSHEndpoint? = nil
+        connectionEndpoint: SSHEndpoint? = nil,
+        connectTimeout: TimeAmount = CitadelConnectionPolicy.tcpConnectTimeout
     ) async throws -> SSHClient {
         let method = try AuthMapping.method(for: hop.auth, username: hop.username)
         do {
@@ -122,7 +133,7 @@ enum JumpChain {
                 ),
                 reconnect: .never,
                 algorithms: .all,
-                connectTimeout: CitadelConnectionPolicy.tcpConnectTimeout
+                connectTimeout: connectTimeout
             )
         } catch {
             throw AuthMapping.mapConnectError(error, endpoint: hop.endpoint, auth: hop.auth)
@@ -135,7 +146,7 @@ enum JumpChain {
         hostKeyPolicy: HostKeyPolicy
     ) throws -> SSHClientSettings {
         let method = try AuthMapping.method(for: hop.auth, username: hop.username)
-        return SSHClientSettings(
+        var settings = SSHClientSettings(
             host: hop.endpoint.host,
             port: hop.endpoint.port,
             authenticationMethod: { method },
@@ -145,5 +156,8 @@ enum JumpChain {
                 policy: hostKeyPolicy
             )
         )
+        settings.algorithms = .all
+        settings.connectTimeout = CitadelConnectionPolicy.tcpConnectTimeout
+        return settings
     }
 }

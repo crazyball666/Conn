@@ -68,24 +68,29 @@ public actor PrivateNetworkRegistry {
     private let profileRepository: any PrivateNetworkProfileRepository
     private let credentialStore: any CredentialStore
     private let factory: any PrivateNetworkClientFactory
+    private let idleTimeout: Duration
     private var runtimes: [String: Runtime] = [:]
     private var startingClients: [String: Task<any PrivateNetworkClient, Error>] = [:]
     private var closingClients: [String: Closing] = [:]
+    private var idleTasks: [String: Task<Void, Never>] = [:]
 
     public init(
         profileRepository: any PrivateNetworkProfileRepository,
         credentialStore: any CredentialStore,
-        factory: (any PrivateNetworkClientFactory)? = nil
+        factory: (any PrivateNetworkClientFactory)? = nil,
+        idleTimeout: Duration = .seconds(45)
     ) {
         self.profileRepository = profileRepository
         self.credentialStore = credentialStore
         self.factory = factory ?? DefaultPrivateNetworkClientFactory(credentialStore: credentialStore)
+        self.idleTimeout = idleTimeout
     }
 
     public func openProxy(
         profileID: String,
         to endpoint: SSHEndpoint
     ) async throws -> any PrivateNetworkProxyLease {
+        idleTasks.removeValue(forKey: profileID)?.cancel()
         let client = try await client(for: profileID)
         let clientID = ObjectIdentifier(client)
         guard let runtime = runtimes[profileID], ObjectIdentifier(runtime.client) == clientID else {
@@ -114,6 +119,7 @@ public actor PrivateNetworkRegistry {
     }
 
     public func stop(profileID: String) async {
+        idleTasks.removeValue(forKey: profileID)?.cancel()
         if let runtime = runtimes.removeValue(forKey: profileID) {
             closingClients[profileID] = Closing(task: Task { await runtime.client.close() })
         }
@@ -121,6 +127,8 @@ public actor PrivateNetworkRegistry {
     }
 
     public func stopAll() async {
+        for task in idleTasks.values { task.cancel() }
+        idleTasks.removeAll()
         let current = runtimes
         runtimes.removeAll()
         for (profileID, runtime) in current {
@@ -132,10 +140,34 @@ public actor PrivateNetworkRegistry {
     private func release(profileID: String, clientID: ObjectIdentifier) async {
         guard let runtime = runtimes[profileID], ObjectIdentifier(runtime.client) == clientID else { return }
         guard runtime.leaseCount > 1 else {
-            await stop(profileID: profileID)
+            runtimes[profileID] = Runtime(client: runtime.client, leaseCount: 0)
+            guard idleTimeout > .zero else {
+                await stop(profileID: profileID)
+                return
+            }
+            idleTasks.removeValue(forKey: profileID)?.cancel()
+            let timeout = idleTimeout
+            idleTasks[profileID] = Task { [weak self] in
+                do {
+                    try await Task.sleep(for: timeout)
+                } catch {
+                    return
+                }
+                await self?.handleIdleTimeout(profileID: profileID, clientID: clientID)
+            }
             return
         }
         runtimes[profileID] = Runtime(client: runtime.client, leaseCount: runtime.leaseCount - 1)
+    }
+
+    private func handleIdleTimeout(profileID: String, clientID: ObjectIdentifier) async {
+        guard let runtime = runtimes[profileID],
+              ObjectIdentifier(runtime.client) == clientID,
+              runtime.leaseCount == 0 else {
+            return
+        }
+        idleTasks.removeValue(forKey: profileID)
+        await stop(profileID: profileID)
     }
 
     private func waitForClose(profileID: String) async {
@@ -155,6 +187,7 @@ public actor PrivateNetworkRegistry {
         // sooner races with that write and can erase the new client's state.
         await waitForClose(profileID: profileID)
         if let runtime = runtimes[profileID] {
+            idleTasks.removeValue(forKey: profileID)?.cancel()
             return runtime.client
         }
         if let task = startingClients[profileID] {
@@ -273,6 +306,7 @@ public final class PrivateNetworkSOCKSProxy: PrivateNetworkProxyLease, @unchecke
     }
 
     public func start() async throws -> PrivateNetworkSOCKSProxy {
+        try Task.checkCancellation()
         let parameters = NWParameters.tcp
         // This is an in-process transport adapter, never a LAN-facing proxy.
         // `NWListener(..., on: .any)` otherwise listens on every local interface.
@@ -283,31 +317,88 @@ public final class PrivateNetworkSOCKSProxy: PrivateNetworkProxyLease, @unchecke
         let listener = try NWListener(using: parameters, on: .any)
         self.listener = listener
         listener.newConnectionHandler = { [weak self] connection in self?.accept(connection) }
+
+        final class ContinuationState: @unchecked Sendable {
+            private let lock = NSLock()
+            private var continuation: CheckedContinuation<UInt16, Error>?
+            private var pendingValue: UInt16?
+            private var pendingError: Error?
+
+            func setContinuation(_ continuation: CheckedContinuation<UInt16, Error>) {
+                lock.withLock {
+                    if let value = pendingValue {
+                        continuation.resume(returning: value)
+                        pendingValue = nil
+                    } else if let error = pendingError {
+                        continuation.resume(throwing: error)
+                        pendingError = nil
+                    } else {
+                        self.continuation = continuation
+                    }
+                }
+            }
+
+            func resume(returning value: UInt16) {
+                lock.withLock {
+                    if let continuation {
+                        continuation.resume(returning: value)
+                        self.continuation = nil
+                    } else if pendingError == nil {
+                        pendingValue = value
+                    }
+                }
+            }
+
+            func resume(throwing error: Error) {
+                lock.withLock {
+                    if let continuation {
+                        continuation.resume(throwing: error)
+                        self.continuation = nil
+                    } else if pendingValue == nil {
+                        pendingError = error
+                    }
+                }
+            }
+        }
+
         do {
+            let state = ContinuationState()
             let port: UInt16 = try await withTaskCancellationHandler {
                 try await withCheckedThrowingContinuation { continuation in
-                    listener.stateUpdateHandler = { state in
-                        switch state {
+                    state.setContinuation(continuation)
+
+                    if Task.isCancelled {
+                        listener.cancel()
+                        state.resume(throwing: CancellationError())
+                        return
+                    }
+
+                    listener.stateUpdateHandler = { stateUpdate in
+                        switch stateUpdate {
                         case .ready:
                             listener.stateUpdateHandler = nil
                             guard let port = listener.port?.rawValue, port != 0 else {
-                                continuation.resume(throwing: PrivateNetworkError.proxyUnavailable)
+                                state.resume(throwing: PrivateNetworkError.proxyUnavailable)
                                 return
                             }
-                            continuation.resume(returning: port)
+                            state.resume(returning: port)
                         case .failed, .cancelled:
                             listener.stateUpdateHandler = nil
-                            continuation.resume(throwing: PrivateNetworkError.proxyUnavailable)
+                            state.resume(throwing: PrivateNetworkError.proxyUnavailable)
                         default: break
                         }
                     }
                     // port can be zero until .ready; publishing it sooner makes
                     // Citadel connect to 127.0.0.1:0 and never reach the tailnet.
                     listener.start(queue: queue)
-                    if Task.isCancelled { listener.cancel() }
+                    if Task.isCancelled {
+                        listener.cancel()
+                        state.resume(throwing: CancellationError())
+                    }
                 }
             } onCancel: {
                 listener.cancel()
+                state.resume(throwing: CancellationError())
             }
             try Task.checkCancellation()
             endpoint = .init(host: "127.0.0.1", port: Int(port))
