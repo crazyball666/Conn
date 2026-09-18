@@ -149,6 +149,8 @@
         @State private var dismissComposerKeyboardRequest: UInt = 0
         @State private var focusComposerKeyboardRequest: UInt = 0
         @State private var lastKeyboardOwnerWasComposer = false
+        @State private var isTransitioningToKeyboard = false
+        @State private var keyboardTransitionTask: Task<Void, Never>?
         @StateObject private var keyboardObserver = TerminalKeyboardObserver.shared
         @Environment(\.scenePhase) private var scenePhase
         @Environment(\.connToastCenter) private var toastCenter
@@ -246,6 +248,7 @@
                         ),
                         speechState: composerSpeechState,
                         backgroundColor: configuration.theme.backgroundColor,
+                        borderColor: configuration.theme.outlineBorderColor,
                         onSubmit: { submitComposerText($0) },
                         onExecute: { submitComposerText($0, intent: .execute) },
                         onToggleSpeech: toggleSpeechInput,
@@ -262,6 +265,7 @@
                             if $0 {
                                 lastKeyboardOwnerWasComposer = true
                                 if isKeybarExpanded {
+                                    beginTransitionToKeyboard()
                                     var transaction = Transaction()
                                     transaction.disablesAnimations = true
                                     withTransaction(transaction) {
@@ -292,6 +296,7 @@
                         keyboardVisible: controller.isSoftwareKeyboardVisible || isComposerFocused,
                         onToggleKeyboard: {
                             if isKeybarExpanded {
+                                beginTransitionToKeyboard()
                                 var transaction = Transaction()
                                 transaction.disablesAnimations = true
                                 withTransaction(transaction) {
@@ -316,7 +321,8 @@
                         attachmentState: attachmentState,
                         onAttachmentAction: onAttachmentAction,
                         expandedContentHeight: dynamicExpandedContentHeight,
-                        backgroundColor: configuration.theme.backgroundColor
+                        backgroundColor: configuration.theme.backgroundColor,
+                        borderColor: configuration.theme.outlineBorderColor
                     )
                     .frame(
                         height: isKeybarExpanded
@@ -326,7 +332,12 @@
                     .accessibilityElement(children: .contain)
                     .accessibilityIdentifier("terminal.keybar")
                 }
+
+                Color.clear
+                    .frame(height: bottomKeyboardSpacerHeight)
+                    .background(configuration.theme.backgroundColor)
             }
+            .ignoresSafeArea(.keyboard, edges: .bottom)
             // Keep the compact UIKit client interactive until focus transfers.
             // Disabling hit testing resigns it before the overlay can take over.
             // The opaque fullscreen overlay covers touch input; hide the base
@@ -445,11 +456,19 @@
             }
             .onChange(of: controller.isSoftwareKeyboardVisible) { _, visible in
                 if visible && isKeybarExpanded {
+                    beginTransitionToKeyboard()
                     var transaction = Transaction()
                     transaction.disablesAnimations = true
                     withTransaction(transaction) {
                         isKeybarExpanded = false
                     }
+                }
+            }
+            .onChange(of: keyboardObserver.currentKeyboardHeight) { _, newHeight in
+                if isTransitioningToKeyboard, newHeight >= (keyboardObserver.lastKnownKeyboardHeight - 10) {
+                    isTransitioningToKeyboard = false
+                    keyboardTransitionTask?.cancel()
+                    keyboardTransitionTask = nil
                 }
             }
             .onChange(of: controller.persistentTarget) { _, _ in synchronizeInsertionContext() }
@@ -468,6 +487,8 @@
                 }
             }
             .onDisappear {
+                keyboardTransitionTask?.cancel()
+                keyboardTransitionTask = nil
                 cancelComposerConfirmation()
                 stopSpeechInput()
                 controller.detach()
@@ -553,6 +574,28 @@
                 L("语音输入已中断")
             case .cancelled:
                 L("语音输入已取消")
+            }
+        }
+
+        private var bottomKeyboardSpacerHeight: CGFloat {
+            if isKeybarExpanded {
+                return 0
+            }
+            if isTransitioningToKeyboard {
+                return max(0, keyboardObserver.lastKnownKeyboardHeight - keyboardObserver.safeAreaBottom)
+            }
+            return max(0, keyboardObserver.currentKeyboardHeight - keyboardObserver.safeAreaBottom)
+        }
+
+        private func beginTransitionToKeyboard() {
+            isTransitioningToKeyboard = true
+            keyboardTransitionTask?.cancel()
+            keyboardTransitionTask = Task { @MainActor in
+                let duration = max(0.35, keyboardObserver.animationDuration + 0.1)
+                try? await Task.sleep(for: .seconds(duration))
+                if !Task.isCancelled {
+                    isTransitioningToKeyboard = false
+                }
             }
         }
 

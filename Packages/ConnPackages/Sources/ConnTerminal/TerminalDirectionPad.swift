@@ -57,6 +57,7 @@ enum TerminalDirectionResolver {
     struct TerminalDirectionPad: View {
         let onKey: (TerminalKey) -> Void
         var backgroundColor: Color = Color.connKey
+        var borderColor: Color = Color.connKeyline
 
         /// 当前方向。`nil` 表示手指在死区里或已抬起。
         @State private var active: TerminalKey?
@@ -80,7 +81,7 @@ enum TerminalDirectionResolver {
                         )
                         .overlay(
                             RoundedRectangle(cornerRadius: ConnRadius.key, style: .continuous)
-                                .strokeBorder(Color.connKeyline, lineWidth: 1)
+                                .strokeBorder(borderColor, lineWidth: 1)
                         )
                     arrows
                         .frame(

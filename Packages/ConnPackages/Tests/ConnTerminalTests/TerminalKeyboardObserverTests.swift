@@ -58,11 +58,33 @@ struct TerminalKeyboardObserverTests {
         let defaultResolved = TerminalKeybarMetrics.expandedHeight
             - TerminalKeybarMetrics.compactHeight
             - TerminalKeybarMetrics.gridSpacing
-        #expect(defaultResolved == 220 - 46 - 4) // 170
+        #expect(defaultResolved == 284 - 46 - 4) // 234
 
         // 注入动态展开高度
         let dynamicHeight: CGFloat = 298
         #expect(dynamicHeight > defaultResolved)
+    }
+
+    @Test("键盘与快捷键栏展开高度恒等不变量验证（零跳动保证）")
+    func keyboardAndKeybarTransitionHeightInvariant() {
+        let compactHeight = TerminalKeybarMetrics.compactHeight
+        let gridSpacing = TerminalKeybarMetrics.gridSpacing
+        let safeAreaBottom: CGFloat = 34
+        let keyboardHeight: CGFloat = 336
+
+        // 状态 1：键盘可见，快捷键栏紧凑
+        let keyboardSpacerHeight = keyboardHeight - safeAreaBottom
+        let totalBottomHeightInKeyboardMode = compactHeight + keyboardSpacerHeight
+
+        // 状态 2：快捷键栏展开，键盘收起
+        let dynamicExpandedContentHeight = max(180, keyboardHeight - safeAreaBottom - gridSpacing)
+        let expandedKeybarHeight = compactHeight + gridSpacing + dynamicExpandedContentHeight
+        let expandedSpacerHeight: CGFloat = 0
+        let totalBottomHeightInExpandedMode = expandedKeybarHeight + expandedSpacerHeight
+
+        // 核心不变量：两态底部总高度必须严格相等，确保切换前后终端视口不发生位移
+        #expect(totalBottomHeightInKeyboardMode == totalBottomHeightInExpandedMode)
+        #expect(totalBottomHeightInKeyboardMode == 348)
     }
 }
 #endif

@@ -33,6 +33,7 @@
         let onAttachmentAction: (TerminalAttachmentAction) -> Void
         var expandedContentHeight: CGFloat?
         var backgroundColor: Color = Color.connKey
+        var borderColor: Color = Color.connKeyline
 
         /// 触感的触发源。每次按键自增一次，`sensoryFeedback` 只认「值变了」。
         ///
@@ -149,17 +150,17 @@
                     if expandedSection == .provider, let providerQuickActionGroup {
                         providerPanel(providerQuickActionGroup)
                     } else if expandedSection == .claudeCode {
-                        TerminalToolCommandPanelView(catalog: .claudeCode, backgroundColor: backgroundColor) { command in
+                        TerminalToolCommandPanelView(catalog: .claudeCode, backgroundColor: backgroundColor, borderColor: borderColor) { command in
                             pressCount &+= 1
                             onInsertToolCommand(command)
                         }
                     } else if expandedSection == .codex {
-                        TerminalToolCommandPanelView(catalog: .codex, backgroundColor: backgroundColor) { command in
+                        TerminalToolCommandPanelView(catalog: .codex, backgroundColor: backgroundColor, borderColor: borderColor) { command in
                             pressCount &+= 1
                             onInsertToolCommand(command)
                         }
                     } else if expandedSection == .upload {
-                        TerminalAttachmentPanelView(state: attachmentState, backgroundColor: backgroundColor) { action in
+                        TerminalAttachmentPanelView(state: attachmentState, backgroundColor: backgroundColor, borderColor: borderColor) { action in
                             pressCount &+= 1
                             onAttachmentAction(action)
                         }
@@ -253,7 +254,7 @@
                     )
                     .overlay(
                         Capsule().strokeBorder(
-                            isSelected ? Color.connAccent : Color.connKeyline,
+                            isSelected ? Color.connAccent : borderColor,
                             lineWidth: 1
                         )
                     )
@@ -301,7 +302,7 @@
                 .background(backgroundColor, in: .rect(cornerRadius: ConnRadius.key, style: .continuous))
                 .overlay(
                     RoundedRectangle(cornerRadius: ConnRadius.key, style: .continuous)
-                        .strokeBorder(Color.connKeyline, lineWidth: 1)
+                        .strokeBorder(borderColor, lineWidth: 1)
                 )
             }
             .buttonStyle(.plain)
@@ -312,12 +313,6 @@
 
         private func keyCap(_ key: TerminalKey, width: CGFloat? = nil) -> some View {
             let isLit = key.isSticky && ctrlActive
-            let borderColor: Color = {
-                if isLit { return Color.connAccent }
-                if key == .clearLine { return Color.connWarn.opacity(0.8) }
-                if key == .enter { return Color.connAccent.opacity(0.8) }
-                return Color.connKeyline
-            }()
             return Button {
                 pressCount &+= 1
                 onKey(key)
@@ -332,7 +327,7 @@
                     )
                     .overlay(
                         RoundedRectangle(cornerRadius: ConnRadius.key, style: .continuous)
-                            .strokeBorder(borderColor, lineWidth: 1)
+                            .strokeBorder(isLit ? Color.connAccent : borderColor, lineWidth: 1)
                     )
             }
             .buttonStyle(.plain)
@@ -344,7 +339,7 @@
         private func keyVisual(_ key: TerminalKey) -> some View {
             if let systemImageName = key.systemImageName {
                 Image(systemName: systemImageName)
-                    .font(.system(size: 15, weight: .medium))
+                    .font(.system(size: 13, weight: .medium))
             } else {
                 Text(key.label)
                     .font(.connData(.footnote))
@@ -371,14 +366,14 @@
                 onPaste(text)
             } label: {
                 Image(systemName: "doc.on.clipboard")
-                    .font(.system(size: 15, weight: .medium))
+                    .font(.system(size: 13, weight: .medium))
                     .foregroundStyle(Color.connInk)
                     .frame(maxWidth: .infinity)
                     .frame(height: TerminalKeybarMetrics.capVisualHeight)
                     .background(backgroundColor, in: .rect(cornerRadius: ConnRadius.key, style: .continuous))
                     .overlay(
                         RoundedRectangle(cornerRadius: ConnRadius.key, style: .continuous)
-                            .strokeBorder(Color.connKeyline, lineWidth: 1)
+                            .strokeBorder(borderColor, lineWidth: 1)
                     )
             }
             .buttonStyle(.plain)
@@ -394,7 +389,7 @@
                 onTogglePointer()
             } label: {
                 Image(systemName: pointerActive ? "cursorarrow.rays" : "cursorarrow")
-                    .font(.system(size: 15, weight: .medium))
+                    .font(.system(size: 13, weight: .medium))
                     .foregroundStyle(pointerActive ? Color.connAccent : Color.connInk)
                     .frame(maxWidth: .infinity)
                     .frame(height: TerminalKeybarMetrics.capVisualHeight)
@@ -404,7 +399,7 @@
                     )
                     .overlay(
                         RoundedRectangle(cornerRadius: ConnRadius.key, style: .continuous)
-                            .strokeBorder(pointerActive ? Color.connAccent : Color.connKeyline, lineWidth: 1)
+                            .strokeBorder(pointerActive ? Color.connAccent : borderColor, lineWidth: 1)
                     )
             }
             .buttonStyle(.plain)
@@ -418,7 +413,6 @@
             systemName: String,
             accessibilityLabel: String,
             identifier: String,
-            borderColor: Color? = nil,
             width: CGFloat? = nil,
             action: @escaping () -> Void
         ) -> some View {
@@ -427,14 +421,14 @@
                 action()
             } label: {
                 Image(systemName: systemName)
-                    .font(.system(size: 15, weight: .medium))
+                    .font(.system(size: 13, weight: .medium))
                     .foregroundStyle(Color.connInk)
                     .frame(maxWidth: .infinity)
                     .frame(height: TerminalKeybarMetrics.capVisualHeight)
                     .background(backgroundColor, in: .rect(cornerRadius: ConnRadius.key, style: .continuous))
                     .overlay(
                         RoundedRectangle(cornerRadius: ConnRadius.key, style: .continuous)
-                            .strokeBorder(borderColor ?? Color.connKeyline, lineWidth: 1)
+                            .strokeBorder(borderColor, lineWidth: 1)
                     )
                     .frame(width: width, height: TerminalKeybarMetrics.hitTargetHeight)
                     .contentShape(Rectangle())
@@ -449,14 +443,12 @@
             systemName: String,
             accessibilityLabel: String,
             identifier: String,
-            borderColor: Color? = nil,
             action: @escaping () -> Void
         ) -> some View {
             actionCap(
                 systemName: systemName,
                 accessibilityLabel: accessibilityLabel,
                 identifier: identifier,
-                borderColor: borderColor,
                 width: TerminalKeybarMetrics.compactActionWidth,
                 action: action
             )
@@ -467,7 +459,6 @@
                 systemName: "rectangle.portrait.and.arrow.right",
                 accessibilityLabel: L("关闭终端"),
                 identifier: "terminal.keybar.close-terminal",
-                borderColor: Color.connCrit.opacity(0.7),
                 action: onCloseTerminal
             )
         }
@@ -477,7 +468,6 @@
                 systemName: "command",
                 accessibilityLabel: L("选择本地脚本"),
                 identifier: "terminal.keybar.commands",
-                borderColor: Color.connAccent.opacity(0.7),
                 action: onChooseCommand
             )
         }
@@ -487,7 +477,6 @@
                 systemName: "rectangle.on.rectangle",
                 accessibilityLabel: L("切换终端"),
                 identifier: "terminal.keybar.switch-session",
-                borderColor: Color.connInfo.opacity(0.7),
                 action: onSwitchTerminal
             )
         }
@@ -497,17 +486,20 @@
                 systemName: "folder",
                 accessibilityLabel: L("文件管理"),
                 identifier: "terminal.keybar.file-management",
-                borderColor: Color.connAccent.opacity(0.7),
                 action: onOpenFileBrowser
             )
         }
 
         private var compactDirectionPad: some View {
-            TerminalDirectionPad(onKey: onKey, backgroundColor: backgroundColor)
-                .frame(
-                    width: TerminalKeybarMetrics.compactPadSide,
-                    height: TerminalKeybarMetrics.capVisualHeight
-                )
+            TerminalDirectionPad(
+                onKey: onKey,
+                backgroundColor: backgroundColor,
+                borderColor: borderColor
+            )
+            .frame(
+                width: TerminalKeybarMetrics.compactPadSide,
+                height: TerminalKeybarMetrics.capVisualHeight
+            )
         }
 
         private func expansionCap(expanded: Bool) -> some View {
@@ -515,7 +507,6 @@
                 systemName: expanded ? "chevron.down" : "chevron.up",
                 accessibilityLabel: expanded ? L("收起快捷键") : L("展开快捷键"),
                 identifier: expanded ? "terminal.keybar.collapse" : "terminal.keybar.expand",
-                borderColor: expanded ? Color.connAccent : Color.connKeyline,
                 width: TerminalKeybarMetrics.compactCapWidth
             ) {
                 onExpansionChange(!expanded)
@@ -527,7 +518,6 @@
                 systemName: "keyboard",
                 accessibilityLabel: keyboardVisible ? L("收起键盘") : L("显示键盘"),
                 identifier: "terminal.keybar.dismissKeyboard",
-                borderColor: keyboardVisible ? Color.connAccent.opacity(0.8) : Color.connKeyline,
                 width: TerminalKeybarMetrics.compactCapWidth,
                 action: onToggleKeyboard
             )

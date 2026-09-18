@@ -43,8 +43,10 @@ public final class TerminalKeyboardObserver: ObservableObject {
                    duration > 0 {
                     self.animationDuration = duration
                 }
-                self.currentKeyboardHeight = 0
-                self.isKeyboardVisible = false
+                withAnimation(.easeInOut(duration: self.animationDuration)) {
+                    self.currentKeyboardHeight = 0
+                    self.isKeyboardVisible = false
+                }
             }
             .store(in: &cancellables)
     }
@@ -60,9 +62,16 @@ public final class TerminalKeyboardObserver: ObservableObject {
         let height = max(0, screenHeight - endFrame.minY)
 
         if height > 50 {
-            self.currentKeyboardHeight = height
-            self.lastKnownKeyboardHeight = height
-            self.isKeyboardVisible = true
+            withAnimation(.easeInOut(duration: self.animationDuration)) {
+                self.currentKeyboardHeight = height
+                self.lastKnownKeyboardHeight = height
+                self.isKeyboardVisible = true
+            }
+        } else {
+            withAnimation(.easeInOut(duration: self.animationDuration)) {
+                self.currentKeyboardHeight = 0
+                self.isKeyboardVisible = false
+            }
         }
     }
 

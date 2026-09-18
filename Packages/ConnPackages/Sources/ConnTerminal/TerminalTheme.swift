@@ -313,5 +313,12 @@ public extension TerminalTheme {
     var backgroundColor: Color {
         background.color
     }
+
+    /// 统一按键与输入框描边色：深色主题用浅色半透明，浅色主题用深色半透明。
+    /// 视觉轻盈，恰好能看出轮廓。
+    var outlineBorderColor: Color {
+        let isDark = appearance == .dark || (Double(background.r) * 0.299 + Double(background.g) * 0.587 + Double(background.b) * 0.114) < 140
+        return isDark ? Color.white.opacity(0.14) : Color.black.opacity(0.12)
+    }
 }
 #endif

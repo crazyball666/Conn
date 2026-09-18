@@ -36,6 +36,7 @@ public struct TerminalAttachmentPanelState: Sendable, Equatable {
     struct TerminalAttachmentPanelView: View {
         let state: TerminalAttachmentPanelState
         var backgroundColor: Color = Color.connKey
+        var borderColor: Color = Color.connKeyline
         let onAction: (TerminalAttachmentAction) -> Void
 
         var body: some View {
@@ -141,7 +142,7 @@ public struct TerminalAttachmentPanelState: Sendable, Equatable {
                 .background(backgroundColor, in: .rect(cornerRadius: ConnRadius.key, style: .continuous))
                 .overlay(
                     RoundedRectangle(cornerRadius: ConnRadius.key, style: .continuous)
-                        .strokeBorder(Color.connKeyline, lineWidth: 1)
+                        .strokeBorder(borderColor, lineWidth: 1)
                 )
             }
             .buttonStyle(.plain)

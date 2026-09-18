@@ -97,6 +97,7 @@ public struct TerminalCommandComposer: View {
     @ScaledMetric(relativeTo: .callout) private var sendDiameter: CGFloat = 26
     private let speechState: TerminalSpeechComposerState
     private let backgroundColor: Color
+    private let borderColor: Color
     private let onSubmit: (String) -> Void
     private let onExecute: (String) -> Void
     private let onToggleSpeech: () -> Void
@@ -110,6 +111,7 @@ public struct TerminalCommandComposer: View {
         isSubmitting: Binding<Bool>,
         speechState: TerminalSpeechComposerState = .unavailable,
         backgroundColor: Color = Color.connKey,
+        borderColor: Color = Color.connKeyline,
         onSubmit: @escaping (String) -> Void,
         onExecute: @escaping (String) -> Void = { _ in },
         onToggleSpeech: @escaping () -> Void = {},
@@ -122,6 +124,7 @@ public struct TerminalCommandComposer: View {
         _isSubmitting = isSubmitting
         self.speechState = speechState
         self.backgroundColor = backgroundColor
+        self.borderColor = borderColor
         self.onSubmit = onSubmit
         self.onExecute = onExecute
         self.onToggleSpeech = onToggleSpeech
@@ -166,7 +169,7 @@ public struct TerminalCommandComposer: View {
                             .frame(width: sendDiameter, height: sendDiameter)
                             .background(backgroundColor, in: Circle())
                             .overlay(
-                                Circle().strokeBorder(Color.connKeyline, lineWidth: 1)
+                                Circle().strokeBorder(borderColor, lineWidth: 1)
                             )
                             .contentShape(Circle())
                     }
@@ -186,7 +189,7 @@ public struct TerminalCommandComposer: View {
                         Capsule().strokeBorder(
                             speechState.isCapturing
                                 ? Color.connAccent
-                                : (isFocused ? Color.connAccent.opacity(0.8) : Color.connKeyline),
+                                : (isFocused ? Color.connAccent.opacity(0.8) : borderColor),
                             lineWidth: 1
                         )
                     }
@@ -199,6 +202,7 @@ public struct TerminalCommandComposer: View {
             TerminalComposerVoiceButton(
                 state: speechState,
                 backgroundColor: backgroundColor,
+                borderColor: borderColor,
                 isSubmitting: isSubmitting,
                 action: onToggleSpeech
             )
@@ -227,7 +231,7 @@ public struct TerminalCommandComposer: View {
     }
 
     private var sendButton: some View {
-        TerminalComposerSendButton(canSend: canSend, backgroundColor: backgroundColor) {
+        TerminalComposerSendButton(canSend: canSend, backgroundColor: backgroundColor, borderColor: borderColor) {
             guard canSend else { return }
             let restoreFocus = isFocused
             onSubmit(text)
@@ -243,6 +247,7 @@ public struct TerminalCommandComposer: View {
 struct TerminalComposerSendButton: View {
     var canSend: Bool
     var backgroundColor: Color = Color.connKey
+    var borderColor: Color = Color.connKeyline
     var action: () -> Void
     @ScaledMetric private var diameter: CGFloat
     @ScaledMetric private var iconSize: CGFloat
@@ -250,11 +255,13 @@ struct TerminalComposerSendButton: View {
     init(
         canSend: Bool,
         backgroundColor: Color = Color.connKey,
+        borderColor: Color = Color.connKeyline,
         isExpanded: Bool = false,
         action: @escaping () -> Void
     ) {
         self.canSend = canSend
         self.backgroundColor = backgroundColor
+        self.borderColor = borderColor
         self.action = action
         _diameter = ScaledMetric(wrappedValue: isExpanded ? 36 : 26, relativeTo: .callout)
         _iconSize = ScaledMetric(wrappedValue: isExpanded ? 16 : 14, relativeTo: .callout)
@@ -269,7 +276,7 @@ struct TerminalComposerSendButton: View {
                 .background(canSend ? Color.connAccentFill : backgroundColor, in: Circle())
                 .overlay(
                     Circle().strokeBorder(
-                        canSend ? Color.connAccent : Color.connKeyline,
+                        canSend ? Color.connAccent : borderColor,
                         lineWidth: 1
                     )
                 )
@@ -286,6 +293,7 @@ struct TerminalComposerSendButton: View {
 struct TerminalComposerVoiceButton: View {
     var state: TerminalSpeechComposerState
     var backgroundColor: Color = Color.connKey
+    var borderColor: Color = Color.connKeyline
     var isSubmitting: Bool
     var action: () -> Void
     @ScaledMetric(relativeTo: .callout) private var diameter: CGFloat = 36
@@ -305,7 +313,7 @@ struct TerminalComposerVoiceButton: View {
             .frame(width: diameter, height: diameter)
             .overlay(
                 Circle().strokeBorder(
-                    state.isCapturing ? Color.connAccent : Color.connKeyline,
+                    state.isCapturing ? Color.connAccent : borderColor,
                     lineWidth: 1
                 )
             )

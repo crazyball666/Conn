@@ -1,4 +1,7 @@
 import Foundation
+#if canImport(SwiftUI)
+import SwiftUI
+#endif
 import Testing
 @testable import ConnTerminal
 
@@ -61,6 +64,17 @@ struct TerminalThemeTests {
         #expect(theme.background.r == 0x07)
         #expect(theme.background.g == 0x09)
         #expect(theme.background.b == 0x0F)
+    }
+
+    @Test("主题轮廓描边色根据明暗外观统一映射")
+    func themeOutlineBorderColorMatchesAppearance() {
+        let darkTheme = TerminalTheme.conn
+        #expect(darkTheme.appearance == .dark)
+        #expect(darkTheme.outlineBorderColor == Color.white.opacity(0.14))
+
+        let lightTheme = TerminalTheme.connLight
+        #expect(lightTheme.appearance == .light)
+        #expect(lightTheme.outlineBorderColor == Color.black.opacity(0.12))
     }
     #endif
 
