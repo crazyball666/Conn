@@ -295,3 +295,23 @@ public extension TerminalTheme {
         ]
     )
 }
+
+#if canImport(SwiftUI)
+import SwiftUI
+
+public extension TerminalTheme.RGB {
+    var color: Color {
+        Color(
+            red: Double(r) / 255.0,
+            green: Double(g) / 255.0,
+            blue: Double(b) / 255.0
+        )
+    }
+}
+
+public extension TerminalTheme {
+    var backgroundColor: Color {
+        background.color
+    }
+}
+#endif

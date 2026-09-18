@@ -149,6 +149,7 @@
         @State private var dismissComposerKeyboardRequest: UInt = 0
         @State private var focusComposerKeyboardRequest: UInt = 0
         @State private var lastKeyboardOwnerWasComposer = false
+        @StateObject private var keyboardObserver = TerminalKeyboardObserver.shared
         @Environment(\.scenePhase) private var scenePhase
         @Environment(\.connToastCenter) private var toastCenter
 
@@ -233,7 +234,7 @@
                 )
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
 
-                TerminalInputBar {
+                TerminalInputBar(backgroundColor: configuration.theme.backgroundColor) {
                     TerminalCommandComposer(
                         text: Binding(
                             get: { composerState.text },
@@ -248,13 +249,23 @@
                         onExecute: { submitComposerText($0, intent: .execute) },
                         onToggleSpeech: toggleSpeechInput,
                         onExpand: {
+                            if isKeybarExpanded {
+                                isKeybarExpanded = false
+                            }
                             isComposerExpanded = true
                         },
                         dismissKeyboardRequest: dismissComposerKeyboardRequest,
                         focusKeyboardRequest: focusComposerKeyboardRequest,
                         onFocusChange: {
                             isComposerFocused = $0
-                            if $0 { lastKeyboardOwnerWasComposer = true }
+                            if $0 {
+                                lastKeyboardOwnerWasComposer = true
+                                if isKeybarExpanded {
+                                    withAnimation(.easeInOut(duration: keyboardObserver.animationDuration)) {
+                                        isKeybarExpanded = false
+                                    }
+                                }
+                            }
                         }
                     )
 
@@ -277,6 +288,17 @@
                         onProviderQuickAction: selectProviderQuickAction,
                         keyboardVisible: controller.isSoftwareKeyboardVisible || isComposerFocused,
                         onToggleKeyboard: {
+                            if isKeybarExpanded {
+                                withAnimation(.easeInOut(duration: keyboardObserver.animationDuration)) {
+                                    isKeybarExpanded = false
+                                }
+                                if lastKeyboardOwnerWasComposer {
+                                    focusComposerKeyboardRequest &+= 1
+                                } else {
+                                    controller.setSoftwareKeyboardVisible(true)
+                                }
+                                return
+                            }
                             if isComposerFocused {
                                 dismissComposerKeyboardRequest &+= 1
                             } else if lastKeyboardOwnerWasComposer {
@@ -287,11 +309,12 @@
                         },
                         onExpansionChange: setKeybarExpanded,
                         attachmentState: attachmentState,
-                        onAttachmentAction: onAttachmentAction
+                        onAttachmentAction: onAttachmentAction,
+                        expandedContentHeight: dynamicExpandedContentHeight
                     )
                     .frame(
                         height: isKeybarExpanded
-                            ? TerminalKeybarMetrics.expandedHeight
+                            ? (TerminalKeybarMetrics.compactHeight + TerminalKeybarMetrics.gridSpacing + dynamicExpandedContentHeight)
                             : TerminalKeybarMetrics.compactHeight
                     )
                     .accessibilityElement(children: .contain)
@@ -414,6 +437,13 @@
             .onChange(of: controller.isTerminalFocused) { _, focused in
                 if focused { lastKeyboardOwnerWasComposer = false }
             }
+            .onChange(of: controller.isSoftwareKeyboardVisible) { _, visible in
+                if visible && isKeybarExpanded {
+                    withAnimation(.easeInOut(duration: keyboardObserver.animationDuration)) {
+                        isKeybarExpanded = false
+                    }
+                }
+            }
             .onChange(of: controller.persistentTarget) { _, _ in synchronizeInsertionContext() }
             .onChange(of: insertionMailbox?.pending?.id) { _, _ in
                 guard let text = insertionMailbox?.consumeIfCurrent() else { return }
@@ -518,12 +548,37 @@
             }
         }
 
+        private var dynamicExpandedContentHeight: CGFloat {
+            let rawKeyboardHeight = keyboardObserver.lastKnownKeyboardHeight
+            let bottomInset = keyboardObserver.safeAreaBottom
+            let spacing = TerminalKeybarMetrics.gridSpacing
+            let target = rawKeyboardHeight - bottomInset - spacing
+            return max(180, target)
+        }
+
         private func setKeybarExpanded(_ expanded: Bool) {
-            var transaction = Transaction(animation: nil)
-            transaction.disablesAnimations = true
-            withTransaction(transaction) {
+            if expanded {
+                dismissAllKeyboards()
+            }
+            withAnimation(.easeInOut(duration: keyboardObserver.animationDuration)) {
                 isKeybarExpanded = expanded
             }
+        }
+
+        private func dismissAllKeyboards() {
+            if isComposerFocused {
+                dismissComposerKeyboardRequest &+= 1
+                isComposerFocused = false
+            }
+            if controller.isSoftwareKeyboardVisible {
+                controller.setSoftwareKeyboardVisible(false)
+            }
+            UIApplication.shared.sendAction(
+                #selector(UIResponder.resignFirstResponder),
+                to: nil,
+                from: nil,
+                for: nil
+            )
         }
 
         private func synchronizeInsertionContext() {
@@ -1201,6 +1256,12 @@
         func toggleKeyboard() {
             guard let terminalView else { return }
             terminalView.setSoftwareKeyboardVisible(!isSoftwareKeyboardVisible)
+            isSoftwareKeyboardVisible = terminalView.softwareKeyboardVisible
+        }
+
+        func setSoftwareKeyboardVisible(_ visible: Bool) {
+            guard let terminalView else { return }
+            terminalView.setSoftwareKeyboardVisible(visible)
             isSoftwareKeyboardVisible = terminalView.softwareKeyboardVisible
         }
 

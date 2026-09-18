@@ -52,6 +52,18 @@ struct TerminalThemeTests {
         #expect(fallback.appearance == .dark)
     }
 
+    #if canImport(SwiftUI)
+    @Test("主题背景色返回对应的 SwiftUI Color")
+    func themeBackgroundColorConversion() {
+        let theme = TerminalTheme.conn
+        _ = theme.backgroundColor
+        _ = theme.background.color
+        #expect(theme.background.r == 0x07)
+        #expect(theme.background.g == 0x09)
+        #expect(theme.background.b == 0x0F)
+    }
+    #endif
+
     private func paletteSignature(_ theme: TerminalTheme) -> [UInt8] {
         ([theme.background, theme.foreground, theme.cursor] + theme.ansi).flatMap {
             [$0.r, $0.g, $0.b]

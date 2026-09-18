@@ -307,6 +307,7 @@ struct TerminalComposerVoiceButton: View {
 
 /// 输入区与快捷键共用一张贴底表面；背景延续到 Home Indicator，但不覆盖键盘。
 struct TerminalInputBar<Content: View>: View {
+    var backgroundColor: Color = Color.connBar
     @ViewBuilder var content: () -> Content
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var touchLocation: CGPoint?
@@ -318,6 +319,7 @@ struct TerminalInputBar<Content: View>: View {
         VStack(spacing: 0, content: content)
             .background {
                 TerminalInputBarBackground(
+                    backgroundColor: backgroundColor,
                     touchLocation: touchLocation, scale: touchGlowScale, opacity: touchGlowOpacity
                 )
             }
@@ -369,12 +371,13 @@ struct TerminalInputBar<Content: View>: View {
 
 /// One continuous background for both rows; only the outer surface clips the glow.
 struct TerminalInputBarBackground: View {
+    var backgroundColor: Color = Color.connBar
     var touchLocation: CGPoint?
     var scale: CGFloat
     var opacity: CGFloat
 
     var body: some View {
-        Color.connBar.ignoresSafeArea(.container, edges: .bottom)
+        backgroundColor.ignoresSafeArea(.container, edges: .bottom)
             .overlay {
                 GeometryReader { _ in
                     if let touchLocation {

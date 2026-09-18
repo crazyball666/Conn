@@ -31,6 +31,7 @@
         let onExpansionChange: (Bool) -> Void
         let attachmentState: TerminalAttachmentPanelState
         let onAttachmentAction: (TerminalAttachmentAction) -> Void
+        var expandedContentHeight: CGFloat?
 
         /// 触感的触发源。每次按键自增一次，`sensoryFeedback` 只认「值变了」。
         ///
@@ -46,15 +47,21 @@
             case provider
         }
 
+        private var resolvedExpandedContentHeight: CGFloat {
+            expandedContentHeight ?? (
+                TerminalKeybarMetrics.expandedHeight
+                    - TerminalKeybarMetrics.compactHeight
+                    - TerminalKeybarMetrics.gridSpacing
+            )
+        }
+
         var body: some View {
             VStack(spacing: isExpanded ? TerminalKeybarMetrics.gridSpacing : 0) {
                 compactPanel(expanded: isExpanded)
                 if isExpanded {
                     expandedPanel
                         .frame(
-                            height: TerminalKeybarMetrics.expandedHeight
-                                - TerminalKeybarMetrics.compactHeight
-                                - TerminalKeybarMetrics.gridSpacing,
+                            height: resolvedExpandedContentHeight,
                             alignment: .top
                         )
                 }
