@@ -33,6 +33,7 @@ struct FileBrowserView: View {
     @State private var searchText = ""
     @State private var sortField: SortField = .name
     @State private var sortAscending = true
+    @State private var exportURL: URL?
     private let host: Host
     private let dependencies: AppDependencies
 
@@ -124,6 +125,24 @@ struct FileBrowserView: View {
             Button(L("好"), role: .cancel) { viewModel.actionMessage = nil }
         } message: {
             Text(viewModel.actionMessage ?? "")
+        }
+        .fileExporter(
+            isPresented: Binding(
+                get: { exportURL != nil },
+                set: { if !$0 { exportURL = nil } }
+            ),
+            document: exportURL.map { ExportFileDocument(url: $0) },
+            contentType: .item,
+            defaultFilename: exportURL?.lastPathComponent
+        ) { result in
+            if case let .success(url) = result {
+                viewModel.actionMessage = String(format: L("已保存至 %@"), url.lastPathComponent)
+            }
+        }
+        .onChange(of: viewModel.downloadedURL) { _, newURL in
+            if let newURL {
+                exportURL = newURL
+            }
         }
         .accessibilityIdentifier("file-browser")
     }
@@ -229,6 +248,9 @@ struct FileBrowserView: View {
             Text(String(format: L("已下载 %@"), url.lastPathComponent)).font(.connFootnote).foregroundStyle(.connInk)
             Spacer()
             ShareLink(item: url) { Text(L("分享")).font(.connFootnote).foregroundStyle(.connAccent) }
+            Button { exportURL = url } label: {
+                Text(L("存储到文件")).font(.connFootnote).foregroundStyle(.connAccent)
+            }
             Button { viewModel.downloadedURL = nil } label: {
                 Image(systemName: "xmark").font(.footnote).foregroundStyle(.connMuted)
             }
@@ -510,3 +532,22 @@ private extension FileBrowserView {
         Binding(get: { viewModel.actionMessage != nil }, set: { if !$0 { viewModel.actionMessage = nil } })
     }
 }
+
+private struct ExportFileDocument: FileDocument {
+    static var readableContentTypes: [UTType] { [.item] }
+
+    let url: URL
+
+    init(url: URL) {
+        self.url = url
+    }
+
+    init(configuration: ReadConfiguration) throws {
+        fatalError("ReadConfiguration is not supported for export")
+    }
+
+    func fileWrapper(configuration: WriteConfiguration) throws -> FileWrapper {
+        try FileWrapper(url: url, options: .immediate)
+    }
+}
+

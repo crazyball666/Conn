@@ -88,13 +88,21 @@ final class FileEditorViewModel {
 
 }
 
-/// 文本文件编辑器（Phase 6）。行号 + 语法高亮（Highlightr），主题跟随设置页。
+/// 文本文件编辑器（Phase 6）。行号 + 语法高亮（Highlightr），主题跟随设置页；支持 Markdown 原生渲染预览。
 struct FileEditorView: View {
     @State private var viewModel: FileEditorViewModel
+    @State private var isPreviewingMarkdown: Bool
     @Environment(SettingsStore.self) private var settings
 
     init(host: Host, dependencies: AppDependencies, entry: FileEntry) {
         _viewModel = State(initialValue: FileEditorViewModel(host: host, dependencies: dependencies, entry: entry))
+        let isMarkdown = entry.name.lowercased().hasSuffix(".md") || entry.name.lowercased().hasSuffix(".markdown")
+        _isPreviewingMarkdown = State(initialValue: isMarkdown)
+    }
+
+    private var isMarkdownFile: Bool {
+        let name = viewModel.entry.name.lowercased()
+        return name.hasSuffix(".md") || name.hasSuffix(".markdown")
     }
 
     var body: some View {
@@ -105,10 +113,23 @@ struct FileEditorView: View {
             .task { await viewModel.load() }
             .toolbar {
                 if case .editing = viewModel.loadState {
-                    ToolbarItem(placement: .topBarTrailing) {
-                        Button(L("保存")) { Task { await viewModel.save() } }
-                            .fontWeight(.semibold)
-                            .disabled(viewModel.isSaving)
+                    if isMarkdownFile {
+                        ToolbarItem(placement: .topBarTrailing) {
+                            Button {
+                                isPreviewingMarkdown.toggle()
+                            } label: {
+                                Image(systemName: isPreviewingMarkdown ? "pencil" : "eye")
+                            }
+                            .accessibilityLabel(isPreviewingMarkdown ? L("编辑") : L("预览"))
+                        }
+                    }
+
+                    if !isPreviewingMarkdown {
+                        ToolbarItem(placement: .topBarTrailing) {
+                            Button(L("保存")) { Task { await viewModel.save() } }
+                                .fontWeight(.semibold)
+                                .disabled(viewModel.isSaving)
+                        }
                     }
                 }
             }
@@ -126,12 +147,16 @@ struct FileEditorView: View {
             ProgressView(L("读取文件…")).font(.connFootnote).foregroundStyle(.connMuted)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         case .editing:
-            CodeEditor(
-                text: $viewModel.content,
-                language: CodeEditorCatalog.language(forFileName: viewModel.entry.name),
-                configuration: settings.codeEditorConfiguration
-            )
-            .ignoresSafeArea(.container, edges: .bottom)
+            if isMarkdownFile && isPreviewingMarkdown {
+                markdownPreview
+            } else {
+                CodeEditor(
+                    text: $viewModel.content,
+                    language: CodeEditorCatalog.language(forFileName: viewModel.entry.name),
+                    configuration: settings.codeEditorConfiguration
+                )
+                .ignoresSafeArea(.container, edges: .bottom)
+            }
         case let .readOnly(message):
             infoState(icon: "doc.plaintext", message: message)
         case let .failed(message):
@@ -141,6 +166,28 @@ struct FileEditorView: View {
             .padding(.horizontal, ConnSpacing.page)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         }
+    }
+
+    private var markdownPreview: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: ConnSpacing.md) {
+                if viewModel.content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    Text(L("文件为空"))
+                        .font(.connSubheadline)
+                        .foregroundStyle(.connMuted)
+                        .frame(maxWidth: .infinity, alignment: .center)
+                        .padding(.vertical, ConnSpacing.xxl)
+                } else {
+                    Text(LocalizedStringKey(viewModel.content))
+                        .font(.connBody)
+                        .foregroundStyle(.connInk)
+                        .textSelection(.enabled)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+            }
+            .padding(ConnSpacing.page)
+        }
+        .background(Color.connBg)
     }
 
     private func infoState(icon: String, message: String) -> some View {
