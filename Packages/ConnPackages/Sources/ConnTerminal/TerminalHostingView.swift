@@ -364,6 +364,8 @@
                         ),
                         isSubmitting: composerState.isSubmitting,
                         speechState: composerSpeechState,
+                        backgroundColor: configuration.theme.backgroundColor,
+                        borderColor: configuration.theme.outlineBorderColor,
                         onSubmit: { submitComposerText($0) },
                         onToggleSpeech: toggleSpeechInput,
                         onDone: {

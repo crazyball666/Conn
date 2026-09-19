@@ -140,6 +140,101 @@ struct PrivateNetworkRegistryTests {
         #expect(await registry.status(profileID: "p") == .stopped)
         #expect(await factory.closeCount == 1)
     }
+
+    @Test("退后台恢复时驱逐无活动的空闲节点")
+    func resumeAfterBackgroundEvictsIdleRuntime() async throws {
+        let profile = PrivateNetworkProfile(
+            id: "p",
+            name: "Tailnet",
+            provider: .tailscale,
+            controlURL: "https://controlplane.tailscale.com"
+        )
+        let profiles = InMemoryProfiles(profile: profile)
+        let credentials = InMemoryCredentialStore()
+        try credentials.setPrivateNetworkAuthKey("auth", forProfile: "p")
+        let factory = FakeFactory()
+        let registry = PrivateNetworkRegistry(
+            profileRepository: profiles,
+            credentialStore: credentials,
+            factory: factory,
+            idleTimeout: .seconds(45)
+        )
+
+        let lease = try await registry.openProxy(profileID: "p", to: SSHEndpoint(host: "100.64.0.1"))
+        #expect(await factory.makeCount == 1)
+        await lease.close()
+
+        // 仍在 45s 空闲宽限期内
+        #expect(await registry.status(profileID: "p") == .running)
+
+        // 后台闲置 <= 30s 时不作处理
+        await registry.resumeAfterBackground(idleFor: 10)
+        #expect(await registry.status(profileID: "p") == .running)
+        #expect(await factory.closeCount == 0)
+
+        // 后台闲置 > 30s 时清理空闲节点
+        await registry.resumeAfterBackground(idleFor: 35)
+        #expect(await registry.status(profileID: "p") == .stopped)
+        #expect(await factory.closeCount == 1)
+    }
+
+    @Test("退后台恢复时不影响仍有活跃租约的节点")
+    func resumeAfterBackgroundPreservesActiveLeases() async throws {
+        let profile = PrivateNetworkProfile(
+            id: "p",
+            name: "Tailnet",
+            provider: .tailscale,
+            controlURL: "https://controlplane.tailscale.com"
+        )
+        let profiles = InMemoryProfiles(profile: profile)
+        let credentials = InMemoryCredentialStore()
+        try credentials.setPrivateNetworkAuthKey("auth", forProfile: "p")
+        let factory = FakeFactory()
+        let registry = PrivateNetworkRegistry(
+            profileRepository: profiles,
+            credentialStore: credentials,
+            factory: factory,
+            idleTimeout: .seconds(45)
+        )
+
+        let lease = try await registry.openProxy(profileID: "p", to: SSHEndpoint(host: "100.64.0.1"))
+        #expect(await factory.makeCount == 1)
+
+        // 有活跃租约时，后台闲置 > 30s 不会被误杀
+        await registry.resumeAfterBackground(idleFor: 60)
+        #expect(await registry.status(profileID: "p") == .running)
+        #expect(await factory.closeCount == 0)
+
+        await lease.close()
+    }
+
+    @Test("openTCPProxy失败时立即驱逐损坏节点避免后续重试复用坏连接")
+    func openProxyFailureEvictsRuntime() async throws {
+        let profile = PrivateNetworkProfile(
+            id: "p",
+            name: "Tailnet",
+            provider: .tailscale,
+            controlURL: "https://controlplane.tailscale.com"
+        )
+        let profiles = InMemoryProfiles(profile: profile)
+        let credentials = InMemoryCredentialStore()
+        try credentials.setPrivateNetworkAuthKey("auth", forProfile: "p")
+        let factory = FakeFactory(failingProxy: true)
+        let registry = PrivateNetworkRegistry(
+            profileRepository: profiles,
+            credentialStore: credentials,
+            factory: factory,
+            idleTimeout: .seconds(45)
+        )
+
+        await #expect(throws: PrivateNetworkError.self) {
+            try await registry.openProxy(profileID: "p", to: SSHEndpoint(host: "100.64.0.1"))
+        }
+
+        // 握手/代理建立失败后，坏节点应该被立即停止并移出，避免下次重试继续撞坏连接
+        #expect(await registry.status(profileID: "p") == .stopped)
+        #expect(await factory.closeCount == 1)
+    }
 }
 
 private struct InMemoryProfiles: PrivateNetworkProfileRepository {
@@ -157,14 +252,18 @@ private actor FakeFactory: PrivateNetworkClientFactory {
     var isClosing = false
     var madeWhileClosing = false
     let closeDelay: Duration
-    init(closeDelay: Duration = .zero) { self.closeDelay = closeDelay }
+    let failingProxy: Bool
+    init(closeDelay: Duration = .zero, failingProxy: Bool = false) {
+        self.closeDelay = closeDelay
+        self.failingProxy = failingProxy
+    }
     func makeClient(for profile: PrivateNetworkProfile, authKey: String?) async throws -> any PrivateNetworkClient {
         #expect(profile.id == "p")
         #expect(authKey == "auth")
         makeCount += 1
         madeWhileClosing = madeWhileClosing || isClosing
         try await Task.sleep(for: .milliseconds(10))
-        return FakeClient(counter: self)
+        return FakeClient(counter: self, failingProxy: failingProxy)
     }
     func didClose() async {
         isClosing = true
@@ -176,11 +275,18 @@ private actor FakeFactory: PrivateNetworkClientFactory {
 
 private final class FakeClient: PrivateNetworkClient, @unchecked Sendable {
     private let counter: FakeFactory
+    private let failingProxy: Bool
     private(set) var status: PrivateNetworkStatus = .stopped
-    init(counter: FakeFactory) { self.counter = counter }
+    init(counter: FakeFactory, failingProxy: Bool = false) {
+        self.counter = counter
+        self.failingProxy = failingProxy
+    }
     func start() async throws { status = .running }
     func openTCPProxy(to endpoint: SSHEndpoint) async throws -> any PrivateNetworkProxyLease {
-        FakeLease(endpoint: .init(host: "127.0.0.1", port: endpoint.port))
+        if failingProxy {
+            throw PrivateNetworkError.proxyUnavailable
+        }
+        return FakeLease(endpoint: .init(host: "127.0.0.1", port: endpoint.port))
     }
     func close() async { status = .stopped; await counter.didClose() }
 }

@@ -7,6 +7,8 @@ struct TerminalComposerExpandedEditor: View {
     @Binding var text: String
     var isSubmitting: Bool
     var speechState: TerminalSpeechComposerState
+    var backgroundColor: Color = Color.connBg
+    var borderColor: Color = Color.connKeyline
     var onSubmit: (String) -> Void
     var onToggleSpeech: () -> Void
     var onDone: () -> Void
@@ -24,14 +26,17 @@ struct TerminalComposerExpandedEditor: View {
                         .foregroundStyle(Color.connAccent)
                         .padding(.horizontal, ConnSpacing.md)
                         .padding(.vertical, ConnSpacing.xs)
-                        .background(Color.connKey, in: Capsule())
+                        .background(backgroundColor, in: Capsule())
+                        .overlay(
+                            Capsule().strokeBorder(borderColor, lineWidth: 1)
+                        )
                         .contentShape(Capsule())
                 }
                 .buttonStyle(.plain)
                 .accessibilityIdentifier("terminal.composer.done")
             }
             .padding(ConnSpacing.md)
-            Rectangle().fill(Color.connLine).frame(height: 0.5)
+            Rectangle().fill(borderColor).frame(height: 0.5)
             TerminalComposerTextEditor(
                 text: $text, isFocused: $isFocused,
                 isReadOnly: speechState.isCapturing || isSubmitting, fontSize: fontSize
@@ -43,19 +48,28 @@ struct TerminalComposerExpandedEditor: View {
                     .font(.footnote).foregroundStyle(Color.connMuted)
                     .frame(maxWidth: .infinity, alignment: .leading)
                 TerminalComposerVoiceButton(
-                    state: speechState, isSubmitting: isSubmitting, action: onToggleSpeech
+                    state: speechState,
+                    backgroundColor: backgroundColor,
+                    borderColor: borderColor,
+                    isSubmitting: isSubmitting,
+                    action: onToggleSpeech
                 )
-                TerminalComposerSendButton(canSend: canSend, isExpanded: true) {
+                TerminalComposerSendButton(
+                    canSend: canSend,
+                    backgroundColor: backgroundColor,
+                    borderColor: borderColor,
+                    isExpanded: true
+                ) {
                     guard canSend else { return }
                     onSubmit(text)
                 }
             }
             .padding(.horizontal, ConnSpacing.md)
             .padding(.vertical, ConnSpacing.xs)
-            .background(Color.connBar)
+            .background(backgroundColor)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color.connBg.ignoresSafeArea(.container))
+        .background(backgroundColor.ignoresSafeArea(.container))
         .contentShape(Rectangle())
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("terminal.composer.expanded")

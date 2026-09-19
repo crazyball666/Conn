@@ -106,11 +106,23 @@ public actor PrivateNetworkRegistry {
         do {
             rawLease = try await client.openTCPProxy(to: endpoint)
         } catch {
-            await release(profileID: profileID, clientID: clientID)
+            await release(profileID: profileID, clientID: clientID, evictOnFailure: true)
             throw error
         }
         return RegistryLease(rawLease: rawLease) { [weak self] in
             await self?.release(profileID: profileID, clientID: clientID)
+        }
+    }
+
+    /// Releases idle, unreferenced runtimes after prolonged background suspension.
+    /// Healthy active leases are preserved to avoid disrupting ongoing foreground sessions.
+    public func resumeAfterBackground(idleFor: TimeInterval) async {
+        guard idleFor > 30 else { return }
+        let idleProfileIDs = runtimes.compactMap { profileID, runtime in
+            runtime.leaseCount == 0 ? profileID : nil
+        }
+        for profileID in idleProfileIDs {
+            await stop(profileID: profileID)
         }
     }
 
@@ -137,11 +149,15 @@ public actor PrivateNetworkRegistry {
         for profileID in Array(closingClients.keys) { await waitForClose(profileID: profileID) }
     }
 
-    private func release(profileID: String, clientID: ObjectIdentifier) async {
+    private func release(
+        profileID: String,
+        clientID: ObjectIdentifier,
+        evictOnFailure: Bool = false
+    ) async {
         guard let runtime = runtimes[profileID], ObjectIdentifier(runtime.client) == clientID else { return }
         guard runtime.leaseCount > 1 else {
             runtimes[profileID] = Runtime(client: runtime.client, leaseCount: 0)
-            guard idleTimeout > .zero else {
+            guard !evictOnFailure, idleTimeout > .zero else {
                 await stop(profileID: profileID)
                 return
             }
@@ -158,6 +174,9 @@ public actor PrivateNetworkRegistry {
             return
         }
         runtimes[profileID] = Runtime(client: runtime.client, leaseCount: runtime.leaseCount - 1)
+        if evictOnFailure {
+            await stop(profileID: profileID)
+        }
     }
 
     private func handleIdleTimeout(profileID: String, clientID: ObjectIdentifier) async {

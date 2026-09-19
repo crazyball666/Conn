@@ -1,5 +1,6 @@
 import ConnKit
 import ConnMonitor
+import ConnPrivateNetwork
 import ConnTerminal
 import ConnUI
 import SwiftUI
@@ -45,6 +46,7 @@ struct RootTabView: View {
             Task {
                 await dependencies.monitor.resumeAfterBackground(idleFor: idle)
                 await dependencies.terminalSessions.resumeAfterBackground(idleFor: idle)
+                await dependencies.privateNetworkRegistry.resumeAfterBackground(idleFor: idle)
             }
         }
     }
