@@ -302,6 +302,7 @@ private extension TerminalScreen {
                     } else if case .reconnecting = tab.status {
                         TerminalReconnectingNotice()
                             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+                            .offset(y: -60)
                     }
                 }
             } else {
@@ -553,15 +554,15 @@ private struct TerminalFileBrowserRoute: Hashable, Identifiable {
 
 private struct TerminalReconnectingNotice: View {
     var body: some View {
-        VStack(spacing: ConnSpacing.sm) {
+        VStack(spacing: ConnSpacing.xs) {
             ProgressView()
-                .controlSize(.large)
+                .controlSize(.regular)
                 .tint(.connAccent)
             Text(L("正在重新连接…"))
                 .font(.connFootnote)
                 .foregroundStyle(.white)
         }
-        .frame(width: 120, height: 120)
+        .frame(width: 96, height: 96)
         .background(
             .black.opacity(0.82),
             in: RoundedRectangle(cornerRadius: ConnRadius.control, style: .continuous)
