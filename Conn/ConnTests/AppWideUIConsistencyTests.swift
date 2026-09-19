@@ -780,7 +780,7 @@ struct AppWideUIConsistencyTests {
         #expect(source.contains("ProgressView()"))
         #expect(source.contains("terminal.reconnecting"))
         #expect(!source.contains("Task.sleep(for: .milliseconds(350))"))
-        #expect(source.contains("RoundedRectangle(cornerRadius: ConnRadius.key, style: .continuous)"))
+        #expect(source.contains("RoundedRectangle(cornerRadius: ConnRadius.control, style: .continuous)"))
         #expect(source.contains(".black.opacity(0.82)"))
         #expect(source.contains("maxHeight: .infinity, alignment: .top"))
     }

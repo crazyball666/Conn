@@ -553,18 +553,18 @@ private struct TerminalFileBrowserRoute: Hashable, Identifiable {
 
 private struct TerminalReconnectingNotice: View {
     var body: some View {
-        HStack(spacing: ConnSpacing.xs) {
+        VStack(spacing: ConnSpacing.sm) {
             ProgressView()
+                .controlSize(.large)
                 .tint(.connAccent)
             Text(L("正在重新连接…"))
                 .font(.connFootnote)
                 .foregroundStyle(.white)
         }
-        .padding(.horizontal, ConnSpacing.sm)
-        .padding(.vertical, ConnSpacing.xs)
+        .frame(width: 120, height: 120)
         .background(
             .black.opacity(0.82),
-            in: RoundedRectangle(cornerRadius: ConnRadius.key, style: .continuous)
+            in: RoundedRectangle(cornerRadius: ConnRadius.control, style: .continuous)
         )
         .accessibilityElement(children: .combine)
         .accessibilityIdentifier("terminal.reconnecting")

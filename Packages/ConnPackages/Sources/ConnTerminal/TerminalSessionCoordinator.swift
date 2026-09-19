@@ -902,6 +902,8 @@ public final class TerminalSessionCoordinator {
             guard let host = try hostRepository.host(id: oldTab.hostID) else {
                 throw TerminalLaunchFailure(message: L("主机已被删除"))
             }
+            // 明确重连时主动驱逐可能处于半开/假死状态的旧连接，确保重连发起全新握手，避免先吃一次超时
+            await connectionManager.invalidate(host: host)
             let backend: TerminalLaunchBackend = switch oldTab.reconnectDescriptor {
             case .shell, .replayCommand:
                 .plainPTY
