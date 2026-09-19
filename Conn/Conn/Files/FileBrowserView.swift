@@ -34,6 +34,7 @@ struct FileBrowserView: View {
     @State private var sortField: SortField = .name
     @State private var sortAscending = true
     @State private var exportURL: URL?
+    @State private var isGitWorkspacePresented = false
     private let host: Host
     private let dependencies: AppDependencies
 
@@ -66,6 +67,9 @@ struct FileBrowserView: View {
     var body: some View {
         VStack(spacing: ConnSpacing.sm) {
             header
+            if let root = viewModel.gitRepoRoot {
+                gitBanner(repoRoot: root)
+            }
             if let transfer = viewModel.transfer { transferBar(transfer) }
             if let url = viewModel.downloadedURL { downloadedBar(url) }
             content
@@ -144,6 +148,11 @@ struct FileBrowserView: View {
                 exportURL = newURL
             }
         }
+        .sheet(isPresented: $isGitWorkspacePresented) {
+            if let root = viewModel.gitRepoRoot {
+                GitWorkspaceSheet(host: host, repoRoot: root, dependencies: dependencies)
+            }
+        }
         .accessibilityIdentifier("file-browser")
     }
 
@@ -155,6 +164,37 @@ struct FileBrowserView: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .accessibilityIdentifier("file-browser.breadcrumbs")
+    }
+
+    private func gitBanner(repoRoot: String) -> some View {
+        Button {
+            isGitWorkspacePresented = true
+        } label: {
+            HStack(spacing: 6) {
+                Image(systemName: "arrow.triangle.branch")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(.connAccent)
+                Text(L("Git 仓库"))
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(.connInk)
+                Text(repoRoot)
+                    .font(.connData(.caption2))
+                    .foregroundStyle(.connDim)
+                    .lineLimit(1)
+                Spacer(minLength: ConnSpacing.xs)
+                Text(L("查看工作区"))
+                    .font(.connFootnote)
+                    .foregroundStyle(.connAccent)
+                Image(systemName: "chevron.right")
+                    .font(.caption2)
+                    .foregroundStyle(.connDim)
+            }
+            .padding(.horizontal, ConnSpacing.cardPadding)
+            .padding(.vertical, 8)
+            .background(Color.connLine.opacity(0.3), in: RoundedRectangle(cornerRadius: ConnRadius.control))
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("file-browser.git-banner")
     }
 
     @ToolbarContentBuilder

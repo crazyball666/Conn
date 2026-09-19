@@ -65,6 +65,8 @@ final class FileBrowserViewModel {
     var transfer: FileTransferState?
     /// 下载完成待分享的本地文件。
     var downloadedURL: URL?
+    /// 当前目录关联的 Git 仓库根目录（若在 Git 仓库内则非 nil）
+    private(set) var gitRepoRoot: String?
 
     let host: Host
     private let connectionManager: ConnectionManager
@@ -128,9 +130,24 @@ final class FileBrowserViewModel {
             currentPath = target
             entries = list
             loadState = .ready
+            Task { [weak self] in
+                await self?.probeGitRepo(at: target)
+            }
         } catch {
             loadState = .failed(error.friendlyDiagnosis)
             fileSystem = nil // 通道可能已坏，下次重开
+        }
+    }
+
+    private func probeGitRepo(at path: String) async {
+        do {
+            let session = try await connectionManager.session(for: host)
+            let service = GitService(session: session)
+            let root = await service.probeRepoRoot(at: path)
+            guard currentPath == path else { return }
+            self.gitRepoRoot = root
+        } catch {
+            self.gitRepoRoot = nil
         }
     }
 
