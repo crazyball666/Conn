@@ -187,6 +187,14 @@ final class FileBrowserViewModel {
         #endif
     }
 
+    /// 复制指定项的绝对路径到系统剪贴板。
+    func copyPath(of entry: FileEntry) {
+        #if canImport(UIKit)
+            UIPasteboard.general.string = entry.path
+            actionMessage = String(format: L("已复制路径：%@"), entry.path)
+        #endif
+    }
+
     /// 跳转到用户输入的绝对路径。
     ///
     /// 与 `load(path:)` 的关键差异：**失败时不动 `loadState` / `entries` / `currentPath`**——

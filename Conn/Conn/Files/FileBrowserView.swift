@@ -350,6 +350,9 @@ struct FileBrowserView: View {
         Button { promptText = entry.octalPermissions ?? "644"; textPrompt = .chmod(entry) } label: {
             Label(L("修改权限"), systemImage: "lock")
         }
+        Button { viewModel.copyPath(of: entry) } label: {
+            Label(L("复制路径"), systemImage: "doc.on.clipboard")
+        }
         if entry.isDirectory {
             Button { Task { await viewModel.compress(entry) } } label: {
                 Label(L("压缩"), systemImage: "archivebox")
