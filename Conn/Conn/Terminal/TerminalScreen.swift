@@ -66,6 +66,7 @@ struct TerminalScreen: View {
 
     var body: some View {
         terminalContent
+            .ignoresSafeArea(.keyboard, edges: .bottom)
             // Apply the terminal theme to the presentation, including the system
             // keyboard and status bar, not only SwiftUI's environment colors.
             .preferredColorScheme(terminalColorScheme)

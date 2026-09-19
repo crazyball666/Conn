@@ -311,6 +311,7 @@
                             }
                             if isComposerFocused {
                                 dismissComposerKeyboardRequest &+= 1
+                                isComposerFocused = false
                             } else if lastKeyboardOwnerWasComposer {
                                 focusComposerKeyboardRequest &+= 1
                             } else {
@@ -329,6 +330,11 @@
                             ? (TerminalKeybarMetrics.compactHeight + TerminalKeybarMetrics.gridSpacing + dynamicExpandedContentHeight)
                             : TerminalKeybarMetrics.compactHeight
                     )
+                    .transaction { transaction in
+                        if isKeybarExpanded || isTransitioningToKeyboard {
+                            transaction.animation = nil
+                        }
+                    }
                     .accessibilityElement(children: .contain)
                     .accessibilityIdentifier("terminal.keybar")
                 }
@@ -336,6 +342,11 @@
                 Color.clear
                     .frame(height: bottomKeyboardSpacerHeight)
                     .background(configuration.theme.backgroundColor)
+                    .transaction { transaction in
+                        if isKeybarExpanded || isTransitioningToKeyboard {
+                            transaction.animation = nil
+                        }
+                    }
             }
             .ignoresSafeArea(.keyboard, edges: .bottom)
             // Keep the compact UIKit client interactive until focus transfers.

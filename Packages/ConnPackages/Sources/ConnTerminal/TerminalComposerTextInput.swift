@@ -80,10 +80,13 @@ struct TerminalComposerTextEditor: UIViewRepresentable {
         private var isApplyingPaste = false
         init(_ parent: TerminalComposerTextEditor) { self.parent = parent }
         func updateFocus(of editor: UITextView) {
-            DispatchQueue.main.async { [weak editor, weak self] in
-                guard let editor, let self, editor.window != nil else { return }
-                if parent.isFocused { editor.becomeFirstResponder() }
-                else if editor.isFirstResponder { editor.resignFirstResponder() }
+            guard editor.window != nil else { return }
+            if parent.isFocused {
+                if !editor.isFirstResponder {
+                    editor.becomeFirstResponder()
+                }
+            } else if editor.isFirstResponder {
+                editor.resignFirstResponder()
             }
         }
         func textViewDidChange(_ editor: UITextView) {
@@ -129,7 +132,7 @@ struct TerminalComposerTextEditor: UIViewRepresentable {
 
 /// SwiftUI may update before attaching the UIKit client to its window. Retry at
 /// attachment rather than losing the initial fullscreen focus request.
-private final class TerminalComposerNativeTextView: UITextView {
+final class TerminalComposerNativeTextView: UITextView {
     var onWindowAttachment: (() -> Void)?
 
     override func didMoveToWindow() {

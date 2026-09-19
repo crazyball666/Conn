@@ -94,12 +94,12 @@
                 HStack(spacing: TerminalKeybarMetrics.gridSpacing) {
                     compactCloseTerminalCap
                     compactSwitchTerminalCap
+                    compactFileBrowserCap
                     compactDirectionPad
                     ForEach(TerminalKeybarLayout.compactKeys) { key in
                         keyCap(key, width: TerminalKeybarMetrics.compactCapWidth)
                     }
                     pasteCap(width: TerminalKeybarMetrics.compactCapWidth)
-                    compactFileBrowserCap
                     compactCommandCap
                 }
                 .padding(.horizontal, 2)
@@ -170,7 +170,7 @@
                 }
                 .frame(maxHeight: .infinity, alignment: .top)
             }
-            .transition(.opacity.animation(.easeInOut(duration: 0.2)))
+            .transition(.identity)
         }
 
         private var commonPanel: some View {

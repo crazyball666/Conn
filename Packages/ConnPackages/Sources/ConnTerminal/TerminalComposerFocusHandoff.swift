@@ -10,8 +10,11 @@ final class TerminalComposerFocusHandoff {
     private weak var expandedEditor: UITextView?
 
     func register(_ editor: UITextView, compact: Bool) {
-        if compact { compactEditor = editor }
-        else { expandedEditor = editor }
+        if compact {
+            compactEditor = editor
+        } else {
+            expandedEditor = editor
+        }
     }
 
     @discardableResult
