@@ -1,5 +1,6 @@
 import ConnKit
 import ConnOps
+import ConnSSH
 import ConnUI
 import SwiftUI
 
@@ -47,7 +48,7 @@ struct GitDiffLineRow: View {
     private var prefixColor: Color {
         switch line.type {
         case .addition: return .connGood
-        case .deletion: return .connDanger
+        case .deletion: return .connCrit
         case .context, .header: return .connDim
         }
     }
@@ -55,7 +56,7 @@ struct GitDiffLineRow: View {
     private var textColor: Color {
         switch line.type {
         case .addition: return .connInk
-        case .deletion: return .connDanger
+        case .deletion: return .connCrit
         case .context, .header: return .connInk
         }
     }
@@ -63,7 +64,7 @@ struct GitDiffLineRow: View {
     private var backgroundColor: Color {
         switch line.type {
         case .addition: return Color.connGood.opacity(0.12)
-        case .deletion: return Color.connDanger.opacity(0.12)
+        case .deletion: return Color.connCrit.opacity(0.12)
         case .context, .header: return Color.clear
         }
     }
@@ -74,11 +75,18 @@ struct GitDiffSheetView: View {
     let host: Host
     let repoRoot: String
     let file: GitFileChange
-    let gitService: GitService
+    let dependencies: AppDependencies
     @Environment(\.dismiss) private var dismiss
     @State private var diff: GitFileDiff?
     @State private var isLoading = true
     @State private var errorMessage: String?
+
+    init(host: Host, repoRoot: String, file: GitFileChange, dependencies: AppDependencies) {
+        self.host = host
+        self.repoRoot = repoRoot
+        self.file = file
+        self.dependencies = dependencies
+    }
 
     var body: some View {
         NavigationStack {
@@ -126,7 +134,7 @@ struct GitDiffSheetView: View {
                     if let diff {
                         HStack(spacing: 4) {
                             Text("+\(diff.additions)").foregroundStyle(.connGood)
-                            Text("-\(diff.deletions)").foregroundStyle(.connDanger)
+                            Text("-\(diff.deletions)").foregroundStyle(.connCrit)
                         }
                         .font(.system(size: 12, weight: .bold, design: .monospaced))
                     }
@@ -143,6 +151,8 @@ struct GitDiffSheetView: View {
         isLoading = true
         errorMessage = nil
         do {
+            let session = try await dependencies.connectionManager.session(for: host)
+            let gitService = GitService(session: session)
             diff = try await gitService.diff(for: file, at: repoRoot)
             isLoading = false
         } catch {

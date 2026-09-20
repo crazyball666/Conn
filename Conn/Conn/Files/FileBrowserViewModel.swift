@@ -1,4 +1,5 @@
 import ConnKit
+import ConnOps
 import ConnSSH
 import ConnTerminal
 import Foundation

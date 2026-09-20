@@ -25,22 +25,24 @@ final class GitWorkspaceViewModel {
     let host: Host
     let repoRoot: String
     private let connectionManager: ConnectionManager
-    let gitService: GitService
 
     init(host: Host, repoRoot: String, dependencies: AppDependencies) {
         self.host = host
         self.repoRoot = repoRoot
         self.connectionManager = dependencies.connectionManager
-        // 惰性构建 gitService，每次从 connectionManager 获取可用 session
-        let sessionProvider = GitSessionProxy(host: host, connectionManager: connectionManager)
-        self.gitService = GitService(session: sessionProvider)
+    }
+
+    private func gitService() async throws -> GitService {
+        let session = try await connectionManager.session(for: host)
+        return GitService(session: session)
     }
 
     func load() async {
         loadState = .loading
         do {
-            async let s = gitService.status(at: repoRoot)
-            async let b = gitService.branches(at: repoRoot)
+            let service = try await gitService()
+            async let s = service.status(at: repoRoot)
+            async let b = service.branches(at: repoRoot)
             let (repoStatus, repoBranches) = try await (s, b)
             self.status = repoStatus
             self.branches = repoBranches
@@ -52,8 +54,9 @@ final class GitWorkspaceViewModel {
 
     func refresh() async {
         do {
-            async let s = gitService.status(at: repoRoot)
-            async let b = gitService.branches(at: repoRoot)
+            let service = try await gitService()
+            async let s = service.status(at: repoRoot)
+            async let b = service.branches(at: repoRoot)
             let (repoStatus, repoBranches) = try await (s, b)
             self.status = repoStatus
             self.branches = repoBranches
@@ -67,7 +70,8 @@ final class GitWorkspaceViewModel {
         isBusy = true
         defer { isBusy = false }
         do {
-            try await gitService.checkout(branch: branch.name, at: repoRoot)
+            let service = try await gitService()
+            try await service.checkout(branch: branch.name, at: repoRoot)
             await refresh()
             actionMessage = String(format: L("已切换至分支 %@"), branch.name)
         } catch {
@@ -79,7 +83,8 @@ final class GitWorkspaceViewModel {
         isBusy = true
         defer { isBusy = false }
         do {
-            try await gitService.stage(files: [file.path], at: repoRoot)
+            let service = try await gitService()
+            try await service.stage(files: [file.path], at: repoRoot)
             await refresh()
         } catch {
             actionMessage = String(format: L("暂存失败：%@"), error.friendlyDiagnosis)
@@ -90,7 +95,8 @@ final class GitWorkspaceViewModel {
         isBusy = true
         defer { isBusy = false }
         do {
-            try await gitService.unstage(files: [file.path], at: repoRoot)
+            let service = try await gitService()
+            try await service.unstage(files: [file.path], at: repoRoot)
             await refresh()
         } catch {
             actionMessage = String(format: L("取消暂存失败：%@"), error.friendlyDiagnosis)
@@ -101,7 +107,8 @@ final class GitWorkspaceViewModel {
         isBusy = true
         defer { isBusy = false }
         do {
-            try await gitService.discard(file: file, at: repoRoot)
+            let service = try await gitService()
+            try await service.discard(file: file, at: repoRoot)
             await refresh()
             actionMessage = String(format: L("已放弃对 %@ 的更改"), file.path)
         } catch {
@@ -115,7 +122,8 @@ final class GitWorkspaceViewModel {
         isBusy = true
         defer { isBusy = false }
         do {
-            try await gitService.commit(message: clean, at: repoRoot)
+            let service = try await gitService()
+            try await service.commit(message: clean, at: repoRoot)
             commitMessage = ""
             await refresh()
             actionMessage = L("提交成功")
@@ -125,44 +133,16 @@ final class GitWorkspaceViewModel {
     }
 }
 
-/// 代理当前 SSHSession，保证自动复用或重新获取连接
-private final class GitSessionProxy: SSHSession, @unchecked Sendable {
-    let host: Host
-    let connectionManager: ConnectionManager
-
-    init(host: Host, connectionManager: ConnectionManager) {
-        self.host = host
-        self.connectionManager = connectionManager
-    }
-
-    var isConnected: Bool { true }
-
-    func exec(_ command: String, timeout: Duration) async throws -> SSHCommandResult {
-        let session = try await connectionManager.session(for: host)
-        return try await session.exec(command, timeout: timeout)
-    }
-
-    func sftp() async throws -> any RemoteFileSystem {
-        let session = try await connectionManager.session(for: host)
-        return try await session.sftp()
-    }
-
-    func openShellChannel(environment: [String: String], terminalType: String) async throws -> any ShellChannel {
-        let session = try await connectionManager.session(for: host)
-        return try await session.openShellChannel(environment: environment, terminalType: terminalType)
-    }
-
-    func close() async {}
-}
-
 /// Git 移动端工作区主 Sheet
 struct GitWorkspaceSheet: View {
     @State private var viewModel: GitWorkspaceViewModel
     @State private var inspectingDiffFile: GitFileChange?
     @State private var pendingDiscardFile: GitFileChange?
+    private let dependencies: AppDependencies
     @Environment(\.dismiss) private var dismiss
 
     init(host: Host, repoRoot: String, dependencies: AppDependencies) {
+        self.dependencies = dependencies
         _viewModel = State(initialValue: GitWorkspaceViewModel(
             host: host,
             repoRoot: repoRoot,
@@ -203,7 +183,7 @@ struct GitWorkspaceSheet: View {
                     host: viewModel.host,
                     repoRoot: viewModel.repoRoot,
                     file: file,
-                    gitService: viewModel.gitService
+                    dependencies: dependencies
                 )
             }
             .alert(L("放弃修改"), isPresented: discardAlertBinding, presenting: pendingDiscardFile) { file in
@@ -435,7 +415,7 @@ struct GitWorkspaceSheet: View {
             } label: {
                 Label(L("放弃"), systemImage: "arrow.uturn.backward")
             }
-            .tint(.connDanger)
+            .tint(.connCrit)
         }
     }
 
@@ -449,9 +429,9 @@ struct GitWorkspaceSheet: View {
 
     private func badgeColor(_ status: GitFileStatus) -> Color {
         switch status {
-        case .modified: return .connWarning
+        case .modified: return .connWarn
         case .added, .untracked: return .connGood
-        case .deleted: return .connDanger
+        case .deleted: return .connCrit
         case .renamed, .copied: return .connInfo
         case .ignored, .unmerged: return .connDim
         }
