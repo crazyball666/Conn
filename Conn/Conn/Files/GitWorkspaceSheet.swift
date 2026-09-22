@@ -18,7 +18,9 @@ final class GitWorkspaceViewModel {
     private(set) var loadState: LoadState = .loading
     private(set) var status: GitRepoStatus?
     private(set) var branches: [GitBranch] = []
+    private(set) var commits: [GitCommit] = []
     private(set) var isBusy = false
+    private(set) var isCommitsLoading = false
     var actionMessage: String?
     var commitMessage = ""
 
@@ -43,9 +45,11 @@ final class GitWorkspaceViewModel {
             let service = try await gitService()
             async let s = service.status(at: repoRoot)
             async let b = service.branches(at: repoRoot)
-            let (repoStatus, repoBranches) = try await (s, b)
+            async let c = (try? await service.log(at: repoRoot)) ?? []
+            let (repoStatus, repoBranches, repoCommits) = await (try s, try b, c)
             self.status = repoStatus
             self.branches = repoBranches
+            self.commits = repoCommits
             self.loadState = .ready
         } catch {
             self.loadState = .failed(error.friendlyDiagnosis)
@@ -57,11 +61,25 @@ final class GitWorkspaceViewModel {
             let service = try await gitService()
             async let s = service.status(at: repoRoot)
             async let b = service.branches(at: repoRoot)
-            let (repoStatus, repoBranches) = try await (s, b)
+            async let c = (try? await service.log(at: repoRoot)) ?? []
+            let (repoStatus, repoBranches, repoCommits) = await (try s, try b, c)
             self.status = repoStatus
             self.branches = repoBranches
+            self.commits = repoCommits
         } catch {
             actionMessage = String(format: L("刷新失败：%@"), error.friendlyDiagnosis)
+        }
+    }
+
+    func loadCommits() async {
+        guard !isCommitsLoading else { return }
+        isCommitsLoading = true
+        defer { isCommitsLoading = false }
+        do {
+            let service = try await gitService()
+            self.commits = try await service.log(at: repoRoot)
+        } catch {
+            actionMessage = String(format: L("获取提交记录失败：%@"), error.friendlyDiagnosis)
         }
     }
 
@@ -133,16 +151,28 @@ final class GitWorkspaceViewModel {
     }
 }
 
+enum GitWorkspaceTab: String, CaseIterable, Identifiable {
+    case changes
+    case history
+
+    var id: String { rawValue }
+}
+
 /// Git 移动端工作区主 Sheet
 struct GitWorkspaceSheet: View {
     @State private var viewModel: GitWorkspaceViewModel
+    @State private var selectedTab: GitWorkspaceTab = .changes
     @State private var inspectingDiffFile: GitFileChange?
+    @State private var inspectingCommit: GitCommit?
     @State private var pendingDiscardFile: GitFileChange?
+    let currentPath: String?
     private let dependencies: AppDependencies
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.connToastCenter) private var toastCenter
 
-    init(host: Host, repoRoot: String, dependencies: AppDependencies) {
+    init(host: Host, repoRoot: String, currentPath: String? = nil, dependencies: AppDependencies) {
         self.dependencies = dependencies
+        self.currentPath = currentPath
         _viewModel = State(initialValue: GitWorkspaceViewModel(
             host: host,
             repoRoot: repoRoot,
@@ -153,36 +183,65 @@ struct GitWorkspaceSheet: View {
     var body: some View {
         NavigationStack {
             Group {
-                switch viewModel.loadState {
-                case .loading:
-                    ProgressView(L("读取 Git 仓库…"))
-                        .font(.connFootnote)
-                        .foregroundStyle(.connMuted)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                case let .failed(msg):
-                    ConnRetryState(msg, retryTitle: L("重试")) {
-                        Task { await viewModel.load() }
+                if viewModel.repoRoot.isEmpty {
+                    notAGitRepoView
+                } else {
+                    switch viewModel.loadState {
+                    case .loading:
+                        ProgressView(L("读取 Git 仓库…"))
+                            .font(.connFootnote)
+                            .foregroundStyle(.connMuted)
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    case let .failed(msg):
+                        if msg.contains("not a git repository") || msg.contains("Not a git repository") {
+                            notAGitRepoView
+                        } else {
+                            ConnRetryState(msg, retryTitle: L("重试")) {
+                                Task { await viewModel.load() }
+                            }
+                        }
+                    case .ready:
+                        content
                     }
-                case .ready:
-                    content
                 }
             }
-            .navigationTitle(L("Git 工作区"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    branchPickerMenu
+                ToolbarItem(placement: .principal) {
+                    if !viewModel.repoRoot.isEmpty {
+                        Picker("", selection: $selectedTab) {
+                            Text(L("变更")).tag(GitWorkspaceTab.changes)
+                            Text(L("历史")).tag(GitWorkspaceTab.history)
+                        }
+                        .pickerStyle(.segmented)
+                    } else {
+                        Text(L("Git 工作区"))
+                            .font(.connHeadline)
+                            .foregroundStyle(.connInk)
+                    }
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button(L("完成")) { dismiss() }
                 }
             }
-            .task { await viewModel.load() }
+            .task {
+                if !viewModel.repoRoot.isEmpty {
+                    await viewModel.load()
+                }
+            }
             .sheet(item: $inspectingDiffFile) { file in
                 GitDiffSheetView(
                     host: viewModel.host,
                     repoRoot: viewModel.repoRoot,
                     file: file,
+                    dependencies: dependencies
+                )
+            }
+            .sheet(item: $inspectingCommit) { commit in
+                GitCommitDetailSheetView(
+                    host: viewModel.host,
+                    repoRoot: viewModel.repoRoot,
+                    commit: commit,
                     dependencies: dependencies
                 )
             }
@@ -202,11 +261,82 @@ struct GitWorkspaceSheet: View {
         }
     }
 
+    private var notAGitRepoView: some View {
+        VStack(spacing: ConnSpacing.lg) {
+            Image(systemName: "arrow.triangle.branch.exclamationmark")
+                .font(.system(size: 48))
+                .foregroundStyle(.connWarn)
+
+            VStack(spacing: ConnSpacing.xs) {
+                Text(L("当前目录不是 Git 仓库"))
+                    .font(.connHeadline)
+                    .foregroundStyle(.connInk)
+
+                Text(L("请在终端中执行 cd <项目目录> 切换至包含 .git 的目录后重试。"))
+                    .font(.connSubheadline)
+                    .foregroundStyle(.connMuted)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, ConnSpacing.page)
+            }
+
+            if let path = currentPath, !path.isEmpty {
+                VStack(alignment: .leading, spacing: ConnSpacing.xxs) {
+                    Text(L("当前探测路径"))
+                        .font(.connCaption)
+                        .foregroundStyle(.connDim)
+
+                    HStack {
+                        Text(path)
+                            .font(.system(size: 12, design: .monospaced))
+                            .foregroundStyle(.connInk)
+                            .lineLimit(2)
+                            .truncationMode(.middle)
+
+                        Spacer()
+
+                        Button {
+                            UIPasteboard.general.string = path
+                            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                            toastCenter.show(L("已复制路径"), style: .success)
+                        } label: {
+                            Image(systemName: "doc.on.doc")
+                                .font(.system(size: 13))
+                                .foregroundStyle(.connAccent)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel(L("复制当前路径"))
+                    }
+                    .padding(ConnSpacing.sm)
+                    .background(Color.connSurface, in: RoundedRectangle(cornerRadius: ConnRadius.control))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: ConnRadius.control)
+                            .strokeBorder(Color.connLine, lineWidth: 0.5)
+                    )
+                }
+                .padding(.horizontal, ConnSpacing.page)
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color.connBg)
+    }
+
     @ViewBuilder
     private var content: some View {
         VStack(spacing: 0) {
             headerBar
 
+            switch selectedTab {
+            case .changes:
+                changesContent
+            case .history:
+                historyContent
+            }
+        }
+        .background(Color.connBg)
+    }
+
+    private var changesContent: some View {
+        VStack(spacing: 0) {
             ScrollView {
                 VStack(spacing: ConnSpacing.md) {
                     if let status = viewModel.status, status.isClean {
@@ -232,26 +362,142 @@ struct GitWorkspaceSheet: View {
                 commitBar
             }
         }
-        .background(Color.connBg)
+    }
+
+    private var historyContent: some View {
+        ScrollView {
+            LazyVStack(spacing: ConnSpacing.sm) {
+                if viewModel.commits.isEmpty && viewModel.isCommitsLoading {
+                    ProgressView(L("读取提交记录…"))
+                        .font(.connFootnote)
+                        .foregroundStyle(.connMuted)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, ConnSpacing.xxl)
+                } else if viewModel.commits.isEmpty {
+                    VStack(spacing: ConnSpacing.sm) {
+                        Image(systemName: "clock.arrow.circlepath")
+                            .font(.system(size: 38))
+                            .foregroundStyle(.connMuted)
+                        Text(L("暂无提交记录"))
+                            .font(.connSubheadline)
+                            .foregroundStyle(.connMuted)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, ConnSpacing.xxl)
+                } else {
+                    ForEach(viewModel.commits) { commit in
+                        Button {
+                            inspectingCommit = commit
+                        } label: {
+                            commitRow(commit)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+            .padding(.horizontal, ConnSpacing.page)
+            .padding(.vertical, ConnSpacing.sm)
+        }
+        .task {
+            if viewModel.commits.isEmpty {
+                await viewModel.loadCommits()
+            }
+        }
+    }
+
+    private func commitRow(_ commit: GitCommit) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Text(commit.shortHash)
+                    .font(.system(size: 12, weight: .bold, design: .monospaced))
+                    .foregroundStyle(.connAccent)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(Color.connAccent.opacity(0.12), in: RoundedRectangle(cornerRadius: 4))
+                Spacer()
+                Text(commit.relativeDate)
+                    .font(.connFootnote)
+                    .foregroundStyle(.connMuted)
+            }
+            Text(commit.message)
+                .font(.connBody)
+                .fontWeight(.medium)
+                .foregroundStyle(.connInk)
+                .lineLimit(2)
+            HStack(spacing: 4) {
+                Image(systemName: "person.circle")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.connDim)
+                Text(commit.author)
+                    .font(.connFootnote)
+                    .foregroundStyle(.connDim)
+                Spacer()
+                Text(commit.date.prefix(10))
+                    .font(.connData(.caption2))
+                    .foregroundStyle(.connDim)
+            }
+        }
+        .padding(ConnSpacing.cardPadding)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.connSurface, in: RoundedRectangle(cornerRadius: ConnRadius.card))
+        .overlay(
+            RoundedRectangle(cornerRadius: ConnRadius.card)
+                .strokeBorder(Color.connLine, lineWidth: 0.5)
+        )
+        .contextMenu {
+            Button {
+                UIPasteboard.general.string = commit.hash
+                UIImpactFeedbackGenerator(style: .light).impactOccurred()
+            } label: {
+                Label(L("复制完整 Commit Hash"), systemImage: "doc.on.doc")
+            }
+            Button {
+                UIPasteboard.general.string = commit.message
+                UIImpactFeedbackGenerator(style: .light).impactOccurred()
+            } label: {
+                Label(L("复制提交信息"), systemImage: "text.quote")
+            }
+        }
     }
 
     private var headerBar: some View {
         HStack {
             if let status = viewModel.status {
-                HStack(spacing: 6) {
-                    Image(systemName: "arrow.triangle.branch")
-                        .font(.system(size: 13, weight: .semibold))
-                    Text(status.branch)
-                        .font(.system(size: 13, weight: .bold))
-                    if status.aheadCount > 0 || status.behindCount > 0 {
-                        Text("↑\(status.aheadCount) ↓\(status.behindCount)")
-                            .font(.system(size: 11, weight: .medium, design: .monospaced))
-                            .foregroundStyle(.connDim)
+                Menu {
+                    ForEach(viewModel.branches) { b in
+                        Button {
+                            Task { await viewModel.checkout(branch: b) }
+                        } label: {
+                            HStack {
+                                Text(b.name)
+                                if b.isCurrent {
+                                    Image(systemName: "checkmark")
+                                }
+                            }
+                        }
                     }
+                } label: {
+                    HStack(spacing: 5) {
+                        Image(systemName: "arrow.triangle.branch")
+                            .font(.system(size: 12, weight: .semibold))
+                        Text(status.branch)
+                            .font(.system(size: 13, weight: .bold))
+                            .lineLimit(1)
+                        Image(systemName: "chevron.up.chevron.down")
+                            .font(.system(size: 8, weight: .semibold))
+                            .foregroundStyle(.connDim)
+                        if status.aheadCount > 0 || status.behindCount > 0 {
+                            Text("↑\(status.aheadCount) ↓\(status.behindCount)")
+                                .font(.system(size: 11, weight: .medium, design: .monospaced))
+                                .foregroundStyle(.connDim)
+                        }
+                    }
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 5)
+                    .background(Color.connLine.opacity(0.4), in: Capsule())
+                    .foregroundStyle(.connInk)
                 }
-                .padding(.horizontal, 10)
-                .padding(.vertical, 5)
-                .background(Color.connLine.opacity(0.4), in: Capsule())
+                .buttonStyle(.plain)
 
                 Spacer()
 
@@ -271,31 +517,6 @@ struct GitWorkspaceSheet: View {
         }
         .padding(.horizontal, ConnSpacing.page)
         .padding(.vertical, ConnSpacing.xs)
-    }
-
-    private var branchPickerMenu: some View {
-        Menu {
-            ForEach(viewModel.branches) { b in
-                Button {
-                    Task { await viewModel.checkout(branch: b) }
-                } label: {
-                    HStack {
-                        Text(b.name)
-                        if b.isCurrent {
-                            Image(systemName: "checkmark")
-                        }
-                    }
-                }
-            }
-        } label: {
-            HStack(spacing: 4) {
-                Image(systemName: "arrow.triangle.branch")
-                Text(viewModel.status?.branch ?? L("分支"))
-                    .lineLimit(1)
-            }
-            .font(.connFootnote)
-            .foregroundStyle(.connAccent)
-        }
     }
 
     @ViewBuilder
@@ -350,7 +571,7 @@ struct GitWorkspaceSheet: View {
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text(file.path)
-                        .font(.system(size: 13, weight: .medium, design: .monospaced))
+                        .font(.system(size: 11.5, weight: .medium, design: .monospaced))
                         .foregroundStyle(.connInk)
                         .lineLimit(1)
                     if let old = file.oldPath {
@@ -367,7 +588,7 @@ struct GitWorkspaceSheet: View {
                     .foregroundStyle(.connDim)
             }
             .padding(.horizontal, ConnSpacing.cardPadding)
-            .padding(.vertical, 10)
+            .padding(.vertical, 7)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)

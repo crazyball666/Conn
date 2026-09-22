@@ -196,3 +196,36 @@ public struct GitFileDiff: Sendable, Equatable {
         self.deletions = deletions
     }
 }
+
+/// Git 提交历史记录条目
+public struct GitCommit: Identifiable, Sendable, Equatable {
+    public var id: String { hash }
+    /// 完整 commit hash
+    public let hash: String
+    /// 短 hash（如 7 位）
+    public let shortHash: String
+    /// 作者名称
+    public let author: String
+    /// 提交日期（ISO 格式或原始字符串）
+    public let date: String
+    /// 相对时间（如 "2 hours ago"）
+    public let relativeDate: String
+    /// 提交说明摘要
+    public let message: String
+
+    public init(
+        hash: String,
+        shortHash: String,
+        author: String,
+        date: String,
+        relativeDate: String,
+        message: String
+    ) {
+        self.hash = hash
+        self.shortHash = shortHash
+        self.author = author
+        self.date = date
+        self.relativeDate = relativeDate
+        self.message = message
+    }
+}

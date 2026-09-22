@@ -15,6 +15,45 @@ import Foundation
 /// +new line 2
 /// ```
 public enum GitDiffParser {
+    /// 解析包含一个或多个文件 diff 的完整 patch 输出（如 `git show` 或多文件 `git diff`）。
+    public static func parseMultiFile(rawDiff: String) -> [GitFileDiff] {
+        let lines = rawDiff.components(separatedBy: .newlines)
+        var fileDiffs: [GitFileDiff] = []
+
+        var currentFilePath: String?
+        var currentRawLines: [String] = []
+
+        func finishCurrentFile() {
+            guard let path = currentFilePath, !currentRawLines.isEmpty else { return }
+            let fileDiff = parse(rawDiff: currentRawLines.joined(separator: "\n"), filePath: path)
+            fileDiffs.append(fileDiff)
+            currentFilePath = nil
+            currentRawLines.removeAll()
+        }
+
+        for line in lines {
+            if line.hasPrefix("diff --git ") {
+                finishCurrentFile()
+                // diff --git a/path/to/file b/path/to/file
+                let parts = line.components(separatedBy: " ")
+                if parts.count >= 4 {
+                    var target = parts[3]
+                    if target.hasPrefix("b/") {
+                        target = String(target.dropFirst(2))
+                    }
+                    currentFilePath = target
+                } else {
+                    currentFilePath = "unknown"
+                }
+                currentRawLines.append(line)
+            } else if currentFilePath != nil {
+                currentRawLines.append(line)
+            }
+        }
+        finishCurrentFile()
+        return fileDiffs
+    }
+
     public static func parse(rawDiff: String, filePath: String) -> GitFileDiff {
         let lines = rawDiff.components(separatedBy: .newlines)
         var hunks: [GitDiffHunk] = []

@@ -10,30 +10,30 @@ struct GitDiffLineRow: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: 6) {
-            // 行号列
+            // 行号列（调小字号至 10pt，紧凑排版）
             HStack(spacing: 2) {
                 Text(line.oldLineNumber.map(String.init) ?? "")
-                    .frame(width: 24, alignment: .trailing)
+                    .frame(width: 22, alignment: .trailing)
                 Text(line.newLineNumber.map(String.init) ?? "")
-                    .frame(width: 24, alignment: .trailing)
+                    .frame(width: 22, alignment: .trailing)
             }
-            .font(.system(size: 11, weight: .regular, design: .monospaced))
+            .font(.system(size: 10, weight: .regular, design: .monospaced))
             .foregroundStyle(.connDim)
 
             // 增减标识
             Text(prefixSymbol)
-                .font(.system(size: 12, weight: .bold, design: .monospaced))
+                .font(.system(size: 11, weight: .bold, design: .monospaced))
                 .foregroundStyle(prefixColor)
                 .frame(width: 10, alignment: .center)
 
-            // 代码文本（支持软换行）
+            // 代码文本（字号由 12pt 缩小至 11pt，提升一屏密度与可读性）
             Text(line.text.isEmpty ? " " : line.text)
-                .font(.system(size: 12, weight: .regular, design: .monospaced))
+                .font(.system(size: 11, weight: .regular, design: .monospaced))
                 .foregroundStyle(textColor)
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
         .padding(.horizontal, 6)
-        .padding(.vertical, 1.5)
+        .padding(.vertical, 1)
         .background(backgroundColor)
     }
 
@@ -106,20 +106,37 @@ struct GitDiffSheetView: View {
                         .foregroundStyle(.connMuted)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else if let diff {
-                    ScrollView {
-                        LazyVStack(alignment: .leading, spacing: 0) {
-                            ForEach(diff.hunks) { hunk in
-                                // 分块标题
-                                Text(hunk.header)
-                                    .font(.system(size: 11, weight: .semibold, design: .monospaced))
-                                    .foregroundStyle(.connDim)
-                                    .padding(.horizontal, 8)
-                                    .padding(.vertical, 4)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                                    .background(Color.connLine.opacity(0.5))
+                    VStack(spacing: 0) {
+                        HStack(spacing: 8) {
+                            HStack(spacing: 4) {
+                                Text("+\(diff.additions)").foregroundStyle(.connGood)
+                                Text("-\(diff.deletions)").foregroundStyle(.connCrit)
+                            }
+                            .font(.system(size: 12, weight: .bold, design: .monospaced))
 
-                                ForEach(hunk.lines) { line in
-                                    GitDiffLineRow(line: line)
+                            Spacer()
+                        }
+                        .padding(.horizontal, ConnSpacing.page)
+                        .padding(.vertical, 6)
+                        .background(Color.connSurface)
+
+                        Rectangle().fill(Color.connLine).frame(height: 0.5)
+
+                        ScrollView {
+                            LazyVStack(alignment: .leading, spacing: 0) {
+                                ForEach(diff.hunks) { hunk in
+                                    // 分块标题
+                                    Text(hunk.header)
+                                        .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                                        .foregroundStyle(.connDim)
+                                        .padding(.horizontal, 8)
+                                        .padding(.vertical, 4)
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                        .background(Color.connLine.opacity(0.5))
+
+                                    ForEach(hunk.lines) { line in
+                                        GitDiffLineRow(line: line)
+                                    }
                                 }
                             }
                         }
@@ -130,15 +147,6 @@ struct GitDiffSheetView: View {
             .navigationTitle(file.path)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    if let diff {
-                        HStack(spacing: 4) {
-                            Text("+\(diff.additions)").foregroundStyle(.connGood)
-                            Text("-\(diff.deletions)").foregroundStyle(.connCrit)
-                        }
-                        .font(.system(size: 12, weight: .bold, design: .monospaced))
-                    }
-                }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button(L("完成")) { dismiss() }
                 }

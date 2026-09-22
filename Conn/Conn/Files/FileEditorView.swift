@@ -170,22 +170,8 @@ struct FileEditorView: View {
 
     private var markdownPreview: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: ConnSpacing.md) {
-                if viewModel.content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                    Text(L("文件为空"))
-                        .font(.connSubheadline)
-                        .foregroundStyle(.connMuted)
-                        .frame(maxWidth: .infinity, alignment: .center)
-                        .padding(.vertical, ConnSpacing.xxl)
-                } else {
-                    Text(LocalizedStringKey(viewModel.content))
-                        .font(.connBody)
-                        .foregroundStyle(.connInk)
-                        .textSelection(.enabled)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                }
-            }
-            .padding(ConnSpacing.page)
+            MarkdownDocumentView(markdown: viewModel.content)
+                .padding(ConnSpacing.page)
         }
         .background(Color.connBg)
     }

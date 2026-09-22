@@ -24,7 +24,13 @@ public actor GitService {
     /// 探测指定路径是否处于 Git 仓库工作树内，并返回仓库根目录路径。
     /// 若不在仓库内或未安装 git，返回 nil。
     public func probeRepoRoot(at path: String) async -> String? {
-        let cmd = "cd \(shellQuote(path)) 2>/dev/null && git rev-parse --show-toplevel 2>/dev/null"
+        let trimmed = path.trimmingCharacters(in: .whitespacesAndNewlines)
+        let cmd: String
+        if trimmed.isEmpty {
+            cmd = "git rev-parse --show-toplevel 2>/dev/null"
+        } else {
+            cmd = "cd \(shellQuote(trimmed)) 2>/dev/null && git rev-parse --show-toplevel 2>/dev/null"
+        }
         guard let result = try? await session.exec(cmd, timeout: .seconds(5)),
               result.isSuccess
         else {
@@ -32,6 +38,17 @@ public actor GitService {
         }
         let root = result.stdoutText.trimmingCharacters(in: .whitespacesAndNewlines)
         return root.isEmpty ? nil : root
+    }
+
+    /// 解析当前有效的工作目录路径。若 hint 为空，回退执行远程 `pwd` 获取当前用户目录。
+    public func resolveWorkingDirectory(hint: String?) async -> String {
+        let trimmed = hint?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        if !trimmed.isEmpty { return trimmed }
+        if let result = try? await session.exec("pwd", timeout: .seconds(3)), result.isSuccess {
+            let path = result.stdoutText.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !path.isEmpty { return path }
+        }
+        return "~"
     }
 
     // MARK: - 状态查询
@@ -155,6 +172,52 @@ public actor GitService {
         guard result.isSuccess else {
             throw GitOpError(result.stderrText.isEmpty ? "提交失败" : result.stderrText)
         }
+    }
+
+    // MARK: - 提交历史
+
+    /// 获取最近的提交记录列表。
+    public func log(at repoRoot: String, limit: Int = 50) async throws -> [GitCommit] {
+        // 使用 %x1f (Unit Separator) 分隔字段: hash, shortHash, author, isoDate, relativeDate, subject
+        let format = "%H%x1f%h%x1f%an%x1f%ad%x1f%ar%x1f%s"
+        let cmd = "cd \(shellQuote(repoRoot)) && git log -n \(limit) --pretty=format:\(shellQuote(format)) --date=iso"
+        let result = try await session.exec(cmd, timeout: .seconds(15))
+        guard result.isSuccess else {
+            throw GitOpError(result.stderrText.isEmpty ? "获取提交记录失败" : result.stderrText)
+        }
+        return Self.parseLog(result.stdoutText)
+    }
+
+    /// 获取特定 commit 的变更详情（支持重命名/拷贝检测与补丁 diff）。
+    public func showCommitDiff(hash: String, at repoRoot: String) async throws -> [GitFileDiff] {
+        let cmd = "cd \(shellQuote(repoRoot)) && git show -M -C --patch --unified=3 \(shellQuote(hash))"
+        let result = try await session.exec(cmd, timeout: .seconds(20))
+        guard result.isSuccess else {
+            throw GitOpError(result.stderrText.isEmpty ? "获取提交改动详情失败" : result.stderrText)
+        }
+        return GitDiffParser.parseMultiFile(rawDiff: result.stdoutText)
+    }
+
+    /// 解析 git log 格式化输出为 [GitCommit]
+    public static func parseLog(_ text: String) -> [GitCommit] {
+        let lines = text.components(separatedBy: .newlines)
+        var commits: [GitCommit] = []
+        for line in lines {
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            guard !trimmed.isEmpty else { continue }
+            let parts = line.components(separatedBy: "\u{1F}")
+            guard parts.count >= 6 else { continue }
+            let commit = GitCommit(
+                hash: parts[0],
+                shortHash: parts[1],
+                author: parts[2],
+                date: parts[3],
+                relativeDate: parts[4],
+                message: parts[5]
+            )
+            commits.append(commit)
+        }
+        return commits
     }
 
     // MARK: - 辅助
