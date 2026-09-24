@@ -37,6 +37,8 @@ let package = Package(
         // 不联网、无遥测），180+ 语言 + ~40 主题。仅 ConnEditor target 引入。
         .package(url: "https://github.com/raspu/Highlightr.git", from: "2.2.0"),
         .package(url: "https://github.com/apple/swift-crypto.git", from: "3.15.1"),
+        // 业界成熟原生 Markdown 渲染引擎（基于 Apple swift-markdown + cmark-gfm AST，完整支持 GFM 表格、任务清单等）
+        .package(url: "https://github.com/gonzalezreal/swift-markdown-ui.git", from: "2.4.0"),
     ],
     targets: [
         // Domain：领域模型与仓库协议。零 UIKit、零三方依赖。
@@ -138,6 +140,7 @@ let package = Package(
             dependencies: [
                 "ConnUI",
                 .product(name: "Highlightr", package: "Highlightr"),
+                .product(name: "MarkdownUI", package: "swift-markdown-ui"),
             ]
         ),
 
