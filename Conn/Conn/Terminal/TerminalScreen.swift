@@ -40,7 +40,6 @@ struct TerminalScreen: View {
     @State private var pendingAttachmentContext: TerminalTextInsertionContext?
     @State private var pendingAttachmentWorkingDirectory: String?
     @Environment(\.connToastCenter) private var toastCenter
-    @Environment(\.colorScheme) private var appColorScheme
     @Environment(\.dismiss) private var dismiss
 
     init(
@@ -136,11 +135,11 @@ struct TerminalScreen: View {
                         }
                     )
                 }
-                .environment(\.colorScheme, appColorScheme)
+                .restoreAppAppearance(settings.appearance)
                 .presentationDetents([.medium, .large])
                 .presentationDragIndicator(.visible)
             }
-            .sheet(item: $terminalFileBrowserRoute) { route in
+            .fullScreenCover(item: $terminalFileBrowserRoute) { route in
                 NavigationStack {
                     FileBrowserView(
                         host: host,
@@ -149,16 +148,28 @@ struct TerminalScreen: View {
                     )
                     .padding(.horizontal, ConnSpacing.page)
                     .padding(.top, ConnSpacing.xs)
+                    .background(Color.connBg)
                     .navigationTitle(L("文件"))
                     .navigationBarTitleDisplayMode(.inline)
+                    .toolbar {
+                        ToolbarItem(placement: .topBarLeading) {
+                            Button {
+                                terminalFileBrowserRoute = nil
+                            } label: {
+                                Image(systemName: "xmark")
+                                    .font(.system(size: 15, weight: .semibold))
+                                    .foregroundStyle(.connAccent)
+                            }
+                            .accessibilityLabel(L("关闭"))
+                        }
+                    }
                     .accessibilityIdentifier("terminal.file-browser")
                 }
-                .environment(\.colorScheme, appColorScheme)
-                .presentationDetents([.medium, .large])
-                .presentationDragIndicator(.visible)
+                .restoreAppAppearance(settings.appearance)
             }
             .sheet(item: $paywallContext) { context in
                 PaywallView(dependencies: dependencies, context: context)
+                    .restoreAppAppearance(settings.appearance)
             }
             .sheet(
                 isPresented: $isNewTerminalPresented,
@@ -173,6 +184,7 @@ struct TerminalScreen: View {
                         isNewTerminalPresented = false
                     }
                 )
+                .restoreAppAppearance(settings.appearance)
                 .presentationDetents([.medium, .large])
             }
             .photosPicker(

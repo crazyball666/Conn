@@ -203,7 +203,7 @@ final class SubscriptionStore {
             default: break
             }
         #endif
-        #if DEBUG && CONN_DISABLE_SUBSCRIPTION
+        #if CONN_DISABLE_SUBSCRIPTION
             return .fixed(.pro)
         #else
             return .live()

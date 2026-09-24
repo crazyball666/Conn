@@ -565,7 +565,7 @@ final class ConnUITests: XCTestCase {
         XCTAssertEqual(app.state, .runningForeground)
     }
 
-#if DEBUG && CONN_DISABLE_SUBSCRIPTION
+#if CONN_DISABLE_SUBSCRIPTION
     @MainActor
     func testDisabledSubscriptionBuildShowsProEntitlement() {
         let app = XCUIApplication()

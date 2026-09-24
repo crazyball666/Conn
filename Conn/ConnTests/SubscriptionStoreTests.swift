@@ -9,7 +9,7 @@ struct SubscriptionStoreTests {
     func appDefaultSubscriptionFollowsCompilationFlag() {
         let store = SubscriptionStore.appDefault()
 
-        #if DEBUG && CONN_DISABLE_SUBSCRIPTION
+        #if CONN_DISABLE_SUBSCRIPTION
             #expect(store.status == .pro)
             #expect(store.isPro)
             #expect(store.gate.canAddHost(currentCount: 100))

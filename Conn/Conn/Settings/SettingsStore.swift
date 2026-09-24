@@ -26,6 +26,19 @@ enum AppAppearance: String, CaseIterable, Identifiable {
         case .dark: .dark
         }
     }
+
+    /// 解析实际生效的外观：如果为跟随系统，根据当前系统上下文解析为 .dark 或 .light
+    @MainActor
+    var effectiveColorScheme: ColorScheme {
+        if let colorScheme {
+            return colorScheme
+        }
+        let style = UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }
+            .first?
+            .traitCollection.userInterfaceStyle
+        return (style == .dark) ? .dark : .light
+    }
 }
 
 /// 主题色预设。`brand` 使用设计令牌中的品牌暖珊瑚色。
