@@ -34,7 +34,7 @@ struct GitDiffLineRow: View {
         }
         .padding(.horizontal, 6)
         .padding(.vertical, 1)
-        .background(backgroundColor)
+        .background(Rectangle().fill(backgroundColor))
     }
 
     private var prefixSymbol: String {
@@ -89,70 +89,63 @@ struct GitDiffSheetView: View {
     }
 
     var body: some View {
-        NavigationStack {
-            Group {
-                if isLoading {
-                    ProgressView(L("读取差异…"))
-                        .font(.connFootnote)
-                        .foregroundStyle(.connMuted)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                } else if let errorMessage {
-                    ConnRetryState(errorMessage, retryTitle: L("重试")) {
-                        Task { await loadDiff() }
-                    }
-                } else if let diff, diff.hunks.isEmpty {
-                    Text(L("无差异"))
-                        .font(.connSubheadline)
-                        .foregroundStyle(.connMuted)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                } else if let diff {
-                    VStack(spacing: 0) {
-                        HStack(spacing: 8) {
-                            HStack(spacing: 4) {
-                                Text("+\(diff.additions)").foregroundStyle(.connGood)
-                                Text("-\(diff.deletions)").foregroundStyle(.connCrit)
-                            }
-                            .font(.system(size: 12, weight: .bold, design: .monospaced))
-
-                            Spacer()
+        Group {
+            if isLoading {
+                ProgressView(L("读取差异…"))
+                    .font(.connFootnote)
+                    .foregroundStyle(.connMuted)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if let errorMessage {
+                ConnRetryState(errorMessage, retryTitle: L("重试")) {
+                    Task { await loadDiff() }
+                }
+            } else if let diff, diff.hunks.isEmpty {
+                Text(L("无差异"))
+                    .font(.connSubheadline)
+                    .foregroundStyle(.connMuted)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if let diff {
+                VStack(spacing: 0) {
+                    HStack(spacing: 8) {
+                        HStack(spacing: 4) {
+                            Text("+\(diff.additions)").foregroundStyle(.connGood)
+                            Text("-\(diff.deletions)").foregroundStyle(.connCrit)
                         }
-                        .padding(.horizontal, ConnSpacing.page)
-                        .padding(.vertical, 6)
-                        .background(Color.connSurface)
+                        .font(.system(size: 12, weight: .bold, design: .monospaced))
 
-                        Rectangle().fill(Color.connLine).frame(height: 0.5)
+                        Spacer()
+                    }
+                    .padding(.horizontal, ConnSpacing.page)
+                    .padding(.vertical, 6)
+                    .background(Color.connSurface)
 
-                        ScrollView {
-                            LazyVStack(alignment: .leading, spacing: 0) {
-                                ForEach(diff.hunks) { hunk in
-                                    // 分块标题
-                                    Text(hunk.header)
-                                        .font(.system(size: 11, weight: .semibold, design: .monospaced))
-                                        .foregroundStyle(.connDim)
-                                        .padding(.horizontal, 8)
-                                        .padding(.vertical, 4)
-                                        .frame(maxWidth: .infinity, alignment: .leading)
-                                        .background(Color.connLine.opacity(0.5))
+                    Rectangle().fill(Color.connLine).frame(height: 0.5)
 
-                                    ForEach(hunk.lines) { line in
-                                        GitDiffLineRow(line: line)
-                                    }
+                    ScrollView {
+                        LazyVStack(alignment: .leading, spacing: 0) {
+                            ForEach(diff.hunks) { hunk in
+                                // 分块标题
+                                Text(hunk.header)
+                                    .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                                    .foregroundStyle(.connDim)
+                                    .padding(.horizontal, 8)
+                                    .padding(.vertical, 4)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .background(Color.connLine.opacity(0.5))
+
+                                ForEach(hunk.lines) { line in
+                                    GitDiffLineRow(line: line)
                                 }
                             }
                         }
                     }
-                    .background(Color.connBg)
                 }
+                .background(Color.connBg)
             }
-            .navigationTitle(file.path)
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button(L("完成")) { dismiss() }
-                }
-            }
-            .task { await loadDiff() }
         }
+        .navigationTitle(file.path)
+        .navigationBarTitleDisplayMode(.inline)
+        .task { await loadDiff() }
     }
 
     private func loadDiff() async {

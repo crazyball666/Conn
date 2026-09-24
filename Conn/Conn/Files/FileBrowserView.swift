@@ -148,7 +148,7 @@ struct FileBrowserView: View {
                 exportURL = newURL
             }
         }
-        .sheet(isPresented: $isGitWorkspacePresented) {
+        .navigationDestination(isPresented: $isGitWorkspacePresented) {
             if let root = viewModel.gitRepoRoot {
                 GitWorkspaceSheet(host: host, repoRoot: root, dependencies: dependencies)
             }
@@ -170,27 +170,28 @@ struct FileBrowserView: View {
         Button {
             isGitWorkspacePresented = true
         } label: {
-            HStack(spacing: 6) {
+            HStack(spacing: 8) {
                 Image(systemName: "arrow.triangle.branch")
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundStyle(.connAccent)
                 Text(L("Git 仓库"))
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundStyle(.connInk)
-                Text(repoRoot)
-                    .font(.connData(.caption2))
-                    .foregroundStyle(.connDim)
                     .lineLimit(1)
-                Spacer(minLength: ConnSpacing.xs)
+
+                Spacer()
+
                 Text(L("查看工作区"))
                     .font(.connFootnote)
                     .foregroundStyle(.connAccent)
+                    .lineLimit(1)
+                    .fixedSize(horizontal: true, vertical: false)
                 Image(systemName: "chevron.right")
                     .font(.caption2)
                     .foregroundStyle(.connDim)
             }
             .padding(.horizontal, ConnSpacing.cardPadding)
-            .padding(.vertical, 8)
+            .padding(.vertical, 9)
             .background(Color.connLine.opacity(0.3), in: RoundedRectangle(cornerRadius: ConnRadius.control))
         }
         .buttonStyle(.plain)

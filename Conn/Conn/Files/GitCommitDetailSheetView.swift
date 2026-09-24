@@ -19,60 +19,53 @@ struct GitCommitDetailSheetView: View {
     @State private var expandedFiles: Set<String> = []
 
     var body: some View {
-        NavigationStack {
-            Group {
-                if isLoading {
-                    ProgressView(L("读取提交详情…"))
-                        .font(.connFootnote)
-                        .foregroundStyle(.connMuted)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                } else if let errorMessage {
-                    ConnRetryState(errorMessage, retryTitle: L("重试")) {
-                        Task { await loadCommitDiff() }
-                    }
-                } else {
-                    ScrollView {
-                        VStack(alignment: .leading, spacing: ConnSpacing.md) {
-                            // 提交摘要卡片
-                            commitHeaderCard
+        Group {
+            if isLoading {
+                ProgressView(L("读取提交详情…"))
+                    .font(.connFootnote)
+                    .foregroundStyle(.connMuted)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if let errorMessage {
+                ConnRetryState(errorMessage, retryTitle: L("重试")) {
+                    Task { await loadCommitDiff() }
+                }
+            } else {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: ConnSpacing.md) {
+                        // 提交摘要卡片
+                        commitHeaderCard
 
-                            // 变更文件数量与改动统计
-                            HStack {
-                                Text(String(format: L("变更文件 (%d)"), fileDiffs.count))
-                                    .font(.connSubheadline.weight(.semibold))
-                                    .foregroundStyle(.connInk)
-                                Spacer()
-                                let totalAdditions = fileDiffs.reduce(0) { $0 + $1.additions }
-                                let totalDeletions = fileDiffs.reduce(0) { $0 + $1.deletions }
-                                HStack(spacing: 6) {
-                                    Text("+\(totalAdditions)").foregroundStyle(.connGood)
-                                    Text("-\(totalDeletions)").foregroundStyle(.connCrit)
-                                }
-                                .font(.system(size: 12, weight: .bold, design: .monospaced))
+                        // 变更文件数量与改动统计
+                        HStack {
+                            Text(String(format: L("变更文件 (%d)"), fileDiffs.count))
+                                .font(.connSubheadline.weight(.semibold))
+                                .foregroundStyle(.connInk)
+                            Spacer()
+                            let totalAdditions = fileDiffs.reduce(0) { $0 + $1.additions }
+                            let totalDeletions = fileDiffs.reduce(0) { $0 + $1.deletions }
+                            HStack(spacing: 6) {
+                                Text("+\(totalAdditions)").foregroundStyle(.connGood)
+                                Text("-\(totalDeletions)").foregroundStyle(.connCrit)
                             }
-                            .padding(.horizontal, ConnSpacing.page)
+                            .font(.system(size: 12, weight: .bold, design: .monospaced))
+                        }
+                        .padding(.horizontal, ConnSpacing.page)
 
-                            // 每个文件的 Diff 折叠列表（通栏直角平铺，与工作区单文件 diff 样式完全统一）
-                            LazyVStack(spacing: ConnSpacing.sm) {
-                                ForEach(fileDiffs, id: \.filePath) { fileDiff in
-                                    fileDiffSection(fileDiff)
-                                }
+                        // 每个文件的 Diff 折叠列表（通栏直角平铺，与工作区单文件 diff 样式完全统一）
+                        LazyVStack(spacing: ConnSpacing.sm) {
+                            ForEach(fileDiffs, id: \.filePath) { fileDiff in
+                                fileDiffSection(fileDiff)
                             }
                         }
-                        .padding(.vertical, ConnSpacing.sm)
                     }
-                    .background(Color.connBg)
+                    .padding(.vertical, ConnSpacing.sm)
                 }
+                .background(Color.connBg)
             }
-            .navigationTitle(commit.shortHash)
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button(L("完成")) { dismiss() }
-                }
-            }
-            .task { await loadCommitDiff() }
         }
+        .navigationTitle(commit.shortHash)
+        .navigationBarTitleDisplayMode(.inline)
+        .task { await loadCommitDiff() }
     }
 
     private var commitHeaderCard: some View {
@@ -191,6 +184,7 @@ struct GitCommitDetailSheetView: View {
             }
         }
         .background(Color.connSurface, in: RoundedRectangle(cornerRadius: ConnRadius.control))
+        .clipShape(RoundedRectangle(cornerRadius: ConnRadius.control))
         .overlay(
             RoundedRectangle(cornerRadius: ConnRadius.control)
                 .strokeBorder(Color.connLine, lineWidth: 1)

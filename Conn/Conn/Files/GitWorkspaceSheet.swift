@@ -181,83 +181,78 @@ struct GitWorkspaceSheet: View {
     }
 
     var body: some View {
-        NavigationStack {
-            Group {
-                if viewModel.repoRoot.isEmpty {
-                    notAGitRepoView
-                } else {
-                    switch viewModel.loadState {
-                    case .loading:
-                        ProgressView(L("读取 Git 仓库…"))
-                            .font(.connFootnote)
-                            .foregroundStyle(.connMuted)
-                            .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    case let .failed(msg):
-                        if msg.contains("not a git repository") || msg.contains("Not a git repository") {
-                            notAGitRepoView
-                        } else {
-                            ConnRetryState(msg, retryTitle: L("重试")) {
-                                Task { await viewModel.load() }
-                            }
-                        }
-                    case .ready:
-                        content
-                    }
-                }
-            }
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .principal) {
-                    if !viewModel.repoRoot.isEmpty {
-                        Picker("", selection: $selectedTab) {
-                            Text(L("变更")).tag(GitWorkspaceTab.changes)
-                            Text(L("历史")).tag(GitWorkspaceTab.history)
-                        }
-                        .pickerStyle(.segmented)
+        Group {
+            if viewModel.repoRoot.isEmpty {
+                notAGitRepoView
+            } else {
+                switch viewModel.loadState {
+                case .loading:
+                    ProgressView(L("读取 Git 仓库…"))
+                        .font(.connFootnote)
+                        .foregroundStyle(.connMuted)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                case let .failed(msg):
+                    if msg.contains("not a git repository") || msg.contains("Not a git repository") {
+                        notAGitRepoView
                     } else {
-                        Text(L("Git 工作区"))
-                            .font(.connHeadline)
-                            .foregroundStyle(.connInk)
+                        ConnRetryState(msg, retryTitle: L("重试")) {
+                            Task { await viewModel.load() }
+                        }
                     }
-                }
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button(L("完成")) { dismiss() }
+                case .ready:
+                    content
                 }
             }
-            .task {
+        }
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .principal) {
                 if !viewModel.repoRoot.isEmpty {
-                    await viewModel.load()
+                    Picker("", selection: $selectedTab) {
+                        Text(L("变更")).tag(GitWorkspaceTab.changes)
+                        Text(L("历史")).tag(GitWorkspaceTab.history)
+                    }
+                    .pickerStyle(.segmented)
+                } else {
+                    Text(L("Git 工作区"))
+                        .font(.connHeadline)
+                        .foregroundStyle(.connInk)
                 }
             }
-            .sheet(item: $inspectingDiffFile) { file in
-                GitDiffSheetView(
-                    host: viewModel.host,
-                    repoRoot: viewModel.repoRoot,
-                    file: file,
-                    dependencies: dependencies
-                )
+        }
+        .task {
+            if !viewModel.repoRoot.isEmpty {
+                await viewModel.load()
             }
-            .sheet(item: $inspectingCommit) { commit in
-                GitCommitDetailSheetView(
-                    host: viewModel.host,
-                    repoRoot: viewModel.repoRoot,
-                    commit: commit,
-                    dependencies: dependencies
-                )
+        }
+        .navigationDestination(item: $inspectingDiffFile) { file in
+            GitDiffSheetView(
+                host: viewModel.host,
+                repoRoot: viewModel.repoRoot,
+                file: file,
+                dependencies: dependencies
+            )
+        }
+        .navigationDestination(item: $inspectingCommit) { commit in
+            GitCommitDetailSheetView(
+                host: viewModel.host,
+                repoRoot: viewModel.repoRoot,
+                commit: commit,
+                dependencies: dependencies
+            )
+        }
+        .alert(L("放弃修改"), isPresented: discardAlertBinding, presenting: pendingDiscardFile) { file in
+            Button(L("确认放弃"), role: .destructive) {
+                Task { await viewModel.discard(file: file) }
             }
-            .alert(L("放弃修改"), isPresented: discardAlertBinding, presenting: pendingDiscardFile) { file in
-                Button(L("确认放弃"), role: .destructive) {
-                    Task { await viewModel.discard(file: file) }
-                }
-                Button(L("取消"), role: .cancel) { pendingDiscardFile = nil }
-            } message: { file in
-                Text(String(format: L("将丢弃对 %@ 的未提交修改，此操作不可撤销。"), file.path))
-            }
-            .alert(L("提示"), isPresented: messageBinding) {
-                Button(L("好"), role: .cancel) { viewModel.actionMessage = nil }
-            } message: {
-                Text(viewModel.actionMessage ?? "")
-            }
+            Button(L("取消"), role: .cancel) { pendingDiscardFile = nil }
+        } message: { file in
+            Text(String(format: L("将丢弃对 %@ 的未提交修改，此操作不可撤销。"), file.path))
+        }
+        .alert(L("提示"), isPresented: messageBinding) {
+            Button(L("好"), role: .cancel) { viewModel.actionMessage = nil }
+        } message: {
+            Text(viewModel.actionMessage ?? "")
         }
     }
 
@@ -420,7 +415,7 @@ struct GitWorkspaceSheet: View {
                     .foregroundStyle(.connMuted)
             }
             Text(commit.message)
-                .font(.connBody)
+                .font(.connSubheadline)
                 .fontWeight(.medium)
                 .foregroundStyle(.connInk)
                 .lineLimit(2)

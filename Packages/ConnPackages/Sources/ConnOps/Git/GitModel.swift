@@ -1,7 +1,7 @@
 import Foundation
 
 /// Git 文件状态
-public enum GitFileStatus: String, Sendable, Equatable {
+public enum GitFileStatus: String, Sendable, Equatable, Hashable {
     case modified = "M"
     case added = "A"
     case deleted = "D"
@@ -26,7 +26,7 @@ public enum GitFileStatus: String, Sendable, Equatable {
 }
 
 /// 单个文件的 Git 变更条目
-public struct GitFileChange: Identifiable, Sendable, Equatable {
+public struct GitFileChange: Identifiable, Sendable, Equatable, Hashable {
     public var id: String { path }
     /// 文件在仓库中的相对路径
     public let path: String
@@ -198,7 +198,7 @@ public struct GitFileDiff: Sendable, Equatable {
 }
 
 /// Git 提交历史记录条目
-public struct GitCommit: Identifiable, Sendable, Equatable {
+public struct GitCommit: Identifiable, Sendable, Equatable, Hashable {
     public var id: String { hash }
     /// 完整 commit hash
     public let hash: String
