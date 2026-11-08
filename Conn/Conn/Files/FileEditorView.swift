@@ -91,13 +91,15 @@ final class FileEditorViewModel {
 /// 文本文件编辑器（Phase 6）。行号 + 语法高亮（Highlightr），主题跟随设置页；支持 Markdown 原生渲染预览。
 struct FileEditorView: View {
     @State private var viewModel: FileEditorViewModel
-    @State private var isPreviewingMarkdown: Bool
+    @State private var isPreviewing: Bool
     @Environment(SettingsStore.self) private var settings
 
     init(host: Host, dependencies: AppDependencies, entry: FileEntry) {
         _viewModel = State(initialValue: FileEditorViewModel(host: host, dependencies: dependencies, entry: entry))
-        let isMarkdown = entry.name.lowercased().hasSuffix(".md") || entry.name.lowercased().hasSuffix(".markdown")
-        _isPreviewingMarkdown = State(initialValue: isMarkdown)
+        let name = entry.name.lowercased()
+        let isMarkdown = name.hasSuffix(".md") || name.hasSuffix(".markdown")
+        let isHTML = name.hasSuffix(".html") || name.hasSuffix(".htm")
+        _isPreviewing = State(initialValue: isMarkdown || isHTML)
     }
 
     private var isMarkdownFile: Bool {
@@ -105,26 +107,35 @@ struct FileEditorView: View {
         return name.hasSuffix(".md") || name.hasSuffix(".markdown")
     }
 
+    private var isHTMLFile: Bool {
+        let name = viewModel.entry.name.lowercased()
+        return name.hasSuffix(".html") || name.hasSuffix(".htm")
+    }
+
+    private var isPreviewableFile: Bool {
+        isMarkdownFile || isHTMLFile
+    }
+
     var body: some View {
         content
-            .background(Color.connBg.ignoresSafeArea())
+            .background(currentBackground.ignoresSafeArea())
             .navigationTitle(viewModel.entry.name)
             .navigationBarTitleDisplayMode(.inline)
             .task { await viewModel.load() }
             .toolbar {
                 if case .editing = viewModel.loadState {
-                    if isMarkdownFile {
+                    if isPreviewableFile {
                         ToolbarItem(placement: .topBarTrailing) {
                             Button {
-                                isPreviewingMarkdown.toggle()
+                                isPreviewing.toggle()
                             } label: {
-                                Image(systemName: isPreviewingMarkdown ? "pencil" : "eye")
+                                Image(systemName: isPreviewing ? "pencil" : "eye")
                             }
-                            .accessibilityLabel(isPreviewingMarkdown ? L("编辑") : L("预览"))
+                            .accessibilityLabel(isPreviewing ? L("编辑") : L("预览"))
                         }
                     }
 
-                    if !isPreviewingMarkdown {
+                    if !isPreviewing {
                         ToolbarItem(placement: .topBarTrailing) {
                             Button(L("保存")) { Task { await viewModel.save() } }
                                 .fontWeight(.semibold)
@@ -147,8 +158,12 @@ struct FileEditorView: View {
             ProgressView(L("读取文件…")).font(.connFootnote).foregroundStyle(.connMuted)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         case .editing:
-            if isMarkdownFile && isPreviewingMarkdown {
-                markdownPreview
+            if isPreviewableFile && isPreviewing {
+                if isHTMLFile {
+                    HTMLDocumentView(html: viewModel.content)
+                } else {
+                    markdownPreview
+                }
             } else {
                 CodeEditor(
                     text: $viewModel.content,
@@ -173,7 +188,24 @@ struct FileEditorView: View {
             MarkdownDocumentView(markdown: viewModel.content)
                 .padding(ConnSpacing.page)
         }
-        .background(Color.connBg)
+        .background(markdownCanvasBackground)
+    }
+
+    private var currentBackground: Color {
+        if isPreviewableFile && isPreviewing {
+            return markdownCanvasBackground
+        }
+        return Color.connBg
+    }
+
+    private var markdownCanvasBackground: Color {
+        Color(
+            uiColor: UIColor { traitCollection in
+                traitCollection.userInterfaceStyle == .dark
+                    ? UIColor(red: 0x18 / 255.0, green: 0x19 / 255.0, blue: 0x1d / 255.0, alpha: 1.0)
+                    : .white
+            }
+        )
     }
 
     private func infoState(icon: String, message: String) -> some View {
