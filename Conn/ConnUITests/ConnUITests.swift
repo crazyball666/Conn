@@ -118,8 +118,7 @@ final class ConnUITests: XCTestCase {
     @MainActor
     func testTerminalCenterOpensWithoutCrashing() {
         let app = XCUIApplication()
-        // 该测试验收已授权时的文件管理入口；订阅拦截由下面的专用测试覆盖。
-        app.launchEnvironment["CONN_SUBSCRIPTION_STATE"] = "pro"
+        // 该测试只验收终端页与快捷栏入口布局；订阅拦截和 Pro 态由专用测试覆盖。
         app.launch()
 
         XCTAssertTrue(app.tabBars.buttons["tab.servers"].waitForExistence(timeout: 10))
@@ -148,7 +147,6 @@ final class ConnUITests: XCTestCase {
     @MainActor
     func testConfiguredHostCanCreateActiveTerminalShortcutBar() throws {
         let app = XCUIApplication()
-        app.launchEnvironment["CONN_SUBSCRIPTION_STATE"] = "pro"
         app.launch()
 
         XCTAssertTrue(app.tabBars.buttons["tab.servers"].waitForExistence(timeout: 10))
@@ -184,7 +182,6 @@ final class ConnUITests: XCTestCase {
     func testTerminalComposerKeepsMultilineDraftUntilExplicitSend() throws {
         continueAfterFailure = true
         let app = XCUIApplication()
-        app.launchEnvironment["CONN_SUBSCRIPTION_STATE"] = "pro"
         app.launch()
 
         let hostCard = app.buttons.matching(
@@ -303,7 +300,6 @@ final class ConnUITests: XCTestCase {
     @MainActor
     func testExpandedComposerSendMatchesVoiceButton() throws {
         let app = XCUIApplication()
-        app.launchEnvironment["CONN_SUBSCRIPTION_STATE"] = "pro"
         app.launch()
         let host = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "servers.host.")).firstMatch
         guard host.waitForExistence(timeout: 15) else {
@@ -349,7 +345,6 @@ final class ConnUITests: XCTestCase {
     @MainActor
     func testTerminalComposerVoiceButtonsKeepKeyboard() throws {
         let app = XCUIApplication()
-        app.launchEnvironment["CONN_SUBSCRIPTION_STATE"] = "pro"
         app.launch()
         let host = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "servers.host.")).firstMatch
         guard host.waitForExistence(timeout: 15) else {
@@ -475,10 +470,10 @@ final class ConnUITests: XCTestCase {
         add(attachment)
     }
 
+#if !CONN_DISABLE_SUBSCRIPTION
     @MainActor
     func testFreeTerminalFileManagementPresentsPaywallDirectly() throws {
         let app = XCUIApplication()
-        app.launchEnvironment["CONN_SUBSCRIPTION_STATE"] = "free"
         app.launch()
 
         XCTAssertTrue(app.tabBars.buttons["tab.servers"].waitForExistence(timeout: 10))
@@ -500,7 +495,6 @@ final class ConnUITests: XCTestCase {
     @MainActor
     func testPaywallPresentsFocusedPlanSelection() {
         let app = XCUIApplication()
-        app.launchEnvironment["CONN_SUBSCRIPTION_STATE"] = "free"
         app.launch()
 
         XCTAssertTrue(app.tabBars.buttons["tab.servers"].waitForExistence(timeout: 10))
@@ -524,11 +518,12 @@ final class ConnUITests: XCTestCase {
         XCTAssertTrue(app.buttons["paywall.restore"].exists)
         XCTAssertEqual(app.state, .runningForeground)
     }
+#endif
 
+#if CONN_DISABLE_SUBSCRIPTION
     @MainActor
     func testActiveSubscriptionShowsManagementInsteadOfPurchase() {
         let app = XCUIApplication()
-        app.launchEnvironment["CONN_SUBSCRIPTION_STATE"] = "pro"
         app.launch()
 
         XCTAssertTrue(app.tabBars.buttons["tab.servers"].waitForExistence(timeout: 10))
@@ -544,6 +539,7 @@ final class ConnUITests: XCTestCase {
         XCTAssertTrue(app.buttons["paywall.restore"].exists)
         XCTAssertEqual(app.state, .runningForeground)
     }
+#endif
 
     @MainActor
     func testHostKeyMismatchConfirmationKeepsServerListStable() {
@@ -644,7 +640,6 @@ final class ConnUITests: XCTestCase {
     @MainActor
     private func openNewHost(_ app: XCUIApplication) {
         // Form tests exercise editing, not the separately tested free-tier host limit.
-        app.launchEnvironment["CONN_SUBSCRIPTION_STATE"] = "pro"
         app.launch()
         XCTAssertTrue(app.tabBars.buttons["tab.servers"].waitForExistence(timeout: 10))
         app.buttons["servers.add"].tap()
@@ -673,6 +668,8 @@ final class ConnUITests: XCTestCase {
         return app.buttons["network-route.mode.\(mode)"]
     }
 
+    // 表单测试需要绕过免费版的「最多两台主机」限制，只能在免订阅构建中运行。
+#if CONN_DISABLE_SUBSCRIPTION
     @MainActor
     func testHostFormExposesPrivateNetworkProfileEditor() {
         let app = XCUIApplication()
@@ -795,6 +792,8 @@ final class ConnUITests: XCTestCase {
         add(screenshot)
         XCTAssertEqual(app.state, .runningForeground)
     }
+#endif
+
     @MainActor
     func testLaunchPerformance() {
         measure(metrics: [XCTApplicationLaunchMetric()]) {

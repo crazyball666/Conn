@@ -193,16 +193,9 @@ final class SubscriptionStore {
         SubscriptionStore(mode: .live, provider: provider)
     }
 
-    /// App 默认订阅策略由编译配置决定：正式构建默认启用订阅；
-    /// Debug 构建可通过测试环境变量或编译宏注入确定的订阅状态。
+    /// App 默认订阅策略由编译配置决定：默认构建启用真实 StoreKit 订阅；
+    /// 需要免订阅构建时，在 Xcode 构建配置中手动定义 `CONN_DISABLE_SUBSCRIPTION`。
     static func appDefault() -> SubscriptionStore {
-        #if DEBUG
-            switch ProcessInfo.processInfo.environment["CONN_SUBSCRIPTION_STATE"] {
-            case "pro": return .fixed(.pro)
-            case "free": return .fixed(.free)
-            default: break
-            }
-        #endif
         #if CONN_DISABLE_SUBSCRIPTION
             return .fixed(.pro)
         #else
