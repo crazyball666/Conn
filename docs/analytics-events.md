@@ -9,15 +9,17 @@
 
 - 应用版本、构建号、系统版本、设备类型（iPhone/iPad）、界面语言、外观模式、订阅层级、分发渠道
 - 匿名安装标识（SDK 自动生成）
-- 匿名主机引用（本地主机 UUID，不含主机名或地址）
+- 连接目标地址、端口、连接类型、路由方式、复用状态、各阶段耗时
+- 失败时的原始错误文本（按上限截断、去掉不支持的字符，不做凭据脱敏）
 - 枚举、布尔值、计数/耗时/大小分桶
 
 禁止上报：
 
-- 主机名、IP、端口、用户名、密码、密钥、证书、代理或跳板机地址
-- 文件路径、文件名、命令内容、终端输出、日志正文、错误原文
+- 主机名、用户名、密码、密钥、证书
+- 文件路径、文件名、命令内容、终端输出、日志正文
 - 订阅交易 ID、App Store 账户信息
-- 任何自由文本（属性值超过 64 字符或包含控制字符会被 `AnalyticsService` 丢弃）
+
+`error_text` 是显式的诊断例外：最长 2000 字符 / 4000 UTF-8 字节，保留换行和制表符，去掉其他控制字符。其他属性仍走 64 字符白名单清洗，`target_address` 允许到 255 字符。
 
 ## 公共属性
 
@@ -58,6 +60,38 @@
 | `restore_finished` | 恢复购买结束 | `result`、`error_category` |
 | `error_occurred` | 关键失败路径 | `area`、`category`、`recoverable`、`source` |
 | `db_migration_finished` | 数据库构造/迁移结束 | `result`、`duration_bucket`、`error_category` |
+
+## 连接诊断事件
+
+### `connection_timing`（每次连接尝试一条）
+
+| 属性 | 说明 |
+|---|---|
+| `connection_ref` | 本次连接尝试 ID，用于串联阶段 |
+| `target_address` / `target_port` | 连接目标 |
+| `connection_kind` | terminal / files / docker / monitor / snippet |
+| `transport` | ssh |
+| `route` | direct / proxy / jump / private_network |
+| `route_provider` | headscale / tailscale / socks5 / http_connect / jump_chain（可选） |
+| `route_reused` | 是否复用已建立的私有网络/代理/隧道 |
+| `session_reused` | 是否复用 SSH 连接池 |
+| `launch_kind` | first / new / reconnect / restore / foreground_resume |
+| `result` | success / failure / cancelled |
+| `error_stage` | 失败阶段 |
+| `error_category` | timeout / network / auth / host_key / private_network / proxy / jump / terminal / unknown |
+| `error_text` | 原始错误文本（截断） |
+| `duration_bucket` | 总耗时 |
+
+### `connection_phase`（每个阶段一条）
+
+| 属性 | 说明 |
+|---|---|
+| `connection_ref` / `target_address` / `target_port` | 关联到一次连接 |
+| `phase` | profile_load / credential_load / state_prepare / route_setup / socks_proxy / ssh_handshake / pty_open / terminal_ready |
+| `duration_bucket` | 该阶段耗时 |
+| `result` | success / failure / cancelled |
+| `error_stage` / `error_category` / `error_text` | 失败时带 |
+| `route` / `route_provider` / `route_reused` / `session_reused` | 路由与复用信息 |
 
 ## 待接入（第二版）
 

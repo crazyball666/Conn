@@ -109,6 +109,13 @@ public protocol SSHSession: AnyObject, Sendable {
 
     /// 主动关闭会话。
     func close() async
+
+    /// 建立这条会话时使用的诊断上下文。
+    var diagnostics: ConnectionDiagnosticsContext { get }
+}
+
+public extension SSHSession {
+    var diagnostics: ConnectionDiagnosticsContext { .init(connectionRef: "") }
 }
 
 public extension SSHSession {

@@ -106,6 +106,7 @@ public final class TerminalSessionCoordinator {
     private let connectionManager: ConnectionManager
     private let persistentBackend: PersistentProviderBackend
     private let resumeRepository: any PersistentTerminalResumeRepository
+    private let diagnosticsSink: (any ConnectionDiagnosticsSink)?
     private var inFlightLaunches: [String: Task<Result<TerminalTab, TerminalLaunchFailure>, Never>] = [:]
     /// 主机删除/连接身份变更时递增。Citadel 的建连与开 PTY 不一定响应 cancellation，
     /// 所以必须在完成后再用这个代次阻止旧任务把会话写回 store。
@@ -144,11 +145,13 @@ public final class TerminalSessionCoordinator {
         connectionManager: ConnectionManager,
         providerRegistry: PersistentTerminalProviderRegistry = .default,
         resumeRepository: any PersistentTerminalResumeRepository =
-            InMemoryTerminalResumeRepository()
+            InMemoryTerminalResumeRepository(),
+        diagnosticsSink: (any ConnectionDiagnosticsSink)? = nil
     ) {
         self.hostRepository = hostRepository
         self.connectionManager = connectionManager
         self.resumeRepository = resumeRepository
+        self.diagnosticsSink = diagnosticsSink
         persistentBackend = PersistentProviderBackend(registry: providerRegistry)
         do {
             store = TerminalSessionStore(resumeRecords: try resumeRepository.allRecords())
@@ -206,7 +209,8 @@ public final class TerminalSessionCoordinator {
     /// Opens and configures a temporary terminal without exposing it through the Store.
     public func prepareLaunch(
         _ request: TerminalLaunchRequest,
-        attemptID: TerminalLaunchAttemptID
+        attemptID: TerminalLaunchAttemptID,
+        diagnostics: ConnectionDiagnosticsContext? = nil
     ) async -> Result<Void, TerminalLaunchFailure> {
         switch launchAttempts[attemptID] {
         case .pending:
@@ -227,7 +231,8 @@ public final class TerminalSessionCoordinator {
 
         switch await prepareTab(
             for: request,
-            expectedHostLaunchGeneration: hostGeneration
+            expectedHostLaunchGeneration: hostGeneration,
+            diagnostics: diagnostics
         ) {
         case let .success(prepared):
             guard case .preparing? = launchAttempts[attemptID] else {
@@ -729,10 +734,39 @@ public final class TerminalSessionCoordinator {
         _ request: TerminalLaunchRequest
     ) async -> Result<TerminalTab, TerminalLaunchFailure> {
         let attemptID = beginLaunchAttempt()
-        switch await prepareLaunch(request, attemptID: attemptID) {
+        let started = Date()
+        let context = ConnectionDiagnosticsContext(
+            host: request.host,
+            connectionKind: "terminal",
+            launchKind: "new",
+            sessionReused: await connectionManager.hasPooledSession(for: request.host)
+        )
+        switch await prepareLaunch(request, attemptID: attemptID, diagnostics: context) {
         case .success:
-            return await commitLaunch(attemptID: attemptID)
+            let result = await commitLaunch(attemptID: attemptID)
+            switch result {
+            case .success:
+                recordSummary(context: context, result: .success, started: started)
+            case let .failure(failure):
+                recordSummary(
+                    context: context,
+                    result: .failure,
+                    started: started,
+                    errorStage: "terminal_launch",
+                    errorCategory: "terminal",
+                    errorText: failure.message
+                )
+            }
+            return result
         case let .failure(failure):
+            recordSummary(
+                context: context,
+                result: .failure,
+                started: started,
+                errorStage: "terminal_launch",
+                errorCategory: "terminal",
+                errorText: failure.message
+            )
             return .failure(failure)
         }
     }
@@ -740,11 +774,23 @@ public final class TerminalSessionCoordinator {
     private func restoreRecord(
         _ record: PersistentTerminalResumeRecord
     ) async -> Result<TerminalTab, TerminalLaunchFailure> {
+        let restoreStarted = Date()
+        var restoreContext = ConnectionDiagnosticsContext(
+            connectionRef: "",
+            connectionKind: "terminal",
+            launchKind: "restore"
+        )
         do {
             guard let host = try hostRepository.host(id: record.hostID) else {
                 return .failure(TerminalLaunchFailure(message: L("主机已被删除")))
             }
             let generation = launchGeneration(forHost: host.id)
+            restoreContext = ConnectionDiagnosticsContext(
+                host: host,
+                connectionKind: "terminal",
+                launchKind: "restore",
+                sessionReused: await connectionManager.hasPooledSession(for: host)
+            )
             let request = TerminalLaunchRequest(
                 host: host,
                 policy: .createNew,
@@ -756,7 +802,9 @@ public final class TerminalSessionCoordinator {
                 for: request,
                 expectedHostLaunchGeneration: generation,
                 openReason: .reconnect,
-                restorationRecord: record
+                restorationRecord: record,
+                launchKind: "restore",
+                diagnostics: restoreContext
             ) {
             case let .success(prepared):
                 guard let currentRecord = store.resumeRecord(id: record.id),
@@ -764,6 +812,14 @@ public final class TerminalSessionCoordinator {
                       isLaunchCurrent(forHost: host.id, expectedGeneration: generation)
                 else {
                     await closePreparedLaunch(prepared)
+                    recordSummary(
+                        context: restoreContext,
+                        result: .failure,
+                        started: restoreStarted,
+                        errorStage: "terminal_launch",
+                        errorCategory: "terminal",
+                        errorText: L("终端会话启动已取消")
+                    )
                     return .failure(TerminalLaunchFailure(message: L("终端会话启动已取消")))
                 }
                 let tab = prepared.tab
@@ -784,11 +840,28 @@ public final class TerminalSessionCoordinator {
                     attachment: tab.persistentAttachment
                 )
                 persistResumeRecord(for: tab)
+                recordSummary(context: restoreContext, result: .success, started: restoreStarted)
                 return .success(tab)
             case let .failure(failure):
+                recordSummary(
+                    context: restoreContext,
+                    result: .failure,
+                    started: restoreStarted,
+                    errorStage: "terminal_launch",
+                    errorCategory: "terminal",
+                    errorText: failure.message
+                )
                 return .failure(failure)
             }
         } catch {
+            recordSummary(
+                context: restoreContext,
+                result: .failure,
+                started: restoreStarted,
+                errorStage: "terminal_launch",
+                errorCategory: ConnectionDiagnosticsText.category(for: error),
+                errorText: terminalUserFacingDiagnosis(error)
+            )
             return .failure(TerminalLaunchFailure(message: terminalUserFacingDiagnosis(error)))
         }
     }
@@ -797,8 +870,16 @@ public final class TerminalSessionCoordinator {
         for request: TerminalLaunchRequest,
         expectedHostLaunchGeneration: UInt64,
         openReason: PersistentAttachmentOpenReason = .initial,
-        restorationRecord: PersistentTerminalResumeRecord? = nil
+        restorationRecord: PersistentTerminalResumeRecord? = nil,
+        launchKind: String = "new",
+        diagnostics: ConnectionDiagnosticsContext? = nil
     ) async -> Result<PreparedLaunch, TerminalLaunchFailure> {
+        let prepareStarted = Date()
+        var context = diagnostics ?? ConnectionDiagnosticsContext(
+            host: request.host,
+            connectionKind: "terminal",
+            launchKind: launchKind
+        )
         var temporarySession: TerminalSession?
         var temporaryAttachment: (any PersistentTerminalAttachment)?
         do {
@@ -807,8 +888,23 @@ public final class TerminalSessionCoordinator {
             else {
                 return .failure(TerminalLaunchFailure(message: L("终端会话启动已取消")))
             }
+            if diagnostics == nil {
+                context = ConnectionDiagnosticsContext(
+                    host: host,
+                    connectionKind: "terminal",
+                    launchKind: launchKind,
+                    sessionReused: await connectionManager.hasPooledSession(for: host)
+                )
+            }
 
-            let opened = try await openBackend(request.backend, for: host, reason: openReason)
+            let ptyStarted = Date()
+            let opened = try await openBackend(
+                request.backend,
+                for: host,
+                reason: openReason,
+                diagnostics: context
+            )
+            recordPhase("pty_open", started: ptyStarted, context: context)
             let channel = opened.channel
             temporaryAttachment = opened.attachment
             let transcript = TerminalTranscript()
@@ -856,6 +952,7 @@ public final class TerminalSessionCoordinator {
                 createdAt: restorationRecord?.createdAt ?? .now,
                 lastUsedAt: .now
             )
+            recordPhase("terminal_ready", started: prepareStarted, context: context)
             return .success(PreparedLaunch(tab: tab))
         } catch {
             if let temporarySession {
@@ -885,6 +982,12 @@ public final class TerminalSessionCoordinator {
         guard let oldTab = store.tab(id: tabID) else {
             return .failure(TerminalLaunchFailure(message: L("终端会话不存在")))
         }
+        let reconnectStarted = Date()
+        var reconnectContext = ConnectionDiagnosticsContext(
+            connectionRef: "",
+            connectionKind: "terminal",
+            launchKind: "reconnect"
+        )
         let lifecycleToken = UUID()
         lifecycleTokens[tabID] = lifecycleToken
         let nextGeneration = oldTab.generation + 1
@@ -902,6 +1005,12 @@ public final class TerminalSessionCoordinator {
             guard let host = try hostRepository.host(id: oldTab.hostID) else {
                 throw TerminalLaunchFailure(message: L("主机已被删除"))
             }
+            reconnectContext = ConnectionDiagnosticsContext(
+                host: host,
+                connectionKind: "terminal",
+                launchKind: "reconnect",
+                sessionReused: await connectionManager.hasPooledSession(for: host)
+            )
             // 明确重连时主动驱逐可能处于半开/假死状态的旧连接，确保重连发起全新握手，避免先吃一次超时
             await connectionManager.invalidate(host: host)
             let backend: TerminalLaunchBackend = switch oldTab.reconnectDescriptor {
@@ -910,7 +1019,14 @@ public final class TerminalSessionCoordinator {
             case let .persistent(descriptor):
                 .persistent(descriptor)
             }
-            let opened = try await openBackend(backend, for: host, reason: .reconnect)
+            let ptyStarted = Date()
+            let opened = try await openBackend(
+                backend,
+                for: host,
+                reason: .reconnect,
+                diagnostics: reconnectContext
+            )
+            recordPhase("pty_open", started: ptyStarted, context: reconnectContext)
             let channel = opened.channel
             temporaryAttachment = opened.attachment
             let session = TerminalSession(
@@ -953,6 +1069,8 @@ public final class TerminalSessionCoordinator {
                 return .failure(TerminalLaunchFailure(message: L("终端会话已关闭")))
             }
             persistResumeRecord(for: replacement)
+            recordPhase("terminal_ready", started: reconnectStarted, context: reconnectContext)
+            recordSummary(context: reconnectContext, result: .success, started: reconnectStarted)
             return .success(replacement)
         } catch {
             await temporaryAttachment?.close()
@@ -961,6 +1079,14 @@ public final class TerminalSessionCoordinator {
             if store.tab(id: tabID)?.generation == oldTab.generation {
                 store.updateStatus(tabID, to: .disconnected(message: message))
             }
+            recordSummary(
+                context: reconnectContext,
+                result: .failure,
+                started: reconnectStarted,
+                errorStage: "terminal_launch",
+                errorCategory: ConnectionDiagnosticsText.category(for: error),
+                errorText: message
+            )
             return .failure(TerminalLaunchFailure(message: message))
         }
     }
@@ -973,12 +1099,13 @@ public final class TerminalSessionCoordinator {
     private func openBackend(
         _ backend: TerminalLaunchBackend,
         for host: ConnKit.Host,
-        reason: PersistentAttachmentOpenReason
+        reason: PersistentAttachmentOpenReason,
+        diagnostics: ConnectionDiagnosticsContext = .init(connectionRef: "")
     ) async throws -> OpenedBackend {
         switch backend {
         case .plainPTY:
             return OpenedBackend(
-                channel: try await openShell(for: host),
+                channel: try await openShell(for: host, diagnostics: diagnostics),
                 attachment: nil
             )
 
@@ -1000,13 +1127,16 @@ public final class TerminalSessionCoordinator {
     ///
     /// PTY 打开失败通常意味着共享 SSH 已半开。仅在 byte-terminal 阶段驱逐一次并
     /// 重新握手，避免无限重试。断线恢复会重新调用本方法，因此不维护第二套恢复流程。
-    private func openShell(for host: ConnKit.Host) async throws -> any ShellChannel {
+    private func openShell(
+        for host: ConnKit.Host,
+        diagnostics: ConnectionDiagnosticsContext
+    ) async throws -> any ShellChannel {
         let startup = PlainPTYStartupTransaction()
         let manager = connectionManager
         let terminalSize = TermSize(cols: 80, rows: 24)
         let pipeline = TerminalStartupPipeline(steps: [
             .init(id: .remoteTransport) {
-                let session = try await manager.session(for: host)
+                let session = try await manager.session(for: host, diagnostics: diagnostics)
                 await startup.storeSession(session)
                 return nil
             },
@@ -1017,7 +1147,7 @@ public final class TerminalSessionCoordinator {
                     channel = try await firstSession.openShell(term: terminalSize)
                 } catch {
                     await manager.invalidate(host: host)
-                    let refreshedSession = try await manager.session(for: host)
+                    let refreshedSession = try await manager.session(for: host, diagnostics: diagnostics)
                     await startup.storeSession(refreshedSession)
                     channel = try await refreshedSession.openShell(term: terminalSize)
                 }
@@ -1033,6 +1163,43 @@ public final class TerminalSessionCoordinator {
         ])
         try await pipeline.run()
         return try await startup.finishedChannel()
+    }
+
+    private func recordPhase(
+        _ phase: String,
+        started: Date,
+        context: ConnectionDiagnosticsContext,
+        error: Error? = nil
+    ) {
+        guard let diagnosticsSink else { return }
+        diagnosticsSink.record(ConnectionPhaseSample(
+            context: context,
+            phase: phase,
+            durationMs: max(0, Int(Date().timeIntervalSince(started) * 1000)),
+            outcome: error == nil ? .success : .failure,
+            errorStage: error == nil ? "" : phase,
+            errorCategory: error.map(ConnectionDiagnosticsText.category) ?? "",
+            errorText: error.map(ConnectionDiagnosticsText.text) ?? ""
+        ))
+    }
+
+    private func recordSummary(
+        context: ConnectionDiagnosticsContext,
+        result: ConnectionPhaseSample.Outcome,
+        started: Date,
+        errorStage: String = "",
+        errorCategory: String = "",
+        errorText: String = ""
+    ) {
+        guard let diagnosticsSink else { return }
+        diagnosticsSink.record(ConnectionTimingSummary(
+            context: context,
+            result: result,
+            totalMs: max(0, Int(Date().timeIntervalSince(started) * 1000)),
+            errorStage: errorStage,
+            errorCategory: errorCategory,
+            errorText: errorText
+        ))
     }
 
     private func observeLifecycle(

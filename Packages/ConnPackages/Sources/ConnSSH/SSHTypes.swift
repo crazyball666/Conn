@@ -37,19 +37,23 @@ public struct SSHConnectionPlan: Sendable {
     public let proxyConfiguration: SSHProxyConfiguration?
     /// 代理密码只在建立连接的瞬间存在于内存，不进入连接计划的持久化模型。
     public let proxyPassword: String?
+    /// 连接诊断上下文；由 ConnectionManager 生成，贯穿 route/SSH/终端阶段。
+    public let diagnostics: ConnectionDiagnosticsContext
 
     public init(
         hops: [SSHJumpHop],
         target: SSHJumpHop,
         privateNetworkProfileID: String? = nil,
         proxyConfiguration: SSHProxyConfiguration? = nil,
-        proxyPassword: String? = nil
+        proxyPassword: String? = nil,
+        diagnostics: ConnectionDiagnosticsContext = .init()
     ) {
         self.hops = hops
         self.target = target
         self.privateNetworkProfileID = privateNetworkProfileID
         self.proxyConfiguration = proxyConfiguration
         self.proxyPassword = proxyPassword
+        self.diagnostics = diagnostics
     }
 }
 

@@ -84,9 +84,9 @@ You need an SSH host that you own or are authorized to access. Review every comm
 
 | 问题 | 建议答案 | 依据 |
 | --- | --- | --- |
-| 是否收集数据 | 是：仅匿名产品分析（Product Interaction / Other Usage Data） | 自建 Pulse 服务；不关联用户身份，不含主机、路径、命令或日志内容 |
+| 是否收集数据 | 是：匿名产品分析（Product Interaction / Other Usage Data / Diagnostics） | 自建 Pulse 服务；连接目标地址/端口、阶段耗时和失败错误文本用于诊断 |
 | 是否用于跟踪 | 否 | 未接入广告或跨 App 跟踪；分析数据不用于跟踪 |
-| 联系信息、用户内容、标识符、诊断、位置、财务信息 | 除匿名安装标识外均不收集 | 匿名安装标识仅用于区分安装；不上传主机配置或密钥 |
+| 联系信息、用户内容、标识符、诊断、位置、财务信息 | 除匿名安装标识外均不收集个人信息 | 匿名安装标识仅用于区分安装；不上传主机名、用户名或密钥 |
 | 本地网络 | 需要权限 | 通过 SSH 连接用户添加的主机 |
 
 填写后必须在 App Privacy 页面点击 **Publish**。只保存但未发布，仍不满足提审要求。

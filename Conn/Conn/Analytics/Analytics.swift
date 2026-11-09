@@ -65,7 +65,7 @@ enum Analytics {
 
     // MARK: - 属性分桶
 
-    static func durationBucket(milliseconds: Int) -> String {
+    nonisolated static func durationBucket(milliseconds: Int) -> String {
         switch milliseconds {
         case ..<100: "<100ms"
         case ..<500: "<500ms"
@@ -77,7 +77,7 @@ enum Analytics {
         }
     }
 
-    static func countBucket(_ count: Int) -> String {
+    nonisolated static func countBucket(_ count: Int) -> String {
         switch count {
         case 0: "0"
         case 1: "1"
@@ -88,7 +88,7 @@ enum Analytics {
         }
     }
 
-    static func sizeBucket(_ bytes: UInt64) -> String {
+    nonisolated static func sizeBucket(_ bytes: UInt64) -> String {
         if bytes < 1024 { return "<1KB" }
         if bytes < 100 * 1024 { return "<100KB" }
         if bytes < 1024 * 1024 { return "<1MB" }
@@ -97,7 +97,7 @@ enum Analytics {
     }
 
     /// 只按错误类型归类；绝不把错误描述、主机名或路径写进属性。
-    static func errorCategory(_ error: Error) -> String {
+    nonisolated static func errorCategory(_ error: Error) -> String {
         if error is CancellationError {
             return "cancelled"
         }

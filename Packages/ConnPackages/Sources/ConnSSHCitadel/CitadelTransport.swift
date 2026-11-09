@@ -25,13 +25,16 @@ enum CitadelConnectionPolicy {
 public final class CitadelTransport: SSHTransport {
     private let hostKeyStore: any HostKeyStore
     private let privateNetworkRegistry: PrivateNetworkRegistry?
+    private let diagnosticsSink: (any ConnectionDiagnosticsSink)?
 
     public init(
         hostKeyStore: any HostKeyStore,
-        privateNetworkRegistry: PrivateNetworkRegistry? = nil
+        privateNetworkRegistry: PrivateNetworkRegistry? = nil,
+        diagnosticsSink: (any ConnectionDiagnosticsSink)? = nil
     ) {
         self.hostKeyStore = hostKeyStore
         self.privateNetworkRegistry = privateNetworkRegistry
+        self.diagnosticsSink = diagnosticsSink
     }
 
     public func connect(
@@ -58,7 +61,8 @@ public final class CitadelTransport: SSHTransport {
     public func connect(
         via hops: [SSHJumpHop],
         to target: SSHJumpHop,
-        hostKeyPolicy: HostKeyPolicy = .tofu
+        hostKeyPolicy: HostKeyPolicy = .tofu,
+        diagnostics: ConnectionDiagnosticsContext = .init(connectionRef: "")
     ) async throws -> any SSHSession {
         let citadelHops = hops.map {
             JumpHop(endpoint: $0.endpoint, username: $0.username, auth: $0.auth)
@@ -75,7 +79,7 @@ public final class CitadelTransport: SSHTransport {
             hostKeyPolicy: hostKeyPolicy
         )
         // 跳板链的会话最终落在 target 上，超时诊断也该指向它而非任何一级跳板。
-        return CitadelSession(client: client, endpoint: target.endpoint)
+        return CitadelSession(client: client, endpoint: target.endpoint, diagnostics: diagnostics)
     }
 
     public func connect(
@@ -95,11 +99,20 @@ public final class CitadelTransport: SSHTransport {
                     hostKeyPolicy: hostKeyPolicy
                 )
             }
-            return try await connect(
-                via: plan.hops,
-                to: plan.target,
-                hostKeyPolicy: hostKeyPolicy
-            )
+            let started = Date()
+            do {
+                let session = try await connect(
+                    via: plan.hops,
+                    to: plan.target,
+                    hostKeyPolicy: hostKeyPolicy,
+                    diagnostics: plan.diagnostics
+                )
+                recordPhase("ssh_handshake", started: started, context: plan.diagnostics)
+                return session
+            } catch {
+                recordPhase("ssh_handshake", started: started, context: plan.diagnostics, error: error)
+                throw error
+            }
         }
         guard let privateNetworkRegistry else {
             throw SSHError.privateNetworkUnsupported(profileID: profileID)
@@ -108,7 +121,11 @@ public final class CitadelTransport: SSHTransport {
         let networkEndpoint = plan.hops.first?.endpoint ?? plan.target.endpoint
         let lease: any PrivateNetworkProxyLease
         do {
-            lease = try await privateNetworkRegistry.openProxy(profileID: profileID, to: networkEndpoint)
+            lease = try await privateNetworkRegistry.openProxy(
+                profileID: profileID,
+                to: networkEndpoint,
+                diagnostics: plan.diagnostics
+            )
         } catch {
             throw SSHError.privateNetworkUnavailable(profileID: profileID, reason: error.localizedDescription)
         }
@@ -118,7 +135,8 @@ public final class CitadelTransport: SSHTransport {
                 lease,
                 plan: plan,
                 hostKeyPolicy: hostKeyPolicy,
-                connectTimeout: CitadelConnectionPolicy.proxyConnectTimeout
+                connectTimeout: CitadelConnectionPolicy.proxyConnectTimeout,
+                diagnostics: plan.diagnostics
             )
         } catch {
             await lease.close()
@@ -160,6 +178,7 @@ public final class CitadelTransport: SSHTransport {
 
         let networkEndpoint = plan.hops.first?.endpoint ?? plan.target.endpoint
         let lease: any PrivateNetworkProxyLease
+        let routeStarted = Date()
         do {
             lease = try await PrivateNetworkSOCKSProxy(
                 upstreamHost: proxy.host.trimmingCharacters(in: .whitespacesAndNewlines),
@@ -167,9 +186,12 @@ public final class CitadelTransport: SSHTransport {
                 proxyProtocol: upstreamProtocol,
                 target: networkEndpoint
             ).start()
+            recordPhase("route_setup", started: routeStarted, context: plan.diagnostics)
         } catch let error as SSHError {
+            recordPhase("route_setup", started: routeStarted, context: plan.diagnostics, error: error)
             throw error
         } catch {
+            recordPhase("route_setup", started: routeStarted, context: plan.diagnostics, error: error)
             if let proxyError = error as? PrivateNetworkError,
                proxyError == .proxyAuthenticationFailed {
                 throw SSHError.proxyAuthenticationFailed
@@ -182,7 +204,8 @@ public final class CitadelTransport: SSHTransport {
                 lease,
                 plan: plan,
                 hostKeyPolicy: hostKeyPolicy,
-                connectTimeout: CitadelConnectionPolicy.proxyConnectTimeout
+                connectTimeout: CitadelConnectionPolicy.proxyConnectTimeout,
+                diagnostics: plan.diagnostics
             )
         } catch {
             await lease.close()
@@ -195,45 +218,76 @@ public final class CitadelTransport: SSHTransport {
         _ lease: any PrivateNetworkProxyLease,
         plan: SSHConnectionPlan,
         hostKeyPolicy: HostKeyPolicy,
-        connectTimeout: TimeAmount = CitadelConnectionPolicy.proxyConnectTimeout
+        connectTimeout: TimeAmount = CitadelConnectionPolicy.proxyConnectTimeout,
+        diagnostics: ConnectionDiagnosticsContext
     ) async throws -> any SSHSession {
-        if plan.hops.isEmpty {
-            let client = try await connectDirect(
-                connectionEndpoint: SSHEndpoint(host: lease.endpoint.host, port: lease.endpoint.port),
-                hostKeyEndpoint: plan.target.endpoint,
+        let started = Date()
+        do {
+            if plan.hops.isEmpty {
+                let client = try await connectDirect(
+                    connectionEndpoint: SSHEndpoint(host: lease.endpoint.host, port: lease.endpoint.port),
+                    hostKeyEndpoint: plan.target.endpoint,
+                    username: plan.target.username,
+                    auth: plan.target.auth,
+                    hostKeyPolicy: hostKeyPolicy,
+                    connectTimeout: connectTimeout
+                )
+                let session = CitadelSession(
+                    client: client,
+                    endpoint: plan.target.endpoint,
+                    privateNetworkLease: lease,
+                    diagnostics: diagnostics
+                )
+                recordPhase("ssh_handshake", started: started, context: diagnostics)
+                return session
+            }
+
+            let citadelHops = plan.hops.map {
+                JumpHop(endpoint: $0.endpoint, username: $0.username, auth: $0.auth)
+            }
+            let citadelTarget = JumpHop(
+                endpoint: plan.target.endpoint,
                 username: plan.target.username,
-                auth: plan.target.auth,
-                hostKeyPolicy: hostKeyPolicy,
-                connectTimeout: connectTimeout
+                auth: plan.target.auth
             )
-            return CitadelSession(
+            let client = try await JumpChain.connect(
+                hops: citadelHops,
+                target: citadelTarget,
+                hostKeyStore: hostKeyStore,
+                hostKeyPolicy: hostKeyPolicy,
+                firstConnectionEndpoint: SSHEndpoint(host: lease.endpoint.host, port: lease.endpoint.port),
+                firstConnectionTimeout: connectTimeout
+            )
+            let session = CitadelSession(
                 client: client,
                 endpoint: plan.target.endpoint,
-                privateNetworkLease: lease
+                privateNetworkLease: lease,
+                diagnostics: diagnostics
             )
+            recordPhase("ssh_handshake", started: started, context: diagnostics)
+            return session
+        } catch {
+            recordPhase("ssh_handshake", started: started, context: diagnostics, error: error)
+            throw error
         }
+    }
 
-        let citadelHops = plan.hops.map {
-            JumpHop(endpoint: $0.endpoint, username: $0.username, auth: $0.auth)
-        }
-        let citadelTarget = JumpHop(
-            endpoint: plan.target.endpoint,
-            username: plan.target.username,
-            auth: plan.target.auth
-        )
-        let client = try await JumpChain.connect(
-            hops: citadelHops,
-            target: citadelTarget,
-            hostKeyStore: hostKeyStore,
-            hostKeyPolicy: hostKeyPolicy,
-            firstConnectionEndpoint: SSHEndpoint(host: lease.endpoint.host, port: lease.endpoint.port),
-            firstConnectionTimeout: connectTimeout
-        )
-        return CitadelSession(
-            client: client,
-            endpoint: plan.target.endpoint,
-            privateNetworkLease: lease
-        )
+    private func recordPhase(
+        _ phase: String,
+        started: Date,
+        context: ConnectionDiagnosticsContext,
+        error: Error? = nil
+    ) {
+        guard let diagnosticsSink else { return }
+        diagnosticsSink.record(ConnectionPhaseSample(
+            context: context,
+            phase: phase,
+            durationMs: max(0, Int(Date().timeIntervalSince(started) * 1000)),
+            outcome: error == nil ? .success : .failure,
+            errorStage: error == nil ? "" : phase,
+            errorCategory: error.map(ConnectionDiagnosticsText.category) ?? "",
+            errorText: error.map(ConnectionDiagnosticsText.text) ?? ""
+        ))
     }
 
     private func connectDirect(

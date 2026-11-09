@@ -141,8 +141,8 @@ struct PrivateNetworkRegistryTests {
         #expect(await factory.closeCount == 1)
     }
 
-    @Test("退后台恢复时驱逐无活动的空闲节点")
-    func resumeAfterBackgroundEvictsIdleRuntime() async throws {
+    @Test("退后台恢复时保留健康空闲节点并在后续连接中复用")
+    func resumeAfterBackgroundKeepsHealthyIdleRuntimeWarm() async throws {
         let profile = PrivateNetworkProfile(
             id: "p",
             name: "Tailnet",
@@ -152,7 +152,7 @@ struct PrivateNetworkRegistryTests {
         let profiles = InMemoryProfiles(profile: profile)
         let credentials = InMemoryCredentialStore()
         try credentials.setPrivateNetworkAuthKey("auth", forProfile: "p")
-        let factory = FakeFactory()
+        let factory = FakeFactory(healthyAfterSuspension: true)
         let registry = PrivateNetworkRegistry(
             profileRepository: profiles,
             credentialStore: credentials,
@@ -170,12 +170,51 @@ struct PrivateNetworkRegistryTests {
         // 后台闲置 <= 30s 时不作处理
         await registry.resumeAfterBackground(idleFor: 10)
         #expect(await registry.status(profileID: "p") == .running)
-        #expect(await factory.closeCount == 0)
+        #expect(await factory.healthCheckCount == 0)
 
-        // 后台闲置 > 30s 时清理空闲节点
+        // 后台闲置 > 30s 时先做健康检查；健康则保留热节点
+        await registry.resumeAfterBackground(idleFor: 35)
+        #expect(await registry.status(profileID: "p") == .running)
+        #expect(await factory.closeCount == 0)
+        #expect(await factory.healthCheckCount == 1)
+
+        // 下一次连接直接复用，不重新创建节点
+        let second = try await registry.openProxy(profileID: "p", to: SSHEndpoint(host: "100.64.0.2"))
+        #expect(await factory.makeCount == 1)
+        await second.close()
+    }
+
+    @Test("退后台恢复时清理不健康的空闲节点")
+    func resumeAfterBackgroundEvictsUnhealthyIdleRuntime() async throws {
+        let profile = PrivateNetworkProfile(
+            id: "p",
+            name: "Tailnet",
+            provider: .tailscale,
+            controlURL: "https://controlplane.tailscale.com"
+        )
+        let profiles = InMemoryProfiles(profile: profile)
+        let credentials = InMemoryCredentialStore()
+        try credentials.setPrivateNetworkAuthKey("auth", forProfile: "p")
+        let factory = FakeFactory(healthyAfterSuspension: false)
+        let registry = PrivateNetworkRegistry(
+            profileRepository: profiles,
+            credentialStore: credentials,
+            factory: factory,
+            idleTimeout: .seconds(45)
+        )
+
+        let lease = try await registry.openProxy(profileID: "p", to: SSHEndpoint(host: "100.64.0.1"))
+        await lease.close()
+
         await registry.resumeAfterBackground(idleFor: 35)
         #expect(await registry.status(profileID: "p") == .stopped)
         #expect(await factory.closeCount == 1)
+        #expect(await factory.healthCheckCount == 1)
+
+        // 下一次连接重新创建节点
+        let second = try await registry.openProxy(profileID: "p", to: SSHEndpoint(host: "100.64.0.2"))
+        #expect(await factory.makeCount == 2)
+        await second.close()
     }
 
     @Test("退后台恢复时不影响仍有活跃租约的节点")
@@ -200,12 +239,89 @@ struct PrivateNetworkRegistryTests {
         let lease = try await registry.openProxy(profileID: "p", to: SSHEndpoint(host: "100.64.0.1"))
         #expect(await factory.makeCount == 1)
 
-        // 有活跃租约时，后台闲置 > 30s 不会被误杀
+        // 有活跃租约时，后台闲置 > 30s 不会被误杀，也不做健康检查
         await registry.resumeAfterBackground(idleFor: 60)
         #expect(await registry.status(profileID: "p") == .running)
         #expect(await factory.closeCount == 0)
+        #expect(await factory.healthCheckCount == 0)
 
         await lease.close()
+    }
+
+    @Test("私有网络启动阶段会上报诊断样本")
+    func privateNetworkEmitsPhaseSamples() async throws {
+        let profile = PrivateNetworkProfile(
+            id: "p",
+            name: "Tailnet",
+            provider: .tailscale,
+            controlURL: "https://controlplane.tailscale.com"
+        )
+        let profiles = InMemoryProfiles(profile: profile)
+        let credentials = InMemoryCredentialStore()
+        try credentials.setPrivateNetworkAuthKey("auth", forProfile: "p")
+        let factory = FakeFactory()
+        let recorder = PhaseRecorder()
+        let registry = PrivateNetworkRegistry(
+            profileRepository: profiles,
+            credentialStore: credentials,
+            factory: factory,
+            idleTimeout: .zero,
+            diagnosticsSink: recorder
+        )
+
+        let lease = try await registry.openProxy(
+            profileID: "p",
+            to: SSHEndpoint(host: "100.64.0.1"),
+            diagnostics: ConnectionDiagnosticsContext(
+                targetAddress: "100.64.0.1",
+                targetPort: 22,
+                connectionKind: "terminal",
+                launchKind: "new"
+            )
+        )
+        await lease.close()
+
+        let samples = recorder.samples()
+        let phases = samples.map(\.phase)
+        #expect(phases.contains("profile_load"))
+        #expect(phases.contains("credential_load"))
+        #expect(phases.contains("state_prepare"))
+        #expect(phases.contains("route_setup"))
+        #expect(phases.contains("socks_proxy"))
+        #expect(samples.allSatisfy { $0.context.route == "private_network" })
+        #expect(samples.contains { $0.context.routeProvider == "tailscale" })
+        #expect(samples.allSatisfy { $0.context.targetAddress == "100.64.0.1" })
+    }
+
+    @Test("SOCKS 失败样本带 error stage 和错误文本")
+    func socksFailureRecordsError() async throws {
+        let profile = PrivateNetworkProfile(
+            id: "p",
+            name: "Tailnet",
+            provider: .tailscale,
+            controlURL: "https://controlplane.tailscale.com"
+        )
+        let profiles = InMemoryProfiles(profile: profile)
+        let credentials = InMemoryCredentialStore()
+        try credentials.setPrivateNetworkAuthKey("auth", forProfile: "p")
+        let factory = FakeFactory(failingProxy: true)
+        let recorder = PhaseRecorder()
+        let registry = PrivateNetworkRegistry(
+            profileRepository: profiles,
+            credentialStore: credentials,
+            factory: factory,
+            idleTimeout: .zero,
+            diagnosticsSink: recorder
+        )
+
+        await #expect(throws: PrivateNetworkError.self) {
+            try await registry.openProxy(profileID: "p", to: SSHEndpoint(host: "100.64.0.1"))
+        }
+
+        let failed = recorder.samples().last { $0.phase == "socks_proxy" }
+        #expect(failed?.outcome == .failure)
+        #expect(failed?.errorStage == "socks_proxy")
+        #expect(failed?.errorText.isEmpty == false)
     }
 
     @Test("停止时取消正在启动的节点，完成后不得回插")
@@ -318,15 +434,23 @@ private actor FakeFactory: PrivateNetworkClientFactory {
     var makeCount = 0
     var closeCount = 0
     var startCount = 0
+    var healthCheckCount = 0
     var isClosing = false
     var madeWhileClosing = false
     let closeDelay: Duration
     let startDelay: Duration
     let failingProxy: Bool
-    init(closeDelay: Duration = .zero, startDelay: Duration = .zero, failingProxy: Bool = false) {
+    let healthyAfterSuspension: Bool
+    init(
+        closeDelay: Duration = .zero,
+        startDelay: Duration = .zero,
+        failingProxy: Bool = false,
+        healthyAfterSuspension: Bool = true
+    ) {
         self.closeDelay = closeDelay
         self.startDelay = startDelay
         self.failingProxy = failingProxy
+        self.healthyAfterSuspension = healthyAfterSuspension
     }
     func makeClient(for profile: PrivateNetworkProfile, authKey: String?) async throws -> any PrivateNetworkClient {
         #expect(profile.id == "p")
@@ -339,6 +463,10 @@ private actor FakeFactory: PrivateNetworkClientFactory {
     func didStart() async {
         startCount += 1
         try? await Task.sleep(for: startDelay)
+    }
+    func checkHealth() async -> Bool {
+        healthCheckCount += 1
+        return healthyAfterSuspension
     }
     func didClose() async {
         isClosing = true
@@ -360,6 +488,9 @@ private final class FakeClient: PrivateNetworkClient, @unchecked Sendable {
         await counter.didStart()
         status = .running
     }
+    func isHealthyAfterSuspension() async -> Bool {
+        await counter.checkHealth()
+    }
     func openTCPProxy(to endpoint: SSHEndpoint) async throws -> any PrivateNetworkProxyLease {
         if failingProxy {
             throw PrivateNetworkError.proxyUnavailable
@@ -373,4 +504,19 @@ private final class FakeLease: PrivateNetworkProxyLease, @unchecked Sendable {
     let endpoint: PrivateNetworkProxyEndpoint
     init(endpoint: PrivateNetworkProxyEndpoint) { self.endpoint = endpoint }
     func close() async {}
+}
+
+private final class PhaseRecorder: ConnectionDiagnosticsSink, @unchecked Sendable {
+    private let lock = NSLock()
+    private var phaseSamples: [ConnectionPhaseSample] = []
+
+    func record(_ sample: ConnectionPhaseSample) {
+        lock.withLock { phaseSamples.append(sample) }
+    }
+
+    func record(_ summary: ConnectionTimingSummary) {}
+
+    func samples() -> [ConnectionPhaseSample] {
+        lock.withLock { phaseSamples }
+    }
 }

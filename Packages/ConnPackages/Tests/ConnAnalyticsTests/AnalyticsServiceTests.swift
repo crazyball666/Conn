@@ -98,6 +98,54 @@ struct AnalyticsServiceTests {
         }
     }
 
+    @Test("错误文本原样保留并去掉不支持的字符")
+    func errorTextPreservesContent() {
+        let sink = FakeSink()
+        let service = AnalyticsService(sink: sink)
+        let text = "ssh: connect failed\nline2\tend\u{0000}"
+
+        service.track(.connectionTiming, [.errorText: text])
+
+        #expect(sink.payloads.first?.properties["error_text"] == "ssh: connect failed\nline2\tend")
+    }
+
+    @Test("错误文本超过上限时截断")
+    func errorTextTruncatesAtLimit() {
+        let sink = FakeSink()
+        let service = AnalyticsService(sink: sink)
+
+        service.track(.connectionTiming, [.errorText: String(repeating: "错", count: 3_000)])
+
+        let value = sink.payloads.first?.properties["error_text"]
+        #expect(value != nil)
+        #expect(value!.count <= AnalyticsService.maxErrorTextCharacters)
+        #expect(value!.utf8.count <= AnalyticsService.maxErrorTextBytes)
+        #expect(value!.count > AnalyticsService.maxPropertyValueLength)
+    }
+
+    @Test("地址允许超过普通属性上限")
+    func addressAllowsLongerValues() {
+        let sink = FakeSink()
+        let service = AnalyticsService(sink: sink)
+        let address = String(repeating: "a", count: 200) + ".example.com"
+
+        service.track(.connectionTiming, [.targetAddress: address])
+
+        #expect(sink.payloads.first?.properties["target_address"] == address)
+    }
+
+    @Test("地址超过地址上限时丢弃")
+    func addressOverLimitIsDropped() {
+        let sink = FakeSink()
+        let service = AnalyticsService(sink: sink)
+
+        service.track(.connectionTiming, [
+            .targetAddress: String(repeating: "a", count: AnalyticsService.maxAddressLength + 1),
+        ])
+
+        #expect(sink.payloads.first?.properties["target_address"] == nil)
+    }
+
     @Test("XOR 混淆可往返")
     func xorRoundTrip() {
         let encoded = XORObfuscation.encode("conn-analytics", key: 0x5A)

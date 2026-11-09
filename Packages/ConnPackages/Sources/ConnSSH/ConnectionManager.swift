@@ -205,6 +205,14 @@ public actor ConnectionManager {
     ///
     /// 并发调用同一主机时，只有第一个发起握手，其余等待同一 Task 结果。
     public func session(for host: ConnKit.Host) async throws -> any SSHSession {
+        try await session(for: host, diagnostics: ConnectionDiagnosticsContext(host: host))
+    }
+
+    /// 取（或建立）到某主机的会话，并带上调用方的连接诊断上下文。
+    public func session(
+        for host: ConnKit.Host,
+        diagnostics: ConnectionDiagnosticsContext
+    ) async throws -> any SSHSession {
         let key = poolKey(for: host)
 
         if let entry = entries[key] {
@@ -233,7 +241,7 @@ public actor ConnectionManager {
             }
         }
 
-        let task = connectionTask(for: host)
+        let task = connectionTask(for: host, diagnostics: diagnostics)
         entries[key] = .connecting(task)
         return try await claim(task, key: key)
     }
@@ -244,10 +252,17 @@ public actor ConnectionManager {
     /// 不能骑在共享池化会话上；否则为了停止一个日志流关闭连接时，会同时掐断指标、
     /// 文件和终端。认证、跳板链和主机指纹策略与池化连接完全相同。
     public func dedicatedSession(for host: ConnKit.Host) async throws -> any SSHSession {
-        try await connectionTask(for: host).value
+        try await connectionTask(for: host, diagnostics: ConnectionDiagnosticsContext(host: host)).value
     }
 
     private func connectionTask(for host: ConnKit.Host) -> Task<any SSHSession, Error> {
+        connectionTask(for: host, diagnostics: ConnectionDiagnosticsContext(host: host))
+    }
+
+    private func connectionTask(
+        for host: ConnKit.Host,
+        diagnostics: ConnectionDiagnosticsContext
+    ) -> Task<any SSHSession, Error> {
         let resolve = resolveAuth
         let resolveJumps = resolveJumpChain
         let resolveProxy = resolveProxyPassword
@@ -267,7 +282,8 @@ public actor ConnectionManager {
                     target: target,
                     privateNetworkProfileID: host.privateNetworkProfileID,
                     proxyConfiguration: host.proxyConfiguration,
-                    proxyPassword: proxyPassword
+                    proxyPassword: proxyPassword,
+                    diagnostics: diagnostics
                 ),
                 hostKeyPolicy: .tofu
             )

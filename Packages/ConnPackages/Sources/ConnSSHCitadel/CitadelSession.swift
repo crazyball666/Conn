@@ -10,6 +10,7 @@ final class CitadelSession: SSHSession, @unchecked Sendable {
     /// 只为 `SSHError.commandTimeout` 的诊断文案而持有——超时报错要说清是哪台主机。
     private let endpoint: SSHEndpoint
     private let privateNetworkLease: (any PrivateNetworkProxyLease)?
+    let diagnostics: ConnectionDiagnosticsContext
     private let stateContinuation: AsyncStream<SSHSessionState>.Continuation
     let state: AsyncStream<SSHSessionState>
 
@@ -19,11 +20,13 @@ final class CitadelSession: SSHSession, @unchecked Sendable {
     init(
         client: SSHClient,
         endpoint: SSHEndpoint,
-        privateNetworkLease: (any PrivateNetworkProxyLease)? = nil
+        privateNetworkLease: (any PrivateNetworkProxyLease)? = nil,
+        diagnostics: ConnectionDiagnosticsContext = .init(connectionRef: "")
     ) {
         self.client = client
         self.endpoint = endpoint
         self.privateNetworkLease = privateNetworkLease
+        self.diagnostics = diagnostics
         (state, stateContinuation) = AsyncStream.makeStream()
         stateContinuation.yield(.connected)
     }

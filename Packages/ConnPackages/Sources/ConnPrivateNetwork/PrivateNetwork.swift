@@ -3,6 +3,12 @@ import ConnKit
 import ConnSSH
 import Foundation
 import Network
+import OSLog
+
+private let privateNetworkLogger = Logger(
+    subsystem: "com.crazyball.Conn",
+    category: "PrivateNetwork"
+)
 
 /// Embedded private-network runtime status. It describes this host connection only;
 /// Conn never installs a system VPN profile or changes the device routing table.
@@ -33,6 +39,29 @@ public protocol PrivateNetworkClient: AnyObject, Sendable {
     func start() async throws
     func openTCPProxy(to endpoint: SSHEndpoint) async throws -> any PrivateNetworkProxyLease
     func close() async
+    /// Whether the runtime survived a long background suspension and can be reused.
+    /// Implementations that cannot check cheaply keep the default (`true`), preserving
+    /// the pre-existing reuse behavior.
+    func isHealthyAfterSuspension() async -> Bool
+}
+
+public extension PrivateNetworkClient {
+    func isHealthyAfterSuspension() async -> Bool { true }
+}
+
+/// Minimal subset of Tailscale's `statusJSON` used for the post-background health
+/// check. Kept free of TailscaleKit types so it can be tested on the host.
+struct PrivateNetworkBackendStatus: Decodable {
+    let BackendState: String
+    let TailscaleIPs: [String]?
+}
+
+enum PrivateNetworkNodeHealth {
+    static func isUsable(statusJSON: Data) -> Bool {
+        guard let status = try? JSONDecoder().decode(PrivateNetworkBackendStatus.self, from: statusJSON)
+        else { return false }
+        return status.BackendState == "Running" && (status.TailscaleIPs?.isEmpty == false)
+    }
 }
 
 public protocol PrivateNetworkClientFactory: Sendable {
@@ -69,6 +98,7 @@ public actor PrivateNetworkRegistry {
     private let credentialStore: any CredentialStore
     private let factory: any PrivateNetworkClientFactory
     private let idleTimeout: Duration
+    private let diagnosticsSink: (any ConnectionDiagnosticsSink)?
     private var runtimes: [String: Runtime] = [:]
     private var startingClients: [String: Task<any PrivateNetworkClient, Error>] = [:]
     private var closingClients: [String: Closing] = [:]
@@ -78,20 +108,28 @@ public actor PrivateNetworkRegistry {
         profileRepository: any PrivateNetworkProfileRepository,
         credentialStore: any CredentialStore,
         factory: (any PrivateNetworkClientFactory)? = nil,
-        idleTimeout: Duration = .seconds(45)
+        idleTimeout: Duration = .seconds(45),
+        diagnosticsSink: (any ConnectionDiagnosticsSink)? = nil
     ) {
         self.profileRepository = profileRepository
         self.credentialStore = credentialStore
         self.factory = factory ?? DefaultPrivateNetworkClientFactory(credentialStore: credentialStore)
         self.idleTimeout = idleTimeout
+        self.diagnosticsSink = diagnosticsSink
     }
 
     public func openProxy(
         profileID: String,
-        to endpoint: SSHEndpoint
+        to endpoint: SSHEndpoint,
+        diagnostics: ConnectionDiagnosticsContext = .init()
     ) async throws -> any PrivateNetworkProxyLease {
         idleTasks.removeValue(forKey: profileID)?.cancel()
-        let client = try await client(for: profileID)
+        let routeReused = runtimes[profileID] != nil
+        let context = diagnostics.with(
+            route: "private_network",
+            routeReused: routeReused
+        )
+        let client = try await client(for: profileID, diagnostics: context)
         let clientID = ObjectIdentifier(client)
         guard let runtime = runtimes[profileID], ObjectIdentifier(runtime.client) == clientID else {
             throw PrivateNetworkError.proxyUnavailable
@@ -103,9 +141,12 @@ public actor PrivateNetworkRegistry {
         runtimes[profileID] = Runtime(client: runtime.client, leaseCount: runtime.leaseCount + 1)
 
         let rawLease: any PrivateNetworkProxyLease
+        let started = Date()
         do {
             rawLease = try await client.openTCPProxy(to: endpoint)
+            Self.record("socks_proxy", started: started, context: context, sink: diagnosticsSink)
         } catch {
+            Self.record("socks_proxy", started: started, context: context, error: error, sink: diagnosticsSink)
             await release(profileID: profileID, clientID: clientID, evictOnFailure: true)
             throw error
         }
@@ -114,8 +155,10 @@ public actor PrivateNetworkRegistry {
         }
     }
 
-    /// Releases idle, unreferenced runtimes after prolonged background suspension.
-    /// Healthy active leases are preserved to avoid disrupting ongoing foreground sessions.
+    /// Revalidates idle, unreferenced runtimes after prolonged background suspension.
+    /// Healthy nodes stay warm and are reused by the next connection; unhealthy nodes
+    /// are closed so the next connection performs a clean start. Active leases are
+    /// preserved to avoid disrupting ongoing foreground sessions.
     public func resumeAfterBackground(idleFor: TimeInterval) async {
         guard idleFor > 30 else { return }
         // A start that was already in flight before suspension may never finish.
@@ -123,12 +166,30 @@ public actor PrivateNetworkRegistry {
         // foreground recovery just decided to discard.
         for task in startingClients.values { task.cancel() }
         startingClients.removeAll()
-        let idleProfileIDs = runtimes.compactMap { profileID, runtime in
-            runtime.leaseCount == 0 ? profileID : nil
+
+        let idleRuntimes = runtimes.filter { $0.value.leaseCount == 0 }
+        let resumeStarted = Date()
+        privateNetworkLogger.notice(
+            "resume idleSeconds=\(idleFor, privacy: .public) idleRuntimes=\(idleRuntimes.count, privacy: .public)"
+        )
+        for (profileID, runtime) in idleRuntimes {
+            let healthStarted = Date()
+            let healthy = await runtime.client.isHealthyAfterSuspension()
+            let healthMs = Int(Date().timeIntervalSince(healthStarted) * 1000)
+            // The runtime may have been stopped/replaced while the health check awaited.
+            guard let current = runtimes[profileID],
+                  ObjectIdentifier(current.client) == ObjectIdentifier(runtime.client)
+            else { continue }
+            privateNetworkLogger.notice(
+                "resume profile=\(profileID, privacy: .public) healthy=\(healthy, privacy: .public) healthMs=\(healthMs, privacy: .public)"
+            )
+            if !healthy {
+                await stop(profileID: profileID)
+            }
         }
-        for profileID in idleProfileIDs {
-            await stop(profileID: profileID)
-        }
+        privateNetworkLogger.notice(
+            "resume totalMs=\(Int(Date().timeIntervalSince(resumeStarted) * 1000), privacy: .public)"
+        )
     }
 
     public func status(profileID: String) -> PrivateNetworkStatus {
@@ -169,21 +230,25 @@ public actor PrivateNetworkRegistry {
                 await stop(profileID: profileID)
                 return
             }
-            idleTasks.removeValue(forKey: profileID)?.cancel()
-            let timeout = idleTimeout
-            idleTasks[profileID] = Task { [weak self] in
-                do {
-                    try await Task.sleep(for: timeout)
-                } catch {
-                    return
-                }
-                await self?.handleIdleTimeout(profileID: profileID, clientID: clientID)
-            }
+            scheduleIdleStop(profileID: profileID, clientID: clientID)
             return
         }
         runtimes[profileID] = Runtime(client: runtime.client, leaseCount: runtime.leaseCount - 1)
         if evictOnFailure {
             await stop(profileID: profileID)
+        }
+    }
+
+    private func scheduleIdleStop(profileID: String, clientID: ObjectIdentifier) {
+        idleTasks.removeValue(forKey: profileID)?.cancel()
+        let timeout = idleTimeout
+        idleTasks[profileID] = Task { [weak self] in
+            do {
+                try await Task.sleep(for: timeout)
+            } catch {
+                return
+            }
+            await self?.handleIdleTimeout(profileID: profileID, clientID: clientID)
         }
     }
 
@@ -209,12 +274,24 @@ public actor PrivateNetworkRegistry {
     /// Coordinates the one-time async start. An actor serializes synchronous
     /// access, but it is still reentrant across `await`; keeping the in-flight
     /// task makes concurrent first connections share one node.
-    private func client(for profileID: String) async throws -> any PrivateNetworkClient {
+    private func client(
+        for profileID: String,
+        diagnostics: ConnectionDiagnosticsContext
+    ) async throws -> any PrivateNetworkClient {
         // close checkpoints Keychain and removes the working directory. Reopening
         // sooner races with that write and can erase the new client's state.
         await waitForClose(profileID: profileID)
         if let runtime = runtimes[profileID] {
             idleTasks.removeValue(forKey: profileID)?.cancel()
+            if diagnosticsSink != nil {
+                let reused = diagnostics.with(route: "private_network", routeReused: true)
+                diagnosticsSink?.record(ConnectionPhaseSample(
+                    context: reused,
+                    phase: "route_setup",
+                    durationMs: 0,
+                    outcome: .success
+                ))
+            }
             return runtime.client
         }
         if let task = startingClients[profileID] {
@@ -225,23 +302,51 @@ public actor PrivateNetworkRegistry {
         let profileRepository = profileRepository
         let credentialStore = credentialStore
         let factory = factory
+        let sink = diagnosticsSink
+        let baseContext = diagnostics.with(route: "private_network")
         let task: Task<any PrivateNetworkClient, Error> = Task {
+            let profileStarted = Date()
             guard let profile = try profileRepository.profile(id: profileID) else {
-                throw PrivateNetworkError.profileNotFound(profileID)
+                let error = PrivateNetworkError.profileNotFound(profileID)
+                Self.record("profile_load", started: profileStarted, context: baseContext, error: error, sink: sink)
+                throw error
             }
+            Self.record("profile_load", started: profileStarted, context: baseContext, sink: sink)
             guard profile.isValid else {
-                throw PrivateNetworkError.invalidControlURL(profile.controlURL)
+                let context = baseContext.with(routeProvider: profile.provider.rawValue)
+                let error = PrivateNetworkError.invalidControlURL(profile.controlURL)
+                Self.record("profile_load", started: profileStarted, context: context, error: error, sink: sink)
+                throw error
             }
+
+            let context = baseContext.with(routeProvider: profile.provider.rawValue)
+            let credentialStarted = Date()
             let authKey = try credentialStore.privateNetworkAuthKey(forProfile: profileID)
             guard let authKey, !authKey.isEmpty else {
-                throw PrivateNetworkError.missingAuthKey(profileID)
+                let error = PrivateNetworkError.missingAuthKey(profileID)
+                Self.record("credential_load", started: credentialStarted, context: context, error: error, sink: sink)
+                throw error
             }
-            let client = try await factory.makeClient(for: profile, authKey: authKey)
+            Self.record("credential_load", started: credentialStarted, context: context, sink: sink)
+
+            let prepareStarted = Date()
+            let client: any PrivateNetworkClient
+            do {
+                client = try await factory.makeClient(for: profile, authKey: authKey)
+            } catch {
+                Self.record("state_prepare", started: prepareStarted, context: context, error: error, sink: sink)
+                throw error
+            }
+            Self.record("state_prepare", started: prepareStarted, context: context, sink: sink)
+
+            let startStarted = Date()
             do {
                 try await client.start()
+                Self.record("route_setup", started: startStarted, context: context, sink: sink)
             } catch {
                 // A failed start can already have allocated sockets/state. The
                 // registry has not retained the runtime yet, so clean it here.
+                Self.record("route_setup", started: startStarted, context: context, error: error, sink: sink)
                 await client.close()
                 throw error
             }
@@ -257,6 +362,25 @@ public actor PrivateNetworkRegistry {
             }
             throw error
         }
+    }
+
+    private static func record(
+        _ phase: String,
+        started: Date,
+        context: ConnectionDiagnosticsContext,
+        error: Error? = nil,
+        sink: (any ConnectionDiagnosticsSink)?
+    ) {
+        guard let sink else { return }
+        sink.record(ConnectionPhaseSample(
+            context: context,
+            phase: phase,
+            durationMs: max(0, Int(Date().timeIntervalSince(started) * 1000)),
+            outcome: error == nil ? .success : .failure,
+            errorStage: error == nil ? "" : phase,
+            errorCategory: error.map(ConnectionDiagnosticsText.category) ?? "",
+            errorText: error.map(ConnectionDiagnosticsText.text) ?? ""
+        ))
     }
 
     /// 把一次启动的结果回插 registry。
@@ -693,7 +817,11 @@ private final class TailscaleKitPrivateNetworkClient: PrivateNetworkClient, @unc
     init(profile: PrivateNetworkProfile, authKey: String?, credentialStore: any CredentialStore) throws {
         guard profile.isValid else { throw PrivateNetworkError.invalidControlURL(profile.controlURL) }
         state = PrivateNetworkNodeState(profile: profile, credentialStore: credentialStore)
+        let prepareStarted = Date()
         try state.prepare()
+        privateNetworkLogger.notice(
+            "node state prepareMs=\(Int(Date().timeIntervalSince(prepareStarted) * 1000), privacy: .public)"
+        )
         node = try TailscaleNode(config: Configuration(
             hostName: "Conn-\(profile.id.prefix(24))",
             path: state.directory.path,
@@ -705,14 +833,27 @@ private final class TailscaleKitPrivateNetworkClient: PrivateNetworkClient, @unc
 
     func start() async throws {
         status = .starting
+        let started = Date()
         do {
+            let upStarted = Date()
             try await node.up()
+            let upMs = Int(Date().timeIntervalSince(upStarted) * 1000)
             // Save immediately after registration, before a failed SSH attempt or
             // force-quit can discard the device identity.
+            let checkpointStarted = Date()
             try state.checkpoint()
+            let checkpointMs = Int(Date().timeIntervalSince(checkpointStarted) * 1000)
+            let loopbackStarted = Date()
             loopbackConfig = try await node.loopback()
+            let loopbackMs = Int(Date().timeIntervalSince(loopbackStarted) * 1000)
             status = .running
+            privateNetworkLogger.notice(
+                "tailscale start upMs=\(upMs, privacy: .public) checkpointMs=\(checkpointMs, privacy: .public) loopbackMs=\(loopbackMs, privacy: .public) totalMs=\(Int(Date().timeIntervalSince(started) * 1000), privacy: .public)"
+            )
         } catch {
+            privateNetworkLogger.error(
+                "tailscale start failed afterMs=\(Int(Date().timeIntervalSince(started) * 1000), privacy: .public)"
+            )
             status = .failed(error.localizedDescription)
             throw error
         }
@@ -729,6 +870,30 @@ private final class TailscaleKitPrivateNetworkClient: PrivateNetworkClient, @unc
             socksCredential: loopbackConfig.proxyCredential,
             target: endpoint
         ).start()
+    }
+
+    /// The local API is cheap when the node is alive, but it must not hang the
+    /// foreground recovery if libtailscale is wedged. Treat timeout/error as unhealthy
+    /// so the registry performs a clean restart.
+    func isHealthyAfterSuspension() async -> Bool {
+        guard status == .running else { return false }
+        guard let data = await statusJSONWithTimeout() else { return false }
+        return PrivateNetworkNodeHealth.isUsable(statusJSON: data)
+    }
+
+    private func statusJSONWithTimeout() async -> Data? {
+        await withTaskGroup(of: Data?.self) { group in
+            group.addTask { [node] in
+                try? await node.statusJSON()
+            }
+            group.addTask {
+                try? await Task.sleep(for: .seconds(2))
+                return nil
+            }
+            let result = await group.next() ?? nil
+            group.cancelAll()
+            return result
+        }
     }
 
     func close() async {

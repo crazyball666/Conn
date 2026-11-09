@@ -43,6 +43,10 @@ public enum AnalyticsEvent: String, CaseIterable, Sendable {
     case providerProbeFinished = "provider_probe_finished"
     case performanceSample = "performance_sample"
 
+    // 连接链路诊断
+    case connectionTiming = "connection_timing"
+    case connectionPhase = "connection_phase"
+
     // 第二版补充
     case hostEdited = "host_edited"
     case hostDeleted = "host_deleted"
@@ -91,13 +95,26 @@ public enum AnalyticsProperty: String, CaseIterable, Sendable {
 
     // 主机 / 连接
     case hostRef = "host_ref"
-    case authType = "auth_type"
+    case targetAddress = "target_address"
+    case targetPort = "target_port"
+    case connectionRef = "connection_ref"
+    case connectionKind = "connection_kind"
+    case transport
     case route
+    case routeProvider = "route_provider"
+    case routeReused = "route_reused"
+    case sessionReused = "session_reused"
+    case launchKind = "launch_kind"
+    case phase
+    case authType = "auth_type"
     case pnProvider = "pn_provider"
     case grouped
     case provider
     case success
     case errorCategory = "error_category"
+    case errorStage = "error_stage"
+    case errorText = "error_text"
+    case durationMs = "duration_ms"
     case latencyMsBucket = "latency_ms_bucket"
     case resumed
     case reason

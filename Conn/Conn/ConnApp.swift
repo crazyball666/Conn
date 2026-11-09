@@ -251,14 +251,17 @@ struct AppDependencies {
             // SSH 栈：Citadel 引擎 + GRDB 指纹库（TOFU 跨重启留存）。
             let hostKeyStore = GRDBHostKeyStore(database: database)
             let credentialStore = KeychainCredentialStore()
+            let diagnosticsSink = AnalyticsConnectionDiagnosticsSink()
             let privateNetworkRegistry = PrivateNetworkRegistry(
                 profileRepository: privateNetworkProfileStore,
                 credentialStore: credentialStore,
-                factory: DefaultPrivateNetworkClientFactory(credentialStore: credentialStore)
+                factory: DefaultPrivateNetworkClientFactory(credentialStore: credentialStore),
+                diagnosticsSink: diagnosticsSink
             )
             let transport = CitadelTransport(
                 hostKeyStore: hostKeyStore,
-                privateNetworkRegistry: privateNetworkRegistry
+                privateNetworkRegistry: privateNetworkRegistry,
+                diagnosticsSink: diagnosticsSink
             )
             _ = try credentialStore.recoverLegacyKeyMetadata()
             // Keychain 在卸载应用后仍保留密钥元数据；SQLite 会随应用容器删除。
@@ -321,7 +324,8 @@ struct AppDependencies {
             let terminalSessions = TerminalSessionCoordinator(
                 hostRepository: hostStore,
                 connectionManager: connectionManager,
-                resumeRepository: PersistentTerminalResumeStore(database: database)
+                resumeRepository: PersistentTerminalResumeStore(database: database),
+                diagnosticsSink: diagnosticsSink
             )
             let snippetExecutionPlanner = makeSnippetExecutionPlanner(
                 connectionManager: connectionManager
