@@ -22,6 +22,13 @@ private struct TerminalRoute: Hashable, Identifiable {
     var id: String { tabID }
 }
 
+/// 主机工作台导航目标：长按菜单可以直接进入文件/Docker 分段。
+private struct HostDetailRoute: Identifiable, Hashable {
+    let host: Host
+    let segment: HostDetailView.Segment?
+    var id: String { "\(host.id)-\(segment?.rawValue ?? "overview")" }
+}
+
 /// 服务器列表中的主机指纹变更确认请求。
 private struct HostKeyUpdateRequest: Identifiable, Equatable {
     let hostID: String
@@ -44,7 +51,7 @@ private struct HostKeyUpdateRequest: Identifiable, Equatable {
 /// 同页直接搜索 / 分组筛选 / 添加 / 编辑 / 删除，无需在两个 Tab 间跳转。
 struct ServersView: View {
     @State private var viewModel: ServersViewModel
-    @State private var selectedHost: Host?
+    @State private var selectedHost: HostDetailRoute?
     @State private var terminalRoute: TerminalRoute?
     @State private var newTerminalHost: Host?
     @State private var pendingTerminalCompletion: NewTerminalFlowCompletion?
@@ -180,8 +187,12 @@ struct ServersView: View {
         } message: { request in
             Text(request.error.diagnosis)
         }
-        .navigationDestination(item: $selectedHost) { host in
-            HostDetailView(host: host, dependencies: dependencies)
+        .navigationDestination(item: $selectedHost) { route in
+            HostDetailView(
+                host: route.host,
+                dependencies: dependencies,
+                initialSegment: route.segment ?? .overview
+            )
         }
         .fullScreenCover(item: $terminalRoute) { route in
             TerminalScreen(
@@ -271,7 +282,9 @@ struct ServersView: View {
         LazyVStack(spacing: ConnSpacing.stackGap) {
             ForEach(viewModel.cards) { card in
                 HealthCard(card) {
-                    selectedHost = viewModel.host(forID: card.id)
+                    if let host = viewModel.host(forID: card.id) {
+                        selectedHost = HostDetailRoute(host: host, segment: nil)
+                    }
                 }
                 .contextMenu {
                     Button {
@@ -279,6 +292,22 @@ struct ServersView: View {
                     } label: {
                         Label(L("终端"), systemImage: "terminal")
                     }
+                    Button {
+                        if let host = viewModel.host(forID: card.id) {
+                            selectedHost = HostDetailRoute(host: host, segment: .files)
+                        }
+                    } label: {
+                        Label(L("文件管理"), systemImage: "folder")
+                    }
+                    .accessibilityIdentifier("servers.host.files.\(card.id)")
+                    Button {
+                        if let host = viewModel.host(forID: card.id) {
+                            selectedHost = HostDetailRoute(host: host, segment: .docker)
+                        }
+                    } label: {
+                        Label(L("Docker 管理"), systemImage: "shippingbox")
+                    }
+                    .accessibilityIdentifier("servers.host.docker.\(card.id)")
                     Button {
                         if let host = viewModel.host(forID: card.id) { startEditing(host) }
                     } label: {

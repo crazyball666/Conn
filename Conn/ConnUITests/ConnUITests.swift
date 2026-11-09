@@ -561,6 +561,31 @@ final class ConnUITests: XCTestCase {
         XCTAssertEqual(app.state, .runningForeground)
     }
 
+    @MainActor
+    func testHostContextMenuOffersFilesAndDockerManagement() throws {
+        let app = XCUIApplication()
+        app.launch()
+
+        XCTAssertTrue(app.tabBars.buttons["tab.servers"].waitForExistence(timeout: 10))
+        let hostCard = app.buttons.matching(
+            NSPredicate(format: "identifier BEGINSWITH %@", "servers.host.")
+        ).firstMatch
+        guard hostCard.waitForExistence(timeout: 10) else {
+            throw XCTSkip("当前模拟器没有已保存的主机配置")
+        }
+
+        hostCard.press(forDuration: 1)
+        let files = app.buttons.matching(
+            NSPredicate(format: "identifier BEGINSWITH %@", "servers.host.files.")
+        ).firstMatch
+        let docker = app.buttons.matching(
+            NSPredicate(format: "identifier BEGINSWITH %@", "servers.host.docker.")
+        ).firstMatch
+        XCTAssertTrue(files.waitForExistence(timeout: 5))
+        XCTAssertTrue(docker.exists)
+        XCTAssertEqual(app.state, .runningForeground)
+    }
+
 #if CONN_DISABLE_SUBSCRIPTION
     @MainActor
     func testDisabledSubscriptionBuildShowsProEntitlement() {
