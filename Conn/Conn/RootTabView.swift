@@ -47,9 +47,12 @@ struct RootTabView: View {
             }
             guard let idle = resumePolicy.idleDurationOnResume(for: phase) else { return }
             Task {
+                // 私有网络先清理/释放 stale runtime，再恢复监控和终端。顺序反过来
+                // 会让终端重连先复用后台挂起后的旧 Tailscale 节点，直到 Citadel
+                // 的 25s 超时才失败，随后才执行清理。
+                await dependencies.privateNetworkRegistry.resumeAfterBackground(idleFor: idle)
                 await dependencies.monitor.resumeAfterBackground(idleFor: idle)
                 await dependencies.terminalSessions.resumeAfterBackground(idleFor: idle)
-                await dependencies.privateNetworkRegistry.resumeAfterBackground(idleFor: idle)
             }
         }
         .onChange(of: selection) { _, _ in

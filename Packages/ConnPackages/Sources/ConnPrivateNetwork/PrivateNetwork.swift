@@ -118,6 +118,11 @@ public actor PrivateNetworkRegistry {
     /// Healthy active leases are preserved to avoid disrupting ongoing foreground sessions.
     public func resumeAfterBackground(idleFor: TimeInterval) async {
         guard idleFor > 30 else { return }
+        // A start that was already in flight before suspension may never finish.
+        // Cancel it first so a late completion cannot resurrect a runtime that the
+        // foreground recovery just decided to discard.
+        for task in startingClients.values { task.cancel() }
+        startingClients.removeAll()
         let idleProfileIDs = runtimes.compactMap { profileID, runtime in
             runtime.leaseCount == 0 ? profileID : nil
         }
@@ -132,6 +137,7 @@ public actor PrivateNetworkRegistry {
 
     public func stop(profileID: String) async {
         idleTasks.removeValue(forKey: profileID)?.cancel()
+        startingClients.removeValue(forKey: profileID)?.cancel()
         if let runtime = runtimes.removeValue(forKey: profileID) {
             closingClients[profileID] = Closing(task: Task { await runtime.client.close() })
         }
@@ -141,6 +147,8 @@ public actor PrivateNetworkRegistry {
     public func stopAll() async {
         for task in idleTasks.values { task.cancel() }
         idleTasks.removeAll()
+        for task in startingClients.values { task.cancel() }
+        startingClients.removeAll()
         let current = runtimes
         runtimes.removeAll()
         for (profileID, runtime) in current {
@@ -211,10 +219,7 @@ public actor PrivateNetworkRegistry {
         }
         if let task = startingClients[profileID] {
             let client = try await task.value
-            if runtimes[profileID] == nil {
-                runtimes[profileID] = Runtime(client: client, leaseCount: 0)
-            }
-            return client
+            return try await finishStart(task, client: client, profileID: profileID)
         }
 
         let profileRepository = profileRepository
@@ -245,15 +250,38 @@ public actor PrivateNetworkRegistry {
         startingClients[profileID] = task
         do {
             let client = try await task.value
+            return try await finishStart(task, client: client, profileID: profileID)
+        } catch {
+            if startingClients[profileID] == task {
+                startingClients.removeValue(forKey: profileID)
+            }
+            throw error
+        }
+    }
+
+    /// 把一次启动的结果回插 registry。
+    ///
+    /// 并发等待者可能先完成回插：此时 runtime 已存在且就是同一个 client，直接复用。
+    /// 若 stop()/resumeAfterBackground() 取消了这次启动，runtime 不存在或已换成别的
+    /// client，则关闭迟到的 client 并让调用方重试，不能把它复活。
+    private func finishStart(
+        _ task: Task<any PrivateNetworkClient, Error>,
+        client: any PrivateNetworkClient,
+        profileID: String
+    ) async throws -> any PrivateNetworkClient {
+        if startingClients[profileID] == task {
             startingClients.removeValue(forKey: profileID)
             if runtimes[profileID] == nil {
                 runtimes[profileID] = Runtime(client: client, leaseCount: 0)
             }
             return client
-        } catch {
-            startingClients.removeValue(forKey: profileID)
-            throw error
         }
+        if let runtime = runtimes[profileID],
+           ObjectIdentifier(runtime.client) == ObjectIdentifier(client) {
+            return runtime.client
+        }
+        await client.close()
+        throw CancellationError()
     }
 }
 
