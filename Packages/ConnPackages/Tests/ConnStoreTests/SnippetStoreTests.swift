@@ -95,12 +95,14 @@ struct SnippetStoreTests {
         var snippet = Snippet(title: "容器日志", script: "docker logs", groupIDs: [docker.id, logs.id])
         try store.save(snippet)
 
-        #expect(try #require(store.snippet(id: snippet.id)).groupIDs == [docker.id, logs.id])
+        let saved = try store.snippet(id: snippet.id)
+        #expect(saved?.groupIDs == [docker.id, logs.id])
 
         snippet.groupIDs = []
         try store.save(snippet)
 
-        #expect(try #require(store.snippet(id: snippet.id)).groupIDs.isEmpty)
+        let cleared = try store.snippet(id: snippet.id)
+        #expect(cleared?.groupIDs.isEmpty == true)
     }
 
     @Test("删除分组只解除归属，不删除组内命令")
