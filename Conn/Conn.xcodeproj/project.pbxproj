@@ -21,6 +21,8 @@
 		7CAA0010300CF0AD00307624 /* ConnEditor in Frameworks */ = {isa = PBXBuildFile; productRef = 7CAA0011300CF0AD00307624 /* ConnEditor */; };
 		7CAA0014300CF0AD00307624 /* ConnEntitlement in Frameworks */ = {isa = PBXBuildFile; productRef = 7CAA0015300CF0AD00307624 /* ConnEntitlement */; };
 		7CAA0016300CF0AD00307624 /* ConnPrivateNetwork in Frameworks */ = {isa = PBXBuildFile; productRef = 7CAA0017300CF0AD00307624 /* ConnPrivateNetwork */; };
+		7CCA00012E00000100000001 /* PulseAnalytics in Frameworks */ = {isa = PBXBuildFile; productRef = 7CCA00022E00000100000002 /* PulseAnalytics */; };
+		7CCA00042E00000100000004 /* ConnAnalytics in Frameworks */ = {isa = PBXBuildFile; productRef = 7CCA00052E00000100000005 /* ConnAnalytics */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -83,6 +85,8 @@
 				7CAA0010300CF0AD00307624 /* ConnEditor in Frameworks */,
 				7CAA0014300CF0AD00307624 /* ConnEntitlement in Frameworks */,
 				7CAA0016300CF0AD00307624 /* ConnPrivateNetwork in Frameworks */,
+				7CCA00012E00000100000001 /* PulseAnalytics in Frameworks */,
+				7CCA00042E00000100000004 /* ConnAnalytics in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -157,6 +161,8 @@
 				7CAA0011300CF0AD00307624 /* ConnEditor */,
 				7CAA0015300CF0AD00307624 /* ConnEntitlement */,
 				7CAA0017300CF0AD00307624 /* ConnPrivateNetwork */,
+				7CCA00022E00000100000002 /* PulseAnalytics */,
+				7CCA00052E00000100000005 /* ConnAnalytics */,
 			);
 			productName = Conn;
 			productReference = 7C181A90300CF0AD00307624 /* Conn.app */;
@@ -246,6 +252,7 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				7C181B01300CF0AD00307624 /* XCLocalSwiftPackageReference "../Packages/ConnPackages" */,
+				7CCA00032E00000100000003 /* XCRemoteSwiftPackageReference "pulse-sdk" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 7C181A91300CF0AD00307624 /* Products */;
@@ -651,6 +658,17 @@
 		};
 /* End XCLocalSwiftPackageReference section */
 
+/* Begin XCRemoteSwiftPackageReference section */
+		7CCA00032E00000100000003 /* XCRemoteSwiftPackageReference "pulse-sdk" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "git@github.com:crazyball666/pulse-sdk.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 0.1.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
 /* Begin XCSwiftPackageProductDependency section */
 		7C181B02300CF0AD00307624 /* ConnKit */ = {
 			isa = XCSwiftPackageProductDependency;
@@ -703,6 +721,15 @@
 		7CAA0017300CF0AD00307624 /* ConnPrivateNetwork */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = ConnPrivateNetwork;
+		};
+		7CCA00022E00000100000002 /* PulseAnalytics */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 7CCA00032E00000100000003 /* XCRemoteSwiftPackageReference "pulse-sdk" */;
+			productName = PulseAnalytics;
+		};
+		7CCA00052E00000100000005 /* ConnAnalytics */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = ConnAnalytics;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

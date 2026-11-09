@@ -1,3 +1,4 @@
+import ConnAnalytics
 import ConnKit
 import ConnOps
 import ConnSSH
@@ -114,6 +115,7 @@ final class DockerViewModel {
         guard !operations.isBusy else { return }
         hasLoaded = true
         loadState = .loading
+        let started = Date()
         do {
             let platformContext = try await connectionManager.platformContext(for: host)
             platformKind = platformContext.profile.kind
@@ -125,20 +127,41 @@ final class DockerViewModel {
             propagateAvailability(probe)
             guard probe.availability.isUsable else {
                 loadState = .unavailable(probe.availability)
+                trackDockerPage(success: false, errorCategory: "unavailable", started: started)
                 return
             }
             guard context.isUsable else {
                 loadState = .failed(DockerContextError.runtimeUnavailable.localizedDescription)
+                trackDockerPage(success: false, errorCategory: "runtime_unavailable", started: started)
                 return
             }
             // 本次探测已经取过 session，直接传给容器加载，避免同一次 load() 里
             // 取两次会话（重构前的原行为：探测与列表共用一次 session）。
             try await containers.load(using: platformContext.session)
             loadState = .ready
+            trackDockerPage(success: true, errorCategory: nil, started: started)
         } catch {
             propagateAvailability(nil)
             loadState = .failed(error.friendlyDiagnosis)
+            trackDockerPage(success: false, errorCategory: Analytics.errorCategory(error), started: started)
         }
+    }
+
+    private func trackDockerPage(success: Bool, errorCategory: String?, started: Date) {
+        var properties: [AnalyticsProperty: String] = [
+            .tab: "containers",
+            .success: success ? "true" : "false",
+            .latencyMsBucket: Analytics.durationBucket(
+                milliseconds: Int(Date().timeIntervalSince(started) * 1000)
+            ),
+        ]
+        if success {
+            properties[.resourceCountBucket] = Analytics.countBucket(containers.items.count)
+        }
+        if let errorCategory {
+            properties[.errorCategory] = errorCategory
+        }
+        Analytics.shared.track(.dockerPageOpened, properties)
     }
 
     /// 加载镜像并刷新「未使用」判定。

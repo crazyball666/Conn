@@ -1,3 +1,4 @@
+import ConnAnalytics
 import ConnKit
 import ConnEntitlement
 import ConnMultiplexer
@@ -76,6 +77,7 @@ struct TerminalScreen: View {
             .onAppear {
                 verifyExistingTab()
                 synchronizeWorkingDirectory(for: activeTab)
+                trackTerminalOpened()
             }
             .onChange(of: activeTab?.id) { previousID, currentID in
                 guard previousID == tabID, currentID == nil else { return }
@@ -242,6 +244,28 @@ private extension TerminalScreen {
         terminalSessions.store.tab(id: tabID)
     }
 
+    private func trackTerminalOpened() {
+        let provider: String
+        switch activeTab?.source {
+        case .shell: provider = "plain"
+        case let .persistent(providerID): provider = providerID
+        case .docker: provider = "docker"
+        case .script: provider = "script"
+        case nil: provider = "unknown"
+        }
+        Analytics.shared.track(.terminalOpened, [
+            .provider: provider,
+            .source: "terminal_screen",
+            .hostRef: host.id,
+        ])
+        Analytics.shared.track(.connectionFinished, [
+            .success: "true",
+            .provider: provider,
+            .hostRef: host.id,
+            .resumed: "false",
+        ])
+    }
+
     private var terminalColorScheme: ColorScheme {
         switch settings.terminalConfiguration.theme.appearance {
         case .dark: .dark
@@ -377,9 +401,37 @@ private extension TerminalScreen {
         guard !isReconnecting else { return }
         isReconnecting = true
         defer { isReconnecting = false }
-        if case let .failure(failure) = await terminalSessions.reconnect(id),
-           let message = terminalSessions.consumeFailure(failure) {
-            toastCenter.show(message, style: .error)
+        let provider = activeTab.map { tab in
+            switch tab.source {
+            case .shell: "plain"
+            case let .persistent(providerID): providerID
+            case .docker: "docker"
+            case .script: "script"
+            }
+        } ?? "unknown"
+        switch await terminalSessions.reconnect(id) {
+        case .success:
+            Analytics.shared.track(.connectionReconnected, [
+                .result: "success",
+                .provider: provider,
+                .hostRef: host.id,
+            ])
+        case let .failure(failure):
+            Analytics.shared.track(.connectionReconnected, [
+                .result: "failure",
+                .provider: provider,
+                .errorCategory: "connection",
+                .hostRef: host.id,
+            ])
+            Analytics.shared.track(.errorOccurred, [
+                .area: "terminal",
+                .category: "reconnect",
+                .recoverable: "true",
+                .source: "terminal_screen",
+            ])
+            if let message = terminalSessions.consumeFailure(failure) {
+                toastCenter.show(message, style: .error)
+            }
         }
     }
 
@@ -421,6 +473,10 @@ private extension TerminalScreen {
     private func openFileBrowser() {
         guard let tab = activeTab else { return }
         guard dependencies.subscription.gate.allowed(.fileManagement) else {
+            Analytics.shared.track(.featureGated, [
+                .feature: "file_management",
+                .source: "terminal_keybar",
+            ])
             paywallContext = .fileManagement
             return
         }
@@ -441,7 +497,7 @@ private extension TerminalScreen {
             if let existing = terminalFileBrowserViewModels[tab.id] {
                 viewModel = existing
             } else {
-                viewModel = FileBrowserViewModel(host: host, dependencies: dependencies)
+                viewModel = FileBrowserViewModel(host: host, dependencies: dependencies, source: "terminal_keybar")
                 if case .docker = tab.source {
                     viewModel.setInitialPathIfNeeded(nil)
                 } else {
@@ -562,7 +618,6 @@ private struct TerminalFileBrowserRoute: Hashable, Identifiable {
         hasher.combine(tabID)
     }
 }
-
 
 private struct TerminalReconnectingNotice: View {
     var body: some View {

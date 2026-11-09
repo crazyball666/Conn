@@ -1,3 +1,4 @@
+import ConnAnalytics
 import ConnKit
 import ConnOps
 import ConnSSH
@@ -316,7 +317,7 @@ final class DockerOperationsModel {
     }
 
     @discardableResult
-    func confirmPendingAction(confirmation: String) async -> Bool { // swiftlint:disable:this cyclomatic_complexity
+    func confirmPendingAction(confirmation: String) async -> Bool {
         guard let action = pendingDestructiveAction else { return false }
         guard action.confirmationStyle == .typedEntry,
               action.acceptsTypedConfirmation(confirmation)
@@ -373,12 +374,18 @@ final class DockerOperationsModel {
         reportsResult: Bool = true,
         remote: (any SSHSession, DockerRuntimeContext) async throws -> ExecResult
     ) async -> DockerOperationOutcome {
-        if let rejection = begin(operation) { return rejection }
+        let started = Date()
+        if let rejection = begin(operation) {
+            track(operation, outcome: rejection, started: started)
+            return rejection
+        }
         defer { activeOperation = nil }
         guard let pendingEntry = audit.recordPending(for: operation) else {
             let message = L("无法保存 Docker 操作审计，未执行远程命令")
             context.report(message)
-            return .unknown(remoteMessage: message)
+            let outcome = DockerOperationOutcome.unknown(remoteMessage: message)
+            track(operation, outcome: outcome, started: started)
+            return outcome
         }
         do {
             let session = try await context.session()
@@ -400,6 +407,7 @@ final class DockerOperationsModel {
             }
             // 非零退出码仍是一个已知终态；Docker 可能已部分完成，刷新才不会留旧列表。
             await context.refresh(operation.refreshScope)
+            track(operation, outcome: outcome, started: started)
             return outcome
         } catch {
             let auditSaved = audit.update(
@@ -416,8 +424,31 @@ final class DockerOperationsModel {
                     for: outcome, label: label, auditSaved: auditSaved
                 ))
             }
+            track(operation, outcome: outcome, started: started)
             return outcome
         }
+    }
+
+    private func track(_ operation: DockerOperation, outcome: DockerOperationOutcome, started: Date) {
+        let result: String
+        switch outcome {
+        case .success: result = "success"
+        case .knownFailure: result = "failure"
+        case .unknown: result = "unknown"
+        case .rejected: result = "rejected"
+        }
+        var properties: [AnalyticsProperty: String] = [
+            .action: operation.analyticsAction,
+            .target: operation.analyticsTarget,
+            .result: result,
+            .durationBucket: Analytics.durationBucket(
+                milliseconds: Int(Date().timeIntervalSince(started) * 1000)
+            ),
+        ]
+        if result == "failure" || result == "unknown" {
+            properties[.errorCategory] = "docker"
+        }
+        Analytics.shared.track(.dockerActionFinished, properties)
     }
 
     private func begin(_ operation: DockerOperation) -> DockerOperationOutcome? {
@@ -447,4 +478,37 @@ final class DockerOperationsModel {
         pullPresentation = presentation
     }
 
+}
+
+private extension DockerOperation {
+    /// 只映射稳定的动作词，不携带容器 ID、项目名或服务名。
+    var analyticsAction: String {
+        switch self {
+        case let .container(action, _): action.rawValue
+        case .removeImage: "remove_image"
+        case .pruneImages: "prune_images"
+        case .pullImage: "pull_image"
+        case .runContainer: "run_container"
+        case .createVolume: "create_volume"
+        case .removeVolume: "remove_volume"
+        case .createNetwork: "create_network"
+        case .removeNetwork: "remove_network"
+        case .systemPrune: "system_prune"
+        case .composeUp: "compose_up"
+        case .composeDown: "compose_down"
+        case .composeRestart: "compose_restart"
+        }
+    }
+
+    var analyticsTarget: String {
+        switch self {
+        case .container: "container"
+        case .removeImage, .pruneImages, .pullImage: "image"
+        case .runContainer: "container"
+        case .createVolume, .removeVolume: "volume"
+        case .createNetwork, .removeNetwork: "network"
+        case .systemPrune: "system"
+        case .composeUp, .composeDown, .composeRestart: "compose"
+        }
+    }
 }

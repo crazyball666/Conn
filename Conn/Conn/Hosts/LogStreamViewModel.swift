@@ -1,3 +1,4 @@
+import ConnAnalytics
 import ConnKit
 import ConnOps
 import ConnSSH
@@ -80,12 +81,17 @@ final class LogStreamViewModel {
     private func stream() async {
         isConnecting = true
         errorText = nil
+        let started = Date()
+        var result = "success"
+        var errorCategory: String?
         var ownedSession: (any SSHSession)?
         do {
             let session = try await connectionManager.dedicatedSession(for: host)
             ownedSession = session
             guard !Task.isCancelled else {
+                result = "cancelled"
                 await session.close()
+                trackEnded(started: started, result: result, errorCategory: nil)
                 return
             }
             streamSession = session
@@ -96,10 +102,15 @@ final class LogStreamViewModel {
             }
         } catch is CancellationError {
             // 正常停止
+            result = "cancelled"
         } catch {
             if !Task.isCancelled {
                 isConnecting = false
                 errorText = error.friendlyDiagnosis
+                result = "failure"
+                errorCategory = Analytics.errorCategory(error)
+            } else {
+                result = "cancelled"
             }
         }
 
@@ -108,6 +119,31 @@ final class LogStreamViewModel {
                 streamSession = nil
             }
             await ownedSession.close()
+        }
+        trackEnded(started: started, result: result, errorCategory: errorCategory)
+    }
+
+    private func trackEnded(started: Date, result: String, errorCategory: String?) {
+        var properties: [AnalyticsProperty: String] = [
+            .source: sourceKind,
+            .result: result,
+            .durationBucket: Analytics.durationBucket(
+                milliseconds: Int(Date().timeIntervalSince(started) * 1000)
+            ),
+        ]
+        if let errorCategory {
+            properties[.errorCategory] = errorCategory
+        }
+        Analytics.shared.track(.logStreamFinished, properties)
+    }
+
+    private var sourceKind: String {
+        switch source.kind {
+        case .journal: "journal"
+        case .file: "file"
+        case .unified: "unified"
+        case .container: "container"
+        case .compose: "compose"
         }
     }
 

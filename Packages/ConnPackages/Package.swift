@@ -23,6 +23,7 @@ let package = Package(
         .library(name: "ConnUI", targets: ["ConnUI"]),
         .library(name: "ConnEntitlement", targets: ["ConnEntitlement"]),
         .library(name: "ConnPrivateNetwork", targets: ["ConnPrivateNetwork"]),
+        .library(name: "ConnAnalytics", targets: ["ConnAnalytics"]),
     ],
     dependencies: [
         .package(url: "https://github.com/groue/GRDB.swift.git", from: "7.11.1"),
@@ -158,6 +159,10 @@ let package = Package(
         // 本地订阅权益规则：不依赖 StoreKit、UI 或远端能力模块，保证额度和付费墙边界可独立测试。
         .target(name: "ConnEntitlement"),
 
+        // 埋点词表、属性白名单、值清洗与上报服务。纯 Swift、零依赖，host 可测；
+        // 具体传输实现（Pulse SDK）留在 App 层，避免包依赖三方采集 SDK。
+        .target(name: "ConnAnalytics"),
+
         // Embedded userspace Tailscale/Headscale runtime. The target is provider-neutral;
         // the optional TailscaleKit adapter is compiled when the official framework is linked.
         .target(
@@ -205,5 +210,6 @@ let package = Package(
         .testTarget(name: "ConnUITests", dependencies: ["ConnUI"]),
         .testTarget(name: "ConnEntitlementTests", dependencies: ["ConnEntitlement"]),
         .testTarget(name: "ConnPrivateNetworkTests", dependencies: ["ConnPrivateNetwork", "ConnCrypto", "ConnSSH"]),
+        .testTarget(name: "ConnAnalyticsTests", dependencies: ["ConnAnalytics"]),
     ]
 )

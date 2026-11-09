@@ -1,3 +1,4 @@
+import ConnAnalytics
 import ConnEntitlement
 import ConnKit
 import ConnMonitor
@@ -329,6 +330,7 @@ struct ServersView: View {
 
     private func startAdding() {
         guard dependencies.subscription.gate.canAddHost(currentCount: viewModel.totalCount) else {
+            Analytics.shared.track(.hostLimitHit, [.source: "add_host"])
             paywallContext = .thirdHost
             return
         }

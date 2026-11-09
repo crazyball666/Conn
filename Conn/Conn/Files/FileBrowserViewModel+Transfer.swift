@@ -1,3 +1,4 @@
+import ConnAnalytics
 import ConnKit
 import ConnSSH
 import Foundation
@@ -52,6 +53,7 @@ extension FileBrowserViewModel {
             // 完整性校验：下完的字节数应等于远端大小；不符则保留断点、不交付损坏文件。
             guard Self.fileSize(partial) == entry.size else {
                 actionMessage = L("下载不完整（大小不符），已保留断点可重试")
+                trackTransfer(direction: "download", size: entry.size, result: "failure", errorCategory: "incomplete")
                 return
             }
             if FileManager.default.fileExists(atPath: destination.path) {
@@ -59,7 +61,14 @@ extension FileBrowserViewModel {
             }
             try FileManager.default.moveItem(at: partial, to: destination)
             downloadedURL = destination
+            trackTransfer(direction: "download", size: entry.size, result: "success")
         } catch {
+            trackTransfer(
+                direction: "download",
+                size: entry.size,
+                result: "failure",
+                errorCategory: Analytics.errorCategory(error)
+            )
             actionMessage = String(format: L("下载失败：%@（已保留断点，重试可续传）"), error.friendlyDiagnosis)
         }
     }
@@ -73,6 +82,7 @@ extension FileBrowserViewModel {
     /// 从本地文件上传到当前目录（流式读本地，避免整包载入内存）。
     func upload(from localURL: URL) async {
         let name = localURL.lastPathComponent
+        let size = Self.fileSize(localURL)
         transfer = FileTransferState(name: name, direction: .upload, progress: 0)
         defer { transfer = nil }
         do {
@@ -88,9 +98,33 @@ extension FileBrowserViewModel {
                 }
             )
             await load()
+            trackTransfer(direction: "upload", size: size, result: "success")
         } catch {
+            trackTransfer(
+                direction: "upload",
+                size: size,
+                result: "failure",
+                errorCategory: Analytics.errorCategory(error)
+            )
             actionMessage = String(format: L("上传失败：%@"), error.friendlyDiagnosis)
         }
+    }
+
+    private func trackTransfer(
+        direction: String,
+        size: UInt64,
+        result: String,
+        errorCategory: String? = nil
+    ) {
+        var properties: [AnalyticsProperty: String] = [
+            .direction: direction,
+            .sizeBucket: Analytics.sizeBucket(size),
+            .result: result,
+        ]
+        if let errorCategory {
+            properties[.errorCategory] = errorCategory
+        }
+        Analytics.shared.track(.fileTransferFinished, properties)
     }
 
     private static func fileSize(_ url: URL) -> UInt64 {

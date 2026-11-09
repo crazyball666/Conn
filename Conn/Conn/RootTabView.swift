@@ -1,3 +1,4 @@
+import ConnAnalytics
 import ConnKit
 import ConnMonitor
 import ConnPrivateNetwork
@@ -9,6 +10,8 @@ import SwiftUI
 struct RootTabView: View {
     @State private var selection: ConnDock.Tab = .servers
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(SettingsStore.self) private var settings
+    @Environment(LocalizationManager.self) private var localization
     /// 前后台判定抽在 `BackgroundResumePolicy` 里（可单测）；View 只负责转发事件、
     /// 拿到闲置时长后发起恢复。
     @State private var resumePolicy = BackgroundResumePolicy()
@@ -49,6 +52,34 @@ struct RootTabView: View {
                 await dependencies.privateNetworkRegistry.resumeAfterBackground(idleFor: idle)
             }
         }
+        .onChange(of: selection) { _, _ in
+            trackScreen()
+        }
+        .onChange(of: settings.appearance) { _, _ in
+            updateAnalyticsContext()
+        }
+        .onChange(of: localization.language) { _, _ in
+            updateAnalyticsContext()
+        }
+        .onChange(of: dependencies.subscription.isPro) { _, _ in
+            updateAnalyticsContext()
+        }
+        .onAppear {
+            trackScreen()
+            updateAnalyticsContext()
+        }
+    }
+
+    private func trackScreen() {
+        Analytics.shared.track(.screenViewed, [.screen: selection.rawValue])
+    }
+
+    private func updateAnalyticsContext() {
+        Analytics.updateContext(
+            appearance: settings.appearance.rawValue,
+            locale: localization.language.rawValue,
+            tier: dependencies.subscription.isPro ? "pro" : "free"
+        )
     }
 
     private func tab(

@@ -1,3 +1,4 @@
+import ConnAnalytics
 import ConnEditor
 import ConnKit
 import ConnSSH
@@ -73,9 +74,20 @@ final class FileEditorViewModel {
                 try await fileSystem.writeAll(data, to: temporaryPath)
             }
             saveMessage = L("已保存")
+            Analytics.shared.track(.fileSaved, [
+                .fileType: "text",
+                .sizeBucket: Analytics.sizeBucket(entry.size),
+                .result: "success",
+            ])
         } catch {
             cachedFileSystem = nil // 出错丢弃可能已死的通道
             saveMessage = String(format: L("保存失败：%@"), error.friendlyDiagnosis)
+            Analytics.shared.track(.fileSaved, [
+                .fileType: "text",
+                .sizeBucket: Analytics.sizeBucket(entry.size),
+                .result: "failure",
+                .errorCategory: Analytics.errorCategory(error),
+            ])
         }
     }
 
@@ -122,12 +134,21 @@ struct FileEditorView: View {
             .navigationTitle(viewModel.entry.name)
             .navigationBarTitleDisplayMode(.inline)
             .task { await viewModel.load() }
+            .onAppear {
+                if isPreviewableFile && isPreviewing {
+                    trackPreviewOpened()
+                }
+            }
             .toolbar {
                 if case .editing = viewModel.loadState {
                     if isPreviewableFile {
                         ToolbarItem(placement: .topBarTrailing) {
                             Button {
+                                let willPreview = !isPreviewing
                                 isPreviewing.toggle()
+                                if willPreview {
+                                    trackPreviewOpened()
+                                }
                             } label: {
                                 Image(systemName: isPreviewing ? "pencil" : "eye")
                             }
@@ -196,6 +217,15 @@ struct FileEditorView: View {
             return markdownCanvasBackground
         }
         return Color.connBg
+    }
+
+    private func trackPreviewOpened() {
+        Analytics.shared.track(.filePreviewOpened, [
+            .fileType: isHTMLFile ? "html" : "markdown",
+            .previewMode: "rendered",
+            .sizeBucket: Analytics.sizeBucket(viewModel.entry.size),
+            .result: "success",
+        ])
     }
 
     private var markdownCanvasBackground: Color {

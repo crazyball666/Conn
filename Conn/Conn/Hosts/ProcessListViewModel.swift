@@ -1,3 +1,4 @@
+import ConnAnalytics
 import ConnKit
 import ConnMonitor
 import ConnSSH
@@ -38,7 +39,27 @@ final class ProcessListViewModel {
     }
 
     func appear() {
+        let started = Date()
         monitor.start(host: host)
+        Task { [weak self] in
+            guard let self else { return }
+            // start() 立即置 isLoading；等首轮采集结束再上报，避免把自动刷新算成多次打开。
+            for _ in 0..<150 where monitor.isLoading {
+                try? await Task.sleep(for: .milliseconds(100))
+            }
+            guard !Task.isCancelled else { return }
+            var properties: [AnalyticsProperty: String] = [
+                .success: monitor.errorText == nil ? "true" : "false",
+                .processCountBucket: Analytics.countBucket(monitor.processes.count),
+                .latencyMsBucket: Analytics.durationBucket(
+                    milliseconds: Int(Date().timeIntervalSince(started) * 1000)
+                ),
+            ]
+            if monitor.errorText != nil {
+                properties[.errorCategory] = "process_collection"
+            }
+            Analytics.shared.track(.processListOpened, properties)
+        }
     }
 
     func disappear() {

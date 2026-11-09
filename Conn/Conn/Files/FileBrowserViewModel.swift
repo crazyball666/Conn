@@ -1,3 +1,4 @@
+import ConnAnalytics
 import ConnKit
 import ConnOps
 import ConnSSH
@@ -70,6 +71,8 @@ final class FileBrowserViewModel {
     private(set) var gitRepoRoot: String?
 
     let host: Host
+    /// 入口来源：host_detail / terminal_keybar，用于区分两条文件使用路径。
+    let source: String
     private let connectionManager: ConnectionManager
     let uploadService: RemoteUploadService
     private var fileSystem: (any RemoteFileSystem)?
@@ -77,11 +80,13 @@ final class FileBrowserViewModel {
     init(
         host: Host,
         dependencies: AppDependencies,
-        uploadService: RemoteUploadService = RemoteUploadService()
+        uploadService: RemoteUploadService = RemoteUploadService(),
+        source: String = "host_detail"
     ) {
         self.host = host
         connectionManager = dependencies.connectionManager
         self.uploadService = uploadService
+        self.source = source
     }
 
     var canGoUp: Bool {
@@ -126,15 +131,32 @@ final class FileBrowserViewModel {
         let target = path ?? currentPath
         hasLoaded = true
         loadState = .loading
+        let started = Date()
         do {
             let list = try await filesystem().list(target)
             currentPath = target
             entries = list
             loadState = .ready
+            Analytics.shared.track(.fileBrowserOpened, [
+                .source: source,
+                .success: "true",
+                .entryCountBucket: Analytics.countBucket(list.count),
+                .latencyMsBucket: Analytics.durationBucket(
+                    milliseconds: Int(Date().timeIntervalSince(started) * 1000)
+                ),
+            ])
             Task { [weak self] in
                 await self?.probeGitRepo(at: target)
             }
         } catch {
+            Analytics.shared.track(.fileBrowserOpened, [
+                .source: source,
+                .success: "false",
+                .errorCategory: Analytics.errorCategory(error),
+                .latencyMsBucket: Analytics.durationBucket(
+                    milliseconds: Int(Date().timeIntervalSince(started) * 1000)
+                ),
+            ])
             loadState = .failed(error.friendlyDiagnosis)
             fileSystem = nil // 通道可能已坏，下次重开
         }

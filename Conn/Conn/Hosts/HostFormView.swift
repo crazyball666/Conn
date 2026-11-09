@@ -1,3 +1,4 @@
+import ConnAnalytics
 import ConnKit
 import ConnSSH
 import ConnUI
@@ -422,6 +423,13 @@ struct HostFormView: View {
 
     private func save() {
         if let result = viewModel.save() {
+            Analytics.shared.track(.hostAdded, [
+                .authType: viewModel.draft.authKind.rawValue,
+                .route: viewModel.networkConnectionMode.rawValue,
+                .pnProvider: viewModel.selectedPrivateNetworkProfile?.provider.rawValue ?? "none",
+                .grouped: viewModel.draft.groupIDs.isEmpty ? "false" : "true",
+                .hostRef: result.host.id,
+            ])
             // Keep the save result on the main-actor call stack. The old
             // unstructured async callback outlived the sheet and could copy
             // Host across the SwiftUI closure boundary during dismissal.

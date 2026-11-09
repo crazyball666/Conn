@@ -1,3 +1,4 @@
+import ConnAnalytics
 import ConnEntitlement
 import ConnKit
 import ConnMonitor
@@ -158,9 +159,17 @@ struct HostDetailView: View {
     private func requireProIfNeeded(for segment: Segment) -> Bool {
         switch segment {
         case .files where !dependencies.subscription.gate.allowed(.fileManagement):
+            Analytics.shared.track(.featureGated, [
+                .feature: "file_management",
+                .source: "host_detail",
+            ])
             paywallContext = .fileManagement
             return false
         case .docker where !dependencies.subscription.gate.allowed(.dockerManagement):
+            Analytics.shared.track(.featureGated, [
+                .feature: "docker_management",
+                .source: "host_detail",
+            ])
             paywallContext = .dockerManagement
             return false
         default:

@@ -1,4 +1,6 @@
+import ConnAnalytics
 import ConnKit
+import ConnMultiplexer
 import ConnTerminal
 import Foundation
 import Observation
@@ -66,6 +68,25 @@ final class TerminalLaunchPresentation {
             errorMessage = model.errorMessage
             isLaunching = false
             activeModel = nil
+            if let message = model.errorMessage, !message.isEmpty {
+                let provider: String
+                switch request.backend {
+                case .plainPTY: provider = "plain"
+                case let .persistent(descriptor): provider = descriptor.providerID
+                }
+                Analytics.shared.track(.connectionFinished, [
+                    .success: "false",
+                    .provider: provider,
+                    .errorCategory: "connection",
+                    .hostRef: request.host.id,
+                ])
+                Analytics.shared.track(.errorOccurred, [
+                    .area: "terminal",
+                    .category: "connection",
+                    .recoverable: "true",
+                    .source: "terminal_launch",
+                ])
+            }
         }
     }
 

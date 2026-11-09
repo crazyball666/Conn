@@ -1,3 +1,4 @@
+import ConnAnalytics
 import ConnEntitlement
 import ConnKit
 import ConnRunner
@@ -400,6 +401,10 @@ struct SnippetRunView: View {
             mode: mode,
             gate: dependencies.subscription.gate
         ) {
+            Analytics.shared.track(.featureGated, [
+                .feature: "batch_execution",
+                .source: "snippet_run",
+            ])
             paywallContext = blockedFeature
             return
         }
@@ -413,36 +418,6 @@ struct SnippetRunView: View {
         isRunning = true
         Task {
             await prepareAndAttempt(mode, hosts: hosts, userScript: userScript)
-        }
-    }
-
-    private func prepareAndAttempt(
-        _ mode: SnippetExecutionMode,
-        hosts: [Host],
-        userScript: String
-    ) async {
-        do {
-            let result = try await SnippetExecutionRequestBuilder.prepare(
-                mode: mode,
-                hosts: hosts,
-                snippet: snippet,
-                renderedScript: userScript,
-                planner: dependencies.snippetExecutionPlanner
-            )
-            switch result {
-            case let .ready(request):
-                isRunning = false
-                continueAttempt(request, hosts: hosts, userScript: userScript)
-            case let .blocked(hostName, report):
-                isRunning = false
-                let presentation = SnippetCapabilityPresentation(report: report)
-                let message = presentation.blockerMessage
-                    ?? L("无法准备远程脚本执行环境。")
-                errorText = "\(hostName)：\(message)"
-            }
-        } catch {
-            isRunning = false
-            errorText = error.friendlyDiagnosis
         }
     }
 
@@ -483,27 +458,6 @@ struct SnippetRunView: View {
             ProgressView(L("正在打开终端…"))
                 .padding(ConnSpacing.md)
                 .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: ConnRadius.control))
-        }
-    }
-
-    private func runSilently(_ request: SnippetExecutionRequest) async {
-        isRunning = true
-        errorText = nil
-        outcome = nil
-        batchResults = []
-        defer { isRunning = false }
-        let runner = SnippetRunner(connectionManager: dependencies.connectionManager, runHistory: dependencies.runHistory)
-        let results = await runner.runBatchSilently(
-            plansByHostID: request.plansByHostID,
-            on: request.hosts
-        )
-        if results.count == 1, let only = results.first {
-            batchResults = []
-            outcome = only.outcome
-            errorText = only.errorMessage
-        } else {
-            outcome = nil
-            batchResults = results
         }
     }
 
@@ -566,5 +520,98 @@ struct SnippetRunView: View {
         pendingExecution = nil
         pendingReason = nil
         batchConfirmationInput = ""
+    }
+}
+
+// 批量执行与上报体积较大，放在扩展里避免主类型超过 SwiftLint 的 type_body_length 上限。
+private extension SnippetRunView {
+    func prepareAndAttempt(
+        _ mode: SnippetExecutionMode,
+        hosts: [Host],
+        userScript: String
+    ) async {
+        do {
+            let result = try await SnippetExecutionRequestBuilder.prepare(
+                mode: mode,
+                hosts: hosts,
+                snippet: snippet,
+                renderedScript: userScript,
+                planner: dependencies.snippetExecutionPlanner
+            )
+            switch result {
+            case let .ready(request):
+                isRunning = false
+                continueAttempt(request, hosts: hosts, userScript: userScript)
+            case let .blocked(hostName, report):
+                isRunning = false
+                let presentation = SnippetCapabilityPresentation(report: report)
+                let message = presentation.blockerMessage
+                    ?? L("无法准备远程脚本执行环境。")
+                errorText = "\(hostName)：\(message)"
+            }
+        } catch {
+            isRunning = false
+            errorText = error.friendlyDiagnosis
+        }
+    }
+
+    func runSilently(_ request: SnippetExecutionRequest) async {
+        isRunning = true
+        errorText = nil
+        outcome = nil
+        batchResults = []
+        defer { isRunning = false }
+        let started = Date()
+        let runner = SnippetRunner(connectionManager: dependencies.connectionManager, runHistory: dependencies.runHistory)
+        let results = await runner.runBatchSilently(
+            plansByHostID: request.plansByHostID,
+            on: request.hosts
+        )
+        if results.count == 1, let only = results.first {
+            batchResults = []
+            outcome = only.outcome
+            errorText = only.errorMessage
+        } else {
+            outcome = nil
+            batchResults = results
+        }
+        trackRun(results: results, hostCount: request.hosts.count, started: started)
+    }
+
+    func trackRun(results: [ScriptBatchResult], hostCount: Int, started: Date) {
+        let successCount = results.filter(\.isSuccess).count
+        let failureCount = results.count - successCount
+        let duration = Analytics.durationBucket(
+            milliseconds: Int(Date().timeIntervalSince(started) * 1000)
+        )
+        if hostCount > 1 {
+            var properties: [AnalyticsProperty: String] = [
+                .source: "snippet",
+                .hostCountBucket: Analytics.countBucket(hostCount),
+                .successCount: String(successCount),
+                .failureCount: String(failureCount),
+                .durationBucket: duration,
+                .dangerConfirmed: snippet.danger ? "true" : "false",
+            ]
+            if failureCount == 0 {
+                properties[.result] = "success"
+            } else if successCount == 0 {
+                properties[.result] = "failure"
+            } else {
+                properties[.result] = "partial"
+            }
+            Analytics.shared.track(.batchRunFinished, properties)
+        } else {
+            var properties: [AnalyticsProperty: String] = [
+                .source: "snippet",
+                .result: successCount == 1 ? "success" : "failure",
+                .durationBucket: duration,
+                .dangerConfirmed: snippet.danger ? "true" : "false",
+            ]
+            if failureCount > 0 {
+                properties[.errorCategory] = "script"
+            }
+            Analytics.shared.track(.snippetRunFinished, properties)
+        }
     }
 }

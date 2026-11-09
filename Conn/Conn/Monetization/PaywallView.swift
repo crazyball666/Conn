@@ -1,3 +1,4 @@
+import ConnAnalytics
 import ConnEntitlement
 import ConnUI
 import StoreKit
@@ -94,6 +95,10 @@ struct PaywallView: View {
             }
             .task {
                 dependencies.subscription.start()
+                Analytics.shared.track(.paywallShown, [
+                    .context: context.rawValue,
+                    .source: "paywall",
+                ])
                 await dependencies.subscription.refresh()
             }
         }
@@ -501,40 +506,6 @@ struct PaywallView: View {
             ?? L("价格暂不可用")
     }
 
-    private func purchase() async {
-        isPurchasing = true
-        defer { isPurchasing = false }
-        switch await dependencies.subscription.purchase(selectedPlan) {
-        case .purchased:
-            dismiss()
-        case .pending:
-            message = L("购买已提交，完成后将自动生效。")
-        case .cancelled:
-            break
-        case .unavailable:
-            message = L("购买暂不可用，请稍后重试。")
-        case .failed:
-            message = L("购买失败，请稍后重试。")
-        }
-    }
-
-    private func restore() async {
-        isPurchasing = true
-        let result = await dependencies.subscription.restore()
-        isPurchasing = false
-        switch result {
-        case .restored:
-            message = L("订阅已恢复。")
-        case .noActiveSubscription:
-            message = L("未找到有效订阅。")
-        case .inProgress:
-            message = L("已有操作正在处理中，请稍候。")
-        case .failed:
-            message = L("恢复购买失败，请稍后重试。")
-        }
-        if dependencies.subscription.isPro { dismiss() }
-    }
-
     private func manageSubscription() async {
         guard let scene = UIApplication.shared.connectedScenes
             .compactMap({ $0 as? UIWindowScene })
@@ -554,5 +525,60 @@ struct PaywallView: View {
             }
             await UIApplication.shared.open(url)
         }
+    }
+}
+
+// 购买/恢复的体积较大，放在扩展里避免主类型超过 SwiftLint 的 type_body_length 上限。
+private extension PaywallView {
+    func purchase() async {
+        isPurchasing = true
+        defer { isPurchasing = false }
+        let result = await dependencies.subscription.purchase(selectedPlan)
+        var properties: [AnalyticsProperty: String] = [
+            .plan: selectedPlan.rawValue,
+        ]
+        switch result {
+        case .purchased:
+            properties[.result] = "purchased"
+            dismiss()
+        case .pending:
+            properties[.result] = "pending"
+            message = L("购买已提交，完成后将自动生效。")
+        case .cancelled:
+            properties[.result] = "cancelled"
+        case .unavailable:
+            properties[.result] = "unavailable"
+            properties[.errorCategory] = "store_unavailable"
+            message = L("购买暂不可用，请稍后重试。")
+        case .failed:
+            properties[.result] = "failed"
+            properties[.errorCategory] = "purchase"
+            message = L("购买失败，请稍后重试。")
+        }
+        Analytics.shared.track(.purchaseFinished, properties)
+    }
+
+    func restore() async {
+        isPurchasing = true
+        let result = await dependencies.subscription.restore()
+        isPurchasing = false
+        var properties: [AnalyticsProperty: String] = [:]
+        switch result {
+        case .restored:
+            properties[.result] = "restored"
+            message = L("订阅已恢复。")
+        case .noActiveSubscription:
+            properties[.result] = "no_active_subscription"
+            message = L("未找到有效订阅。")
+        case .inProgress:
+            properties[.result] = "in_progress"
+            message = L("已有操作正在处理中，请稍候。")
+        case .failed:
+            properties[.result] = "failed"
+            properties[.errorCategory] = "restore"
+            message = L("恢复购买失败，请稍后重试。")
+        }
+        Analytics.shared.track(.restoreFinished, properties)
+        if dependencies.subscription.isPro { dismiss() }
     }
 }

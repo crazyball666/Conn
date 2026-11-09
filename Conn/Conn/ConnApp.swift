@@ -1,3 +1,4 @@
+import ConnAnalytics
 import ConnCrypto
 import ConnEntitlement
 import ConnKit
@@ -29,6 +30,7 @@ struct ConnApp: App {
         // 在任何视图（含 .searchable 搜索框）创建前配置 UIKit 外观——appearance 只对
         // 之后创建的实例生效，放到 onAppear 里会与首个搜索框的创建竞态导致背景色不生效。
         ConnAppearance.configureIfNeeded()
+        Analytics.trackLaunch()
     }
 
     /// 生产依赖使用 Citadel + GRDB 落盘库。
@@ -240,7 +242,7 @@ struct AppDependencies {
 
     /// 生产依赖：GRDB 落盘库 + Citadel 引擎 + 持久化 TOFU 指纹库。
     static func live() throws -> AppDependencies {
-            let database = try AppDatabase.onDisk(at: databaseURL())
+            let database = try openDatabaseWithAnalytics()
             let hostStore = makeHostStore(database: database)
             let groupStore = HostGroupStore(database: database)
             let keyStore = SSHKeyStore(database: database)
@@ -371,6 +373,30 @@ struct AppDependencies {
     private static func databaseURL() -> URL {
         let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
         return base.appendingPathComponent("Conn/conn.sqlite")
+    }
+
+    /// 数据库构造会同步执行 Schema 迁移；把耗时和结果单独上报，避免撑大组装函数。
+    private static func openDatabaseWithAnalytics() throws -> AppDatabase {
+        let started = Date()
+        do {
+            let database = try AppDatabase.onDisk(at: databaseURL())
+            Analytics.shared.track(.dbMigrationFinished, [
+                .result: "success",
+                .durationBucket: Analytics.durationBucket(
+                    milliseconds: Int(Date().timeIntervalSince(started) * 1000)
+                ),
+            ])
+            return database
+        } catch {
+            Analytics.shared.track(.dbMigrationFinished, [
+                .result: "failure",
+                .errorCategory: "database",
+                .durationBucket: Analytics.durationBucket(
+                    milliseconds: Int(Date().timeIntervalSince(started) * 1000)
+                ),
+            ])
+            throw error
+        }
     }
 
     nonisolated private static func makeHostStore(database: AppDatabase) -> HostStore {
