@@ -29,6 +29,56 @@ private struct HostDetailRoute: Identifiable, Hashable {
     var id: String { "\(host.id)-\(segment?.rawValue ?? "overview")" }
 }
 
+/// 长按菜单的「文件管理」直接目的地，不经过 HostDetailView 概览。
+private struct HostFilesDestination: View {
+    let host: Host
+    let dependencies: AppDependencies
+    @State private var viewModel: FileBrowserViewModel
+
+    init(host: Host, dependencies: AppDependencies) {
+        self.host = host
+        self.dependencies = dependencies
+        _viewModel = State(initialValue: FileBrowserViewModel(host: host, dependencies: dependencies))
+    }
+
+    var body: some View {
+        FileBrowserView(host: host, dependencies: dependencies, viewModel: viewModel)
+            .padding(.horizontal, ConnSpacing.page)
+            .padding(.top, ConnSpacing.xs)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+            .background(Color.connBg.ignoresSafeArea())
+            .navigationTitle(L("文件"))
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar(.visible, for: .tabBar)
+            .accessibilityIdentifier("servers.direct.files")
+    }
+}
+
+/// 长按菜单的「Docker 管理」直接目的地，不经过 HostDetailView 概览。
+private struct HostDockerDestination: View {
+    let host: Host
+    let dependencies: AppDependencies
+    @State private var viewModel: DockerViewModel
+
+    init(host: Host, dependencies: AppDependencies) {
+        self.host = host
+        self.dependencies = dependencies
+        _viewModel = State(initialValue: DockerViewModel(host: host, dependencies: dependencies))
+    }
+
+    var body: some View {
+        DockerView(host: host, dependencies: dependencies, viewModel: viewModel)
+            .padding(.horizontal, ConnSpacing.page)
+            .padding(.top, ConnSpacing.xs)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+            .background(Color.connBg.ignoresSafeArea())
+            .navigationTitle(L("Docker"))
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar(.visible, for: .tabBar)
+            .accessibilityIdentifier("servers.direct.docker")
+    }
+}
+
 /// 服务器列表中的主机指纹变更确认请求。
 private struct HostKeyUpdateRequest: Identifiable, Equatable {
     let hostID: String
@@ -188,11 +238,18 @@ struct ServersView: View {
             Text(request.error.diagnosis)
         }
         .navigationDestination(item: $selectedHost) { route in
-            HostDetailView(
-                host: route.host,
-                dependencies: dependencies,
-                initialSegment: route.segment ?? .overview
-            )
+            switch route.segment {
+            case .files:
+                HostFilesDestination(host: route.host, dependencies: dependencies)
+            case .docker:
+                HostDockerDestination(host: route.host, dependencies: dependencies)
+            default:
+                HostDetailView(
+                    host: route.host,
+                    dependencies: dependencies,
+                    initialSegment: route.segment ?? .overview
+                )
+            }
         }
         .fullScreenCover(item: $terminalRoute) { route in
             TerminalScreen(
@@ -293,17 +350,31 @@ struct ServersView: View {
                         Label(L("终端"), systemImage: "terminal")
                     }
                     Button {
-                        if let host = viewModel.host(forID: card.id) {
-                            selectedHost = HostDetailRoute(host: host, segment: .files)
+                        guard let host = viewModel.host(forID: card.id) else { return }
+                        guard dependencies.subscription.gate.allowed(.fileManagement) else {
+                            Analytics.shared.track(.featureGated, [
+                                .feature: "file_management",
+                                .source: "servers_context_menu",
+                            ])
+                            paywallContext = .fileManagement
+                            return
                         }
+                        selectedHost = HostDetailRoute(host: host, segment: .files)
                     } label: {
                         Label(L("文件管理"), systemImage: "folder")
                     }
                     .accessibilityIdentifier("servers.host.files.\(card.id)")
                     Button {
-                        if let host = viewModel.host(forID: card.id) {
-                            selectedHost = HostDetailRoute(host: host, segment: .docker)
+                        guard let host = viewModel.host(forID: card.id) else { return }
+                        guard dependencies.subscription.gate.allowed(.dockerManagement) else {
+                            Analytics.shared.track(.featureGated, [
+                                .feature: "docker_management",
+                                .source: "servers_context_menu",
+                            ])
+                            paywallContext = .dockerManagement
+                            return
                         }
+                        selectedHost = HostDetailRoute(host: host, segment: .docker)
                     } label: {
                         Label(L("Docker 管理"), systemImage: "shippingbox")
                     }

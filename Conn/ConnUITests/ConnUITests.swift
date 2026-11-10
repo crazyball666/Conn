@@ -583,6 +583,17 @@ final class ConnUITests: XCTestCase {
         ).firstMatch
         XCTAssertTrue(files.waitForExistence(timeout: 5))
         XCTAssertTrue(docker.exists)
+
+        files.tap()
+        let paywall = app.descendants(matching: .any)["paywall"].firstMatch
+        let directFiles = app.descendants(matching: .any)["servers.direct.files"].firstMatch
+        if paywall.waitForExistence(timeout: 5) {
+            // 免费用户：长按入口直接呈现 Paywall，不经过主机详情页。
+            XCTAssertEqual(app.state, .runningForeground)
+        } else {
+            // Pro 用户：直接进入文件管理目的地，不经过主机详情。
+            XCTAssertTrue(directFiles.waitForExistence(timeout: 5))
+        }
         XCTAssertEqual(app.state, .runningForeground)
     }
 
