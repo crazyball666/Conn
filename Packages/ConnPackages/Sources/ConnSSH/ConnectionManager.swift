@@ -428,10 +428,21 @@ public actor ConnectionManager {
 
     /// 原子返回当前池化会话及其平台画像。动态能力状态由各功能自行探测。
     public func platformContext(for host: ConnKit.Host) async throws -> RemotePlatformContext {
+        try await platformContext(
+            for: host,
+            diagnostics: ConnectionDiagnosticsContext(host: host)
+        )
+    }
+
+    /// 与 `platformContext(for:)` 相同，但带上调用方的连接诊断上下文。
+    public func platformContext(
+        for host: ConnKit.Host,
+        diagnostics: ConnectionDiagnosticsContext
+    ) async throws -> RemotePlatformContext {
         let key = poolKey(for: host)
         // 即使已有画像也先经过 session(for:) 的存活检查。否则缓存会绕过死连接
         // 驱逐，重连后的目标甚至可能已换成另一种平台却继续沿用旧画像。
-        let session = try await session(for: host)
+        let session = try await session(for: host, diagnostics: diagnostics)
         if let cached = platformProfiles[key] {
             guard case let .connected(pooled)? = entries[key], pooled === session else {
                 throw SSHError.channelClosed

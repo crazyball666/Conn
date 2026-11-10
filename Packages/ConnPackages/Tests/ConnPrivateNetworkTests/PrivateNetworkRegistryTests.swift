@@ -141,6 +141,44 @@ struct PrivateNetworkRegistryTests {
         #expect(await factory.closeCount == 1)
     }
 
+    @Test("回前台健康检查期间新建 lease 不得停止 runtime")
+    func resumeDoesNotStopRuntimeWithNewLease() async throws {
+        let profile = PrivateNetworkProfile(
+            id: "p",
+            name: "Tailnet",
+            provider: .tailscale,
+            controlURL: "https://controlplane.tailscale.com"
+        )
+        let profiles = InMemoryProfiles(profile: profile)
+        let credentials = InMemoryCredentialStore()
+        try credentials.setPrivateNetworkAuthKey("auth", forProfile: "p")
+        let factory = FakeFactory(
+            healthDelay: .milliseconds(200),
+            healthyAfterSuspension: false
+        )
+        let registry = PrivateNetworkRegistry(
+            profileRepository: profiles,
+            credentialStore: credentials,
+            factory: factory,
+            idleTimeout: .seconds(45)
+        )
+
+        let first = try await registry.openProxy(profileID: "p", to: SSHEndpoint(host: "100.64.0.1"))
+        await first.close()
+
+        let resuming = Task { await registry.resumeAfterBackground(idleFor: 60) }
+        while await factory.healthCheckCount == 0 {
+            await Task.yield()
+        }
+        // 健康检查还在等待时，监控/终端发起了新连接。
+        let second = try await registry.openProxy(profileID: "p", to: SSHEndpoint(host: "100.64.0.1"))
+        await resuming.value
+
+        #expect(await registry.status(profileID: "p") == .running)
+        #expect(await factory.closeCount == 0)
+        await second.close()
+    }
+
     @Test("退后台恢复时保留健康空闲节点并在后续连接中复用")
     func resumeAfterBackgroundKeepsHealthyIdleRuntimeWarm() async throws {
         let profile = PrivateNetworkProfile(
@@ -439,16 +477,19 @@ private actor FakeFactory: PrivateNetworkClientFactory {
     var madeWhileClosing = false
     let closeDelay: Duration
     let startDelay: Duration
+    let healthDelay: Duration
     let failingProxy: Bool
     let healthyAfterSuspension: Bool
     init(
         closeDelay: Duration = .zero,
         startDelay: Duration = .zero,
+        healthDelay: Duration = .zero,
         failingProxy: Bool = false,
         healthyAfterSuspension: Bool = true
     ) {
         self.closeDelay = closeDelay
         self.startDelay = startDelay
+        self.healthDelay = healthDelay
         self.failingProxy = failingProxy
         self.healthyAfterSuspension = healthyAfterSuspension
     }
@@ -466,6 +507,7 @@ private actor FakeFactory: PrivateNetworkClientFactory {
     }
     func checkHealth() async -> Bool {
         healthCheckCount += 1
+        try? await Task.sleep(for: healthDelay)
         return healthyAfterSuspension
     }
     func didClose() async {

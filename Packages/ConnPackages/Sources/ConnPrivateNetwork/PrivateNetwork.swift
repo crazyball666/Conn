@@ -177,8 +177,11 @@ public actor PrivateNetworkRegistry {
             let healthy = await runtime.client.isHealthyAfterSuspension()
             let healthMs = Int(Date().timeIntervalSince(healthStarted) * 1000)
             // The runtime may have been stopped/replaced while the health check awaited.
+            // It may also have acquired a lease from a monitor/terminal connection; in
+            // that case never stop a runtime that is now in active use.
             guard let current = runtimes[profileID],
-                  ObjectIdentifier(current.client) == ObjectIdentifier(runtime.client)
+                  ObjectIdentifier(current.client) == ObjectIdentifier(runtime.client),
+                  current.leaseCount == 0
             else { continue }
             privateNetworkLogger.notice(
                 "resume profile=\(profileID, privacy: .public) healthy=\(healthy, privacy: .public) healthMs=\(healthMs, privacy: .public)"

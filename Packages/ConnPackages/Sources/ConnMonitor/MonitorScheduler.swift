@@ -527,7 +527,14 @@ public final class MonitorScheduler {
         let hasEstablishedHealth = metrics[host.id].map { $0.severity != .unknown } == true
         phases[host.id] = (needsHandshake && hasEstablishedHealth) ? .reconnecting : .collecting
         do {
-            let context = try await connectionManager.platformContext(for: host)
+            let context = try await connectionManager.platformContext(
+                for: host,
+                diagnostics: ConnectionDiagnosticsContext(
+                    host: host,
+                    connectionKind: "monitor",
+                    launchKind: "poll"
+                )
+            )
             let result = try await collector.collect(
                 host: host, session: context.session, profile: context.profile,
                 includeExtended: includeExtended
