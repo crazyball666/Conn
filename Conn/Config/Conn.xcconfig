@@ -1,0 +1,13 @@
+// Conn 构建配置
+//
+// 默认：订阅功能正常启用，不定义 CONN_DISABLE_SUBSCRIPTION。
+//
+// 编译免订阅版本：
+// 1. 取消下面 OTHER_SWIFT_FLAGS 一行的注释
+// 2. Xcode: Product > Clean Build Folder
+// 3. 重新编译 App（以及 ConnTests / ConnUITests）
+//
+// 该文件已挂到 Conn、ConnTests、ConnUITests 的 Debug/Release 配置。
+// 使用 -D 而不是覆盖 SWIFT_ACTIVE_COMPILATION_CONDITIONS，避免把 DEBUG 条件弄丢。
+//
+// OTHER_SWIFT_FLAGS = $(inherited) -DCONN_DISABLE_SUBSCRIPTION
