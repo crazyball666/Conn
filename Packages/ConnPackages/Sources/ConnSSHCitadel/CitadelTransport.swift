@@ -131,7 +131,7 @@ public final class CitadelTransport: SSHTransport {
         }
 
         do {
-            return try await connectUsingLease(
+            return try await connectUsingLeaseWithRetry(
                 lease,
                 plan: plan,
                 hostKeyPolicy: hostKeyPolicy,
@@ -143,6 +143,37 @@ public final class CitadelTransport: SSHTransport {
             if let sshError = error as? SSHError { throw sshError }
             throw AuthMapping.mapConnectError(error, endpoint: plan.target.endpoint, auth: plan.target.auth)
         }
+    }
+
+    /// 私有网络刚建立时，Tailscale 本地状态可能已 Running，但到 peer 的
+    /// 数据面路径还没完全就绪；首次 SSH 握手会瞬时 refused/timeout。
+    /// 只对这类网络错误做有界重试，认证、指纹和配置错误立即失败。
+    private func connectUsingLeaseWithRetry(
+        _ lease: any PrivateNetworkProxyLease,
+        plan: SSHConnectionPlan,
+        hostKeyPolicy: HostKeyPolicy,
+        connectTimeout: TimeAmount,
+        diagnostics: ConnectionDiagnosticsContext
+    ) async throws -> any SSHSession {
+        var lastError: Error?
+        for attempt in 1 ... ConnectionRetryPolicy.maximumAttempts {
+            do {
+                return try await connectUsingLease(
+                    lease,
+                    plan: plan,
+                    hostKeyPolicy: hostKeyPolicy,
+                    connectTimeout: connectTimeout,
+                    diagnostics: diagnostics
+                )
+            } catch {
+                lastError = error
+                guard ConnectionRetryPolicy.isTransient(error),
+                      attempt < ConnectionRetryPolicy.maximumAttempts
+                else { throw error }
+                try? await Task.sleep(for: ConnectionRetryPolicy.delay(afterFailedAttempt: attempt))
+            }
+        }
+        throw lastError ?? SSHError.channelClosed
     }
 
     private func connectThroughExternalProxy(
