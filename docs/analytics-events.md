@@ -21,6 +21,8 @@
 
 `error_text` 是显式的诊断例外：最长 2000 字符 / 4000 UTF-8 字节，保留换行和制表符，去掉其他控制字符。其他属性仍走 64 字符白名单清洗，`target_address` 允许到 255 字符。
 
+匿名安装标识由 Pulse SDK 的 Apple 桥接生成并保存到 Keychain（`AfterFirstUnlockThisDeviceOnly`），SDK 同时把它写入沙盒内的 `device-id` 文件；卸载重装后从 Keychain 恢复，保持不变，且不会随备份迁移到另一台设备。调用方可以通过 `deviceId` 参数传入外部 ID，外部合法 UUID 优先。
+
 ## 公共属性
 
 | 键 | 取值 |

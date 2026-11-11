@@ -24,6 +24,7 @@ final class PulseAnalyticsSink: AnalyticsSink {
             appId: appID,
             writeKey: writeKey,
             encryptionKeyHex: encryptionKey,
+            deviceId: nil,
             storageDir: nil
         )
         return isStarted
