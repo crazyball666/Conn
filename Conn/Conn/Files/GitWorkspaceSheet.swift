@@ -16,6 +16,7 @@ final class GitWorkspaceViewModel {
     }
 
     private(set) var loadState: LoadState = .loading
+    private(set) var hasLoaded = false
     private(set) var status: GitRepoStatus?
     private(set) var branches: [GitBranch] = []
     private(set) var commits: [GitCommit] = []
@@ -39,8 +40,14 @@ final class GitWorkspaceViewModel {
         return GitService(session: session)
     }
 
+    func loadIfNeeded() async {
+        guard !hasLoaded else { return }
+        await load()
+    }
+
     func load() async {
         loadState = .loading
+        defer { hasLoaded = true }
         do {
             let service = try await gitService()
             async let s = service.status(at: repoRoot)
@@ -222,7 +229,7 @@ struct GitWorkspaceSheet: View {
         }
         .task {
             if !viewModel.repoRoot.isEmpty {
-                await viewModel.load()
+                await viewModel.loadIfNeeded()
             }
         }
         .navigationDestination(item: $inspectingDiffFile) { file in

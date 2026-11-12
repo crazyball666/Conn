@@ -945,6 +945,17 @@ struct AppWideUIConsistencyTests {
         #expect(source.contains("viewModel.actionMessage = message"))
     }
 
+    @Test("Git 工作区从详情返回时只首次加载")
+    func gitWorkspaceLoadsOnlyOncePerPresentation() throws {
+        let source = try appSource("Files/GitWorkspaceSheet.swift")
+
+        #expect(source.contains("private(set) var hasLoaded = false"))
+        #expect(source.contains("func loadIfNeeded() async"))
+        #expect(source.contains("guard !hasLoaded else { return }"))
+        #expect(source.contains("await viewModel.loadIfNeeded()"))
+        #expect(source.contains("defer { hasLoaded = true }"))
+    }
+
     @Test("终端页为新建连接和重连提供阶段覆盖层")
     func terminalScreenShowsConnectionProgressOverlay() throws {
         let screen = try appSource("Terminal/TerminalScreen.swift")
