@@ -32,6 +32,7 @@ struct TerminalScreen: View {
     @State private var isFileImporterPresented = false
     @State private var photoSelection: [PhotosPickerItem] = []
     @State private var providerWorkingDirectory: String?
+    @State private var trackedConnectionKey: String?
     /// 仅在本次 TerminalScreen 生命周期内按 tab 保存草稿；不写入数据库。
     @State private var composerStates: [String: TerminalCommandComposerState] = [:]
     @State private var terminalWorkingDirectoryResolvers: [String: TerminalWorkingDirectoryResolver] = [:]
@@ -78,6 +79,10 @@ struct TerminalScreen: View {
                 verifyExistingTab()
                 synchronizeWorkingDirectory(for: activeTab)
                 trackTerminalOpened()
+                trackConnectedIfNeeded()
+            }
+            .onChange(of: activeTab?.status) { _, _ in
+                trackConnectedIfNeeded()
             }
             .onChange(of: activeTab?.id) { previousID, currentID in
                 guard previousID == tabID, currentID == nil else { return }
@@ -85,6 +90,7 @@ struct TerminalScreen: View {
             }
             .onChange(of: activeTab?.generation) { _, _ in
                 synchronizeWorkingDirectory(for: activeTab)
+                trackConnectedIfNeeded()
             }
             .sheet(isPresented: $isCommandPickerPresented) {
                 if let snippetRepository, let snippetGroupRepository {
@@ -244,26 +250,69 @@ private extension TerminalScreen {
         terminalSessions.store.tab(id: tabID)
     }
 
-    private func trackTerminalOpened() {
-        let provider: String
-        switch activeTab?.source {
-        case .shell: provider = "plain"
-        case let .persistent(providerID): provider = providerID
-        case .docker: provider = "docker"
-        case .script: provider = "script"
-        case nil: provider = "unknown"
+    private func connectionActivity(for tab: TerminalTab) -> TerminalConnectionActivity? {
+        terminalSessions.connectionProgress.activity(forID: tab.id)
+    }
+
+    private func shouldShowConnectionOverlay(
+        _ activity: TerminalConnectionActivity,
+        tab: TerminalTab
+    ) -> Bool {
+        switch tab.status {
+        case .connecting, .reconnecting:
+            true
+        case .disconnected:
+            activity.state == .failed
+        case .connected:
+            false
         }
+    }
+
+    private func shouldHideTerminalView(for tab: TerminalTab) -> Bool {
+        tab.isPlaceholderSession || tab.status == .connecting
+    }
+
+    private func closeFromConnectionOverlay(_ tab: TerminalTab) {
+        Task {
+            await terminalSessions.close(tab.id)
+            if terminalSessions.store.tab(id: tab.id) == nil {
+                dismiss()
+            }
+        }
+    }
+
+    private func trackTerminalOpened() {
         Analytics.shared.track(.terminalOpened, [
-            .provider: provider,
+            .provider: providerName,
             .source: "terminal_screen",
             .hostRef: host.id,
         ])
+    }
+
+    private func trackConnectedIfNeeded() {
+        guard let tab = activeTab, tab.status == .connected else { return }
+        let key = "\(tab.id)-\(tab.generation)"
+        guard trackedConnectionKey != key else { return }
+        trackedConnectionKey = key
+        guard terminalSessions.connectionProgress.activity(forID: tab.id)?.kind == .connect else {
+            return
+        }
         Analytics.shared.track(.connectionFinished, [
             .success: "true",
-            .provider: provider,
+            .provider: providerName,
             .hostRef: host.id,
             .resumed: "false",
         ])
+    }
+
+    private var providerName: String {
+        switch activeTab?.source {
+        case .shell: "plain"
+        case let .persistent(providerID): providerID
+        case .docker: "docker"
+        case .script: "script"
+        case nil: "unknown"
+        }
     }
 
     private var terminalColorScheme: ColorScheme {
@@ -286,53 +335,72 @@ private extension TerminalScreen {
         ZStack {
             terminalColor(configuration.theme.background).ignoresSafeArea()
             if let tab = activeTab {
-                TerminalHostingView(
-                    session: tab.session,
-                    transcript: tab.transcript,
-                    persistentAttachment: tab.persistentAttachment,
-                    persistentInteraction: (
-                        tab.persistentAttachment as? any PersistentTerminalInteractiveAttachment
-                    )?.interaction,
-                    tabID: tab.id,
-                    terminalGeneration: tab.generation,
-                    composerState: composerBinding(for: tab.id),
-                    insertionMailbox: insertionMailbox,
-                    configuration: configuration,
-                    onCloseTerminal: { dismiss() },
-                    onSwitchTerminal: { isSessionListPresented = true },
-                    onOpenFileBrowser: openFileBrowser,
-                    onChooseCommand: showCommandPicker,
-                    onReconnect: { Task { await reconnect(tab.id) } },
-                    onPersistentWorkspaceRenamed: { name in
-                        terminalSessions.store.updatePersistentWorkspaceName(tab.id, to: name)
-                    },
-                    onPersistentWorkspaceChanged: { workspaceID, workspaceName in
-                        terminalSessions.updatePersistentWorkspaceBinding(
-                            tab.id,
-                            workspaceID: workspaceID,
-                            workspaceName: workspaceName
-                        )
-                    },
-                    onPersistentWorkspaceClosed: {
-                        closePersistentWorkspace(tab.id)
-                    },
-                    attachmentState: attachmentCoordinator.panelState,
-                    onAttachmentAction: handleAttachmentAction,
-                    onPersistentWorkingDirectoryChanged: { providerWorkingDirectory = $0 },
-                    onTerminalWorkingDirectoryChanged: { source, generation, path in
-                        updateWorkingDirectory(
-                            source: source,
+                Group {
+                    if shouldHideTerminalView(for: tab) {
+                        // No usable PTY yet (or the first connection failed).
+                        // Keeping the terminal view off-screen prevents it from
+                        // grabbing keyboard focus under the connection card.
+                        Color.clear
+                    } else {
+                        TerminalHostingView(
+                            session: tab.session,
+                            transcript: tab.transcript,
+                            persistentAttachment: tab.persistentAttachment,
+                            persistentInteraction: (
+                                tab.persistentAttachment as? any PersistentTerminalInteractiveAttachment
+                            )?.interaction,
                             tabID: tab.id,
-                            generation: generation,
-                            path: path,
-                            terminalSource: tab.source
+                            terminalGeneration: tab.generation,
+                            composerState: composerBinding(for: tab.id),
+                            insertionMailbox: insertionMailbox,
+                            configuration: configuration,
+                            onCloseTerminal: { dismiss() },
+                            onSwitchTerminal: { isSessionListPresented = true },
+                            onOpenFileBrowser: openFileBrowser,
+                            onChooseCommand: showCommandPicker,
+                            onReconnect: { Task { await reconnect(tab.id) } },
+                            onPersistentWorkspaceRenamed: { name in
+                                terminalSessions.store.updatePersistentWorkspaceName(tab.id, to: name)
+                            },
+                            onPersistentWorkspaceChanged: { workspaceID, workspaceName in
+                                terminalSessions.updatePersistentWorkspaceBinding(
+                                    tab.id,
+                                    workspaceID: workspaceID,
+                                    workspaceName: workspaceName
+                                )
+                            },
+                            onPersistentWorkspaceClosed: {
+                                closePersistentWorkspace(tab.id)
+                            },
+                            attachmentState: attachmentCoordinator.panelState,
+                            onAttachmentAction: handleAttachmentAction,
+                            onPersistentWorkingDirectoryChanged: { providerWorkingDirectory = $0 },
+                            onTerminalWorkingDirectoryChanged: { source, generation, path in
+                                updateWorkingDirectory(
+                                    source: source,
+                                    tabID: tab.id,
+                                    generation: generation,
+                                    path: path,
+                                    terminalSource: tab.source
+                                )
+                            },
+                            speechInputService: AppleSpeechInputService.shared
                         )
-                    },
-                    speechInputService: AppleSpeechInputService.shared
-                )
+                    }
+                }
                 .environment(\.colorScheme, terminalColorScheme)
                 .overlay {
-                    if case let .disconnected(message) = tab.status {
+                    if let activity = connectionActivity(for: tab), shouldShowConnectionOverlay(activity, tab: tab) {
+                        TerminalConnectionOverlay(
+                            activity: activity,
+                            host: host,
+                            onCancel: { closeFromConnectionOverlay(tab) },
+                            onRetry: activity.state == .failed
+                                ? { Task { await reconnect(tab.id) } }
+                                : nil
+                        )
+                        .transition(.opacity)
+                    } else if case let .disconnected(message) = tab.status {
                         reconnectNotice(message)
                             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                     } else if case .reconnecting = tab.status {
@@ -409,7 +477,7 @@ private extension TerminalScreen {
             case .script: "script"
             }
         } ?? "unknown"
-        switch await terminalSessions.reconnect(id) {
+        switch await terminalSessions.retry(id) {
         case .success:
             Analytics.shared.track(.connectionReconnected, [
                 .result: "success",

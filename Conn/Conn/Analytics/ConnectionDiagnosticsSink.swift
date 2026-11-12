@@ -1,5 +1,6 @@
 import ConnAnalytics
 import ConnSSH
+import ConnTerminal
 import Foundation
 
 /// 把包内的连接阶段样本映射成匿名产品分析事件。
@@ -7,7 +8,15 @@ import Foundation
 /// 地址、端口和错误原文按产品决定采集；错误文本由 `AnalyticsService` 做长度截断
 /// 和不支持字符清理，不做凭据脱敏。
 final class AnalyticsConnectionDiagnosticsSink: ConnectionDiagnosticsSink, @unchecked Sendable {
+    /// 终端连接卡片的生产者；由 App 组装根在协调器创建后注入。
+    var progressCenter: TerminalConnectionProgressCenter?
+
     func record(_ sample: ConnectionPhaseSample) {
+        if let progressCenter {
+            Task { @MainActor in
+                progressCenter.record(sample)
+            }
+        }
         var properties = Self.contextProperties(sample.context)
         properties[.phase] = sample.phase
         properties[.durationBucket] = Analytics.durationBucket(milliseconds: sample.durationMs)

@@ -361,6 +361,7 @@ struct HostFormView: View {
                     .foregroundStyle(.connInk)
                     .keyboardType(.numberPad)
                     .focused($focus, equals: .port)
+                    .accessibilityIdentifier("host-form.port")
             }
             if let portError = viewModel.fieldErrors[.port] {
                 Text(portError)

@@ -16,6 +16,8 @@ enum TerminalForegroundRecoveryPolicy {
         switch status {
         case .disconnected, .reconnecting:
             true
+        case .connecting:
+            false
         case .connected:
             poolHealth == .disconnected
         }

@@ -141,12 +141,12 @@ struct TerminalSessionListSheet: View {
     @ViewBuilder
     private func statusIcon(_ status: TerminalTabStatus) -> some View {
         switch status {
+        case .connecting, .reconnecting:
+            ProgressView().controlSize(.small)
         case .connected:
             Image(systemName: "circle.fill")
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundStyle(.connGood)
-        case .reconnecting:
-            ProgressView().controlSize(.small)
         case .disconnected:
             Image(systemName: "wifi.exclamationmark").foregroundStyle(.connWarn)
         }

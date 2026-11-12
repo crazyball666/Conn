@@ -327,6 +327,7 @@ struct AppDependencies {
                 resumeRepository: PersistentTerminalResumeStore(database: database),
                 diagnosticsSink: diagnosticsSink
             )
+            diagnosticsSink.progressCenter = terminalSessions.connectionProgress
             let snippetExecutionPlanner = makeSnippetExecutionPlanner(
                 connectionManager: connectionManager
             )

@@ -73,7 +73,6 @@ struct SnippetRunView: View {
             .sheet(item: $paywallContext) { context in
                 PaywallView(dependencies: dependencies, context: context)
             }
-            .overlay { terminalLaunchProgress }
             .onChange(of: terminalLauncher.errorMessage) { _, message in
                 if let message { errorText = message }
             }
@@ -449,15 +448,6 @@ struct SnippetRunView: View {
                 source: .script(title: snippet.title),
                 initialCommand: route.preparedCommand
             ))
-        }
-    }
-
-    @ViewBuilder
-    private var terminalLaunchProgress: some View {
-        if terminalLauncher.isLaunching {
-            ProgressView(L("正在打开终端…"))
-                .padding(ConnSpacing.md)
-                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: ConnRadius.control))
         }
     }
 

@@ -5272,6 +5272,70 @@
         }
       }
     },
+    "该主机正在建立另一个终端连接" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Another terminal connection is already being established for this host." } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "このホストでは別のターミナル接続を確立中です。" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "이 호스트의 다른 터미널 연결을 설정하는 중입니다." } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "此主機正在建立另一個終端連線。" } }
+      }
+    },
+    "凭据" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Credential" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "認証情報" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "자격 증명" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "憑據" } }
+      }
+    },
+    "节点" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Node" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "ノード" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "노드" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "節點" } }
+      }
+    },
+    "路由" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Route" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "ルート" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "라우트" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "路由" } }
+      }
+    },
+    "代理" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Proxy" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "プロキシ" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "프록시" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "代理" } }
+      }
+    },
+    "跳板" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Jump Host" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "踏み台" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "점프 호스트" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "跳板" } }
+      }
+    },
+    "连接失败" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Connection Failed" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "接続に失敗しました" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "연결 실패" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "連線失敗" } }
+      }
+    },
+    "已连接" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Connected" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "接続済み" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "연결됨" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "已連線" } }
+      }
+    },
     "连接中…" : {
       "localizations" : {
         "en" : {

@@ -945,14 +945,27 @@ struct AppWideUIConsistencyTests {
         #expect(source.contains("viewModel.actionMessage = message"))
     }
 
+    @Test("终端页为新建连接和重连提供阶段覆盖层")
+    func terminalScreenShowsConnectionProgressOverlay() throws {
+        let screen = try appSource("Terminal/TerminalScreen.swift")
+        let overlay = try appSource("Terminal/TerminalConnectionOverlay.swift")
+
+        #expect(screen.contains("TerminalConnectionOverlay("))
+        #expect(overlay.contains("terminal.connection.overlay"))
+        #expect(screen.contains("case .connecting, .reconnecting:"))
+        #expect(overlay.contains("terminal.connection.stage."))
+        #expect(overlay.contains("terminal.connection.retry"))
+        #expect(overlay.contains("terminal.connection.cancel"))
+    }
+
     @Test("显式终端入口同步失效当前 launch 并拒绝迟到完成")
     func explicitTerminalPresentationGuardsCancellationRace() throws {
         let source = try appSource("Terminal/TerminalLaunchPresentation.swift")
 
         #expect(source.contains("activeLaunchToken"))
-        #expect(source.contains("activeLaunchToken == launchToken"))
-        #expect(source.contains("model.closeImmediately()"))
-        #expect(!source.contains("Task { await model.close() }"))
+        #expect(source.contains("activeLaunchToken == token"))
+        #expect(source.contains("coordinator.close(tab.id)"))
+        #expect(!source.contains("ExplicitTerminalLaunchModel"))
     }
 
     @Test("保存主机不创建或查询持久终端 provider 配置")

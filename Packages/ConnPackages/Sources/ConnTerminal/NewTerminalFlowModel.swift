@@ -53,6 +53,11 @@ public final class NewTerminalFlowModel {
         public let commitLaunch:
             @MainActor (TerminalLaunchAttemptID) async -> Result<String, TerminalLaunchFailure>
         public let cancelLaunch: @MainActor (TerminalLaunchAttemptID) async -> Void
+        /// Production uses the optimistic path: create the local tab and open the
+        /// terminal page before the remote connection finishes.
+        public let startConnecting:
+            (@MainActor (TerminalLaunchRequest) async -> Result<TerminalTab, TerminalLaunchFailure>)?
+        public let closeTab: (@MainActor (String) async -> Void)?
 
         public init(
             loadHosts: @escaping @MainActor () throws -> [ConnKit.Host],
@@ -64,7 +69,9 @@ public final class NewTerminalFlowModel {
             beginLaunchAttempt: @escaping @MainActor () -> TerminalLaunchAttemptID,
             prepareLaunch: @escaping @MainActor (TerminalLaunchRequest, TerminalLaunchAttemptID) async -> Result<Void, TerminalLaunchFailure>,
             commitLaunch: @escaping @MainActor (TerminalLaunchAttemptID) async -> Result<String, TerminalLaunchFailure>,
-            cancelLaunch: @escaping @MainActor (TerminalLaunchAttemptID) async -> Void
+            cancelLaunch: @escaping @MainActor (TerminalLaunchAttemptID) async -> Void,
+            startConnecting: (@MainActor (TerminalLaunchRequest) async -> Result<TerminalTab, TerminalLaunchFailure>)? = nil,
+            closeTab: (@MainActor (String) async -> Void)? = nil
         ) {
             self.loadHosts = loadHosts
             self.persistentBackendOptions = persistentBackendOptions
@@ -76,6 +83,8 @@ public final class NewTerminalFlowModel {
             self.prepareLaunch = prepareLaunch
             self.commitLaunch = commitLaunch
             self.cancelLaunch = cancelLaunch
+            self.startConnecting = startConnecting
+            self.closeTab = closeTab
         }
 
         public static func live(
@@ -119,6 +128,12 @@ public final class NewTerminalFlowModel {
                 },
                 cancelLaunch: { attemptID in
                     await coordinator.cancelLaunch(attemptID: attemptID)
+                },
+                startConnecting: { request in
+                    await coordinator.startConnecting(request)
+                },
+                closeTab: { tabID in
+                    await coordinator.close(tabID)
                 }
             )
         }
@@ -420,8 +435,6 @@ public final class NewTerminalFlowModel {
 
         // Registration is intentionally synchronous and happens before this method's
         // first suspension, so close() always has an attempt to cancel.
-        let attemptID = operations.beginLaunchAttempt()
-        activeAttemptID = attemptID
         let request = TerminalLaunchRequest(
             host: host,
             policy: .createNew,
@@ -430,6 +443,27 @@ public final class NewTerminalFlowModel {
             automaticAlias: automaticAlias
         )
 
+        if let startConnecting = operations.startConnecting {
+            switch await startConnecting(request) {
+            case let .success(tab):
+                guard isCurrent(launchGeneration) else {
+                    await operations.closeTab?(tab.id)
+                    return
+                }
+                isCreating = false
+                didComplete = true
+                onCompleted(NewTerminalFlowCompletion(host: host, tabID: tab.id, notice: notice))
+            case let .failure(failure):
+                guard isCurrent(launchGeneration) else { return }
+                isCreating = false
+                phase = failurePhase
+                errorMessage = failure.message
+            }
+            return
+        }
+
+        let attemptID = operations.beginLaunchAttempt()
+        activeAttemptID = attemptID
         switch await operations.prepareLaunch(request, attemptID) {
         case .success:
             guard isCurrent(launchGeneration, attemptID: attemptID) else {

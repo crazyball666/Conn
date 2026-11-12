@@ -1646,4 +1646,181 @@ struct TerminalSessionCoordinatorTests {
         await coordinator.close(tab.id)
     }
 
+    @Test("startConnecting 先展示 connecting Tab，再在同一 Tab 上完成连接")
+    func startConnectingPublishesTabBeforeConnectionCompletes() async {
+        let host = Host(id: "host-1", name: "web", address: "10.0.0.1", username: "root")
+        let gate = DelayedShellGate()
+        let coordinator = TerminalSessionCoordinator(
+            hostRepository: TerminalHostRepository(hosts: [host]),
+            connectionManager: ConnectionManager(transport: DelayedShellTransport(gate: gate))
+        )
+
+        let result = await coordinator.startConnecting(
+            TerminalLaunchRequest(host: host, policy: .createNew, source: .shell)
+        )
+        guard case let .success(tab) = result else {
+            Issue.record("立即创建本地 Tab 应成功")
+            return
+        }
+        #expect(coordinator.store.tab(id: tab.id)?.status == .connecting)
+        #expect(coordinator.connectionProgress.activity(forID: tab.id)?.state == .connecting)
+
+        await gate.waitUntilBlocked()
+        await gate.release()
+        for _ in 0 ..< 100 {
+            if coordinator.store.tab(id: tab.id)?.status == .connected { break }
+            try? await Task.sleep(for: .milliseconds(10))
+        }
+
+        #expect(coordinator.store.tab(id: tab.id)?.status == .connected)
+        #expect(coordinator.connectionProgress.activity(forID: tab.id)?.state == .connected)
+        #expect(coordinator.connectionProgress.activity(forID: tab.id)?.steps.allSatisfy {
+            $0.state == .completed
+        } == true)
+        await coordinator.close(tab.id)
+    }
+
+    @Test("startConnecting 失败时保留断开 Tab，并标记失败阶段")
+    func startConnectingFailureKeepsTabForRetry() async {
+        let host = Host(id: "host-1", name: "web", address: "10.0.0.1", username: "root")
+        let endpoint = SSHEndpoint(host: host.address, port: host.port)
+        let coordinator = TerminalSessionCoordinator(
+            hostRepository: TerminalHostRepository(hosts: [host]),
+            connectionManager: ConnectionManager(
+                transport: MockSSHTransport(behavior: .init(failConnect: .connectionRefused(endpoint: endpoint)))
+            )
+        )
+
+        guard case let .success(tab) = await coordinator.startConnecting(
+            TerminalLaunchRequest(host: host, policy: .createNew, source: .shell)
+        ) else {
+            Issue.record("本地 Tab 应立即创建")
+            return
+        }
+
+        for _ in 0 ..< 100 {
+            if case .disconnected = coordinator.store.tab(id: tab.id)?.status { break }
+            try? await Task.sleep(for: .milliseconds(10))
+        }
+
+        guard case .disconnected = coordinator.store.tab(id: tab.id)?.status else {
+            Issue.record("连接失败后应保留断开 Tab")
+            return
+        }
+        let activity = coordinator.connectionProgress.activity(forID: tab.id)
+        #expect(activity?.state == .failed)
+        #expect(activity?.failedStep?.id == .network)
+        await coordinator.close(tab.id)
+    }
+
+    @Test("关闭 connecting Tab 会取消连接并清理占位通道")
+    func closingConnectingTabCancelsAndCleansUp() async {
+        let host = Host(id: "host-1", name: "web", address: "10.0.0.1", username: "root")
+        let gate = DelayedShellGate()
+        let coordinator = TerminalSessionCoordinator(
+            hostRepository: TerminalHostRepository(hosts: [host]),
+            connectionManager: ConnectionManager(transport: DelayedShellTransport(gate: gate))
+        )
+
+        guard case let .success(tab) = await coordinator.startConnecting(
+            TerminalLaunchRequest(host: host, policy: .createNew, source: .shell)
+        ) else {
+            Issue.record("本地 Tab 应立即创建")
+            return
+        }
+        await gate.waitUntilBlocked()
+        await coordinator.close(tab.id)
+        await gate.release()
+        try? await Task.sleep(for: .milliseconds(30))
+
+        #expect(coordinator.store.tab(id: tab.id) == nil)
+        #expect(await gate.wasChannelClosed())
+        #expect(coordinator.connectionProgress.activity(forID: tab.id)?.state == .cancelled)
+    }
+
+    @Test("私有网络连接展示 Headscale 实际阶段")
+    func privateNetworkConnectionShowsHeadscaleRouteStage() async {
+        let host = Host(
+            id: "host-1",
+            name: "web",
+            address: "100.64.0.1",
+            username: "root",
+            privateNetworkProfileID: "profile-1"
+        )
+        let coordinator = TerminalSessionCoordinator(
+            hostRepository: TerminalHostRepository(hosts: [host]),
+            connectionManager: ConnectionManager(transport: MockSSHTransport())
+        )
+
+        guard case let .success(tab) = await coordinator.startConnecting(
+            TerminalLaunchRequest(host: host, policy: .createNew, source: .shell)
+        ) else {
+            Issue.record("本地 Tab 应立即创建")
+            return
+        }
+        let activity = coordinator.connectionProgress.activity(forID: tab.id)
+        #expect(activity?.steps.first?.id == .profile)
+        #expect(activity?.routeLabel == "Headscale")
+        #expect(activity?.steps.map(\.id) == [
+            .profile, .credential, .state, .route, .socks,
+            .network, .authentication, .shell, .ready,
+        ])
+        for tab in coordinator.store.tabs {
+            await coordinator.close(tab.id)
+        }
+    }
+
+    @Test("同一 Host 的多个连接进度互不覆盖")
+    func progressIsKeyedByActivityNotHost() {
+        let host = Host(id: "host-1", name: "web", address: "10.0.0.1", username: "root")
+        let center = TerminalConnectionProgressCenter()
+        center.begin(host: host, kind: .connect, activityID: "tab-a", connectionRef: "ref-a")
+        center.begin(host: host, kind: .reconnect, activityID: "tab-b", connectionRef: "ref-b")
+        center.complete(.network, forID: "tab-a")
+
+        #expect(center.activity(forID: "tab-a")?.steps.first { $0.id == .network }?.state == .completed)
+        #expect(center.activity(forID: "tab-b")?.kind == .reconnect)
+        #expect(center.activity(forID: "tab-b")?.steps.first { $0.id == .network }?.state == .active)
+    }
+
+    @Test("Headscale 阶段样本按实际顺序推进")
+    func headscalePhaseSamplesAdvanceProgress() {
+        let host = Host(
+            id: "host-1",
+            name: "web",
+            address: "100.64.0.1",
+            username: "root",
+            privateNetworkProfileID: "profile-1"
+        )
+        let context = ConnectionDiagnosticsContext(
+            connectionRef: "terminal-ref",
+            targetAddress: host.address,
+            targetPort: host.port,
+            connectionKind: "terminal",
+            route: "private_network"
+        )
+        let center = TerminalConnectionProgressCenter()
+        center.begin(
+            host: host,
+            kind: .connect,
+            activityID: "activity-1",
+            connectionRef: context.connectionRef
+        )
+
+        for phase in [
+            "profile_load", "credential_load", "state_prepare", "route_setup",
+            "socks_proxy", "ssh_handshake", "pty_open", "terminal_ready",
+        ] {
+            center.record(ConnectionPhaseSample(
+                context: context,
+                phase: phase,
+                durationMs: 12,
+                outcome: .success
+            ))
+        }
+
+        let activity = center.activity(forID: "activity-1")
+        #expect(activity?.state == .connected)
+        #expect(activity?.steps.allSatisfy { $0.state == .completed } == true)
+    }
 }

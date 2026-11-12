@@ -100,6 +100,7 @@ public struct TerminalLaunchAttemptID: Hashable, Sendable {
 @MainActor
 public final class TerminalSessionCoordinator {
     public let store: TerminalSessionStore
+    public let connectionProgress = TerminalConnectionProgressCenter()
     public private(set) var resumePersistenceIssue: String?
 
     private let hostRepository: any HostRepository
@@ -108,6 +109,11 @@ public final class TerminalSessionCoordinator {
     private let resumeRepository: any PersistentTerminalResumeRepository
     private let diagnosticsSink: (any ConnectionDiagnosticsSink)?
     private var inFlightLaunches: [String: Task<Result<TerminalTab, TerminalLaunchFailure>, Never>] = [:]
+    private var connectingTasks: [String: Task<Void, Never>] = [:]
+    /// Retains the original request for a failed optimistic launch so retry can
+    /// replay its initial command/workspace instead of rebuilding from the
+    /// reconnect descriptor.
+    private var failedLaunchRequests: [String: TerminalLaunchRequest] = [:]
     /// 主机删除/连接身份变更时递增。Citadel 的建连与开 PTY 不一定响应 cancellation，
     /// 所以必须在完成后再用这个代次阻止旧任务把会话写回 store。
     private var hostLaunchGenerations: [String: UInt64] = [:]
@@ -196,6 +202,238 @@ public final class TerminalSessionCoordinator {
 
         case .createNew:
             return await launchNew(request)
+        }
+    }
+
+    /// Creates the local tab immediately and connects it in the background.
+    ///
+    /// The terminal page is presented as soon as this returns, so every user-visible
+    /// connection stage must be published through `connectionProgress`. A failed
+    /// connection leaves a disconnected tab in place so the overlay can show the
+    /// failing stage and offer a retry instead of making the terminal disappear.
+    public func startConnecting(
+        _ request: TerminalLaunchRequest
+    ) async -> Result<TerminalTab, TerminalLaunchFailure> {
+        switch request.policy {
+        case let .existing(tabID):
+            guard let tab = store.tab(id: tabID) else {
+                return .failure(TerminalLaunchFailure(message: L("终端会话不存在")))
+            }
+            store.select(tabID)
+            return .success(tab)
+
+        case .reuseRecentOrCreate:
+            if let existing = store.recentTab(forHost: request.host.id) {
+                store.select(existing.id)
+                return .success(existing)
+            }
+
+        case .createNew:
+            break
+        }
+
+        guard let host = try? hostRepository.host(id: request.host.id) else {
+            return .failure(TerminalLaunchFailure(message: L("主机已被删除")))
+        }
+        if let connecting = store.tabs.first(where: {
+            $0.hostID == host.id && $0.status == .connecting
+        }) {
+            if connecting.source == request.source {
+                store.select(connecting.id)
+                return .success(connecting)
+            }
+            return .failure(TerminalLaunchFailure(
+                message: L("该主机正在建立另一个终端连接")
+            ))
+        }
+
+        let generation: UInt64 = 1
+        let transcript = TerminalTranscript()
+        await transcript.activateGeneration(generation)
+        let placeholder = TerminalSession(
+            channel: PendingShellChannel(),
+            transcript: transcript,
+            generation: generation
+        )
+        let reconnectDescriptor: TerminalReconnectDescriptor = switch request.backend {
+        case .plainPTY:
+            request.replayInitialCommandOnReconnect
+                ? TerminalReconnectDescriptor(commandToReplay: request.initialCommand)
+                : .shell
+        case let .persistent(descriptor):
+            .persistent(descriptor)
+        }
+        let tab = TerminalTab(
+            hostID: host.id,
+            hostName: host.name,
+            hostAddress: host.displayAddress,
+            session: placeholder,
+            transcript: transcript,
+            source: request.source,
+            reconnectDescriptor: reconnectDescriptor,
+            automaticAlias: automaticAlias(for: request, hostID: host.id),
+            status: .connecting,
+            generation: generation,
+            isPlaceholderSession: true
+        )
+        store.add(tab)
+        store.select(tab.id)
+
+        let context = ConnectionDiagnosticsContext(
+            host: host,
+            connectionKind: "terminal",
+            launchKind: "new",
+            sessionReused: await connectionManager.hasPooledSession(for: host)
+        )
+        connectionProgress.begin(
+            host: host,
+            kind: .connect,
+            activityID: tab.id,
+            connectionRef: context.connectionRef
+        )
+        let hostGeneration = launchGeneration(forHost: host.id)
+        connectingTasks[tab.id] = Task { @MainActor [weak self] in
+            guard let self else { return }
+            await self.finishConnecting(
+                tabID: tab.id,
+                request: request,
+                expectedHostGeneration: hostGeneration,
+                diagnostics: context
+            )
+            self.connectingTasks[tab.id] = nil
+        }
+        return .success(tab)
+    }
+
+    private func finishConnecting(
+        tabID: String,
+        request: TerminalLaunchRequest,
+        expectedHostGeneration: UInt64,
+        diagnostics: ConnectionDiagnosticsContext
+    ) async {
+        let started = Date()
+        var temporarySession: TerminalSession?
+        var temporaryAttachment: (any PersistentTerminalAttachment)?
+        do {
+            guard let host = try hostRepository.host(id: request.host.id) else {
+                throw TerminalLaunchFailure(message: L("主机已被删除"))
+            }
+            let ptyStarted = Date()
+            let opened = try await openBackend(
+                request.backend,
+                for: host,
+                activityID: tabID,
+                reason: .initial,
+                diagnostics: diagnostics
+            )
+            recordPhase("pty_open", started: ptyStarted, context: diagnostics)
+            temporaryAttachment = opened.attachment
+            guard !Task.isCancelled,
+                  isLaunchCurrent(forHost: host.id, expectedGeneration: expectedHostGeneration),
+                  let current = store.tab(id: tabID),
+                  current.generation == 1
+            else {
+                await opened.attachment?.close()
+                await opened.channel.close()
+                connectionProgress.cancel(forID: tabID)
+                return
+            }
+
+            let nextGeneration = current.generation + 1
+            await current.transcript.activateGeneration(nextGeneration)
+            await current.session.close()
+            guard !Task.isCancelled,
+                  isLaunchCurrent(forHost: host.id, expectedGeneration: expectedHostGeneration),
+                  let stillCurrent = store.tab(id: tabID),
+                  stillCurrent.generation == 1
+            else {
+                await opened.attachment?.close()
+                await opened.channel.close()
+                connectionProgress.cancel(forID: tabID)
+                return
+            }
+            let session = TerminalSession(
+                channel: opened.channel,
+                transcript: current.transcript,
+                generation: nextGeneration
+            )
+            temporarySession = session
+            if let initialCommand = request.initialCommand {
+                try await session.send(Array("\(initialCommand)\n".utf8))
+            }
+            store.replaceSession(
+                tabID,
+                session: session,
+                generation: nextGeneration,
+                status: .connected,
+                persistentAttachment: opened.attachment
+            )
+            temporaryAttachment = nil
+            let lifecycleToken = UUID()
+            lifecycleTokens[tabID] = lifecycleToken
+            await session.start()
+            temporarySession = nil
+            observeLifecycle(
+                for: tabID,
+                generation: nextGeneration,
+                token: lifecycleToken,
+                session: session
+            )
+            observeAttachmentLifecycle(
+                for: tabID,
+                generation: nextGeneration,
+                token: lifecycleToken,
+                attachment: opened.attachment
+            )
+            if let updated = store.tab(id: tabID) {
+                persistResumeRecord(for: updated)
+            }
+            recordPhase("terminal_ready", started: started, context: diagnostics)
+            failedLaunchRequests[tabID] = nil
+            connectionProgress.finish(forID: tabID)
+            recordSummary(context: diagnostics, result: .success, started: started)
+        } catch {
+            await temporarySession?.close()
+            await temporaryAttachment?.close()
+            if Task.isCancelled || store.tab(id: tabID) == nil {
+                connectionProgress.cancel(forID: tabID)
+                return
+            }
+            let message = terminalUserFacingDiagnosis(error)
+            if store.tab(id: tabID) != nil {
+                store.updateStatus(tabID, to: .disconnected(message: message))
+            }
+            failedLaunchRequests[tabID] = request
+            connectionProgress.fail(
+                forID: tabID,
+                step: progressStep(for: error, activeStep: connectionProgress.activity(forID: tabID)?.activeStep?.id),
+                message: message,
+                category: ConnectionDiagnosticsText.category(for: error)
+            )
+            recordSummary(
+                context: diagnostics,
+                result: .failure,
+                started: started,
+                errorStage: "terminal_launch",
+                errorCategory: ConnectionDiagnosticsText.category(for: error),
+                errorText: message
+            )
+        }
+    }
+
+    private func progressStep(
+        for error: Error,
+        activeStep: TerminalConnectionStepID? = nil
+    ) -> TerminalConnectionStepID {
+        switch ConnectionDiagnosticsText.category(for: error) {
+        case "auth", "host_key":
+            .authentication
+        case "private_network", "proxy", "jump":
+            .route
+        case "network":
+            .network
+        default:
+            activeStep ?? .shell
         }
     }
 
@@ -390,6 +628,45 @@ public final class TerminalSessionCoordinator {
             host: host,
             connectionManager: connectionManager
         )
+    }
+
+    /// Retries a failed optimistic launch with its original request. Falls back to
+    /// the normal reconnect descriptor for tabs that have no failed launch request.
+    public func retry(_ tabID: String) async -> Result<TerminalTab, TerminalLaunchFailure> {
+        guard let request = failedLaunchRequests[tabID],
+              let tab = store.tab(id: tabID),
+              tab.isPlaceholderSession,
+              let host = try? hostRepository.host(id: tab.hostID)
+        else {
+            return await reconnect(tabID)
+        }
+
+        await connectionManager.invalidate(host: host)
+        store.updateStatus(tabID, to: .reconnecting)
+        let context = ConnectionDiagnosticsContext(
+            host: host,
+            connectionKind: "terminal",
+            launchKind: "retry",
+            sessionReused: await connectionManager.hasPooledSession(for: host)
+        )
+        connectionProgress.begin(
+            host: host,
+            kind: .reconnect,
+            activityID: tabID,
+            connectionRef: context.connectionRef
+        )
+        await finishConnecting(
+            tabID: tabID,
+            request: request,
+            expectedHostGeneration: launchGeneration(forHost: host.id),
+            diagnostics: context
+        )
+        if let updated = store.tab(id: tabID), updated.status == .connected {
+            return .success(updated)
+        }
+        return .failure(TerminalLaunchFailure(
+            message: connectionProgress.activity(forID: tabID)?.errorMessage ?? L("连接失败")
+        ))
     }
 
     public func reconnect(_ tabID: String) async -> Result<TerminalTab, TerminalLaunchFailure> {
@@ -633,11 +910,21 @@ public final class TerminalSessionCoordinator {
 
     public func close(_ tabID: String) async {
         let closingTab = store.tab(id: tabID)
+        connectingTasks.removeValue(forKey: tabID)?.cancel()
+        failedLaunchRequests[tabID] = nil
         lifecycleTokens.removeValue(forKey: tabID)
         lifecycleTasks.removeValue(forKey: tabID)?.cancel()
         attachmentLifecycleTasks.removeValue(forKey: tabID)?.cancel()
         automaticRecoveryTasks.removeValue(forKey: tabID)?.task.cancel()
         reconnectTasks.removeValue(forKey: tabID)?.cancel()
+        if let closingTab {
+            switch closingTab.status {
+            case .connecting, .reconnecting, .disconnected:
+                connectionProgress.cancel(forID: tabID)
+            case .connected:
+                break
+            }
+        }
         await store.close(tabID)
         if let closingTab {
             removeOrTransferResumeRecord(afterClosing: closingTab)
@@ -665,11 +952,14 @@ public final class TerminalSessionCoordinator {
             restoreTasks.removeValue(forKey: recordID)?.cancel()
         }
         for tab in store.tabs(forHost: hostID) {
+            connectingTasks.removeValue(forKey: tab.id)?.cancel()
+            failedLaunchRequests.removeValue(forKey: tab.id)
             lifecycleTokens.removeValue(forKey: tab.id)
             lifecycleTasks.removeValue(forKey: tab.id)?.cancel()
             attachmentLifecycleTasks.removeValue(forKey: tab.id)?.cancel()
             automaticRecoveryTasks.removeValue(forKey: tab.id)?.task.cancel()
             reconnectTasks.removeValue(forKey: tab.id)?.cancel()
+            connectionProgress.cancel(forID: tab.id)
         }
         await store.closeAll(forHost: hostID)
         store.removeResumeRecords(forHost: hostID)
@@ -896,11 +1186,18 @@ public final class TerminalSessionCoordinator {
                     sessionReused: await connectionManager.hasPooledSession(for: host)
                 )
             }
+            connectionProgress.begin(
+                host: host,
+                kind: launchKind == "restore" ? .restore : .connect,
+                activityID: context.connectionRef,
+                connectionRef: context.connectionRef
+            )
 
             let ptyStarted = Date()
             let opened = try await openBackend(
                 request.backend,
                 for: host,
+                activityID: context.connectionRef,
                 reason: openReason,
                 diagnostics: context
             )
@@ -953,6 +1250,7 @@ public final class TerminalSessionCoordinator {
                 lastUsedAt: .now
             )
             recordPhase("terminal_ready", started: prepareStarted, context: context)
+            connectionProgress.finish(forID: context.connectionRef)
             return .success(PreparedLaunch(tab: tab))
         } catch {
             if let temporarySession {
@@ -1011,6 +1309,12 @@ public final class TerminalSessionCoordinator {
                 launchKind: "reconnect",
                 sessionReused: await connectionManager.hasPooledSession(for: host)
             )
+            connectionProgress.begin(
+                host: host,
+                kind: .reconnect,
+                activityID: tabID,
+                connectionRef: reconnectContext.connectionRef
+            )
             // 明确重连时主动驱逐可能处于半开/假死状态的旧连接，确保重连发起全新握手，避免先吃一次超时
             await connectionManager.invalidate(host: host)
             let backend: TerminalLaunchBackend = switch oldTab.reconnectDescriptor {
@@ -1023,6 +1327,7 @@ public final class TerminalSessionCoordinator {
             let opened = try await openBackend(
                 backend,
                 for: host,
+                activityID: tabID,
                 reason: .reconnect,
                 diagnostics: reconnectContext
             )
@@ -1071,6 +1376,7 @@ public final class TerminalSessionCoordinator {
             persistResumeRecord(for: replacement)
             recordPhase("terminal_ready", started: reconnectStarted, context: reconnectContext)
             recordSummary(context: reconnectContext, result: .success, started: reconnectStarted)
+            connectionProgress.finish(forID: tabID)
             return .success(replacement)
         } catch {
             await temporaryAttachment?.close()
@@ -1079,6 +1385,15 @@ public final class TerminalSessionCoordinator {
             if store.tab(id: tabID)?.generation == oldTab.generation {
                 store.updateStatus(tabID, to: .disconnected(message: message))
             }
+            connectionProgress.fail(
+                forID: tabID,
+                step: progressStep(
+                    for: error,
+                    activeStep: connectionProgress.activity(forID: tabID)?.activeStep?.id
+                ),
+                message: message,
+                category: ConnectionDiagnosticsText.category(for: error)
+            )
             recordSummary(
                 context: reconnectContext,
                 result: .failure,
@@ -1099,26 +1414,41 @@ public final class TerminalSessionCoordinator {
     private func openBackend(
         _ backend: TerminalLaunchBackend,
         for host: ConnKit.Host,
+        activityID: String,
         reason: PersistentAttachmentOpenReason,
         diagnostics: ConnectionDiagnosticsContext = .init(connectionRef: "")
     ) async throws -> OpenedBackend {
+        let activity = connectionProgress.activity(forID: activityID)
+        let hasRouteStage = activity?.routeLabel != nil
+        if activity?.steps.first?.id != .profile {
+            connectionProgress.activate(hasRouteStage ? .route : .network, forID: activityID)
+        }
+        let opened: OpenedBackend
         switch backend {
         case .plainPTY:
-            return OpenedBackend(
+            opened = OpenedBackend(
                 channel: try await openShell(for: host, diagnostics: diagnostics),
                 attachment: nil
             )
 
         case let .persistent(descriptor):
-            let opened = try await persistentBackend.open(
+            let persistent = try await persistentBackend.open(
                 descriptor,
                 for: host,
                 connectionManager: connectionManager,
                 reason: reason,
                 terminalSize: TermSize(cols: 80, rows: 24)
             )
-            return OpenedBackend(channel: opened.channel, attachment: opened.attachment)
+            opened = OpenedBackend(channel: persistent.channel, attachment: persistent.attachment)
         }
+        connectionProgress.completePendingRouteStages(forID: activityID)
+        connectionProgress.complete(.network, forID: activityID)
+        connectionProgress.complete(.authentication, forID: activityID)
+        connectionProgress.activate(.shell, forID: activityID)
+        connectionProgress.complete(.shell, forID: activityID)
+        connectionProgress.activate(.ready, forID: activityID)
+        connectionProgress.complete(.ready, forID: activityID)
+        return opened
     }
 
     /// Plain PTY and persistent providers use the same staged-startup contract. A plain

@@ -13,6 +13,7 @@ public enum TerminalSessionSource: Sendable, Equatable {
 }
 
 public enum TerminalTabStatus: Sendable, Equatable {
+    case connecting
     case connected
     case disconnected(message: String?)
     case reconnecting
@@ -83,6 +84,9 @@ public struct TerminalTab: Identifiable, Sendable {
     public var alias: String?
     public var status: TerminalTabStatus
     public var generation: UInt64
+    /// True until the first real PTY channel replaces the placeholder channel.
+    /// The terminal view must not mount while this is true.
+    public var isPlaceholderSession: Bool
     public let createdAt: Date
     public var lastUsedAt: Date
 
@@ -100,6 +104,7 @@ public struct TerminalTab: Identifiable, Sendable {
         alias: String? = nil,
         status: TerminalTabStatus = .connected,
         generation: UInt64 = 0,
+        isPlaceholderSession: Bool = false,
         createdAt: Date = .now,
         lastUsedAt: Date = .now
     ) {
@@ -116,6 +121,7 @@ public struct TerminalTab: Identifiable, Sendable {
         self.alias = Self.cleanedAlias(alias)
         self.status = status
         self.generation = generation
+        self.isPlaceholderSession = isPlaceholderSession
         self.createdAt = createdAt
         self.lastUsedAt = lastUsedAt
     }
@@ -312,6 +318,7 @@ public final class TerminalSessionStore {
         tabs[index].session = session
         tabs[index].generation = generation
         tabs[index].status = status
+        tabs[index].isPlaceholderSession = false
         tabs[index].persistentAttachment = persistentAttachment
         tabs[index].lastUsedAt = .now
     }

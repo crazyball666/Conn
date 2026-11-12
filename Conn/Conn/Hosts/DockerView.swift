@@ -71,7 +71,6 @@ struct DockerView: View {
             .onChange(of: terminalLauncher.errorMessage) { _, message in
                 if let message { viewModel.actionMessage = message }
             }
-            .overlay { terminalLaunchProgress }
             .onDisappear { terminalLauncher.cancel() }
             .navigationBarTitleDisplayMode(.inline)
             .searchable(
@@ -80,15 +79,6 @@ struct DockerView: View {
                 prompt: searchPrompt
             )
             .toolbar { resourceNavigationToolbar }
-    }
-
-    @ViewBuilder
-    private var terminalLaunchProgress: some View {
-        if terminalLauncher.isLaunching {
-            ProgressView(L("正在打开控制台…"))
-                .padding(ConnSpacing.md)
-                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: ConnRadius.control))
-        }
     }
 
     private func launchConsole(_ container: ContainerInfo) {

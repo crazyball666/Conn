@@ -30691,6 +30691,105 @@
         }
       }
     },
+    "凭据" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Credential" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "認証情報" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "자격 증명" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "凭据" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "憑據" } }
+      }
+    },
+    "节点" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Node" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "ノード" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "노드" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "节点" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "節點" } }
+      }
+    },
+    "路由" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Route" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "ルート" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "라우트" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "路由" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "路由" } }
+      }
+    },
+    "变更文件 (%d)" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Changed files (%d)" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "変更ファイル (%d)" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "변경된 파일 (%d)" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "变更文件 (%d)" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "變更檔案 (%d)" } }
+      }
+    },
+    "复制当前路径" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Copy current path" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "現在のパスをコピー" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "현재 경로 복사" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "复制当前路径" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "複製目前路徑" } }
+      }
+    },
+    "已复制完整 Commit Hash" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Full commit hash copied" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "完全なコミットハッシュをコピーしました" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "전체 커밋 해시를 복사했습니다" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已复制完整 Commit Hash" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "已複製完整 Commit Hash" } }
+      }
+    },
+    "已复制路径" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Path copied" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "パスをコピーしました" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "경로를 복사했습니다" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已复制路径" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "已複製路徑" } }
+      }
+    },
+    "当前探测路径" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Current detected path" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "現在の検出パス" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "현재 감지된 경로" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "当前探测路径" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "目前探測路徑" } }
+      }
+    },
+    "无文本差异（二进制文件或模式变更）" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "No text differences (binary or mode change)" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "テキスト差分なし（バイナリまたはモード変更）" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "텍스트 차이 없음(바이너리 또는 모드 변경)" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "无文本差异（二进制文件或模式变更）" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "無文字差異（二進位檔案或模式變更）" } }
+      }
+    },
+    "请在终端中执行 cd <项目目录> 切换至包含 .git 的目录后重试。" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Run `cd <project directory>` in a terminal to switch to a directory containing .git, then retry." } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "ターミナルで cd <プロジェクトディレクトリ> を実行し、.git を含むディレクトリに移動してから再試行してください。" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "터미널에서 cd <프로젝트 디렉터리>를 실행해 .git이 있는 디렉터리로 이동한 후 다시 시도하세요." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "请在终端中执行 cd <项目目录> 切换至包含 .git 的目录后重试。" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "請在終端機中執行 cd <專案目錄> 切換至包含 .git 的目錄後重試。" } }
+      }
+    },
+    "读取提交详情…" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Loading commit details…" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "コミット詳細を読み込み中…" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "커밋 세부 정보를 불러오는 중…" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "读取提交详情…" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "讀取提交詳情…" } }
+      }
+    },
     "连接失败" : {
       "extractionState" : "stale",
       "localizations" : {

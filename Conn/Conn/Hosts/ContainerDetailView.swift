@@ -108,7 +108,6 @@ struct ContainerDetailView: View {
                 settings: settings
             )
         }
-        .overlay { terminalLaunchProgress }
         .onDisappear { terminalLauncher.cancel() }
         .onChange(of: terminalLauncher.errorMessage) { _, message in
             toastCenter.show(message, style: .error)
@@ -172,15 +171,6 @@ struct ContainerDetailView: View {
             ) {
                 viewModel.containers.requestRemoval(container)
             }
-        }
-    }
-
-    @ViewBuilder
-    private var terminalLaunchProgress: some View {
-        if terminalLauncher.isLaunching {
-            ProgressView(L("正在打开控制台…"))
-                .padding(ConnSpacing.md)
-                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: ConnRadius.control))
         }
     }
 

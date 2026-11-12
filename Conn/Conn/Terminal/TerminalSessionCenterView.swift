@@ -376,6 +376,7 @@ struct TerminalSessionCenterView: View {
 
     private func statusLabel(_ status: TerminalTabStatus) -> String {
         switch status {
+        case .connecting: L("连接中…")
         case .connected: L("已连接")
         case .reconnecting: L("正在重连")
         case .disconnected: L("已断开")
@@ -384,6 +385,7 @@ struct TerminalSessionCenterView: View {
 
     private func statusColor(_ status: TerminalTabStatus) -> Color {
         switch status {
+        case .connecting: .connAccent
         case .connected: .connGood
         case .reconnecting: .connWarn
         case .disconnected: .connCrit
