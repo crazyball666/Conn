@@ -35,6 +35,11 @@ private actor TerminalAttachmentSerialGate {
     }
 }
 
+/// UIImage 不是 Sendable，但编码只需要只读访问；用它把编码移出主线程。
+private struct CameraImageBox: @unchecked Sendable {
+    let image: UIImage
+}
+
 @MainActor
 final class TerminalAttachmentCoordinator: ObservableObject {
     struct LocalResource: Sendable {
@@ -344,12 +349,61 @@ extension TerminalAttachmentCoordinator {
         }
     }
 
-    func uploadClipboard(
+    func uploadCameraImage(
+        _ image: UIImage,
         providerWorkingDirectory: String?,
         insertionContext: TerminalTextInsertionContext?,
         insertionMailbox: TerminalTextInsertionMailbox
     ) {
-        if let urls = UIPasteboard.general.urls, !urls.isEmpty {
+        cancel(cleanup: true)
+        panelState = .init(phase: .preparing)
+        let box = CameraImageBox(image: image)
+        transferTask = Task { [weak self] in
+            guard let self else { return }
+            var resources: [LocalResource] = []
+            do {
+                try Task.checkCancellation()
+                let data = await Task.detached(priority: .userInitiated) {
+                    box.image.jpegData(compressionQuality: 0.9)
+                }.value
+                guard let data else {
+                    panelState = .init(phase: .notice(message: ConnUI.L("无法读取拍摄的照片。")))
+                    return
+                }
+                try Task.checkCancellation()
+                let staged = try await TerminalAttachmentStager.stage(
+                    data: data,
+                    preferredFileExtension: "jpg",
+                    baseName: "photo"
+                )
+                resources.append(.init(
+                    url: staged.url,
+                    originalName: staged.originalName,
+                    deleteAfterUse: true
+                ))
+                try Task.checkCancellation()
+                begin(
+                    resources: resources,
+                    providerWorkingDirectory: providerWorkingDirectory,
+                    insertionContext: insertionContext,
+                    insertionMailbox: insertionMailbox,
+                    replacingExistingTransfer: false
+                )
+            } catch is CancellationError {
+                Self.removeStagedResources(resources)
+                panelState = .idle
+            } catch {
+                Self.removeStagedResources(resources)
+                panelState = .init(phase: .notice(message: error.friendlyDiagnosis))
+            }
+        }
+    }
+
+    func uploadClipboard(
+        providerWorkingDirectory: String?,
+        insertionContext: TerminalTextInsertionContext?,
+        insertionMailbox: TerminalTextInsertionMailbox
+    ) {        if let urls = UIPasteboard.general.urls, !urls.isEmpty {
             uploadFiles(
                 urls,
                 providerWorkingDirectory: providerWorkingDirectory,

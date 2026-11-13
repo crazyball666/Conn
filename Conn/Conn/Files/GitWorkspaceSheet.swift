@@ -5,6 +5,12 @@ import ConnUI
 import Observation
 import SwiftUI
 
+enum GitSyncAction: Sendable {
+    case fetch
+    case pull
+    case push
+}
+
 /// Git 工作区 ViewModel
 @Observable
 @MainActor
@@ -20,7 +26,10 @@ final class GitWorkspaceViewModel {
     private(set) var status: GitRepoStatus?
     private(set) var branches: [GitBranch] = []
     private(set) var commits: [GitCommit] = []
+    private(set) var remotes: [GitRemote] = []
+    private(set) var stashCount = 0
     private(set) var isBusy = false
+    private(set) var isSyncing = false
     private(set) var isCommitsLoading = false
     var actionMessage: String?
     var commitMessage = ""
@@ -53,10 +62,15 @@ final class GitWorkspaceViewModel {
             async let s = service.status(at: repoRoot)
             async let b = service.branches(at: repoRoot)
             async let c = (try? await service.log(at: repoRoot)) ?? []
-            let (repoStatus, repoBranches, repoCommits) = await (try s, try b, c)
+            async let r = (try? await service.remotes(at: repoRoot)) ?? []
+            async let st = (try? await service.stashCount(at: repoRoot)) ?? 0
+            let (repoStatus, repoBranches, repoCommits, repoRemotes, repoStashes) =
+                await (try s, try b, c, r, st)
             self.status = repoStatus
             self.branches = repoBranches
             self.commits = repoCommits
+            self.remotes = repoRemotes
+            self.stashCount = repoStashes
             self.loadState = .ready
         } catch {
             self.loadState = .failed(error.friendlyDiagnosis)
@@ -69,10 +83,15 @@ final class GitWorkspaceViewModel {
             async let s = service.status(at: repoRoot)
             async let b = service.branches(at: repoRoot)
             async let c = (try? await service.log(at: repoRoot)) ?? []
-            let (repoStatus, repoBranches, repoCommits) = await (try s, try b, c)
+            async let r = (try? await service.remotes(at: repoRoot)) ?? []
+            async let st = (try? await service.stashCount(at: repoRoot)) ?? 0
+            let (repoStatus, repoBranches, repoCommits, repoRemotes, repoStashes) =
+                await (try s, try b, c, r, st)
             self.status = repoStatus
             self.branches = repoBranches
             self.commits = repoCommits
+            self.remotes = repoRemotes
+            self.stashCount = repoStashes
         } catch {
             actionMessage = String(format: L("刷新失败：%@"), error.friendlyDiagnosis)
         }
@@ -87,6 +106,94 @@ final class GitWorkspaceViewModel {
             self.commits = try await service.log(at: repoRoot)
         } catch {
             actionMessage = String(format: L("获取提交记录失败：%@"), error.friendlyDiagnosis)
+        }
+    }
+
+    func sync(_ action: GitSyncAction) async {
+        guard !isSyncing else { return }
+        isSyncing = true
+        defer { isSyncing = false }
+        do {
+            let service = try await gitService()
+            switch action {
+            case .fetch:
+                try await service.fetch(at: repoRoot)
+            case .pull:
+                try await service.pullFastForwardOnly(at: repoRoot)
+            case .push:
+                try await service.push(at: repoRoot)
+            }
+            await refresh()
+        } catch {
+            actionMessage = String(format: L("同步失败：%@"), error.friendlyDiagnosis)
+        }
+    }
+
+    func stageAll() async {
+        guard !isBusy else { return }
+        isBusy = true
+        defer { isBusy = false }
+        do {
+            let service = try await gitService()
+            try await service.stageAll(at: repoRoot)
+            await refresh()
+        } catch {
+            actionMessage = String(format: L("暂存失败：%@"), error.friendlyDiagnosis)
+        }
+    }
+
+    func unstageAll() async {
+        guard !isBusy else { return }
+        isBusy = true
+        defer { isBusy = false }
+        do {
+            let service = try await gitService()
+            try await service.unstageAll(at: repoRoot)
+            await refresh()
+        } catch {
+            actionMessage = String(format: L("取消暂存失败：%@"), error.friendlyDiagnosis)
+        }
+    }
+
+    func createBranch(_ name: String) async {
+        let clean = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !clean.isEmpty, !isBusy else { return }
+        isBusy = true
+        defer { isBusy = false }
+        do {
+            let service = try await gitService()
+            try await service.createBranch(name: clean, at: repoRoot)
+            await refresh()
+        } catch {
+            actionMessage = String(format: L("操作失败：%@"), error.friendlyDiagnosis)
+        }
+    }
+
+    func deleteBranch(_ branch: GitBranch) async {
+        guard !branch.isCurrent, !branch.isRemote, !isBusy else { return }
+        isBusy = true
+        defer { isBusy = false }
+        do {
+            let service = try await gitService()
+            try await service.deleteBranch(name: branch.name, at: repoRoot)
+            await refresh()
+        } catch {
+            actionMessage = String(format: L("操作失败：%@"), error.friendlyDiagnosis)
+        }
+    }
+
+    func amendCommit() async {
+        let clean = commitMessage.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !clean.isEmpty, !isBusy else { return }
+        isBusy = true
+        defer { isBusy = false }
+        do {
+            let service = try await gitService()
+            try await service.amendCommit(message: clean, at: repoRoot)
+            commitMessage = ""
+            await refresh()
+        } catch {
+            actionMessage = String(format: L("提交失败：%@"), error.friendlyDiagnosis)
         }
     }
 
@@ -159,8 +266,10 @@ final class GitWorkspaceViewModel {
 }
 
 enum GitWorkspaceTab: String, CaseIterable, Identifiable {
+    case overview
     case changes
     case history
+    case branches
 
     var id: String { rawValue }
 }
@@ -168,10 +277,13 @@ enum GitWorkspaceTab: String, CaseIterable, Identifiable {
 /// Git 移动端工作区主 Sheet
 struct GitWorkspaceSheet: View {
     @State private var viewModel: GitWorkspaceViewModel
-    @State private var selectedTab: GitWorkspaceTab = .changes
+    @State private var selectedTab: GitWorkspaceTab = .overview
     @State private var inspectingDiffFile: GitFileChange?
     @State private var inspectingCommit: GitCommit?
     @State private var pendingDiscardFile: GitFileChange?
+    @State private var isNewBranchPresented = false
+    @State private var newBranchName = ""
+    @State private var pendingDeleteBranch: GitBranch?
     let currentPath: String?
     private let dependencies: AppDependencies
     @Environment(\.dismiss) private var dismiss
@@ -216,8 +328,10 @@ struct GitWorkspaceSheet: View {
             ToolbarItem(placement: .principal) {
                 if !viewModel.repoRoot.isEmpty {
                     Picker("", selection: $selectedTab) {
+                        Text(L("概览")).tag(GitWorkspaceTab.overview)
                         Text(L("变更")).tag(GitWorkspaceTab.changes)
                         Text(L("历史")).tag(GitWorkspaceTab.history)
+                        Text(L("分支")).tag(GitWorkspaceTab.branches)
                     }
                     .pickerStyle(.segmented)
                 } else {
@@ -231,6 +345,33 @@ struct GitWorkspaceSheet: View {
             if !viewModel.repoRoot.isEmpty {
                 await viewModel.loadIfNeeded()
             }
+        }
+        .alert(L("新建分支"), isPresented: $isNewBranchPresented) {
+            TextField(L("分支名称"), text: $newBranchName)
+                .autocorrectionDisabled()
+                .textInputAutocapitalization(.never)
+            Button(L("创建")) {
+                let name = newBranchName
+                newBranchName = ""
+                Task { await viewModel.createBranch(name) }
+            }
+            Button(L("取消"), role: .cancel) { newBranchName = "" }
+        }
+        .alert(
+            L("删除分支"),
+            isPresented: Binding(
+                get: { pendingDeleteBranch != nil },
+                set: { if !$0 { pendingDeleteBranch = nil } }
+            ),
+            presenting: pendingDeleteBranch
+        ) { branch in
+            Button(L("删除"), role: .destructive) {
+                pendingDeleteBranch = nil
+                Task { await viewModel.deleteBranch(branch) }
+            }
+            Button(L("取消"), role: .cancel) { pendingDeleteBranch = nil }
+        } message: { branch in
+            Text(String(format: L("将删除本地分支 %@。"), branch.name))
         }
         .navigationDestination(item: $inspectingDiffFile) { file in
             GitDiffSheetView(
@@ -328,13 +469,326 @@ struct GitWorkspaceSheet: View {
             headerBar
 
             switch selectedTab {
+            case .overview:
+                overviewContent
             case .changes:
                 changesContent
             case .history:
                 historyContent
+            case .branches:
+                branchesContent
             }
         }
         .background(Color.connBg)
+    }
+
+    private var overviewContent: some View {
+        ScrollView {
+            VStack(spacing: ConnSpacing.md) {
+                overviewRepoCard
+                syncButtons
+                statsGrid
+                latestCommitCard
+                remotesCard
+            }
+            .padding(.horizontal, ConnSpacing.page)
+            .padding(.vertical, ConnSpacing.sm)
+        }
+        .background(Color.connBg)
+        .refreshable { await viewModel.refresh() }
+    }
+
+    private var repoName: String {
+        viewModel.repoRoot.split(separator: "/").last.map(String.init) ?? "Git"
+    }
+
+    private var overviewRepoCard: some View {
+        VStack(alignment: .leading, spacing: ConnSpacing.sm) {
+            HStack(spacing: ConnSpacing.sm) {
+                Image(systemName: "shippingbox.fill")
+                    .font(.system(size: 28))
+                    .foregroundStyle(.white)
+                    .frame(width: 48, height: 48)
+                    .background(Color.connAccent, in: RoundedRectangle(cornerRadius: 12))
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(repoName)
+                        .font(.connHeadline)
+                        .foregroundStyle(.connInk)
+                        .lineLimit(1)
+                    Text(viewModel.repoRoot)
+                        .font(.connData(.caption2))
+                        .foregroundStyle(.connMuted)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                }
+                Spacer()
+            }
+
+            if let status = viewModel.status {
+                HStack(spacing: ConnSpacing.xs) {
+                    Image(systemName: "arrow.triangle.branch")
+                    Text(status.branch)
+                        .fontWeight(.semibold)
+                    if let upstream = status.upstream {
+                        Image(systemName: "arrow.right")
+                        Text(upstream)
+                    }
+                }
+                .font(.connData(.caption))
+                .foregroundStyle(.connInk)
+
+                Label(syncStateLabel, systemImage: syncStateIcon)
+                    .font(.connFootnote)
+                    .foregroundStyle(syncStateColor)
+            }
+        }
+        .padding(ConnSpacing.md)
+        .connSurface(cornerRadius: ConnRadius.card)
+    }
+
+    private var syncButtons: some View {
+        HStack(spacing: ConnSpacing.sm) {
+            syncButton(.fetch, title: L("获取"), systemImage: "arrow.triangle.2.circlepath", tint: .connInfo)
+            syncButton(.pull, title: L("拉取"), systemImage: "arrow.down.circle", tint: .connWarn)
+            syncButton(.push, title: L("推送"), systemImage: "arrow.up.circle", tint: .connAccent)
+        }
+    }
+
+    private func syncButton(
+        _ action: GitSyncAction,
+        title: String,
+        systemImage: String,
+        tint: Color
+    ) -> some View {
+        Button {
+            Task { await viewModel.sync(action) }
+        } label: {
+            VStack(spacing: 6) {
+                Image(systemName: systemImage)
+                    .font(.system(size: 24, weight: .medium))
+                Text(title)
+                    .font(.connCaption)
+            }
+            .foregroundStyle(tint)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, ConnSpacing.sm)
+            .background(tint.opacity(0.12), in: RoundedRectangle(cornerRadius: ConnRadius.control))
+        }
+        .buttonStyle(.plain)
+        .disabled(viewModel.isSyncing || viewModel.isBusy)
+        .opacity(viewModel.isSyncing || viewModel.isBusy ? 0.55 : 1)
+    }
+
+    private var statsGrid: some View {
+        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: ConnSpacing.sm) {
+            statTile(
+                title: L("变更"),
+                count: viewModel.status?.changes.count ?? 0,
+                systemImage: "pencil",
+                tint: .connWarn
+            )
+            statTile(
+                title: L("已暂存"),
+                count: viewModel.status?.stagedChanges.count ?? 0,
+                systemImage: "tray.and.arrow.down.fill",
+                tint: .connGood
+            )
+            statTile(
+                title: L("分支"),
+                count: viewModel.branches.filter { !$0.isRemote }.count,
+                systemImage: "arrow.triangle.branch",
+                tint: .connAccent
+            )
+            statTile(
+                title: "Stashes",
+                count: viewModel.stashCount,
+                systemImage: "archivebox.fill",
+                tint: .connInfo
+            )
+        }
+    }
+
+    private func statTile(title: String, count: Int, systemImage: String, tint: Color) -> some View {
+        HStack(spacing: ConnSpacing.sm) {
+            Image(systemName: systemImage)
+                .font(.system(size: 18, weight: .semibold))
+                .foregroundStyle(tint)
+                .frame(width: 38, height: 38)
+                .background(tint.opacity(0.12), in: Circle())
+            VStack(alignment: .leading, spacing: 2) {
+                Text("\(count)")
+                    .font(.system(size: 22, weight: .bold, design: .monospaced))
+                    .foregroundStyle(.connInk)
+                Text(title)
+                    .font(.connFootnote)
+                    .foregroundStyle(.connMuted)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(ConnSpacing.sm)
+        .connSurface(cornerRadius: ConnRadius.card)
+    }
+
+    @ViewBuilder
+    private var latestCommitCard: some View {
+        if let commit = viewModel.commits.first {
+            Button {
+                inspectingCommit = commit
+            } label: {
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack {
+                        Text(L("最新提交"))
+                            .font(.connFootnote)
+                            .foregroundStyle(.connMuted)
+                        Spacer()
+                        Image(systemName: "chevron.right")
+                            .font(.caption2)
+                            .foregroundStyle(.connDim)
+                    }
+                    Text(commit.message)
+                        .font(.connSubheadline)
+                        .fontWeight(.medium)
+                        .foregroundStyle(.connInk)
+                        .lineLimit(2)
+                    HStack(spacing: ConnSpacing.xs) {
+                        Text(commit.author)
+                        Text("·")
+                        Text(commit.relativeDate)
+                        Spacer()
+                        Text(commit.shortHash)
+                            .font(.connData(.caption2))
+                    }
+                    .font(.connFootnote)
+                    .foregroundStyle(.connDim)
+                }
+                .padding(ConnSpacing.sm)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .connSurface(cornerRadius: ConnRadius.card)
+            }
+            .buttonStyle(.plain)
+        }
+    }
+
+    @ViewBuilder
+    private var remotesCard: some View {
+        VStack(alignment: .leading, spacing: ConnSpacing.sm) {
+            Text(L("远端"))
+                .font(.connFootnote)
+                .foregroundStyle(.connMuted)
+            if viewModel.remotes.isEmpty {
+                Text(L("暂无远端"))
+                    .font(.connFootnote)
+                    .foregroundStyle(.connMuted)
+            } else {
+                ForEach(viewModel.remotes) { remote in
+                    HStack(spacing: ConnSpacing.sm) {
+                        Image(systemName: "globe")
+                            .foregroundStyle(.connAccent)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(remote.name)
+                                .font(.connSubheadline)
+                                .foregroundStyle(.connInk)
+                            Text(remote.url)
+                                .font(.connData(.caption2))
+                                .foregroundStyle(.connMuted)
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+                        }
+                    }
+                }
+            }
+        }
+        .padding(ConnSpacing.sm)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .connSurface(cornerRadius: ConnRadius.card)
+    }
+
+    private var syncStateLabel: String {
+        guard let status = viewModel.status else { return L("未知") }
+        guard status.upstream != nil else { return L("无上游") }
+        if status.aheadCount == 0, status.behindCount == 0 {
+            return L("与远端一致")
+        }
+        if status.aheadCount > 0, status.behindCount > 0 {
+            return L("已分叉")
+        }
+        if status.aheadCount > 0 {
+            return String(format: L("领先 %d 个提交"), status.aheadCount)
+        }
+        return String(format: L("落后 %d 个提交"), status.behindCount)
+    }
+
+    private var syncStateIcon: String {
+        guard let status = viewModel.status, status.upstream != nil else { return "questionmark.circle" }
+        if status.aheadCount == 0, status.behindCount == 0 { return "checkmark.circle.fill" }
+        return "exclamationmark.triangle.fill"
+    }
+
+    private var syncStateColor: Color {
+        guard let status = viewModel.status, status.upstream != nil else { return .connMuted }
+        return status.aheadCount == 0 && status.behindCount == 0 ? .connGood : .connWarn
+    }
+
+    private var branchesContent: some View {
+        let localBranches = viewModel.branches.filter { !$0.isRemote }
+        let remoteBranches = viewModel.branches.filter(\.isRemote)
+        return List {
+            Section(L("本地分支")) {
+                ForEach(localBranches) { branch in
+                    Button {
+                        Task { await viewModel.checkout(branch: branch) }
+                    } label: {
+                        HStack(spacing: ConnSpacing.sm) {
+                            Image(systemName: branch.isCurrent ? "checkmark.circle.fill" : "circle")
+                                .foregroundStyle(branch.isCurrent ? .connGood : .connDim)
+                            Text(branch.name)
+                                .font(.connData(.subheadline))
+                                .foregroundStyle(.connInk)
+                            Spacer()
+                        }
+                    }
+                    .disabled(branch.isCurrent || viewModel.isBusy)
+                    .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                        if !branch.isCurrent {
+                            Button(role: .destructive) {
+                                pendingDeleteBranch = branch
+                            } label: {
+                                Label(L("删除"), systemImage: "trash")
+                            }
+                        }
+                    }
+                }
+            }
+
+            if !remoteBranches.isEmpty {
+                Section(L("远程分支")) {
+                    ForEach(remoteBranches) { branch in
+                        HStack {
+                            Image(systemName: "cloud")
+                                .foregroundStyle(.connMuted)
+                            Text(branch.name)
+                                .font(.connData(.subheadline))
+                                .foregroundStyle(.connMuted)
+                        }
+                    }
+                }
+            }
+        }
+        .listStyle(.insetGrouped)
+        .safeAreaInset(edge: .bottom) {
+            Button {
+                newBranchName = ""
+                isNewBranchPresented = true
+            } label: {
+                Label(L("新建分支"), systemImage: "plus")
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.borderedProminent)
+            .controlSize(.large)
+            .disabled(viewModel.isBusy)
+            .padding(ConnSpacing.page)
+            .background(.bar)
+        }
     }
 
     private var changesContent: some View {
@@ -466,7 +920,7 @@ struct GitWorkspaceSheet: View {
         HStack {
             if let status = viewModel.status {
                 Menu {
-                    ForEach(viewModel.branches) { b in
+                    ForEach(viewModel.branches.filter { !$0.isRemote }) { b in
                         Button {
                             Task { await viewModel.checkout(branch: b) }
                         } label: {
@@ -511,6 +965,24 @@ struct GitWorkspaceSheet: View {
                     Task { await viewModel.refresh() }
                 } label: {
                     Image(systemName: "arrow.clockwise")
+                        .font(.system(size: 14))
+                        .foregroundStyle(.connAccent)
+                }
+                .disabled(viewModel.isBusy)
+
+                Menu {
+                    Button {
+                        Task { await viewModel.stageAll() }
+                    } label: {
+                        Label(L("全部暂存"), systemImage: "plus.circle")
+                    }
+                    Button {
+                        Task { await viewModel.unstageAll() }
+                    } label: {
+                        Label(L("全部取消暂存"), systemImage: "minus.circle")
+                    }
+                } label: {
+                    Image(systemName: "ellipsis.circle")
                         .font(.system(size: 14))
                         .foregroundStyle(.connAccent)
                 }
@@ -684,6 +1156,19 @@ struct GitWorkspaceSheet: View {
                             .padding(.vertical, 8)
                             .background(Color.connAccent, in: RoundedRectangle(cornerRadius: ConnRadius.control))
                     }
+                }
+                .disabled(viewModel.commitMessage.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || viewModel.isBusy)
+
+                Menu {
+                    Button {
+                        Task { await viewModel.amendCommit() }
+                    } label: {
+                        Label(L("修改最近一次提交"), systemImage: "pencil.circle")
+                    }
+                } label: {
+                    Image(systemName: "ellipsis.circle")
+                        .font(.system(size: 16))
+                        .foregroundStyle(.connAccent)
                 }
                 .disabled(viewModel.commitMessage.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || viewModel.isBusy)
             }

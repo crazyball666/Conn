@@ -5,8 +5,10 @@ import ConnMultiplexer
 import ConnSSH
 import ConnTerminal
 import ConnUI
+import AVFoundation
 import PhotosUI
 import SwiftUI
+import UIKit
 import UniformTypeIdentifiers
 
 /// Presents an already-created local tab. Backend selection and initial launch are
@@ -29,6 +31,7 @@ struct TerminalScreen: View {
     @StateObject private var insertionMailbox: TerminalTextInsertionMailbox
     @StateObject private var attachmentCoordinator: TerminalAttachmentCoordinator
     @State private var isPhotoPickerPresented = false
+    @State private var isCameraPickerPresented = false
     @State private var isFileImporterPresented = false
     @State private var photoSelection: [PhotosPickerItem] = []
     @State private var providerWorkingDirectory: String?
@@ -204,6 +207,35 @@ struct TerminalScreen: View {
                 matching: .any(of: [.images, .videos]),
                 preferredItemEncoding: .automatic
             )
+            .fullScreenCover(
+                isPresented: $isCameraPickerPresented,
+                onDismiss: {
+                    pendingAttachmentContext = nil
+                    pendingAttachmentWorkingDirectory = nil
+                }
+            ) {
+                CameraPicker(
+                    onImage: { image in
+                        let context = pendingAttachmentContext
+                        let workingDirectory = pendingAttachmentWorkingDirectory
+                        pendingAttachmentContext = nil
+                        pendingAttachmentWorkingDirectory = nil
+                        isCameraPickerPresented = false
+                        attachmentCoordinator.uploadCameraImage(
+                            image,
+                            providerWorkingDirectory: workingDirectory,
+                            insertionContext: context,
+                            insertionMailbox: insertionMailbox
+                        )
+                    },
+                    onCancel: {
+                        pendingAttachmentContext = nil
+                        pendingAttachmentWorkingDirectory = nil
+                        isCameraPickerPresented = false
+                    }
+                )
+                .ignoresSafeArea()
+            }
             .onChange(of: photoSelection.count) { _, count in
                 guard count > 0 else { return }
                 let selected = photoSelection
@@ -634,6 +666,31 @@ private extension TerminalScreen {
         case .photos:
             captureAttachmentContext()
             isPhotoPickerPresented = true
+        case .camera:
+            guard UIImagePickerController.isSourceTypeAvailable(.camera) else {
+                toastCenter.show(L("当前设备没有可用相机"), style: .warning)
+                return
+            }
+            switch AVCaptureDevice.authorizationStatus(for: .video) {
+            case .denied, .restricted:
+                toastCenter.show(L("相机权限未开启"), style: .warning)
+            case .notDetermined:
+                AVCaptureDevice.requestAccess(for: .video) { granted in
+                    Task { @MainActor in
+                        guard granted else {
+                            toastCenter.show(L("相机权限未开启"), style: .warning)
+                            return
+                        }
+                        captureAttachmentContext()
+                        isCameraPickerPresented = true
+                    }
+                }
+            case .authorized:
+                captureAttachmentContext()
+                isCameraPickerPresented = true
+            @unknown default:
+                toastCenter.show(L("相机权限未开启"), style: .warning)
+            }
         case .files:
             captureAttachmentContext()
             isFileImporterPresented = true

@@ -2408,6 +2408,22 @@
         }
       }
     },
+    "无法读取拍摄的照片。" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Unable to read the captured photo." } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "撮影した写真を読み取れません。" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "촬영한 사진을 읽을 수 없습니다." } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "無法讀取拍攝的照片。" } }
+      }
+    },
+    "拍照" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Take Photo" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "写真を撮る" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "사진 촬영" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "拍照" } }
+      }
+    },
     "图片" : {
       "extractionState" : "stale",
       "localizations" : {

@@ -956,6 +956,20 @@ struct AppWideUIConsistencyTests {
         #expect(source.contains("defer { hasLoaded = true }"))
     }
 
+    @Test("终端上传菜单支持直接拍照上传")
+    func terminalUploadMenuSupportsCamera() throws {
+        let panel = try packageSource("Sources/ConnTerminal/TerminalAttachmentPanel.swift")
+        let screen = try appSource("Terminal/TerminalScreen.swift")
+        let camera = try appSource("Terminal/CameraPicker.swift")
+
+        #expect(panel.contains("case camera"))
+        #expect(panel.contains("attachmentCap(.camera"))
+        #expect(panel.contains("title: L(\"拍照\")"))
+        #expect(screen.contains("isCameraPickerPresented"))
+        #expect(screen.contains("uploadCameraImage"))
+        #expect(camera.contains("sourceType = .camera"))
+    }
+
     @Test("终端页为新建连接和重连提供阶段覆盖层")
     func terminalScreenShowsConnectionProgressOverlay() throws {
         let screen = try appSource("Terminal/TerminalScreen.swift")
@@ -967,6 +981,8 @@ struct AppWideUIConsistencyTests {
         #expect(overlay.contains("terminal.connection.stage."))
         #expect(overlay.contains("terminal.connection.retry"))
         #expect(overlay.contains("terminal.connection.cancel"))
+        #expect(overlay.contains(".onChange(of: scenePhase)"))
+        #expect(overlay.contains(".onTapGesture { dismissKeyboard() }"))
     }
 
     @Test("显式终端入口同步失效当前 launch 并拒绝迟到完成")
@@ -1187,6 +1203,50 @@ struct AppWideUIConsistencyTests {
         #expect(source.contains("prompt: L(\"搜索当前目录\")"))
         #expect(!source.contains("ConnSearchField(L(\"搜索当前目录\")"))
         #expect(!source.contains("private var searchField"))
+    }
+
+    @Test("Git 工作区提供概览、同步和分支管理")
+    func gitWorkspaceSupportsOverviewSyncAndBranches() throws {
+        let sheet = try appSource("Files/GitWorkspaceSheet.swift")
+        let service = try packageSource("Sources/ConnOps/Git/GitService.swift")
+
+        #expect(sheet.contains("case overview"))
+        #expect(sheet.contains("case branches"))
+        #expect(sheet.contains("viewModel.sync(action)"))
+        #expect(sheet.contains("viewModel.createBranch(name)"))
+        #expect(sheet.contains("viewModel.deleteBranch(branch)"))
+        #expect(service.contains("func fetch(at repoRoot: String)"))
+        #expect(service.contains("func pullFastForwardOnly(at repoRoot: String)"))
+        #expect(service.contains("func push(at repoRoot: String)"))
+        #expect(service.contains("func createBranch("))
+        #expect(service.contains("func deleteBranch("))
+    }
+
+    @Test("文件管理长按菜单提供信息与权限页面")
+    func fileBrowserOffersInfoAndPermissions() throws {
+        let browser = try appSource("Files/FileBrowserView.swift")
+        let info = try appSource("Files/FileInfoView.swift")
+
+        #expect(browser.contains("Label(L(\"查看信息\"), systemImage: \"info.circle\")"))
+        #expect(browser.contains("Label(L(\"查看权限\"), systemImage: \"lock.shield\")"))
+        #expect(browser.contains("navigationDestination(item: $infoRoute)"))
+        #expect(browser.contains("FileInfoView(entry: entry, viewModel: viewModel)"))
+        #expect(browser.contains("FilePermissionsView(entry: entry, viewModel: viewModel)"))
+        #expect(info.contains("entry.permissionString"))
+        #expect(info.contains("entry.octalPermissions"))
+    }
+
+    @Test("文件管理上传支持照片和视频")
+    func fileBrowserSupportsMediaUpload() throws {
+        let browser = try appSource("Files/FileBrowserView.swift")
+        let transfer = try appSource("Files/FileBrowserViewModel+Transfer.swift")
+
+        #expect(browser.contains("Label(L(\"上传照片或视频\")"))
+        #expect(browser.contains("matching: .any(of: [.images, .videos])"))
+        #expect(browser.contains("viewModel.uploadMedia(selected)"))
+        #expect(transfer.contains("func uploadMedia(_ items: [PhotosPickerItem]) async"))
+        #expect(transfer.contains("MediaFileTransfer.self"))
+        #expect(transfer.contains("reloadAfter: false"))
     }
 
     @Test("文件管理操作移至导航栏并替代终端入口")

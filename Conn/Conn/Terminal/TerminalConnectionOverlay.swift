@@ -15,6 +15,7 @@ struct TerminalConnectionOverlay: View {
     let onRetry: (() -> Void)?
 
     @State private var showsLogs = false
+    @Environment(\.scenePhase) private var scenePhase
 
     private var isFailed: Bool {
         activity?.state == .failed
@@ -24,6 +25,8 @@ struct TerminalConnectionOverlay: View {
         ZStack {
             Color.connTermBg.opacity(0.86)
                 .ignoresSafeArea()
+                .contentShape(Rectangle())
+                .onTapGesture { dismissKeyboard() }
             VStack(spacing: ConnSpacing.md) {
                 Spacer(minLength: 0)
                 card
@@ -34,6 +37,11 @@ struct TerminalConnectionOverlay: View {
         }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("terminal.connection.overlay")
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active {
+                dismissKeyboard()
+            }
+        }
         .task {
             // The sheet that started this connection can still be dismissing,
             // so retry after its keyboard animation has settled.
@@ -41,14 +49,18 @@ struct TerminalConnectionOverlay: View {
                 if delay > 0 {
                     try? await Task.sleep(for: .milliseconds(delay))
                 }
-                UIApplication.shared.sendAction(
-                    #selector(UIResponder.resignFirstResponder),
-                    to: nil,
-                    from: nil,
-                    for: nil
-                )
+                dismissKeyboard()
             }
         }
+    }
+
+    private func dismissKeyboard() {
+        UIApplication.shared.sendAction(
+            #selector(UIResponder.resignFirstResponder),
+            to: nil,
+            from: nil,
+            for: nil
+        )
     }
 
     private var card: some View {

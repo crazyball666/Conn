@@ -25384,19 +25384,19 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Type"
+            "value" : "種類"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Type"
+            "value" : "유형"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "类型"
+            "value" : "類型"
           }
         }
       }
@@ -31074,6 +31074,366 @@
             "value" : "連線中…"
           }
         }
+      }
+    },
+    "无法读取拍摄的照片。" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Unable to read the captured photo." } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "撮影した写真を読み取れません。" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "촬영한 사진을 읽을 수 없습니다." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "无法读取拍摄的照片。" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "無法讀取拍攝的照片。" } }
+      }
+    },
+    "相机权限未开启" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Camera access is disabled." } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "カメラへのアクセスが許可されていません。" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "카메라 접근이 허용되지 않았습니다." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "相机权限未开启" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "相機權限未開啟" } }
+      }
+    },
+    "当前设备没有可用相机" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "No camera is available on this device." } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "このデバイスではカメラを利用できません。" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "이 기기에서 카메라를 사용할 수 없습니다." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "当前设备没有可用相机" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "目前裝置沒有可用的相機。" } }
+      }
+    },
+    "无法读取所选照片或视频。" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Unable to read the selected photo or video." } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "選択した写真または動画を読み取れません。" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "선택한 사진 또는 동영상을 읽을 수 없습니다." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "无法读取所选照片或视频。" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "無法讀取所選照片或影片。" } }
+      }
+    },
+    "已有上传任务正在进行" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Another upload is already in progress." } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "別のアップロードが進行中です。" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "다른 업로드가 진행 중입니다." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已有上传任务正在进行" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "已有上傳任務正在進行" } }
+      }
+    },
+    "上传照片或视频" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Upload Photos or Videos" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "写真または動画をアップロード" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "사진 또는 동영상 업로드" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "上传照片或视频" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "上傳照片或影片" } }
+      }
+    },
+    "普通文件" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "File" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "ファイル" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "파일" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "普通文件" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "一般檔案" } }
+      }
+    },
+    "查看信息" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "View Info" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "情報を表示" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "정보 보기" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "查看信息" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "查看資訊" } }
+      }
+    },
+    "查看权限" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "View Permissions" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "権限を表示" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "권한 보기" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "查看权限" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "查看權限" } }
+      }
+    },
+    "修改时间" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Modified" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "更新日時" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "수정 시간" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "修改时间" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "修改時間" } }
+      }
+    },
+    "路径" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Path" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "パス" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "경로" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "路径" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "路徑" } }
+      }
+    },
+    "文件夹" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Folder" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "フォルダ" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "폴더" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "文件夹" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "資料夾" } }
+      }
+    },
+    "符号链接" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Symbolic Link" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "シンボリックリンク" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "심볼릭 링크" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "符号链接" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "符號連結" } }
+      }
+    },
+    "权限" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Permissions" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "権限" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "권한" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "权限" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "權限" } }
+      }
+    },
+    "八进制" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Octal" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "8進数" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "8진수" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "八进制" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "八進位" } }
+      }
+    },
+    "权限明细" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Permission Details" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "権限の詳細" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "권한 세부 정보" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "权限明细" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "權限明細" } }
+      }
+    },
+    "所有者" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Owner" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "所有者" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "소유자" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "所有者" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "擁有者" } }
+      }
+    },
+    "用户组" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Group" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "グループ" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "그룹" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "用户组" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "群組" } }
+      }
+    },
+    "获取" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Fetch" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "取得" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "가져오기" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "获取" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "取得" } }
+      }
+    },
+    "推送" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Push" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "プッシュ" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "푸시" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "推送" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "推送" } }
+      }
+    },
+    "与远端一致" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Up to date with remote" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "リモートと同期済み" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "원격과 동기화됨" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "与远端一致" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "與遠端一致" } }
+      }
+    },
+    "最新提交" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Latest commit" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "最新のコミット" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "최신 커밋" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "最新提交" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "最新提交" } }
+      }
+    },
+    "远端" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Remote" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "リモート" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "원격" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "远端" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "遠端" } }
+      }
+    },
+    "已暂存" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Staged" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "ステージ済み" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "스테이징됨" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已暂存" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "已暫存" } }
+      }
+    },
+    "暂无远端" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "No remotes" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "リモートがありません" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "원격이 없습니다" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "暂无远端" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "尚無遠端" } }
+      }
+    },
+    "本地分支" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Local branches" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "ローカルブランチ" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "로컬 브랜치" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "本地分支" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "本機分支" } }
+      }
+    },
+    "远程分支" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Remote branches" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "リモートブランチ" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "원격 브랜치" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "远程分支" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "遠端分支" } }
+      }
+    },
+    "新建分支" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "New branch" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "新しいブランチ" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "새 브랜치" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "新建分支" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "新增分支" } }
+      }
+    },
+    "分支名称" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Branch name" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "ブランチ名" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "브랜치 이름" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "分支名称" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "分支名稱" } }
+      }
+    },
+    "删除分支" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Delete branch" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "ブランチを削除" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "브랜치 삭제" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "删除分支" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "刪除分支" } }
+      }
+    },
+    "全部暂存" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Stage all" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "すべてステージ" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "모두 스테이징" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "全部暂存" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "全部暫存" } }
+      }
+    },
+    "全部取消暂存" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Unstage all" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "すべてのステージを取り消す" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "모두 스테이징 취소" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "全部取消暂存" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "全部取消暫存" } }
+      }
+    },
+    "修改最近一次提交" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Amend last commit" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "最新のコミットを修正" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "최신 커밋 수정" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "修改最近一次提交" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "修改最近一次提交" } }
+      }
+    },
+    "无上游" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "No upstream" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "上流なし" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "업스트림 없음" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "无上游" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "無上游" } }
+      }
+    },
+    "已分叉" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Diverged" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "分岐しています" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "분기됨" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已分叉" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "已分叉" } }
+      }
+    },
+    "领先 %d 个提交" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "%d commits ahead" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "%d コミット先行" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "%d개 커밋 앞섬" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "领先 %d 个提交" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "領先 %d 個提交" } }
+      }
+    },
+    "落后 %d 个提交" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "%d commits behind" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "%d コミット遅れ" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "%d개 커밋 뒤처짐" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "落后 %d 个提交" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "落後 %d 個提交" } }
+      }
+    },
+    "同步失败：%@" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Sync failed: %@" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "同期に失敗しました：%@" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "동기화 실패: %@" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "同步失败：%@" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "同步失敗：%@" } }
+      }
+    },
+    "操作失败：%@" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Operation failed: %@" } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "操作に失敗しました：%@" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "작업 실패: %@" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "操作失败：%@" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "操作失敗：%@" } }
+      }
+    },
+    "将删除本地分支 %@。" : {
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "This will delete local branch %@." } },
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "ローカルブランチ %@ を削除します。" } },
+        "ko" : { "stringUnit" : { "state" : "translated", "value" : "로컬 브랜치 %@를 삭제합니다." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "将删除本地分支 %@。" } },
+        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "將刪除本機分支 %@。" } }
       }
     },
     "连接失败" : {

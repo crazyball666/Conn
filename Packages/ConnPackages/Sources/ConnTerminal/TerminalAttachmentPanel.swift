@@ -6,6 +6,7 @@ import Foundation
 
 public enum TerminalAttachmentAction: String, Sendable, CaseIterable {
     case photos
+    case camera
     case files
     case clipboard
     case retry
@@ -44,11 +45,12 @@ public struct TerminalAttachmentPanelState: Sendable, Equatable {
                 LazyVGrid(
                     columns: Array(
                         repeating: GridItem(.flexible(), spacing: TerminalKeybarMetrics.gridSpacing),
-                        count: 3
+                        count: 2
                     ),
                     spacing: TerminalKeybarMetrics.gridSpacing
                 ) {
                     attachmentCap(.photos, title: L("图片"), systemName: "photo.on.rectangle")
+                    attachmentCap(.camera, title: L("拍照"), systemName: "camera")
                     attachmentCap(.files, title: L("文件"), systemName: "doc")
                     attachmentCap(.clipboard, title: L("剪贴板"), systemName: "doc.on.clipboard")
                 }

@@ -65,6 +65,7 @@ final class FileBrowserViewModel {
 
     /// 传输状态（下载/上传进度）
     var transfer: FileTransferState?
+    var isMediaUploading = false
     /// 下载完成待分享的本地文件。
     var downloadedURL: URL?
     /// 当前目录关联的 Git 仓库根目录（若在 Git 仓库内则非 nil）
@@ -424,5 +425,15 @@ final class FileBrowserViewModel {
         let opened = try await session.sftp()
         fileSystem = opened
         return opened
+    }
+
+    /// 读取条目最新元数据；失败时调用方可以回退到列表快照。
+    func fileInfo(for entry: FileEntry) async throws -> FileEntry {
+        do {
+            return try await filesystem().stat(entry.path)
+        } catch {
+            fileSystem = nil
+            throw error
+        }
     }
 }

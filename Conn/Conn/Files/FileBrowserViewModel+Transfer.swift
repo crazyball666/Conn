@@ -1,7 +1,11 @@
 import ConnAnalytics
 import ConnKit
 import ConnSSH
+import ConnTerminal
 import Foundation
+import PhotosUI
+import SwiftUI
+import UniformTypeIdentifiers
 
 /// 下载 / 上传（chunked + 进度 + 断点续传）。
 extension FileBrowserViewModel {
@@ -79,8 +83,42 @@ extension FileBrowserViewModel {
         return String(sanitized.suffix(180)) + ".connpart"
     }
 
+    /// 从照片或视频选择器上传到当前目录。媒体以临时文件表示，避免整段视频驻留内存。
+    func uploadMedia(_ items: [PhotosPickerItem]) async {
+        guard transfer == nil, !isMediaUploading else {
+            actionMessage = L("已有上传任务正在进行")
+            return
+        }
+        isMediaUploading = true
+        defer { isMediaUploading = false }
+        for item in items {
+            guard !Task.isCancelled else { return }
+            do {
+                guard let media = try await item.loadTransferable(type: MediaFileTransfer.self) else {
+                    actionMessage = L("无法读取所选照片或视频。")
+                    continue
+                }
+                await upload(from: media.url, reloadAfter: false, allowWhileMediaBatch: true)
+                try? FileManager.default.removeItem(at: media.url)
+            } catch is CancellationError {
+                return
+            } catch {
+                actionMessage = String(format: L("上传失败：%@"), error.friendlyDiagnosis)
+            }
+        }
+        await refresh()
+    }
+
     /// 从本地文件上传到当前目录（流式读本地，避免整包载入内存）。
-    func upload(from localURL: URL) async {
+    func upload(
+        from localURL: URL,
+        reloadAfter: Bool = true,
+        allowWhileMediaBatch: Bool = false
+    ) async {
+        guard allowWhileMediaBatch || (!isMediaUploading && transfer == nil) else {
+            actionMessage = L("已有上传任务正在进行")
+            return
+        }
         let name = localURL.lastPathComponent
         let size = Self.fileSize(localURL)
         transfer = FileTransferState(name: name, direction: .upload, progress: 0)
@@ -97,7 +135,9 @@ extension FileBrowserViewModel {
                     await self?.setUploadProgress(progress)
                 }
             )
-            await load()
+            if reloadAfter {
+                await load()
+            }
             trackTransfer(direction: "upload", size: size, result: "success")
         } catch {
             trackTransfer(

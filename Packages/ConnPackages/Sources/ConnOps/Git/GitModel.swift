@@ -134,6 +134,18 @@ public struct GitBranch: Identifiable, Sendable, Equatable {
     }
 }
 
+/// Git 远端
+public struct GitRemote: Identifiable, Sendable, Equatable, Hashable {
+    public var id: String { name }
+    public let name: String
+    public let url: String
+
+    public init(name: String, url: String) {
+        self.name = name
+        self.url = url
+    }
+}
+
 /// Diff 单行类型
 public enum GitDiffLineType: Sendable, Equatable {
     case context

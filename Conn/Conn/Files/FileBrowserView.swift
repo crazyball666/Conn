@@ -2,6 +2,7 @@ import ConnKit
 import ConnOps
 import ConnSSH
 import ConnUI
+import PhotosUI
 import SwiftUI
 import UniformTypeIdentifiers
 
@@ -25,9 +26,12 @@ private enum DirectoryPickerRequest: Identifiable {
 struct FileBrowserView: View {
     let viewModel: FileBrowserViewModel
     @State private var showUpload = false
+    @State private var isMediaPickerPresented = false
+    @State private var mediaSelection: [PhotosPickerItem] = []
     @State private var textPrompt: TextPrompt?
     @State private var promptText = ""
     @State private var editorEntry: FileEntry?
+    @State private var infoRoute: FileInfoRoute?
     @State private var logSource: LogSource?
     @State private var directoryPicker: DirectoryPickerRequest?
     @State private var searchText = ""
@@ -45,6 +49,18 @@ struct FileBrowserView: View {
     }
 
     enum SortField { case name, date, size, kind }
+
+    private enum FileInfoRoute: Identifiable, Hashable {
+        case info(FileEntry)
+        case permissions(FileEntry)
+
+        var id: String {
+            switch self {
+            case let .info(entry): "info-\(entry.path)"
+            case let .permissions(entry): "permissions-\(entry.path)"
+            }
+        }
+    }
 
     private enum TextPrompt: Identifiable {
         case mkdir
@@ -85,8 +101,29 @@ struct FileBrowserView: View {
                 Task { await viewModel.upload(from: url) }
             }
         }
+        .photosPicker(
+            isPresented: $isMediaPickerPresented,
+            selection: $mediaSelection,
+            maxSelectionCount: 10,
+            matching: .any(of: [.images, .videos]),
+            preferredItemEncoding: .automatic
+        )
+        .onChange(of: mediaSelection.count) { _, count in
+            guard count > 0 else { return }
+            let selected = mediaSelection
+            mediaSelection = []
+            Task { await viewModel.uploadMedia(selected) }
+        }
         .navigationDestination(item: $editorEntry) { entry in
             FileEditorView(host: host, dependencies: dependencies, entry: entry)
+        }
+        .navigationDestination(item: $infoRoute) { route in
+            switch route {
+            case let .info(entry):
+                FileInfoView(entry: entry, viewModel: viewModel)
+            case let .permissions(entry):
+                FilePermissionsView(entry: entry, viewModel: viewModel)
+            }
         }
         .navigationDestination(item: $logSource) { source in
             LogStreamView(host: host, dependencies: dependencies, source: source)
@@ -238,6 +275,11 @@ struct FileBrowserView: View {
     @ViewBuilder
     private var menuContent: some View {
         Button { showUpload = true } label: { Label(L("上传文件"), systemImage: "square.and.arrow.up") }
+            .disabled(viewModel.transfer != nil || viewModel.isMediaUploading)
+        Button { isMediaPickerPresented = true } label: {
+            Label(L("上传照片或视频"), systemImage: "photo.on.rectangle.angled")
+        }
+        .disabled(viewModel.transfer != nil || viewModel.isMediaUploading)
         Button { promptText = ""; textPrompt = .mkdir } label: { Label(L("新建文件夹"), systemImage: "folder.badge.plus") }
         Button { promptText = ""; textPrompt = .touchFile } label: { Label(L("新建文件"), systemImage: "doc.badge.plus") }
         Divider()
@@ -376,6 +418,12 @@ struct FileBrowserView: View {
 
     @ViewBuilder
     private func rowActions(_ entry: FileEntry) -> some View {
+        Button { infoRoute = .info(entry) } label: {
+            Label(L("查看信息"), systemImage: "info.circle")
+        }
+        Button { infoRoute = .permissions(entry) } label: {
+            Label(L("查看权限"), systemImage: "lock.shield")
+        }
         if !entry.isDirectory {
             Button { editorEntry = entry } label: { Label(L("编辑"), systemImage: "pencil") }
             Button { openAsLog(entry) } label: {
