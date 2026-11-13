@@ -49,7 +49,8 @@ TerminalScreen
 
 ## 4. 架构
 
-- `TerminalSessionCoordinator.startConnecting` 先创建带占位 `PendingShellChannel` 的本地 Tab，再在后台打开真实 backend。
+- `TerminalSessionCoordinator.startConnecting` 先创建带占位 `PendingShellChannel` 的本地 Tab；真正的连接由 `TerminalScreen` 的 `beginConnectingIfNeeded` 在页面出现后启动，保证进度卡先于任何快速连接结果出现。
+- 恢复会话使用同样的两段式流程：`startRestoring` 立即创建占位 Tab，`TerminalScreen` 出现后由 `beginRestoringIfNeeded` 执行 provider 恢复。
 - `TerminalConnectionProgressCenter` 按 Tab/连接（activityID）保存连接活动；同一 Host 的多条终端互不覆盖，协调器负责写入，终端页只读。
 - 阶段列表按 Host 的连接路径动态生成，不固定套用四条：
   - 直连：SSH → 认证 → 终端 → 已连接

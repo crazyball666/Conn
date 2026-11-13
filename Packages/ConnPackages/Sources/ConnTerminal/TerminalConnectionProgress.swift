@@ -94,6 +94,7 @@ public struct TerminalConnectionActivity: Identifiable, Sendable, Equatable {
     public let routeDetail: String?
     public let connectionRef: String
     public let startedAt: Date
+    public var endedAt: Date?
     public var state: TerminalConnectionActivityState
     public var steps: [TerminalConnectionStep]
     public var logs: [TerminalConnectionLogEntry]
@@ -119,6 +120,7 @@ public struct TerminalConnectionActivity: Identifiable, Sendable, Equatable {
         routeDetail: String? = nil,
         connectionRef: String = "",
         startedAt: Date = .now,
+        endedAt: Date? = nil,
         state: TerminalConnectionActivityState = .connecting,
         steps: [TerminalConnectionStep] = TerminalConnectionStepID.allCases.map {
             TerminalConnectionStep(id: $0)
@@ -135,6 +137,7 @@ public struct TerminalConnectionActivity: Identifiable, Sendable, Equatable {
         self.routeDetail = routeDetail
         self.connectionRef = connectionRef
         self.startedAt = startedAt
+        self.endedAt = endedAt
         self.state = state
         self.steps = steps
         self.logs = logs
@@ -245,6 +248,7 @@ public final class TerminalConnectionProgressCenter {
                 activity.errorMessage = sample.errorText
             }
             activity.state = .failed
+            activity.endedAt = .now
             if !sample.errorText.isEmpty {
                 activity.logs.append(TerminalConnectionLogEntry(
                     message: sample.errorText,
@@ -261,6 +265,7 @@ public final class TerminalConnectionProgressCenter {
             }
             if sample.phase == "terminal_ready" {
                 activity.state = .connected
+                activity.endedAt = .now
             }
             if let nextIndex = activity.steps.indices.first(where: {
                 $0 > index && activity.steps[$0].state == .pending
@@ -374,6 +379,7 @@ public final class TerminalConnectionProgressCenter {
             }
         }
         activity.state = .failed
+        activity.endedAt = now
         activity.errorMessage = message
         activity.logs.append(TerminalConnectionLogEntry(
             message: message.isEmpty ? L("连接失败") : message,
@@ -401,6 +407,7 @@ public final class TerminalConnectionProgressCenter {
             activity.steps[index].state = .completed
         }
         activity.state = .connected
+        activity.endedAt = now
         activity.logs.append(TerminalConnectionLogEntry(
             message: L("已连接"),
             level: .success
@@ -411,6 +418,7 @@ public final class TerminalConnectionProgressCenter {
     public func cancel(forID activityID: String) {
         guard var activity = activities[activityID] else { return }
         activity.state = .cancelled
+        activity.endedAt = .now
         activity.logs.append(TerminalConnectionLogEntry(
             message: L("取消"),
             level: .info

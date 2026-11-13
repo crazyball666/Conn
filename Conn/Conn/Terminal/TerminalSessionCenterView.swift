@@ -287,7 +287,7 @@ struct TerminalSessionCenterView: View {
         restoringRecordID = record.id
         Task {
             defer { restoringRecordID = nil }
-            switch await dependencies.terminalSessions.restore(record.id) {
+            switch await dependencies.terminalSessions.startRestoring(record.id) {
             case let .success(tab):
                 do {
                     guard let host = try dependencies.hostRepository.host(id: tab.hostID) else {
@@ -299,9 +299,7 @@ struct TerminalSessionCenterView: View {
                     toastCenter.show(error.localizedDescription, style: .error)
                 }
             case let .failure(failure):
-                if case let .createPersistentWorkspace(record) = failure.recovery {
-                    missingWorkspaceRecord = record
-                } else if let message = dependencies.terminalSessions.consumeFailure(failure) {
+                if let message = dependencies.terminalSessions.consumeFailure(failure) {
                     toastCenter.show(message, style: .error)
                 }
             }

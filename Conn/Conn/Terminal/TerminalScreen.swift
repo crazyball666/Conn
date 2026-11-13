@@ -77,6 +77,8 @@ struct TerminalScreen: View {
             .connGlobalToast()
             .onAppear {
                 verifyExistingTab()
+                terminalSessions.beginConnectingIfNeeded(tabID)
+                terminalSessions.beginRestoringIfNeeded(tabID)
                 synchronizeWorkingDirectory(for: activeTab)
                 trackTerminalOpened()
                 trackConnectedIfNeeded()

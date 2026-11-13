@@ -124,18 +124,28 @@ struct TerminalConnectionOverlay: View {
                 .foregroundStyle(.connInk)
             Spacer()
             if let activity {
-                elapsedText(from: activity.startedAt)
-                    .font(.connData(.caption))
-                    .foregroundStyle(.connMuted)
+                Group {
+                    if let endedAt = activity.endedAt {
+                        elapsedLabel(from: activity.startedAt, to: endedAt)
+                    } else {
+                        elapsedText(from: activity.startedAt)
+                    }
+                }
+                .font(.connData(.caption))
+                .foregroundStyle(.connMuted)
             }
         }
     }
 
     private func elapsedText(from start: Date) -> some View {
         TimelineView(.periodic(from: start, by: 0.1)) { context in
-            let elapsed = max(0, context.date.timeIntervalSince(start))
-            Text(String(format: "%.1fs", elapsed))
+            elapsedLabel(from: start, to: context.date)
         }
+    }
+
+    private func elapsedLabel(from start: Date, to end: Date) -> some View {
+        let elapsed = max(0, end.timeIntervalSince(start))
+        return Text(String(format: "%.1fs", elapsed))
     }
 
     private var stageList: some View {
@@ -166,14 +176,18 @@ struct TerminalConnectionOverlay: View {
                     .font(.connSubheadline)
                     .fontWeight(.semibold)
                     .foregroundStyle(step.state == .pending ? .connMuted : .connInk)
-                if let detail = step.detail ?? stageDetail(step, activity: activity), !detail.isEmpty {
-                    Text(detail)
-                        .font(.connFootnote)
-                        .foregroundStyle(step.state == .failed ? .connCrit : .connMuted)
-                        .lineLimit(2)
-                }
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                let detail = step.detail ?? stageDetail(step, activity: activity) ?? ""
+                Text(detail.isEmpty ? " " : detail)
+                    .font(.connFootnote)
+                    .foregroundStyle(step.state == .failed ? .connCrit : .connMuted)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                    .opacity(detail.isEmpty ? 0 : 1)
             }
             .padding(.top, 2)
+            .frame(maxWidth: .infinity, alignment: .leading)
             Spacer(minLength: 0)
             if let durationMs = step.durationMs, step.state == .completed {
                 Text(String(format: "%.1fs", Double(durationMs) / 1000))

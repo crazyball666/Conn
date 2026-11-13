@@ -929,6 +929,83 @@ struct TerminalSessionCoordinatorTests {
         #expect(coordinator.store.hostGroups.isEmpty)
     }
 
+    @Test("恢复会话先创建占位 Tab，等待终端页出现后再恢复")
+    func startRestoringCreatesPlaceholderBeforeProviderRestore() async throws {
+        let host = Host(id: "host-1", name: "web", address: "10.0.0.1", username: "root")
+        let provider = RecoveryPersistentProvider(recorder: RecoveryAttachmentRecorder())
+        let record = PersistentTerminalResumeRecord(
+            id: "resume-1",
+            hostID: host.id,
+            hostName: host.name,
+            hostAddress: host.displayAddress,
+            descriptor: provider.attachmentDescriptor,
+            automaticAlias: "ops",
+            createdAt: Date(timeIntervalSince1970: 1),
+            lastConnectedAt: Date(timeIntervalSince1970: 2)
+        )
+        let coordinator = TerminalSessionCoordinator(
+            hostRepository: TerminalHostRepository(hosts: [host]),
+            connectionManager: ConnectionManager(
+                transport: MockSSHTransport(),
+                platformDetector: RenamePlatformDetector()
+            ),
+            providerRegistry: try PersistentTerminalProviderRegistry(providers: [provider]),
+            resumeRepository: InMemoryTerminalResumeRepository(records: [record])
+        )
+
+        guard case let .success(tab) = await coordinator.startRestoring(record.id) else {
+            Issue.record("占位 Tab 应立即创建")
+            return
+        }
+
+        #expect(tab.id == record.id)
+        #expect(tab.status == .connecting)
+        #expect(tab.isPlaceholderSession)
+        #expect(coordinator.connectionProgress.activity(forID: tab.id)?.kind == .restore)
+        await coordinator.close(tab.id)
+    }
+
+    @Test("终端页出现后恢复占位 Tab 并替换为真实 attachment")
+    func beginRestoringReplacesPlaceholder() async throws {
+        let host = Host(id: "host-1", name: "web", address: "10.0.0.1", username: "root")
+        let recorder = RecoveryAttachmentRecorder()
+        let provider = RecoveryPersistentProvider(recorder: recorder)
+        let record = PersistentTerminalResumeRecord(
+            id: "resume-1",
+            hostID: host.id,
+            hostName: host.name,
+            hostAddress: host.displayAddress,
+            descriptor: provider.attachmentDescriptor,
+            automaticAlias: "ops",
+            createdAt: Date(timeIntervalSince1970: 1),
+            lastConnectedAt: Date(timeIntervalSince1970: 2)
+        )
+        let coordinator = TerminalSessionCoordinator(
+            hostRepository: TerminalHostRepository(hosts: [host]),
+            connectionManager: ConnectionManager(
+                transport: MockSSHTransport(),
+                platformDetector: RenamePlatformDetector()
+            ),
+            providerRegistry: try PersistentTerminalProviderRegistry(providers: [provider]),
+            resumeRepository: InMemoryTerminalResumeRepository(records: [record])
+        )
+
+        guard case let .success(tab) = await coordinator.startRestoring(record.id) else {
+            Issue.record("占位 Tab 应立即创建")
+            return
+        }
+        coordinator.beginRestoringIfNeeded(tab.id)
+        for _ in 0 ..< 100 {
+            if coordinator.store.tab(id: tab.id)?.status == .connected { break }
+            try? await Task.sleep(for: .milliseconds(10))
+        }
+
+        #expect(coordinator.store.tab(id: tab.id)?.status == .connected)
+        #expect(coordinator.store.tab(id: tab.id)?.isPlaceholderSession == false)
+        #expect(await recorder.reasons == [.reconnect])
+        await coordinator.close(tab.id)
+    }
+
     @Test("连接中断只标记断开，不删除持久终端恢复记录")
     func transientAttachmentFailureKeepsResumeRecord() async throws {
         let host = Host(id: "host-1", name: "web", address: "10.0.0.1", username: "root")
@@ -1665,6 +1742,9 @@ struct TerminalSessionCoordinatorTests {
         #expect(coordinator.store.tab(id: tab.id)?.status == .connecting)
         #expect(coordinator.connectionProgress.activity(forID: tab.id)?.state == .connecting)
 
+        try? await Task.sleep(for: .milliseconds(20))
+        #expect(coordinator.store.tab(id: tab.id)?.status == .connecting)
+        coordinator.beginConnectingIfNeeded(tab.id)
         await gate.waitUntilBlocked()
         await gate.release()
         for _ in 0 ..< 100 {
@@ -1698,6 +1778,7 @@ struct TerminalSessionCoordinatorTests {
             return
         }
 
+        coordinator.beginConnectingIfNeeded(tab.id)
         for _ in 0 ..< 100 {
             if case .disconnected = coordinator.store.tab(id: tab.id)?.status { break }
             try? await Task.sleep(for: .milliseconds(10))
@@ -1710,6 +1791,10 @@ struct TerminalSessionCoordinatorTests {
         let activity = coordinator.connectionProgress.activity(forID: tab.id)
         #expect(activity?.state == .failed)
         #expect(activity?.failedStep?.id == .network)
+        let endedAt = activity?.endedAt
+        #expect(endedAt != nil)
+        try? await Task.sleep(for: .milliseconds(20))
+        #expect(coordinator.connectionProgress.activity(forID: tab.id)?.endedAt == endedAt)
         await coordinator.close(tab.id)
     }
 
@@ -1728,6 +1813,7 @@ struct TerminalSessionCoordinatorTests {
             Issue.record("本地 Tab 应立即创建")
             return
         }
+        coordinator.beginConnectingIfNeeded(tab.id)
         await gate.waitUntilBlocked()
         await coordinator.close(tab.id)
         await gate.release()
