@@ -32,7 +32,7 @@ struct TerminalConnectionOverlay: View {
                 card
                 Spacer(minLength: 0)
             }
-            .padding(.horizontal, ConnSpacing.page)
+            .padding(.horizontal, ConnSpacing.page + 8)
             .padding(.top, ConnSpacing.xl)
         }
         .accessibilityElement(children: .contain)
@@ -64,24 +64,54 @@ struct TerminalConnectionOverlay: View {
     }
 
     private var card: some View {
-        VStack(alignment: .leading, spacing: ConnSpacing.md) {
+        VStack(alignment: .leading, spacing: ConnSpacing.sm) {
             header
             titleRow
-            stageList
+            if steps.count > 6 {
+                ScrollView {
+                    stageList
+                }
+                .frame(maxHeight: 242)
+                .scrollIndicators(.hidden)
+            } else {
+                stageList
+            }
             if let error = activity?.errorMessage, !error.isEmpty {
                 errorRow(error)
             }
             logs
             actions
         }
-        .padding(ConnSpacing.page)
+        .padding(ConnSpacing.md)
         .background(
             Color.connSurface,
             in: RoundedRectangle(cornerRadius: ConnRadius.card, style: .continuous)
         )
         .overlay {
-            RoundedRectangle(cornerRadius: ConnRadius.card, style: .continuous)
-                .strokeBorder(Color.connLine, lineWidth: 1)
+            TimelineView(.animation(
+                minimumInterval: 1.0 / 30.0,
+                paused: activity?.state != .connecting
+            )) { context in
+                let angle = activity?.state == .connecting
+                    ? context.date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: 2.0) / 2.0 * 360.0
+                    : 0
+                RoundedRectangle(cornerRadius: ConnRadius.card, style: .continuous)
+                    .strokeBorder(
+                        AngularGradient(
+                            colors: [
+                                statusColor.opacity(0.15),
+                                statusColor,
+                                statusColor.opacity(0.15),
+                                statusColor.opacity(0.8),
+                                statusColor.opacity(0.15),
+                            ],
+                            center: .center,
+                            angle: .degrees(angle)
+                        ),
+                        lineWidth: 2
+                    )
+                    .shadow(color: statusColor.opacity(0.35), radius: 8)
+            }
         }
         .shadow(color: .black.opacity(0.28), radius: 24, y: 12)
     }
@@ -133,7 +163,7 @@ struct TerminalConnectionOverlay: View {
         HStack(alignment: .firstTextBaseline) {
             Text(titleText)
                 .font(.connSectionTitle)
-                .foregroundStyle(.connInk)
+                .foregroundStyle(isFailed ? Color.connCrit : Color.connInk)
             Spacer()
             if let activity {
                 Group {
@@ -162,9 +192,17 @@ struct TerminalConnectionOverlay: View {
 
     private var stageList: some View {
         VStack(alignment: .leading, spacing: 0) {
-            ForEach(Array(steps.enumerated()), id: \.element.id) { index, step in
-                stageRow(step, isLast: index == steps.count - 1)
+            ForEach(Array(steps.enumerated()), id: \.element.id) { _, step in
+                stageRow(step)
             }
+        }
+        .overlay(alignment: .topLeading) {
+            Rectangle()
+                .fill(Color.connLine)
+                .frame(width: 2)
+                .padding(.leading, 12)
+                .padding(.top, 28)
+                .padding(.bottom, 28)
         }
     }
 
@@ -172,17 +210,12 @@ struct TerminalConnectionOverlay: View {
         activity?.steps ?? TerminalConnectionStepID.allCases.map { TerminalConnectionStep(id: $0) }
     }
 
-    private func stageRow(_ step: TerminalConnectionStep, isLast: Bool) -> some View {
-        HStack(alignment: .top, spacing: ConnSpacing.sm) {
-            VStack(spacing: 0) {
-                stageIcon(step.state)
-                    .frame(width: 26, height: 26)
-                if !isLast {
-                    Rectangle()
-                        .fill(step.state == .completed ? Color.connGood.opacity(0.55) : Color.connLine)
-                        .frame(width: 2, height: 22)
-                }
-            }
+    private func stageRow(_ step: TerminalConnectionStep) -> some View {
+        HStack(alignment: .center, spacing: ConnSpacing.sm) {
+            stageIcon(step.state)
+                .frame(width: 26, height: 26)
+                .background(Color.connSurface, in: Circle())
+
             VStack(alignment: .leading, spacing: 2) {
                 Text(stageTitle(step.id, activity: activity))
                     .font(.connSubheadline)
@@ -198,16 +231,15 @@ struct TerminalConnectionOverlay: View {
                     .truncationMode(.tail)
                     .opacity(detail.isEmpty ? 0 : 1)
             }
-            .padding(.top, 2)
             .frame(maxWidth: .infinity, alignment: .leading)
-            Spacer(minLength: 0)
+
             if let durationMs = step.durationMs, step.state == .completed {
                 Text(String(format: "%.1fs", Double(durationMs) / 1000))
                     .font(.connData(.caption2))
                     .foregroundStyle(.connMuted)
-                    .padding(.top, 4)
             }
         }
+        .frame(height: 44)
         .accessibilityElement(children: .combine)
         .accessibilityIdentifier("terminal.connection.stage.\(step.id.rawValue)")
     }
@@ -228,8 +260,8 @@ struct TerminalConnectionOverlay: View {
                 .font(.system(size: 22))
                 .foregroundStyle(.connGood)
         case .failed:
-            Image(systemName: "xmark.octagon.fill")
-                .font(.system(size: 21))
+            Image(systemName: "xmark.circle.fill")
+                .font(.system(size: 22))
                 .foregroundStyle(.connCrit)
         }
     }
@@ -295,10 +327,10 @@ struct TerminalConnectionOverlay: View {
                 onCancel()
             } label: {
                 Text(L("取消"))
-                    .frame(maxWidth: .infinity)
+                    .frame(maxWidth: .infinity, minHeight: 38)
             }
             .buttonStyle(.bordered)
-            .controlSize(.large)
+            .controlSize(.regular)
             .accessibilityIdentifier("terminal.connection.cancel")
 
             if isFailed, let onRetry {
@@ -306,10 +338,10 @@ struct TerminalConnectionOverlay: View {
                     onRetry()
                 } label: {
                     Text(L("重试"))
-                        .frame(maxWidth: .infinity)
+                        .frame(maxWidth: .infinity, minHeight: 38)
                 }
                 .buttonStyle(.borderedProminent)
-                .controlSize(.large)
+                .controlSize(.regular)
                 .accessibilityIdentifier("terminal.connection.retry")
             }
         }
@@ -385,9 +417,9 @@ struct TerminalConnectionOverlay: View {
                 : activity?.routeDetail
         case .socks: nil
         case .network: activity?.routeLabel == nil ? host.displayAddress : "SSH"
-        case .authentication: nil
+        case .authentication: "SSH"
         case .shell: "PTY"
-        case .ready: nil
+        case .ready: L("就绪")
         }
     }
 

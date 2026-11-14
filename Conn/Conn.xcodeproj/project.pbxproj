@@ -47,7 +47,7 @@
 		7C181A9D300CF0AF00307624 /* ConnTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ConnTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		7C181AA7300CF0AF00307624 /* ConnUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ConnUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		7C181B10100CF0AD00307624 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
-		7CCA00062E00000100000006 /* Conn.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Config/Conn.xcconfig; sourceTree = "<group>"; };
+		7CCA00062E00000100000006 /* Config/Conn.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Config/Conn.xcconfig; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -111,7 +111,7 @@
 		7C181A87300CF0AD00307624 = {
 			isa = PBXGroup;
 			children = (
-				7CCA00062E00000100000006 /* Conn.xcconfig */,
+				7CCA00062E00000100000006 /* Config/Conn.xcconfig */,
 				7C181B10100CF0AD00307624 /* PrivacyInfo.xcprivacy */,
 				7C181A92300CF0AD00307624 /* Conn */,
 				7C181AA0300CF0AF00307624 /* ConnTests */,
@@ -454,7 +454,7 @@
 		};
 		7C181AB2300CF0AF00307624 /* Debug */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = 7CCA00062E00000100000006 /* Conn.xcconfig */;
+			baseConfigurationReference = 7CCA00062E00000100000006 /* Config/Conn.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
@@ -464,8 +464,8 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = ConnTerm;
-				INFOPLIST_KEY_NSFaceIDUsageDescription = "ConnTerm uses Face ID to unlock the app when App Lock is enabled.";
 				INFOPLIST_KEY_NSCameraUsageDescription = "ConnTerm uses the camera to take photos for terminal uploads.";
+				INFOPLIST_KEY_NSFaceIDUsageDescription = "ConnTerm uses Face ID to unlock the app when App Lock is enabled.";
 				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "ConnTerm needs local network access to connect to your SSH hosts and manage files, processes, and Docker.";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "ConnTerm uses the microphone for voice input in the terminal composer.";
 				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "ConnTerm uses speech recognition to fill terminal input without executing it.";
@@ -494,7 +494,7 @@
 		};
 		7C181AB3300CF0AF00307624 /* Release */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = 7CCA00062E00000100000006 /* Conn.xcconfig */;
+			baseConfigurationReference = 7CCA00062E00000100000006 /* Config/Conn.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
@@ -504,8 +504,8 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = ConnTerm;
-				INFOPLIST_KEY_NSFaceIDUsageDescription = "ConnTerm uses Face ID to unlock the app when App Lock is enabled.";
 				INFOPLIST_KEY_NSCameraUsageDescription = "ConnTerm uses the camera to take photos for terminal uploads.";
+				INFOPLIST_KEY_NSFaceIDUsageDescription = "ConnTerm uses Face ID to unlock the app when App Lock is enabled.";
 				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "ConnTerm needs local network access to connect to your SSH hosts and manage files, processes, and Docker.";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "ConnTerm uses the microphone for voice input in the terminal composer.";
 				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "ConnTerm uses speech recognition to fill terminal input without executing it.";
@@ -534,7 +534,7 @@
 		};
 		7C181AB5300CF0AF00307624 /* Debug */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = 7CCA00062E00000100000006 /* Conn.xcconfig */;
+			baseConfigurationReference = 7CCA00062E00000100000006 /* Config/Conn.xcconfig */;
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
@@ -557,7 +557,7 @@
 		};
 		7C181AB6300CF0AF00307624 /* Release */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = 7CCA00062E00000100000006 /* Conn.xcconfig */;
+			baseConfigurationReference = 7CCA00062E00000100000006 /* Config/Conn.xcconfig */;
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
@@ -580,7 +580,7 @@
 		};
 		7C181AB8300CF0AF00307624 /* Debug */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = 7CCA00062E00000100000006 /* Conn.xcconfig */;
+			baseConfigurationReference = 7CCA00062E00000100000006 /* Config/Conn.xcconfig */;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
@@ -601,7 +601,7 @@
 		};
 		7C181AB9300CF0AF00307624 /* Release */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = 7CCA00062E00000100000006 /* Conn.xcconfig */;
+			baseConfigurationReference = 7CCA00062E00000100000006 /* Config/Conn.xcconfig */;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;

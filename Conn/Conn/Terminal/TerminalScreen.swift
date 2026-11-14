@@ -306,6 +306,13 @@ private extension TerminalScreen {
         tab.isPlaceholderSession || tab.status == .connecting
     }
 
+    private func shouldSuppressTerminalInput(for tab: TerminalTab) -> Bool {
+        guard let activity = connectionActivity(for: tab) else {
+            return tab.status == .connecting
+        }
+        return shouldShowConnectionOverlay(activity, tab: tab)
+    }
+
     private func closeFromConnectionOverlay(_ tab: TerminalTab) {
         Task {
             await terminalSessions.close(tab.id)
@@ -388,6 +395,7 @@ private extension TerminalScreen {
                             composerState: composerBinding(for: tab.id),
                             insertionMailbox: insertionMailbox,
                             configuration: configuration,
+                            isInputSuppressed: shouldSuppressTerminalInput(for: tab),
                             onCloseTerminal: { dismiss() },
                             onSwitchTerminal: { isSessionListPresented = true },
                             onOpenFileBrowser: openFileBrowser,

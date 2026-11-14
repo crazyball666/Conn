@@ -1,36 +1,6 @@
 {
   "sourceLanguage" : "zh-Hans",
   "strings" : {
-    "发送多行内容？" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Send multiple lines?" } },
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "複数行を送信しますか？" } },
-        "ko" : { "stringUnit" : { "state" : "translated", "value" : "여러 줄을 전송할까요?" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "发送多行内容？" } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "傳送多行內容？" } }
-      }
-    },
-    "仍然发送" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Send Anyway" } },
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "このまま送信" } },
-        "ko" : { "stringUnit" : { "state" : "translated", "value" : "계속 전송" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "仍然发送" } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "仍然傳送" } }
-      }
-    },
-    "当前终端未启用安全多行粘贴，直接发送可能逐行执行。取消可保留草稿。" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "This terminal has not enabled safe multiline paste. Sending directly may execute each line. Cancel to keep your draft." } },
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "このターミナルでは安全な複数行貼り付けが有効になっていません。直接送信すると各行が実行される場合があります。キャンセルすると下書きが保持されます。" } },
-        "ko" : { "stringUnit" : { "state" : "translated", "value" : "이 터미널은 안전한 여러 줄 붙여넣기가 활성화되지 않았습니다. 직접 전송하면 각 줄이 실행될 수 있습니다. 취소하면 초안이 유지됩니다." } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "当前终端未启用安全多行粘贴，直接发送可能逐行执行。取消可保留草稿。" } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "目前終端未啟用安全多行貼上，直接傳送可能逐行執行。取消可保留草稿。" } }
-      }
-    },
     "—" : {
       "localizations" : {
         "en" : {
@@ -1277,6 +1247,70 @@
         }
       }
     },
+    "仍然发送" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Send Anyway"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このまま送信"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "계속 전송"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "仍然发送"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "仍然傳送"
+          }
+        }
+      }
+    },
+    "代理" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Proxy"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "プロキシ"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "프록시"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "代理"
+          }
+        }
+      }
+    },
     "仪表盘" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -1828,6 +1862,35 @@
         }
       }
     },
+    "凭据" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Credential"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "認証情報"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "자격 증명"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "憑據"
+          }
+        }
+      }
+    },
     "切换 Pane" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2038,6 +2101,41 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "傳送"
+          }
+        }
+      }
+    },
+    "发送多行内容？" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Send multiple lines?"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "複数行を送信しますか？"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "여러 줄을 전송할까요?"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "发送多行内容？"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "傳送多行內容？"
           }
         }
       }
@@ -2408,22 +2506,6 @@
         }
       }
     },
-    "无法读取拍摄的照片。" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Unable to read the captured photo." } },
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "撮影した写真を読み取れません。" } },
-        "ko" : { "stringUnit" : { "state" : "translated", "value" : "촬영한 사진을 읽을 수 없습니다." } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "無法讀取拍攝的照片。" } }
-      }
-    },
-    "拍照" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Take Photo" } },
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "写真を撮る" } },
-        "ko" : { "stringUnit" : { "state" : "translated", "value" : "사진 촬영" } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "拍照" } }
-      }
-    },
     "图片" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -2778,6 +2860,35 @@
         }
       }
     },
+    "已连接" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Connected"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "接続済み"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "연결됨"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已連線"
+          }
+        }
+      }
+    },
     "已重新连接" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -3022,6 +3133,41 @@
         }
       }
     },
+    "当前终端未启用安全多行粘贴，直接发送可能逐行执行。取消可保留草稿。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This terminal has not enabled safe multiline paste. Sending directly may execute each line. Cancel to keep your draft."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このターミナルでは安全な複数行貼り付けが有効になっていません。直接送信すると各行が実行される場合があります。キャンセルすると下書きが保持されます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이 터미널은 안전한 여러 줄 붙여넣기가 활성화되지 않았습니다. 직접 전송하면 각 줄이 실행될 수 있습니다. 취소하면 초안이 유지됩니다."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "当前终端未启用安全多行粘贴，直接发送可能逐行执行。取消可保留草稿。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "目前終端未啟用安全多行貼上，直接傳送可能逐行執行。取消可保留草稿。"
+          }
+        }
+      }
+    },
     "当前设备不支持离线语音输入" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -3210,6 +3356,35 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "執行"
+          }
+        }
+      }
+    },
+    "拍照" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Take Photo"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "写真を撮る"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "사진 촬영"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "拍照"
           }
         }
       }
@@ -3778,6 +3953,35 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "無法解析遠端 tmux 偵測結果。"
+          }
+        }
+      }
+    },
+    "无法读取拍摄的照片。" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unable to read the captured photo."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "撮影した写真を読み取れません。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "촬영한 사진을 읽을 수 없습니다."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法讀取拍攝的照片。"
           }
         }
       }
@@ -4680,6 +4884,35 @@
         }
       }
     },
+    "节点" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Node"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ノード"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "노드"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "節點"
+          }
+        }
+      }
+    },
     "设置" : {
       "localizations" : {
         "en" : {
@@ -4704,6 +4937,35 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "設定"
+          }
+        }
+      }
+    },
+    "该主机正在建立另一个终端连接" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Another terminal connection is already being established for this host."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このホストでは別のターミナル接続を確立中です。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이 호스트의 다른 터미널 연결을 설정하는 중입니다."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此主機正在建立另一個終端連線。"
           }
         }
       }
@@ -4907,6 +5169,64 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "警告"
+          }
+        }
+      }
+    },
+    "路由" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Route"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ルート"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "라우트"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "路由"
+          }
+        }
+      }
+    },
+    "跳板" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Jump Host"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "踏み台"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "점프 호스트"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "跳板"
           }
         }
       }
@@ -5288,70 +5608,6 @@
         }
       }
     },
-    "该主机正在建立另一个终端连接" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Another terminal connection is already being established for this host." } },
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "このホストでは別のターミナル接続を確立中です。" } },
-        "ko" : { "stringUnit" : { "state" : "translated", "value" : "이 호스트의 다른 터미널 연결을 설정하는 중입니다." } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "此主機正在建立另一個終端連線。" } }
-      }
-    },
-    "凭据" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Credential" } },
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "認証情報" } },
-        "ko" : { "stringUnit" : { "state" : "translated", "value" : "자격 증명" } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "憑據" } }
-      }
-    },
-    "节点" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Node" } },
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "ノード" } },
-        "ko" : { "stringUnit" : { "state" : "translated", "value" : "노드" } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "節點" } }
-      }
-    },
-    "路由" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Route" } },
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "ルート" } },
-        "ko" : { "stringUnit" : { "state" : "translated", "value" : "라우트" } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "路由" } }
-      }
-    },
-    "代理" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Proxy" } },
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "プロキシ" } },
-        "ko" : { "stringUnit" : { "state" : "translated", "value" : "프록시" } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "代理" } }
-      }
-    },
-    "跳板" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Jump Host" } },
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "踏み台" } },
-        "ko" : { "stringUnit" : { "state" : "translated", "value" : "점프 호스트" } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "跳板" } }
-      }
-    },
-    "连接失败" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Connection Failed" } },
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "接続に失敗しました" } },
-        "ko" : { "stringUnit" : { "state" : "translated", "value" : "연결 실패" } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "連線失敗" } }
-      }
-    },
-    "已连接" : {
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Connected" } },
-        "ja" : { "stringUnit" : { "state" : "translated", "value" : "接続済み" } },
-        "ko" : { "stringUnit" : { "state" : "translated", "value" : "연결됨" } },
-        "zh-Hant" : { "stringUnit" : { "state" : "translated", "value" : "已連線" } }
-      }
-    },
     "连接中…" : {
       "localizations" : {
         "en" : {
@@ -5376,6 +5632,35 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "連線中…"
+          }
+        }
+      }
+    },
+    "连接失败" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Connection Failed"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "接続に失敗しました"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "연결 실패"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "連線失敗"
           }
         }
       }

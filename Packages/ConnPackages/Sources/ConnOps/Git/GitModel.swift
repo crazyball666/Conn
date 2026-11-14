@@ -121,16 +121,32 @@ public struct GitRepoStatus: Sendable, Equatable {
 }
 
 /// Git 分支
-public struct GitBranch: Identifiable, Sendable, Equatable {
+public struct GitBranch: Identifiable, Sendable, Equatable, Hashable {
     public var id: String { name }
     public let name: String
     public let isCurrent: Bool
     public let isRemote: Bool
+    public let latestCommit: String?
+    public let latestCommitDate: Date?
+    public let aheadCount: Int
+    public let behindCount: Int
 
-    public init(name: String, isCurrent: Bool, isRemote: Bool) {
+    public init(
+        name: String,
+        isCurrent: Bool,
+        isRemote: Bool,
+        latestCommit: String? = nil,
+        latestCommitDate: Date? = nil,
+        aheadCount: Int = 0,
+        behindCount: Int = 0
+    ) {
         self.name = name
         self.isCurrent = isCurrent
         self.isRemote = isRemote
+        self.latestCommit = latestCommit
+        self.latestCommitDate = latestCommitDate
+        self.aheadCount = aheadCount
+        self.behindCount = behindCount
     }
 }
 
@@ -143,6 +159,49 @@ public struct GitRemote: Identifiable, Sendable, Equatable, Hashable {
     public init(name: String, url: String) {
         self.name = name
         self.url = url
+    }
+}
+
+/// Git 进行中的中断操作
+public enum GitInterruptedOperation: String, Sendable, Equatable {
+    case merge
+    case rebase
+}
+
+/// Git Stash 条目
+public struct GitStash: Identifiable, Sendable, Equatable {
+    public var id: String { index }
+    public let index: String
+    public let message: String
+
+    public init(index: String, message: String) {
+        self.index = index
+        self.message = message
+    }
+}
+
+/// 单个文件的 diff 统计
+public struct GitFileDiffStat: Sendable, Equatable {
+    public let path: String
+    public let additions: Int
+    public let deletions: Int
+
+    public init(path: String, additions: Int, deletions: Int) {
+        self.path = path
+        self.additions = additions
+        self.deletions = deletions
+    }
+}
+
+/// Git 标签
+public struct GitTag: Identifiable, Sendable, Equatable {
+    public var id: String { name }
+    public let name: String
+    public let commit: String?
+
+    public init(name: String, commit: String? = nil) {
+        self.name = name
+        self.commit = commit
     }
 }
 
@@ -218,26 +277,38 @@ public struct GitCommit: Identifiable, Sendable, Equatable, Hashable {
     public let shortHash: String
     /// 作者名称
     public let author: String
+    /// 作者邮箱
+    public let authorEmail: String?
+    /// 第一父提交
+    public let parentHash: String?
     /// 提交日期（ISO 格式或原始字符串）
     public let date: String
     /// 相对时间（如 "2 hours ago"）
     public let relativeDate: String
     /// 提交说明摘要
     public let message: String
+    /// 该提交上的 refs（分支、tag、HEAD 等），来自 git log %D。
+    public let refs: [String]
 
     public init(
         hash: String,
         shortHash: String,
         author: String,
+        authorEmail: String? = nil,
+        parentHash: String? = nil,
         date: String,
         relativeDate: String,
-        message: String
+        message: String,
+        refs: [String] = []
     ) {
         self.hash = hash
         self.shortHash = shortHash
         self.author = author
+        self.authorEmail = authorEmail
+        self.parentHash = parentHash
         self.date = date
         self.relativeDate = relativeDate
         self.message = message
+        self.refs = refs
     }
 }

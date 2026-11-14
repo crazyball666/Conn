@@ -46,6 +46,7 @@
         private let onTerminalWorkingDirectoryChanged:
             (TerminalWorkingDirectorySource, UInt64, String?) -> Void
         private let speechInputService: (any TerminalSpeechInputService)?
+        private let isInputSuppressed: Bool
 
         public init(
             session: TerminalSession,
@@ -57,6 +58,7 @@
             composerState: Binding<TerminalCommandComposerState> = .constant(.init()),
             insertionMailbox: TerminalTextInsertionMailbox? = nil,
             configuration: TerminalConfiguration = .init(),
+            isInputSuppressed: Bool = false,
             onCloseTerminal: @escaping () -> Void = {},
             onSwitchTerminal: @escaping () -> Void = {},
             onOpenFileBrowser: @escaping () -> Void = {},
@@ -95,6 +97,7 @@
             self.onPersistentWorkingDirectoryChanged = onPersistentWorkingDirectoryChanged
             self.onTerminalWorkingDirectoryChanged = onTerminalWorkingDirectoryChanged
             self.speechInputService = speechInputService
+            self.isInputSuppressed = isInputSuppressed
         }
 
         public var body: some View {
@@ -108,6 +111,7 @@
                 composerState: $composerState,
                 insertionMailbox: insertionMailbox,
                 configuration: configuration,
+                isInputSuppressed: isInputSuppressed,
                 onCloseTerminal: onCloseTerminal,
                 onSwitchTerminal: onSwitchTerminal,
                 onOpenFileBrowser: onOpenFileBrowser,
@@ -170,6 +174,7 @@
         private let onTerminalWorkingDirectoryChanged:
             (TerminalWorkingDirectorySource, UInt64, String?) -> Void
         private let speechInputService: (any TerminalSpeechInputService)?
+        private let isInputSuppressed: Bool
 
         init(
             session: TerminalSession,
@@ -181,6 +186,7 @@
             composerState: Binding<TerminalCommandComposerState>,
             insertionMailbox: TerminalTextInsertionMailbox?,
             configuration: TerminalConfiguration,
+            isInputSuppressed: Bool,
             onCloseTerminal: @escaping () -> Void,
             onSwitchTerminal: @escaping () -> Void,
             onOpenFileBrowser: @escaping () -> Void,
@@ -226,6 +232,7 @@
             self.onPersistentWorkingDirectoryChanged = onPersistentWorkingDirectoryChanged
             self.onTerminalWorkingDirectoryChanged = onTerminalWorkingDirectoryChanged
             self.speechInputService = speechInputService
+            self.isInputSuppressed = isInputSuppressed
         }
 
         private var terminalContent: some View {
@@ -492,11 +499,22 @@
             .onAppear {
                 controller.setApplicationActive(scenePhase == .active)
                 synchronizeInsertionContext()
+                if isInputSuppressed {
+                    dismissKeyboardWhileSuppressed()
+                }
             }
             .onChange(of: scenePhase) { _, phase in
                 controller.setApplicationActive(phase == .active)
+                if phase == .active, isInputSuppressed {
+                    dismissKeyboardWhileSuppressed()
+                }
                 if phase != .active {
                     stopSpeechInput()
+                }
+            }
+            .onChange(of: isInputSuppressed) { _, suppressed in
+                if suppressed {
+                    dismissKeyboardWhileSuppressed()
                 }
             }
             .onDisappear {
@@ -652,6 +670,17 @@
                 from: nil,
                 for: nil
             )
+        }
+
+        private func dismissKeyboardWhileSuppressed() {
+            dismissAllKeyboards()
+            Task { @MainActor [isInputSuppressed] in
+                for delay in [150, 350, 700, 1200] {
+                    try? await Task.sleep(for: .milliseconds(delay))
+                    guard isInputSuppressed else { return }
+                    dismissAllKeyboards()
+                }
+            }
         }
 
         private func synchronizeInsertionContext() {

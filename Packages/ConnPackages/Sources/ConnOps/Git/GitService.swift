@@ -67,18 +67,22 @@ public actor GitService {
 
     /// 列出本地与远程分支。
     public func branches(at repoRoot: String) async throws -> [GitBranch] {
-        let cmd = "cd \(shellQuote(repoRoot)) && git branch -a --format='%(refname:short)|%(refname)|%(HEAD)'"
+        let format = "%(refname:short)\t%(refname)\t%(HEAD)\t%(subject)\t%(committerdate:unix)\t%(upstream:track)"
+        let cmd = "cd \(shellQuote(repoRoot)) && git branch -a --format=\(shellQuote(format))"
         let result = try await session.exec(cmd, timeout: .seconds(10))
         guard result.isSuccess else {
             throw GitOpError(result.stderrText.isEmpty ? "获取分支列表失败" : result.stderrText)
         }
 
+        return Self.parseBranches(result.stdoutText)
+    }
+
+    public static func parseBranches(_ text: String) -> [GitBranch] {
         var branches: [GitBranch] = []
-        let lines = result.stdoutText.components(separatedBy: .newlines)
-        for rawLine in lines {
+        for rawLine in text.components(separatedBy: .newlines) {
             let line = rawLine.trimmingCharacters(in: .whitespacesAndNewlines)
             if line.isEmpty { continue }
-            let parts = line.components(separatedBy: "|")
+            let parts = line.components(separatedBy: "\t")
             guard let name = parts.first?.trimmingCharacters(in: .whitespaces),
                   !name.isEmpty,
                   !name.contains(" -> ")
@@ -87,9 +91,28 @@ public actor GitService {
             if ref.hasSuffix("/HEAD") { continue }
             let isCurrent = parts.count > 2 && parts[2].trimmingCharacters(in: .whitespaces) == "*"
             let isRemote = ref.hasPrefix("refs/remotes/")
-            branches.append(GitBranch(name: name, isCurrent: isCurrent, isRemote: isRemote))
+            let latest = parts.count > 3 ? parts[3].trimmingCharacters(in: .whitespacesAndNewlines) : ""
+            let latestDate = parts.count > 4
+                ? TimeInterval(parts[4].trimmingCharacters(in: .whitespaces)).map(Date.init(timeIntervalSince1970:))
+                : nil
+            let track = parts.count > 5 ? parts[5].trimmingCharacters(in: .whitespaces) : ""
+            branches.append(GitBranch(
+                name: name,
+                isCurrent: isCurrent,
+                isRemote: isRemote,
+                latestCommit: latest.isEmpty ? nil : latest,
+                latestCommitDate: latestDate,
+                aheadCount: trackingCount("ahead", in: track),
+                behindCount: trackingCount("behind", in: track)
+            ))
         }
         return branches
+    }
+
+    private static func trackingCount(_ label: String, in track: String) -> Int {
+        guard let range = track.range(of: "\(label) ") else { return 0 }
+        let digits = track[range.upperBound...].prefix(while: \.isNumber)
+        return Int(digits) ?? 0
     }
 
     /// 切换分支。
@@ -145,32 +168,108 @@ public actor GitService {
         )
     }
 
+    public func interruptedOperation(at repoRoot: String) async -> GitInterruptedOperation? {
+        let cmd = "cd \(shellQuote(repoRoot)) && " +
+            "if git rev-parse -q --verify MERGE_HEAD >/dev/null 2>&1; then echo merge; " +
+            "elif [ -d \"$(git rev-parse --git-path rebase-merge)\" ] || [ -d \"$(git rev-parse --git-path rebase-apply)\" ]; then echo rebase; fi"
+        guard let result = try? await session.exec(cmd, timeout: .seconds(5)), result.isSuccess else {
+            return nil
+        }
+        let value = result.stdoutText.trimmingCharacters(in: .whitespacesAndNewlines)
+        return GitInterruptedOperation(rawValue: value)
+    }
+
+    public func abortInterruptedOperation(_ operation: GitInterruptedOperation, at repoRoot: String) async throws {
+        let command = operation == .merge ? "git merge --abort" : "git rebase --abort"
+        try await run(
+            "cd \(shellQuote(repoRoot)) && \(command)",
+            timeout: .seconds(30),
+            failure: "中止操作失败"
+        )
+    }
+
     public func stashCount(at repoRoot: String) async throws -> Int {
-        let cmd = "cd \(shellQuote(repoRoot)) && git stash list --format='%gd'"
+        try await stashes(at: repoRoot).count
+    }
+
+    public func stashes(at repoRoot: String) async throws -> [GitStash] {
+        let cmd = "cd \(shellQuote(repoRoot)) && git stash list --format='%gd%x1f%gs'"
         let result = try await session.exec(cmd, timeout: .seconds(10))
         guard result.isSuccess else {
             throw GitOpError(result.stderrText.isEmpty ? "获取 Stash 列表失败" : result.stderrText)
         }
-        return result.stdoutText
-            .components(separatedBy: .newlines)
-            .filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
-            .count
+        return result.stdoutText.components(separatedBy: .newlines).compactMap { line in
+            let parts = line.components(separatedBy: "\u{1F}")
+            guard let index = parts.first?.trimmingCharacters(in: .whitespaces), !index.isEmpty else {
+                return nil
+            }
+            let message = parts.count > 1 ? parts[1] : ""
+            return GitStash(index: index, message: message)
+        }
+    }
+
+    public func createStash(message: String, at repoRoot: String) async throws {
+        let clean = message.trimmingCharacters(in: .whitespacesAndNewlines)
+        let quoted = clean.isEmpty ? "'stash'" : shellQuote(clean)
+        try await run(
+            "cd \(shellQuote(repoRoot)) && git stash push --include-untracked -m \(quoted)",
+            timeout: .seconds(30),
+            failure: "创建 Stash 失败"
+        )
+    }
+
+    public func applyStash(_ stash: GitStash, at repoRoot: String) async throws {
+        try await run(
+            "cd \(shellQuote(repoRoot)) && git stash apply \(shellQuote(stash.index))",
+            timeout: .seconds(30),
+            failure: "应用 Stash 失败"
+        )
+    }
+
+    public func popStash(_ stash: GitStash, at repoRoot: String) async throws {
+        try await run(
+            "cd \(shellQuote(repoRoot)) && git stash pop \(shellQuote(stash.index))",
+            timeout: .seconds(30),
+            failure: "弹出 Stash 失败"
+        )
+    }
+
+    public func dropStash(_ stash: GitStash, at repoRoot: String) async throws {
+        try await run(
+            "cd \(shellQuote(repoRoot)) && git stash drop \(shellQuote(stash.index))",
+            timeout: .seconds(15),
+            failure: "删除 Stash 失败"
+        )
     }
 
     public func createBranch(
         name: String,
         at repoRoot: String,
-        checkout: Bool = true
+        checkout: Bool = true,
+        from baseBranch: String? = nil
     ) async throws {
         let clean = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !clean.isEmpty else {
             throw GitOpError("分支名称不能为空")
         }
         let verb = checkout ? "checkout -b" : "branch"
+        let base = baseBranch.map { " \(shellQuote($0))" } ?? ""
         try await run(
-            "cd \(shellQuote(repoRoot)) && git \(verb) \(shellQuote(clean))",
+            "cd \(shellQuote(repoRoot)) && git \(verb) \(shellQuote(clean))\(base)",
             timeout: .seconds(15),
             failure: "创建分支失败"
+        )
+    }
+
+    public func deleteRemoteBranch(
+        remote: String,
+        branch: String,
+        at repoRoot: String
+    ) async throws {
+        try await run(
+            "cd \(shellQuote(repoRoot)) && git push \(shellQuote(remote)) --delete \(shellQuote(branch))",
+            timeout: .seconds(60),
+            failure: "删除远程分支失败"
         )
     }
 
@@ -180,6 +279,126 @@ public actor GitService {
             "cd \(shellQuote(repoRoot)) && git branch \(flag) \(shellQuote(name))",
             timeout: .seconds(15),
             failure: "删除分支失败"
+        )
+    }
+
+    public func renameBranch(_ name: String, to newName: String, at repoRoot: String) async throws {
+        let clean = newName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !clean.isEmpty else {
+            throw GitOpError("分支名称不能为空")
+        }
+        try await run(
+            "cd \(shellQuote(repoRoot)) && git branch -m \(shellQuote(name)) \(shellQuote(clean))",
+            timeout: .seconds(15),
+            failure: "重命名分支失败"
+        )
+    }
+
+    public func checkoutTrackingBranch(_ remote: String, at repoRoot: String) async throws {
+        try await run(
+            "cd \(shellQuote(repoRoot)) && git checkout --track \(shellQuote(remote))",
+            timeout: .seconds(15),
+            failure: "检出分支失败"
+        )
+    }
+
+    public func merge(_ branch: String, at repoRoot: String) async throws {
+        try await run(
+            "cd \(shellQuote(repoRoot)) && git merge --no-edit \(shellQuote(branch))",
+            timeout: .seconds(60),
+            failure: "合并分支失败"
+        )
+    }
+
+    public func rebase(onto branch: String, at repoRoot: String) async throws {
+        try await run(
+            "cd \(shellQuote(repoRoot)) && git rebase \(shellQuote(branch))",
+            timeout: .seconds(60),
+            failure: "基变分支失败"
+        )
+    }
+
+    public func tags(at repoRoot: String) async throws -> [GitTag] {
+        let format = "%(refname:short)\t%(objectname:short)"
+        let cmd = "cd \(shellQuote(repoRoot)) && git tag --sort=-creatordate --format=\(shellQuote(format))"
+        let result = try await session.exec(cmd, timeout: .seconds(10))
+        guard result.isSuccess else {
+            throw GitOpError(result.stderrText.isEmpty ? "获取标签列表失败" : result.stderrText)
+        }
+        return result.stdoutText.components(separatedBy: .newlines).compactMap { line in
+            let parts = line.components(separatedBy: "\t")
+            guard let name = parts.first?.trimmingCharacters(in: .whitespaces), !name.isEmpty else {
+                return nil
+            }
+            return GitTag(
+                name: name,
+                commit: parts.count > 1 && !parts[1].isEmpty ? parts[1] : nil
+            )
+        }
+    }
+
+    public func createTag(
+        name: String,
+        at repoRoot: String,
+        commit: String? = nil
+    ) async throws {
+        let clean = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !clean.isEmpty else {
+            throw GitOpError("标签名称不能为空")
+        }
+        let target = commit.map { " \(shellQuote($0))" } ?? ""
+        try await run(
+            "cd \(shellQuote(repoRoot)) && git tag \(shellQuote(clean))\(target)",
+            timeout: .seconds(15),
+            failure: "创建标签失败"
+        )
+    }
+
+    public func deleteTag(name: String, at repoRoot: String) async throws {
+        try await run(
+            "cd \(shellQuote(repoRoot)) && git tag -d \(shellQuote(name))",
+            timeout: .seconds(15),
+            failure: "删除标签失败"
+        )
+    }
+
+    public func checkoutTag(_ tag: GitTag, at repoRoot: String) async throws {
+        try await run(
+            "cd \(shellQuote(repoRoot)) && git checkout \(shellQuote(tag.name))",
+            timeout: .seconds(15),
+            failure: "检出标签失败"
+        )
+    }
+
+    public func checkoutCommit(_ hash: String, at repoRoot: String) async throws {
+        try await run(
+            "cd \(shellQuote(repoRoot)) && git checkout \(shellQuote(hash))",
+            timeout: .seconds(15),
+            failure: "检出提交失败"
+        )
+    }
+
+    public func cherryPick(_ hash: String, at repoRoot: String) async throws {
+        try await run(
+            "cd \(shellQuote(repoRoot)) && git cherry-pick \(shellQuote(hash))",
+            timeout: .seconds(60),
+            failure: "拣选提交失败"
+        )
+    }
+
+    public func revert(_ hash: String, at repoRoot: String) async throws {
+        try await run(
+            "cd \(shellQuote(repoRoot)) && git revert --no-edit \(shellQuote(hash))",
+            timeout: .seconds(60),
+            failure: "撤销提交失败"
+        )
+    }
+
+    public func resetHard(to hash: String, at repoRoot: String) async throws {
+        try await run(
+            "cd \(shellQuote(repoRoot)) && git reset --hard \(shellQuote(hash))",
+            timeout: .seconds(30),
+            failure: "重置分支失败"
         )
     }
 
@@ -220,8 +439,35 @@ public actor GitService {
         }
     }
 
-    public func stageAll(at repoRoot: String) async throws {
-        try await run(
+    /// 汇总暂存区与工作区的 numstat，用于变更列表右侧的 +/- 数量。
+    public func fileDiffStats(at repoRoot: String) async throws -> [String: GitFileDiffStat] {
+        var stats: [String: GitFileDiffStat] = [:]
+        for command in ["git diff --numstat", "git diff --cached --numstat"] {
+            let result = try await session.exec(
+                "cd \(shellQuote(repoRoot)) && \(command)",
+                timeout: .seconds(20)
+            )
+            guard result.isSuccess else {
+                throw GitOpError(result.stderrText.isEmpty ? "读取文件差异统计失败" : result.stderrText)
+            }
+            for line in result.stdoutText.components(separatedBy: .newlines) {
+                let parts = line.components(separatedBy: "\t")
+                guard parts.count >= 3 else { continue }
+                let path = parts[2]
+                let additions = Int(parts[0]) ?? 0
+                let deletions = Int(parts[1]) ?? 0
+                let existing = stats[path]
+                stats[path] = GitFileDiffStat(
+                    path: path,
+                    additions: (existing?.additions ?? 0) + additions,
+                    deletions: (existing?.deletions ?? 0) + deletions
+                )
+            }
+        }
+        return stats
+    }
+
+    public func stageAll(at repoRoot: String) async throws {        try await run(
             "cd \(shellQuote(repoRoot)) && git add -A",
             timeout: .seconds(20),
             failure: "暂存全部修改失败"
@@ -275,6 +521,18 @@ public actor GitService {
         }
     }
 
+    public func commitAndPush(message: String, at repoRoot: String) async throws {
+        let clean = message.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !clean.isEmpty else {
+            throw GitOpError("提交信息不能为空")
+        }
+        try await run(
+            "cd \(shellQuote(repoRoot)) && git commit -m \(shellQuote(clean)) && git push",
+            timeout: .seconds(90),
+            failure: "提交并推送失败"
+        )
+    }
+
     /// 修改最近一次提交；仅改变提交信息，不改变索引内容。
     public func amendCommit(message: String, at repoRoot: String) async throws {
         let clean = message.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -291,10 +549,11 @@ public actor GitService {
     // MARK: - 提交历史
 
     /// 获取最近的提交记录列表。
-    public func log(at repoRoot: String, limit: Int = 50) async throws -> [GitCommit] {
-        // 使用 %x1f (Unit Separator) 分隔字段: hash, shortHash, author, isoDate, relativeDate, subject
-        let format = "%H%x1f%h%x1f%an%x1f%ad%x1f%ar%x1f%s"
-        let cmd = "cd \(shellQuote(repoRoot)) && git log -n \(limit) --pretty=format:\(shellQuote(format)) --date=iso"
+    public func log(at repoRoot: String, limit: Int = 50, branch: String? = nil) async throws -> [GitCommit] {
+        // 使用 %x1f (Unit Separator) 分隔字段: hash, shortHash, author, isoDate, relativeDate, subject, refs, email, parents
+        let format = "%H%x1f%h%x1f%an%x1f%ad%x1f%ar%x1f%s%x1f%D%x1f%ae%x1f%P"
+        let target = branch.map(shellQuote) ?? "HEAD"
+        let cmd = "cd \(shellQuote(repoRoot)) && git log -n \(limit) \(target) --pretty=format:\(shellQuote(format)) --date=iso"
         let result = try await session.exec(cmd, timeout: .seconds(15))
         guard result.isSuccess else {
             throw GitOpError(result.stderrText.isEmpty ? "获取提交记录失败" : result.stderrText)
@@ -321,13 +580,24 @@ public actor GitService {
             guard !trimmed.isEmpty else { continue }
             let parts = line.components(separatedBy: "\u{1F}")
             guard parts.count >= 6 else { continue }
+            let refs = parts.count > 6
+                ? parts[6]
+                    .components(separatedBy: ",")
+                    .map { $0.trimmingCharacters(in: .whitespaces) }
+                    .filter { !$0.isEmpty }
+                : []
             let commit = GitCommit(
                 hash: parts[0],
                 shortHash: parts[1],
                 author: parts[2],
+                authorEmail: parts.count > 7 && !parts[7].isEmpty ? parts[7] : nil,
+                parentHash: parts.count > 8
+                    ? parts[8].split(separator: " ").first.map(String.init)
+                    : nil,
                 date: parts[3],
                 relativeDate: parts[4],
-                message: parts[5]
+                message: parts[5],
+                refs: refs
             )
             commits.append(commit)
         }
