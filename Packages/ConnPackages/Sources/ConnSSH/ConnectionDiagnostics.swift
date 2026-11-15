@@ -99,6 +99,8 @@ public struct ConnectionPhaseSample: Sendable {
     public let errorStage: String
     public let errorCategory: String
     public let errorText: String
+    /// Whether a failed phase stops the connection attempt.
+    public let isFinalFailure: Bool
 
     public init(
         context: ConnectionDiagnosticsContext,
@@ -107,7 +109,8 @@ public struct ConnectionPhaseSample: Sendable {
         outcome: Outcome,
         errorStage: String = "",
         errorCategory: String = "",
-        errorText: String = ""
+        errorText: String = "",
+        isFinalFailure: Bool = true
     ) {
         self.context = context
         self.phase = phase
@@ -116,6 +119,7 @@ public struct ConnectionPhaseSample: Sendable {
         self.errorStage = errorStage
         self.errorCategory = errorCategory
         self.errorText = errorText
+        self.isFinalFailure = isFinalFailure
     }
 }
 

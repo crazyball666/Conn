@@ -1,6 +1,7 @@
 import ConnKit
 import Foundation
 import Testing
+import XCTest
 @testable import Conn
 
 private final class StubSnippetRepository: SnippetRepository, @unchecked Sendable {
@@ -56,6 +57,23 @@ private final class StubSnippetGroupRepository: SnippetGroupRepository, @uncheck
         guard let snippetStore else { return }
         for index in snippetStore.snippets.indices {
             snippetStore.snippets[index].groupIDs.removeAll { $0 == id }
+        }
+    }
+}
+
+final class SnippetsViewModelLifetimeTests: XCTestCase {
+    @TaskLocal private static var marker = false
+
+    @MainActor
+    func testReleasesViewModelInSynchronousTaskLocalScope() {
+        Self.$marker.withValue(true) {
+            var viewModel: SnippetsViewModel? = SnippetsViewModel(
+                store: StubSnippetRepository(), groupStore: StubSnippetGroupRepository()
+            )
+            weak let released = viewModel
+            XCTAssertNotNil(released)
+            viewModel = nil
+            XCTAssertNil(released)
         }
     }
 }

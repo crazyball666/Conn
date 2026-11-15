@@ -1,3 +1,4 @@
+import Combine
 import ConnUI
 import ConnSSH
 import ConnMultiplexer
@@ -60,6 +61,36 @@ final class TerminalComposerAppearanceTests: XCTestCase {
             try await Task.sleep(for: .milliseconds(10))
         }
         XCTAssertTrue(input.isFirstResponder, "A pre-mount focus request must not be lost")
+    }
+
+    func testDisabledComposerRejectsFocusUntilAnExplicitRequestAfterRelease() async throws {
+        let scene = try XCTUnwrap(UIApplication.shared.connectedScenes.first as? UIWindowScene)
+        let previousWindow = scene.windows.first(where: \.isKeyWindow)
+        let state = DisabledComposerFixture()
+        let host = UIHostingController(rootView: DisabledComposerFixtureView(state: state))
+        let window = UIWindow(windowScene: scene)
+        window.rootViewController = host
+        window.makeKeyAndVisible()
+        defer { window.isHidden = true; previousWindow?.makeKey() }
+        host.view.layoutIfNeeded()
+        let input = try XCTUnwrap(findTextInput(in: host.view) as? UITextView)
+        XCTAssertFalse(input.becomeFirstResponder())
+        XCTAssertFalse(input.isFirstResponder)
+
+        state.isDisabled = false
+        for _ in 0..<100 where !input.canBecomeFirstResponder {
+            try await Task.sleep(for: .milliseconds(10))
+            host.view.layoutIfNeeded()
+        }
+        XCTAssertFalse(input.isFirstResponder)
+        XCTAssertTrue(input.becomeFirstResponder())
+        XCTAssertTrue(input.isFirstResponder)
+        state.isDisabled = true
+        for _ in 0..<100 where input.isFirstResponder {
+            try await Task.sleep(for: .milliseconds(10))
+            host.view.layoutIfNeeded()
+        }
+        XCTAssertFalse(input.isFirstResponder)
     }
 
     func testProductionEditorsRoundTripWithoutKeyboardHide() async throws {
@@ -644,6 +675,24 @@ final class TerminalComposerAppearanceTests: XCTestCase {
         window.isHidden = true
         previousKeyWindow?.makeKey()
         return size.height
+    }
+}
+
+@MainActor
+private final class DisabledComposerFixture: ObservableObject {
+    @Published var isDisabled = true
+}
+
+private struct DisabledComposerFixtureView: View {
+    @ObservedObject var state: DisabledComposerFixture
+    @State private var isFocused = false
+
+    var body: some View {
+        TerminalComposerTextEditor(
+            text: .constant("draft"), isFocused: $isFocused,
+            isReadOnly: false, fontSize: 16, compact: true
+        )
+        .disabled(state.isDisabled)
     }
 }
 

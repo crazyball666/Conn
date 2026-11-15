@@ -27,6 +27,10 @@ final class SnippetsViewModel {
         self.groupStore = groupStore
     }
 
+    // Avoid the isolated deinit back-deployment crash on older Swift runtimes.
+    // https://github.com/swiftlang/swift/issues/88036
+    nonisolated deinit {}
+
     func load() {
         errorMessage = nil
         do {

@@ -239,7 +239,8 @@
             VStack(spacing: 0) {
                 TerminalViewportRepresentable(
                     configuration: configuration,
-                    controller: controller
+                    controller: controller,
+                    isInputSuppressed: isInputSuppressed
                 )
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
 
@@ -363,7 +364,7 @@
             .accessibilityElement(children: isComposerExpanded ? .ignore : .contain)
             .accessibilityHidden(isComposerExpanded)
             .overlay {
-                if isComposerExpanded {
+                if isComposerExpanded && !isInputSuppressed {
                     TerminalComposerExpandedEditor(
                         text: Binding(
                             get: { composerState.text },
@@ -382,6 +383,7 @@
                     )
                 }
             }
+            .disabled(isInputSuppressed)
         }
 
         var body: some View {
@@ -499,22 +501,20 @@
             .onAppear {
                 controller.setApplicationActive(scenePhase == .active)
                 synchronizeInsertionContext()
-                if isInputSuppressed {
-                    dismissKeyboardWhileSuppressed()
-                }
             }
             .onChange(of: scenePhase) { _, phase in
                 controller.setApplicationActive(phase == .active)
-                if phase == .active, isInputSuppressed {
-                    dismissKeyboardWhileSuppressed()
-                }
                 if phase != .active {
                     stopSpeechInput()
                 }
             }
             .onChange(of: isInputSuppressed) { _, suppressed in
                 if suppressed {
-                    dismissKeyboardWhileSuppressed()
+                    dismissComposerKeyboardRequest &+= 1
+                    isComposerFocused = false
+                    isComposerExpanded = false
+                    stopSpeechInput()
+                    cancelComposerConfirmation()
                 }
             }
             .onDisappear {
@@ -672,17 +672,6 @@
             )
         }
 
-        private func dismissKeyboardWhileSuppressed() {
-            dismissAllKeyboards()
-            Task { @MainActor [isInputSuppressed] in
-                for delay in [150, 350, 700, 1200] {
-                    try? await Task.sleep(for: .milliseconds(delay))
-                    guard isInputSuppressed else { return }
-                    dismissAllKeyboards()
-                }
-            }
-        }
-
         private func synchronizeInsertionContext() {
             insertionMailbox?.updateContext(.init(
                 tabID: tabID,
@@ -774,6 +763,7 @@
     private struct TerminalViewportRepresentable: UIViewRepresentable {
         let configuration: TerminalConfiguration
         let controller: TerminalInputController
+        let isInputSuppressed: Bool
 
         func makeUIView(context _: Context) -> KeybarTerminalView {
             let terminalView = KeybarTerminalView(frame: .zero)
@@ -783,11 +773,12 @@
             terminalView.onSystemPaste = { controller.handlePaste($0, source: .systemMenu) }
             applyConfiguration(to: terminalView)
             terminalView.configureContentPadding(horizontal: ConnSpacing.sm)
-            controller.attach(terminalView)
+            controller.attach(terminalView, isInputSuppressed: isInputSuppressed)
             return terminalView
         }
 
         func updateUIView(_ terminalView: KeybarTerminalView, context _: Context) {
+            controller.setInputSuppressed(isInputSuppressed)
             applyConfiguration(to: terminalView)
             terminalView.configureContentPadding(horizontal: ConnSpacing.sm)
         }
@@ -899,6 +890,7 @@
         private var requestedProviderViewport: PersistentTerminalViewportState?
         private var viewportRequestID: UUID?
         weak var terminalView: KeybarTerminalView?
+        private var inputSuppressed = false
 
         @Published var ctrlActive = false
         @Published private(set) var isTerminalFocused = false
@@ -941,9 +933,15 @@
             self.onTerminalWorkingDirectoryChanged = onTerminalWorkingDirectoryChanged
         }
 
-        func attach(_ terminalView: KeybarTerminalView) {
+        func setInputSuppressed(_ suppressed: Bool) {
+            inputSuppressed = suppressed
+            terminalView?.setInputSuppressed(suppressed)
+        }
+
+        func attach(_ terminalView: KeybarTerminalView, isInputSuppressed: Bool = false) {
             detach()
             self.terminalView = terminalView
+            setInputSuppressed(isInputSuppressed)
             rendererReadyForRemoteViewport = false
             requestedProviderViewport = nil
             terminalView.onHostProtocolStateChanged = { [weak self] state in
@@ -1175,6 +1173,7 @@
             let isUserInput = replayOutboundGate.currentFeedProvenance == .outsideFeed
                 && !isHostProtocolEmission
             if isUserInput {
+                guard !inputSuppressed else { return }
                 dismissHistoryReviewIfNeeded()
                 source.clearSelection()
             }
@@ -1265,6 +1264,7 @@
         }
 
         func handleKey(_ key: TerminalKey) {
+            guard !inputSuppressed else { return }
             dismissHistoryReviewIfNeeded()
             terminalView?.clearSelection()
             if key.isSticky {
@@ -1289,7 +1289,8 @@
         }
 
         func currentComposerTarget() -> TerminalComposerTarget? {
-            guard terminalView != nil,
+            guard !inputSuppressed,
+                  terminalView != nil,
                   replayOutboundGate.allowsTerminalDelegateOutput,
                   !isReviewActive
             else { return nil }
@@ -1341,6 +1342,7 @@
         }
 
         func handlePaste(_ text: String, source: TerminalPasteSource = .keybar) {
+            guard !inputSuppressed else { return }
             dismissHistoryReviewIfNeeded()
             guard let terminalView else { return }
             terminalView.clearSelection()
@@ -2121,6 +2123,8 @@
     public final class KeybarTerminalView: TerminalView {
         var onFirstResponderChange: ((Bool) -> Void)?
         var onSystemPaste: ((String) -> Void)?
+        private var isInputSuppressed = false
+        private var automaticFocusRequest: DispatchWorkItem?
         private let hiddenInputView = TerminalHiddenInputView()
         private(set) var softwareKeyboardVisible = false
         private var horizontalContentPadding: CGFloat = 0
@@ -2456,6 +2460,7 @@
         /// `UIView.performWithoutAnimation` 可靠关闭。使用零高度输入视图保留
         /// responder，快捷键栏和终端焦点也就不会随键盘退场发生二次布局切换。
         func setSoftwareKeyboardVisible(_ visible: Bool) {
+            guard !visible || !isInputSuppressed else { return }
             if visible {
                 inputView = nil
                 if isFirstResponder {
@@ -2520,18 +2525,37 @@
         /// 进入窗口后自动聚焦，弹出软键盘与加速键条（无需用户先点一下）。
         override public func didMoveToWindow() {
             super.didMoveToWindow()
+            automaticFocusRequest?.cancel()
+            automaticFocusRequest = nil
             if window != nil {
-                DispatchQueue.main.async { [weak self] in
-                    guard let self, !self.isFirstResponder else { return }
+                guard !isInputSuppressed else { return }
+                let request = DispatchWorkItem { [weak self] in
+                    self?.automaticFocusRequest = nil
+                    guard let self, self.window != nil, !self.isInputSuppressed,
+                          !self.isFirstResponder else { return }
                     _ = becomeFirstResponder()
                 }
+                automaticFocusRequest = request
+                DispatchQueue.main.async(execute: request)
             } else {
                 softwareKeyboardVisible = false
                 onFirstResponderChange?(false)
             }
         }
 
+        func setInputSuppressed(_ suppressed: Bool) {
+            guard isInputSuppressed != suppressed else { return }
+            isInputSuppressed = suppressed
+            if suppressed {
+                automaticFocusRequest?.cancel()
+                automaticFocusRequest = nil
+                setSoftwareKeyboardVisible(false)
+                _ = resignFirstResponder()
+            }
+        }
+
         override public func becomeFirstResponder() -> Bool {
+            guard !isInputSuppressed else { return false }
             // SwiftTerm emits a focus report from its implementation even when UIKit
             // asks an already-focused view to become first responder again. During
             // selection-menu presentation that redundant report can be misclassified

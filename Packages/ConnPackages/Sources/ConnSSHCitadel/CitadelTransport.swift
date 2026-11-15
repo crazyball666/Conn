@@ -163,7 +163,8 @@ public final class CitadelTransport: SSHTransport {
                     plan: plan,
                     hostKeyPolicy: hostKeyPolicy,
                     connectTimeout: connectTimeout,
-                    diagnostics: diagnostics
+                    diagnostics: diagnostics,
+                    mayRetry: attempt < ConnectionRetryPolicy.maximumAttempts
                 )
             } catch {
                 lastError = error
@@ -250,7 +251,8 @@ public final class CitadelTransport: SSHTransport {
         plan: SSHConnectionPlan,
         hostKeyPolicy: HostKeyPolicy,
         connectTimeout: TimeAmount = CitadelConnectionPolicy.proxyConnectTimeout,
-        diagnostics: ConnectionDiagnosticsContext
+        diagnostics: ConnectionDiagnosticsContext,
+        mayRetry: Bool = false
     ) async throws -> any SSHSession {
         let started = Date()
         do {
@@ -298,7 +300,13 @@ public final class CitadelTransport: SSHTransport {
             recordPhase("ssh_handshake", started: started, context: diagnostics)
             return session
         } catch {
-            recordPhase("ssh_handshake", started: started, context: diagnostics, error: error)
+            recordPhase(
+                "ssh_handshake",
+                started: started,
+                context: diagnostics,
+                error: error,
+                isFinalFailure: !(mayRetry && ConnectionRetryPolicy.isTransient(error))
+            )
             throw error
         }
     }
@@ -307,7 +315,8 @@ public final class CitadelTransport: SSHTransport {
         _ phase: String,
         started: Date,
         context: ConnectionDiagnosticsContext,
-        error: Error? = nil
+        error: Error? = nil,
+        isFinalFailure: Bool = true
     ) {
         guard let diagnosticsSink else { return }
         diagnosticsSink.record(ConnectionPhaseSample(
@@ -317,7 +326,8 @@ public final class CitadelTransport: SSHTransport {
             outcome: error == nil ? .success : .failure,
             errorStage: error == nil ? "" : phase,
             errorCategory: error.map(ConnectionDiagnosticsText.category) ?? "",
-            errorText: error.map(ConnectionDiagnosticsText.text) ?? ""
+            errorText: error.map(ConnectionDiagnosticsText.text) ?? "",
+            isFinalFailure: isFinalFailure
         ))
     }
 

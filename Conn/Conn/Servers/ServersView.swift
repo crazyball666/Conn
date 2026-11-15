@@ -403,11 +403,9 @@ struct ServersView: View {
     }
 
     private func openTerminal(_ host: Host) {
-        if let recent = dependencies.terminalSessions.store.recentTab(forHost: host.id) {
-            terminalRoute = TerminalRoute(host: host, tabID: recent.id)
-        } else {
-            newTerminalHost = host
-        }
+        // 长按菜单的「终端」始终走新建终端流程（选择普通/持久终端），
+        // 不复用已有 Tab；复用入口保留在主机详情页的工具栏。
+        newTerminalHost = host
     }
 
     private func openPendingTerminal() {

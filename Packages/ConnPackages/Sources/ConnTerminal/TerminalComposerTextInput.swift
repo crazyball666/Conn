@@ -13,10 +13,12 @@ struct TerminalComposerTextEditor: UIViewRepresentable {
     var compact = false
     var onSubmit: () -> Void = {}
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.isEnabled) private var isEnabled
     @Environment(\.terminalComposerFocusHandoff) private var focusHandoff
 
-    func makeUIView(context: Context) -> UITextView {
+    func makeUIView(context: Context) -> TerminalComposerNativeTextView {
         let editor = TerminalComposerNativeTextView()
+        editor.setFocusEnabled(isEnabled)
         editor.backgroundColor = .clear
         editor.textContainerInset = .zero
         editor.textContainer.lineFragmentPadding = 0
@@ -43,8 +45,9 @@ struct TerminalComposerTextEditor: UIViewRepresentable {
         return editor
     }
 
-    func updateUIView(_ editor: UITextView, context: Context) {
+    func updateUIView(_ editor: TerminalComposerNativeTextView, context: Context) {
         context.coordinator.parent = self
+        editor.setFocusEnabled(isEnabled)
         editor.overrideUserInterfaceStyle = colorScheme == .dark ? .dark : .light
         editor.font = compact ? .systemFont(ofSize: fontSize) : .monospacedSystemFont(ofSize: fontSize, weight: .regular)
         editor.textColor = UIColor(Color.connInk)
@@ -80,7 +83,7 @@ struct TerminalComposerTextEditor: UIViewRepresentable {
         private var isApplyingPaste = false
         init(_ parent: TerminalComposerTextEditor) { self.parent = parent }
         func updateFocus(of editor: UITextView) {
-            guard editor.window != nil else { return }
+            guard parent.isEnabled, editor.window != nil else { return }
             if parent.isFocused {
                 if !editor.isFirstResponder {
                     editor.becomeFirstResponder()
@@ -134,6 +137,27 @@ struct TerminalComposerTextEditor: UIViewRepresentable {
 /// attachment rather than losing the initial fullscreen focus request.
 final class TerminalComposerNativeTextView: UITextView {
     var onWindowAttachment: (() -> Void)?
+    private var isFocusEnabled = true
+
+    override var canBecomeFirstResponder: Bool {
+        isFocusEnabled && super.canBecomeFirstResponder
+    }
+
+    override func becomeFirstResponder() -> Bool {
+        guard isFocusEnabled else { return false }
+        return super.becomeFirstResponder()
+    }
+
+    func setFocusEnabled(_ enabled: Bool) {
+        guard isFocusEnabled != enabled else { return }
+        isFocusEnabled = enabled
+        guard !enabled, isFirstResponder else { return }
+        // Resignation calls the text delegate, which updates the SwiftUI binding.
+        DispatchQueue.main.async { [weak self] in
+            guard let self, !isFocusEnabled, isFirstResponder else { return }
+            _ = resignFirstResponder()
+        }
+    }
 
     override func didMoveToWindow() {
         super.didMoveToWindow()

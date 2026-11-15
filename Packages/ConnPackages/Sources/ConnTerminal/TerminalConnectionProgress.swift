@@ -31,6 +31,7 @@ public struct TerminalConnectionStep: Identifiable, Sendable, Equatable {
     public var durationMs: Int?
     /// 仅用于计算耗时，不进入 UI。
     var startedAt: Date?
+    var hasSampleDuration = false
 
     public init(
         id: TerminalConnectionStepID,
@@ -83,7 +84,7 @@ public enum TerminalConnectionActivityState: Sendable, Equatable {
     case cancelled
 }
 
-/// 一次新建连接或重连的可观察进度。按 Host 保存，终端页只展示当前 Host 的最新活动。
+/// 一次新建、恢复或重连终端的可观察进度。
 public struct TerminalConnectionActivity: Identifiable, Sendable, Equatable {
     public let id: String
     public let hostID: String
@@ -204,15 +205,21 @@ public final class TerminalConnectionProgressCenter {
 
     /// 把底层已发出的连接阶段样本投影到当前活动。
     ///
-    /// 私有网络会先发 profile/credential/state/route/socks，再发 ssh_handshake；
-    /// 这里不预设它们一定存在，缺少样本的阶段由连接完成时的兜底补齐。
+    /// 复用连接时可能省略前置阶段。后续样本可以确认这些阶段已就绪，
+    /// 只有实际收到样本的阶段使用样本中的耗时。
     public func record(_ sample: ConnectionPhaseSample) {
         guard !sample.context.connectionRef.isEmpty,
               let activityID = activities.first(where: {
                   $0.value.connectionRef == sample.context.connectionRef
               })?.key,
-              var activity = activities[activityID]
+              var activity = activities[activityID],
+              activity.state == .connecting
         else { return }
+
+        if sample.outcome == .cancelled {
+            cancel(forID: activityID)
+            return
+        }
 
         let phaseStep: TerminalConnectionStepID? = switch sample.phase {
         case "profile_load": .profile
@@ -229,69 +236,50 @@ public final class TerminalConnectionProgressCenter {
               let index = activity.steps.firstIndex(where: { $0.id == phaseStep })
         else { return }
 
-        if sample.outcome == .failure {
-            let failureStep: TerminalConnectionStepID =
-                sample.errorCategory == "auth" || sample.errorCategory == "host_key"
-                    ? .authentication
-                    : phaseStep
-            if let failureIndex = activity.steps.firstIndex(where: { $0.id == failureStep }) {
-                for index in activity.steps.indices
-                    where index != failureIndex && activity.steps[index].state == .active {
-                    activity.steps[index].state = .completed
-                    activity.steps[index].durationMs = duration(
-                        from: activity.steps[index].startedAt ?? activity.startedAt,
-                        to: .now
-                    )
-                }
-                activity.steps[failureIndex].state = .failed
-                activity.steps[failureIndex].durationMs = sample.durationMs
-                activity.errorMessage = sample.errorText
+        let authenticationIndex = activity.steps.firstIndex { $0.id == .authentication }
+        switch sample.outcome {
+        case .failure where !sample.isFinalFailure:
+            if activity.steps[index].state == .pending {
+                completePredecessors(in: &activity, before: index)
+                activity.steps[index].state = .active
+                activity.steps[index].startedAt = .now
             }
-            activity.state = .failed
-            activity.endedAt = .now
             if !sample.errorText.isEmpty {
-                activity.logs.append(TerminalConnectionLogEntry(
-                    message: sample.errorText,
-                    level: .error
-                ))
+                activity.logs.append(TerminalConnectionLogEntry(message: sample.errorText, level: .error))
             }
-        } else {
-            activity.steps[index].state = .completed
+        case .failure:
+            let isAuthenticationError = sample.errorCategory == "auth" || sample.errorCategory == "host_key"
+            setFailure(
+                in: &activity,
+                at: isAuthenticationError ? authenticationIndex ?? index : index,
+                message: sample.errorText,
+                sampleDurationMs: sample.durationMs
+            )
+        case .success:
+            guard !activity.steps[index].hasSampleDuration else { return }
+            let lastCompletedIndex = phaseStep == .network ? authenticationIndex ?? index : index
+            completePredecessors(in: &activity, before: lastCompletedIndex + 1)
             activity.steps[index].durationMs = sample.durationMs
-            if sample.phase == "ssh_handshake",
-               let authIndex = activity.steps.firstIndex(where: { $0.id == .authentication }) {
-                activity.steps[authIndex].state = .completed
-                activity.steps[authIndex].durationMs = sample.durationMs
-            }
-            if sample.phase == "terminal_ready" {
-                activity.state = .connected
-                activity.endedAt = .now
-            }
-            if let nextIndex = activity.steps.indices.first(where: {
-                $0 > index && activity.steps[$0].state == .pending
-            }) {
+            activity.steps[index].hasSampleDuration = true
+            if activity.activeStep == nil,
+               let nextIndex = activity.steps.firstIndex(where: { $0.state == .pending }) {
                 activity.steps[nextIndex].state = .active
                 activity.steps[nextIndex].startedAt = .now
             }
+        case .cancelled:
+            return
         }
         activities[activityID] = activity
     }
 
     /// 底层没有逐阶段上报时，在连接完成后补齐路由相关阶段，避免卡片停在半截。
     public func completePendingRouteStages(forID activityID: String) {
-        guard var activity = activities[activityID] else { return }
-        let routeSteps: Set<TerminalConnectionStepID> = [.profile, .credential, .state, .route, .socks]
-        let now = Date()
-        for index in activity.steps.indices where routeSteps.contains(activity.steps[index].id) {
-            guard activity.steps[index].state != .failed else { continue }
-            activity.steps[index].state = .completed
-            if activity.steps[index].durationMs == nil {
-                activity.steps[index].durationMs = duration(
-                    from: activity.steps[index].startedAt ?? activity.startedAt,
-                    to: now
-                )
-            }
-        }
+        guard var activity = activities[activityID],
+              activity.state == .connecting,
+              let networkIndex = activity.steps.firstIndex(where: { $0.id == .network }),
+              networkIndex > 0
+        else { return }
+        completePredecessors(in: &activity, before: networkIndex)
         activities[activityID] = activity
     }
 
@@ -300,27 +288,18 @@ public final class TerminalConnectionProgressCenter {
         forID activityID: String,
         detail: String? = nil
     ) {
-        guard var activity = activities[activityID] else { return }
-        let now = Date()
-        for index in activity.steps.indices {
-            if activity.steps[index].id == step {
-                if activity.steps[index].state != .completed {
-                    activity.steps[index].state = .active
-                    activity.steps[index].startedAt = activity.steps[index].startedAt ?? now
-                }
-                if let detail {
-                    activity.steps[index].detail = detail
-                }
-            } else if activity.steps[index].state == .active {
-                // 后一个阶段开始意味着前一个阶段已经可用；避免同时出现两个转圈。
-                activity.steps[index].state = .completed
-                activity.steps[index].durationMs = duration(
-                    from: activity.steps[index].startedAt,
-                    to: now
-                )
-            }
+        guard var activity = activities[activityID],
+              activity.state == .connecting,
+              let index = activity.steps.firstIndex(where: { $0.id == step }),
+              activity.steps[index].state != .completed
+        else { return }
+        completePredecessors(in: &activity, before: index)
+        if activity.steps[index].state == .pending {
+            activity.steps[index].state = .active
+            activity.steps[index].startedAt = .now
         }
         if let detail {
+            activity.steps[index].detail = detail
             activity.logs.append(TerminalConnectionLogEntry(message: detail))
         }
         activities[activityID] = activity
@@ -331,18 +310,18 @@ public final class TerminalConnectionProgressCenter {
         forID activityID: String,
         detail: String? = nil
     ) {
-        guard var activity = activities[activityID] else { return }
-        let now = Date()
-        guard let index = activity.steps.firstIndex(where: { $0.id == step }) else { return }
-        if activity.steps[index].state != .failed {
-            activity.steps[index].state = .completed
-        }
-        if activity.steps[index].durationMs == nil {
+        guard var activity = activities[activityID],
+              activity.state == .connecting,
+              let index = activity.steps.firstIndex(where: { $0.id == step }),
+              activity.steps[index].state != .completed
+        else { return }
+        if activity.steps[index].state == .active {
             activity.steps[index].durationMs = duration(
-                from: activity.steps[index].startedAt ?? activity.startedAt,
-                to: now
+                from: activity.steps[index].startedAt,
+                to: .now
             )
         }
+        completePredecessors(in: &activity, before: index + 1)
         if let detail {
             activity.steps[index].detail = detail
             activity.logs.append(TerminalConnectionLogEntry(message: detail, level: .success))
@@ -356,27 +335,38 @@ public final class TerminalConnectionProgressCenter {
         message: String,
         category: String = ""
     ) {
-        guard var activity = activities[activityID] else { return }
-        if activity.state == .failed { return }
-        let now = Date()
-        let step = preferredStep ?? activity.activeStep?.id ?? .network
-        for index in activity.steps.indices
-            where activity.steps[index].id != step && activity.steps[index].state == .active {
-            activity.steps[index].state = .completed
-            activity.steps[index].durationMs = duration(
-                from: activity.steps[index].startedAt ?? activity.startedAt,
-                to: now
-            )
+        guard var activity = activities[activityID],
+              activity.state == .connecting
+        else { return }
+        let index = activity.steps.firstIndex { $0.id == preferredStep }
+            ?? activity.steps.firstIndex { $0.state == .active }
+            ?? activity.steps.indices.last
+        guard let index else { return }
+        setFailure(in: &activity, at: index, message: message)
+        if !category.isEmpty {
+            activity.logs.append(TerminalConnectionLogEntry(message: category, level: .error))
         }
-        if let index = activity.steps.firstIndex(where: { $0.id == step }) {
-            activity.steps[index].state = .failed
-            activity.steps[index].durationMs = duration(
-                from: activity.steps[index].startedAt ?? activity.startedAt,
-                to: now
-            )
-            if !message.isEmpty {
-                activity.steps[index].detail = message
-            }
+        activities[activityID] = activity
+    }
+
+    private func setFailure(
+        in activity: inout TerminalConnectionActivity,
+        at index: Int,
+        message: String,
+        sampleDurationMs: Int? = nil
+    ) {
+        let now = Date()
+        completePredecessors(in: &activity, before: index)
+        if let activeIndex = activity.steps.firstIndex(where: { $0.state == .active }),
+           activeIndex > index {
+            activity.steps[activeIndex].state = .pending
+            activity.steps[activeIndex].startedAt = nil
+        }
+        let startedAt = activity.steps[index].state == .active ? activity.steps[index].startedAt : nil
+        activity.steps[index].state = .failed
+        activity.steps[index].durationMs = sampleDurationMs ?? duration(from: startedAt, to: now)
+        if !message.isEmpty {
+            activity.steps[index].detail = message
         }
         activity.state = .failed
         activity.endedAt = now
@@ -385,29 +375,15 @@ public final class TerminalConnectionProgressCenter {
             message: message.isEmpty ? L("连接失败") : message,
             level: .error
         ))
-        if !category.isEmpty {
-            activity.logs.append(TerminalConnectionLogEntry(
-                message: category,
-                level: .error
-            ))
-        }
-        activities[activityID] = activity
     }
 
     public func finish(forID activityID: String) {
-        guard var activity = activities[activityID] else { return }
-        let now = Date()
-        for index in activity.steps.indices where activity.steps[index].state != .failed {
-            if activity.steps[index].durationMs == nil {
-                activity.steps[index].durationMs = duration(
-                    from: activity.steps[index].startedAt ?? activity.startedAt,
-                    to: now
-                )
-            }
-            activity.steps[index].state = .completed
-        }
+        guard var activity = activities[activityID],
+              activity.state == .connecting
+        else { return }
+        completePredecessors(in: &activity, before: activity.steps.endIndex)
         activity.state = .connected
-        activity.endedAt = now
+        activity.endedAt = .now
         activity.logs.append(TerminalConnectionLogEntry(
             message: L("已连接"),
             level: .success
@@ -416,7 +392,13 @@ public final class TerminalConnectionProgressCenter {
     }
 
     public func cancel(forID activityID: String) {
-        guard var activity = activities[activityID] else { return }
+        guard var activity = activities[activityID],
+              activity.state == .connecting
+        else { return }
+        if let index = activity.steps.firstIndex(where: { $0.state == .active }) {
+            activity.steps[index].state = .pending
+            activity.steps[index].startedAt = nil
+        }
         activity.state = .cancelled
         activity.endedAt = .now
         activity.logs.append(TerminalConnectionLogEntry(
@@ -426,8 +408,14 @@ public final class TerminalConnectionProgressCenter {
         activities[activityID] = activity
     }
 
-    private func duration(from start: Date?, to end: Date) -> Int {
-        guard let start else { return 0 }
+    private func completePredecessors(in activity: inout TerminalConnectionActivity, before index: Int) {
+        for predecessor in activity.steps.indices.prefix(upTo: index) {
+            activity.steps[predecessor].state = .completed
+        }
+    }
+
+    private func duration(from start: Date?, to end: Date) -> Int? {
+        guard let start else { return nil }
         return max(0, Int(end.timeIntervalSince(start) * 1000))
     }
 }

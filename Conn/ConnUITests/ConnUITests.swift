@@ -830,22 +830,49 @@ final class ConnUITests: XCTestCase {
     }
 #endif
 
-    // 表单测试需要绕过免费版的「最多两台主机」限制，只能在免订阅构建中运行。
-#if CONN_DISABLE_SUBSCRIPTION
     @MainActor
-    func testTerminalOpensImmediatelyAndShowsConnectionStages() {
+    func testTerminalOpensImmediatelyAndShowsConnectionStages() throws {
         let app = XCUIApplication()
         app.launch()
 
-        XCTAssertTrue(app.tabBars.buttons["tab.servers"].waitForExistence(timeout: 10))
-        app.buttons["servers.add"].tap()
+        let addMenu = app.buttons["servers.add"]
+        XCTAssertTrue(addMenu.waitForExistence(timeout: 10))
+        addMenu.tap()
         let addServer = app.buttons["servers.add-host"]
         XCTAssertTrue(addServer.waitForExistence(timeout: 5))
         addServer.tap()
 
         let form = app.descendants(matching: .any)["host-form"]
-        XCTAssertTrue(form.waitForExistence(timeout: 5))
+        if !form.waitForExistence(timeout: 5) {
+            let paywall = app.descendants(matching: .any)["paywall"].firstMatch
+            if paywall.exists {
+                throw XCTSkip("当前订阅的主机数量上限阻止创建测试主机")
+            }
+            XCTFail("新增主机应打开表单")
+            return
+        }
         let marker = "ui-connect-\(UUID().uuidString.prefix(8))"
+        let fixtureCard = app.buttons.matching(NSPredicate(
+            format: "identifier BEGINSWITH %@ AND label CONTAINS %@", "servers.host.", marker
+        )).firstMatch
+        addTeardownBlock { @MainActor in
+            if !fixtureCard.exists {
+                app.terminate()
+                app.launch()
+                guard addMenu.waitForExistence(timeout: 10) else { return }
+            }
+            guard fixtureCard.waitForExistence(timeout: 5) else { return }
+            let hostID = fixtureCard.identifier.dropFirst("servers.host.".count)
+            fixtureCard.press(forDuration: 1)
+            let delete = app.buttons["servers.host.delete.\(hostID)"]
+            XCTAssertTrue(delete.waitForExistence(timeout: 5))
+            delete.tap()
+            let confirm = app.buttons["servers.host.delete.confirm"]
+            XCTAssertTrue(confirm.waitForExistence(timeout: 5))
+            confirm.tap()
+            XCTAssertTrue(fixtureCard.waitForNonExistence(timeout: 10))
+        }
+
         let name = app.textFields["host-form.name"]
         let address = app.textFields["host-form.address"]
         let port = app.textFields["host-form.port"]
@@ -862,20 +889,16 @@ final class ConnUITests: XCTestCase {
         username.typeText("root")
         app.buttons["host-form.save"].tap()
 
-        let hostCard = app.buttons.matching(
-            NSPredicate(format: "label CONTAINS %@", marker)
-        ).firstMatch
-        XCTAssertTrue(hostCard.waitForExistence(timeout: 10))
-        hostCard.tap()
+        XCTAssertTrue(fixtureCard.waitForExistence(timeout: 10))
+        fixtureCard.tap()
 
         let openTerminal = app.buttons["host.open-terminal"]
         XCTAssertTrue(openTerminal.waitForExistence(timeout: 5))
         openTerminal.tap()
 
         let plain = app.buttons["new-terminal.provider.plain"]
-        if plain.waitForExistence(timeout: 5) {
-            plain.tap()
-        }
+        XCTAssertTrue(plain.waitForExistence(timeout: 5))
+        plain.tap()
 
         let overlay = app.descendants(matching: .any)["terminal.connection.overlay"].firstMatch
         XCTAssertTrue(overlay.waitForExistence(timeout: 10), "终端页应在连接完成前出现")
@@ -886,31 +909,38 @@ final class ConnUITests: XCTestCase {
 
         let retry = app.buttons["terminal.connection.retry"]
         XCTAssertTrue(retry.waitForExistence(timeout: 20), "连接失败后应显示阶段错误和重试")
+        XCTAssertFalse(app.keyboards.firstMatch.exists)
+
+        let logsToggle = app.buttons["terminal.connection.logs-toggle"]
+        let logsContent = app.descendants(matching: .any)["terminal.connection.logs-content"].firstMatch
+        XCTAssertTrue(logsToggle.exists)
+        XCTAssertFalse(logsContent.exists)
+        logsToggle.tap()
+        XCTAssertTrue(logsContent.waitForExistence(timeout: 5))
+        logsToggle.tap()
+        XCTAssertTrue(logsContent.waitForNonExistence(timeout: 5))
+
+        XCUIDevice.shared.press(.home)
+        app.activate()
+        XCTAssertTrue(overlay.waitForExistence(timeout: 5))
+        XCTAssertTrue(retry.exists)
+        XCTAssertFalse(app.keyboards.firstMatch.exists)
+        XCTAssertEqual(app.state, .runningForeground)
+
+        retry.tap()
+        XCTAssertTrue(retry.waitForExistence(timeout: 20), "重试失败后应重新显示重试按钮")
+        XCTAssertTrue(overlay.exists)
+        XCTAssertFalse(app.keyboards.firstMatch.exists)
         let screenshot = XCTAttachment(screenshot: app.screenshot())
         screenshot.name = "terminal-connection-stages"
         screenshot.lifetime = .keepAlways
         add(screenshot)
 
         app.buttons["terminal.connection.cancel"].tap()
-        XCTAssertTrue(app.state == .runningForeground)
-
-        // 清理本次测试创建的主机，避免污染后续 UI 测试。
-        app.navigationBars.buttons.element(boundBy: 0).tap()
-        XCTAssertTrue(hostCard.waitForExistence(timeout: 10))
-        hostCard.press(forDuration: 1)
-        let delete = app.buttons.matching(
-            NSPredicate(format: "identifier BEGINSWITH %@", "servers.host.delete.")
-        ).firstMatch
-        XCTAssertTrue(delete.waitForExistence(timeout: 5))
-        delete.tap()
-        let confirmDelete = app.buttons.matching(
-            NSPredicate(format: "identifier == %@", "servers.host.delete.confirm")
-        ).firstMatch
-        XCTAssertTrue(confirmDelete.waitForExistence(timeout: 5))
-        confirmDelete.tap()
-        XCTAssertTrue(hostCard.waitForNonExistence(timeout: 10))
+        XCTAssertTrue(overlay.waitForNonExistence(timeout: 5))
+        XCTAssertTrue(openTerminal.waitForExistence(timeout: 5))
+        XCTAssertEqual(app.state, .runningForeground)
     }
-#endif
 
     @MainActor
     func testLaunchPerformance() {

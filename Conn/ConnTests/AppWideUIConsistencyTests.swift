@@ -828,16 +828,19 @@ struct AppWideUIConsistencyTests {
         #expect(!source.contains("launchPolicy:"))
     }
 
-    @Test("主机详情和服务器快捷入口优先打开本地 Tab 否则在当前页新建")
+    @Test("主机详情复用本地 Tab，服务器长按菜单始终走新建终端弹窗")
     func hostEntriesUseRecentTabOrCurrentPageSheet() throws {
-        for path in ["Hosts/HostDetailView.swift", "Servers/ServersView.swift"] {
-            let source = try appSource(path)
+        let detail = try appSource("Hosts/HostDetailView.swift")
+        let servers = try appSource("Servers/ServersView.swift")
 
-            #expect(source.contains("recentTab(forHost:"), "\(path) 没有优先复用本地 Tab")
-            #expect(source.contains("NewTerminalSheet("), "\(path) 没有在源页面呈现新建流程")
-            #expect(source.contains("fixedHost:"), "\(path) 未固定当前主机")
-            #expect(source.contains("tabID: route.tabID"), "\(path) 没有按 existing Tab 打开")
-            #expect(!source.contains("launchPolicy:"), "\(path) 仍让终端页负责创建")
+        #expect(detail.contains("recentTab(forHost:"), "主机详情没有优先复用本地 Tab")
+        #expect(!servers.contains("recentTab(forHost:"), "服务器长按菜单不应跳过新建终端弹窗")
+
+        for source in [detail, servers] {
+            #expect(source.contains("NewTerminalSheet("), "没有在源页面呈现新建流程")
+            #expect(source.contains("fixedHost:"), "未固定当前主机")
+            #expect(source.contains("tabID: route.tabID"), "没有按 existing Tab 打开")
+            #expect(!source.contains("launchPolicy:"), "仍让终端页负责创建")
         }
     }
 
@@ -981,15 +984,30 @@ struct AppWideUIConsistencyTests {
         #expect(overlay.contains("terminal.connection.stage."))
         #expect(overlay.contains("terminal.connection.retry"))
         #expect(overlay.contains("terminal.connection.cancel"))
-        #expect(overlay.contains(".onChange(of: scenePhase)"))
+        #expect(overlay.contains("accessibilityReduceMotion"))
+        #expect(overlay.contains("terminal.connection.logs-toggle"))
+        #expect(overlay.contains("ScrollViewReader"))
         #expect(overlay.contains(".onTapGesture { dismissKeyboard() }"))
         #expect(overlay.contains("HStack(alignment: .center, spacing: ConnSpacing.sm)"))
-        #expect(overlay.contains(".frame(height: 56)"))
-        #expect(screen.contains("isInputSuppressed: shouldSuppressTerminalInput(for: tab)"))
+        #expect(!overlay.contains("Text(detail.isEmpty ? \" \" : detail)"))
+        #expect(!overlay.contains(".frame(height: 44)"))
+        #expect(overlay.contains("TimelineView(.animation("))
+        #expect(screen.contains("isInputSuppressed: showsConnectionOverlay"))
+        #expect(screen.contains(".allowsHitTesting(!showsConnectionOverlay)"))
+        #expect(screen.contains(".accessibilityHidden(showsConnectionOverlay)"))
+        // 连接很快时完成卡片至少停留 0.5 秒再淡出。
+        #expect(screen.contains(".task(id: connectionCompletionID)"))
+        #expect(screen.contains("try await Task.sleep(for: .milliseconds(500))"))
+        #expect(screen.contains("withAnimation(reduceMotion ? nil : .easeOut(duration: 0.2))"))
+        #expect(!screen.contains("Date().timeIntervalSince(endedAt)"))
 
         let hosting = try packageSource("Sources/ConnTerminal/TerminalHostingView.swift")
-        #expect(hosting.contains("dismissKeyboardWhileSuppressed()"))
-        #expect(hosting.contains("if phase == .active, isInputSuppressed"))
+        #expect(hosting.contains("controller.attach(terminalView, isInputSuppressed: isInputSuppressed)"))
+        #expect(hosting.contains("controller.setInputSuppressed(isInputSuppressed)"))
+        #expect(!hosting.contains("dismissKeyboardWhileSuppressed()"))
+        #expect(hosting.contains("var isInputSuppressed = false"))
+        #expect(hosting.contains("guard !isInputSuppressed else { return false }"))
+        #expect(!hosting.contains("Task { @MainActor [isInputSuppressed]"))
     }
 
     @Test("显式终端入口同步失效当前 launch 并拒绝迟到完成")

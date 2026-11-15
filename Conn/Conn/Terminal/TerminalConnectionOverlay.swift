@@ -15,11 +15,19 @@ struct TerminalConnectionOverlay: View {
     let onRetry: (() -> Void)?
 
     @State private var showsLogs = false
-    @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.dynamicTypeSize) private var typeSize
 
     private var isFailed: Bool {
         activity?.state == .failed
     }
+
+    private var focusedStepID: TerminalConnectionStepID? {
+        activity?.failedStep?.id ?? activity?.activeStep?.id
+    }
+
+    private let logsToggleID = "terminal.connection.logs-toggle"
+    private let maximumStageListHeight: CGFloat = 242
 
     var body: some View {
         ZStack {
@@ -27,31 +35,14 @@ struct TerminalConnectionOverlay: View {
                 .ignoresSafeArea()
                 .contentShape(Rectangle())
                 .onTapGesture { dismissKeyboard() }
-            VStack(spacing: ConnSpacing.md) {
-                Spacer(minLength: 0)
-                card
-                Spacer(minLength: 0)
-            }
-            .padding(.horizontal, ConnSpacing.page + 8)
-            .padding(.top, ConnSpacing.xl)
+                .accessibilityHidden(true)
+            card
+                .frame(maxWidth: 420)
+                .padding(.horizontal, ConnSpacing.page)
+                .padding(.vertical, ConnSpacing.md)
         }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("terminal.connection.overlay")
-        .onChange(of: scenePhase) { _, phase in
-            if phase == .active {
-                dismissKeyboard()
-            }
-        }
-        .task {
-            // The sheet that started this connection can still be dismissing,
-            // so retry after its keyboard animation has settled.
-            for delay in [0, 250, 650] {
-                if delay > 0 {
-                    try? await Task.sleep(for: .milliseconds(delay))
-                }
-                dismissKeyboard()
-            }
-        }
     }
 
     private func dismissKeyboard() {
@@ -64,107 +55,113 @@ struct TerminalConnectionOverlay: View {
     }
 
     private var card: some View {
+        let shape = RoundedRectangle(cornerRadius: ConnRadius.card, style: .continuous)
+        return VStack(spacing: ConnSpacing.xs) {
+            ViewThatFits(in: .vertical) {
+                cardContent(stages: stageSection)
+                    .fixedSize(horizontal: false, vertical: true)
+                ScrollViewReader { proxy in
+                    ScrollView {
+                        cardContent(stages: stageList)
+                    }
+                    .scrollBounceBehavior(.basedOnSize)
+                    .onChange(of: focusedStepID, initial: true) { oldID, newID in
+                        guard !showsLogs, let newID else { return }
+                        withAnimation(oldID == newID || reduceMotion ? nil : ConnMotion.enter) {
+                            proxy.scrollTo(newID)
+                        }
+                    }
+                    .onChange(of: showsLogs, initial: true) { oldValue, newValue in
+                        if newValue {
+                            withAnimation(oldValue == newValue || reduceMotion ? nil : ConnMotion.enter) {
+                                proxy.scrollTo(logsToggleID, anchor: .top)
+                            }
+                        }
+                    }
+                }
+            }
+
+            actions
+                .fixedSize(horizontal: false, vertical: true)
+                .layoutPriority(1)
+        }
+        .padding(ConnSpacing.md)
+        .background(Color.connSurface, in: shape)
+        .overlay {
+            flowingBorder(shape)
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
+        }
+        .shadow(color: .black.opacity(0.24), radius: ConnSpacing.md, y: ConnSpacing.xs)
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("terminal.connection.card")
+    }
+
+    private func flowingBorder(_ shape: RoundedRectangle) -> some View {
+        let isAnimating = activity?.state == .connecting && !reduceMotion
+        let color = activity?.kind == .reconnect && activity?.state == .connecting
+            ? Color.connWarn : statusColor
+        return TimelineView(.animation(minimumInterval: 1.0 / 30.0, paused: !isAnimating)) { context in
+            let angle = isAnimating
+                ? context.date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: 2) * 180
+                : 0
+            shape.strokeBorder(
+                AngularGradient(
+                    colors: [color.opacity(0.15), color, color.opacity(0.15),
+                             color.opacity(0.8), color.opacity(0.15)],
+                    center: .center,
+                    angle: .degrees(angle)
+                ),
+                lineWidth: 2
+            )
+            .shadow(color: color.opacity(0.35), radius: 8)
+        }
+    }
+
+    private func cardContent<Stages: View>(stages: Stages) -> some View {
         VStack(alignment: .leading, spacing: ConnSpacing.sm) {
             header
             titleRow
-            if steps.count > 6 {
-                ScrollView {
-                    stageList
-                }
-                .frame(maxHeight: 242)
-                .scrollIndicators(.hidden)
-            } else {
-                stageList
-            }
+            stages
             if let error = activity?.errorMessage, !error.isEmpty {
                 errorRow(error)
             }
             logs
-            actions
         }
-        .padding(ConnSpacing.md)
-        .background(
-            Color.connSurface,
-            in: RoundedRectangle(cornerRadius: ConnRadius.card, style: .continuous)
-        )
-        .overlay {
-            TimelineView(.animation(
-                minimumInterval: 1.0 / 30.0,
-                paused: activity?.state != .connecting
-            )) { context in
-                let angle = activity?.state == .connecting
-                    ? context.date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: 2.0) / 2.0 * 360.0
-                    : 0
-                RoundedRectangle(cornerRadius: ConnRadius.card, style: .continuous)
-                    .strokeBorder(
-                        AngularGradient(
-                            colors: [
-                                statusColor.opacity(0.15),
-                                statusColor,
-                                statusColor.opacity(0.15),
-                                statusColor.opacity(0.8),
-                                statusColor.opacity(0.15),
-                            ],
-                            center: .center,
-                            angle: .degrees(angle)
-                        ),
-                        lineWidth: 2
-                    )
-                    .shadow(color: statusColor.opacity(0.35), radius: 8)
-            }
-        }
-        .shadow(color: .black.opacity(0.28), radius: 24, y: 12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("terminal.connection.content")
     }
 
     private var header: some View {
         HStack(spacing: ConnSpacing.sm) {
-            Image(systemName: "terminal")
-                .font(.system(size: 18, weight: .semibold))
-                .foregroundStyle(.white)
-                .frame(width: 42, height: 42)
-                .background(Color.connAccent, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-            VStack(alignment: .leading, spacing: 2) {
+            IconChip("terminal", tint: .accent)
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: ConnSpacing.xxs) {
                 Text(host.name.isEmpty ? host.address : host.name)
                     .font(.connHeadline)
                     .foregroundStyle(.connInk)
-                    .lineLimit(1)
+                    .lineLimit(2)
                 Text(host.displayAddress)
                     .font(.connData(.caption2))
                     .foregroundStyle(.connMuted)
-                    .lineLimit(1)
+                    .lineLimit(typeSize.isAccessibilitySize ? 2 : 1)
+                    .truncationMode(.middle)
             }
-            Spacer(minLength: ConnSpacing.sm)
-            statusPill
         }
-    }
-
-    private var statusPill: some View {
-        HStack(spacing: 5) {
-            if isFailed {
-                Image(systemName: "xmark.circle.fill")
-            } else if activity?.state == .connected {
-                Image(systemName: "checkmark.circle.fill")
-            } else {
-                ProgressView()
-                    .controlSize(.mini)
-                    .tint(statusColor)
-            }
-            Text(statusText)
-                .font(.connCaption)
-                .fontWeight(.semibold)
-        }
-        .foregroundStyle(statusColor)
-        .padding(.horizontal, 10)
-        .padding(.vertical, 6)
-        .background(statusColor.opacity(0.12), in: Capsule())
+        .accessibilityElement(children: .combine)
     }
 
     private var titleRow: some View {
-        HStack(alignment: .firstTextBaseline) {
-            Text(titleText)
+        let layout = typeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: ConnSpacing.xxs))
+            : AnyLayout(HStackLayout(alignment: .firstTextBaseline, spacing: ConnSpacing.sm))
+        return layout {
+            Text(statusText)
                 .font(.connSectionTitle)
-                .foregroundStyle(isFailed ? Color.connCrit : Color.connInk)
-            Spacer()
+                .foregroundStyle(statusColor)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .accessibilityAddTraits(.isHeader)
             if let activity {
                 Group {
                     if let endedAt = activity.endedAt {
@@ -190,19 +187,33 @@ struct TerminalConnectionOverlay: View {
         return Text(String(format: "%.1fs", elapsed))
     }
 
+    @ViewBuilder
+    private var stageSection: some View {
+        if steps.count > 6 {
+            ScrollViewReader { proxy in
+                ScrollView {
+                    stageList
+                }
+                .frame(height: maximumStageListHeight)
+                .scrollIndicators(.hidden)
+                .onChange(of: focusedStepID, initial: true) { previous, current in
+                    guard let current else { return }
+                    withAnimation(previous == current || reduceMotion ? nil : ConnMotion.enter) {
+                        proxy.scrollTo(current)
+                    }
+                }
+            }
+        } else {
+            stageList
+        }
+    }
+
     private var stageList: some View {
         VStack(alignment: .leading, spacing: 0) {
-            ForEach(Array(steps.enumerated()), id: \.element.id) { _, step in
-                stageRow(step)
+            ForEach(Array(steps.enumerated()), id: \.element.id) { index, step in
+                stageRow(step, hasPrevious: index > 0, hasNext: index < steps.count - 1)
+                    .id(step.id)
             }
-        }
-        .overlay(alignment: .topLeading) {
-            Rectangle()
-                .fill(Color.connLine)
-                .frame(width: 2)
-                .padding(.leading, 12)
-                .padding(.top, 28)
-                .padding(.bottom, 28)
         }
     }
 
@@ -210,38 +221,90 @@ struct TerminalConnectionOverlay: View {
         activity?.steps ?? TerminalConnectionStepID.allCases.map { TerminalConnectionStep(id: $0) }
     }
 
-    private func stageRow(_ step: TerminalConnectionStep) -> some View {
-        HStack(alignment: .center, spacing: ConnSpacing.sm) {
+    private func stageRow(
+        _ step: TerminalConnectionStep,
+        hasPrevious: Bool,
+        hasNext: Bool
+    ) -> some View {
+        let detail = step.detail ?? stageDetail(step, activity: activity)
+        let duration = step.state == .completed ? step.durationMs : nil
+        let highlight = switch step.state {
+        case .active: Color.connAccentFill
+        case .failed: Color.connCritFill
+        default: Color.clear
+        }
+        return HStack(alignment: .center, spacing: ConnSpacing.sm) {
             stageIcon(step.state)
-                .frame(width: 26, height: 26)
-                .background(Color.connSurface, in: Circle())
+                .id(step.state)
+                .transition(.opacity)
+                .frame(width: 24, height: 24)
+                .accessibilityHidden(true)
 
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: ConnSpacing.xxs) {
                 Text(stageTitle(step.id, activity: activity))
                     .font(.connSubheadline)
                     .fontWeight(.semibold)
-                    .foregroundStyle(step.state == .pending ? .connMuted : .connInk)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-                let detail = step.detail ?? stageDetail(step, activity: activity) ?? ""
-                Text(detail.isEmpty ? " " : detail)
-                    .font(.connFootnote)
-                    .foregroundStyle(step.state == .failed ? .connCrit : .connMuted)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-                    .opacity(detail.isEmpty ? 0 : 1)
+                    .foregroundStyle(stageTitleColor(step.state))
+                    .fixedSize(horizontal: false, vertical: true)
+                if let detail, !detail.isEmpty {
+                    Text(detail)
+                        .font(.connFootnote)
+                        .foregroundStyle(step.state == .failed ? .connCrit : .connMuted)
+                        .lineLimit(typeSize.isAccessibilitySize ? 2 : 1)
+                }
+                if typeSize.isAccessibilitySize, let duration {
+                    stepDuration(duration)
+                }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
 
-            if let durationMs = step.durationMs, step.state == .completed {
-                Text(String(format: "%.1fs", Double(durationMs) / 1000))
-                    .font(.connData(.caption2))
-                    .foregroundStyle(.connMuted)
+            if !typeSize.isAccessibilitySize, let duration {
+                stepDuration(duration)
             }
         }
-        .frame(height: 44)
+        .padding(.horizontal, ConnSpacing.xs)
+        .padding(.vertical, ConnSpacing.xxs)
+        .frame(minHeight: ConnSize.minTouchTarget)
+        .background(alignment: .leading) {
+            VStack(spacing: 0) {
+                Rectangle().fill(hasPrevious ? Color.connLine : Color.clear)
+                Color.clear.frame(height: 24)
+                Rectangle().fill(hasNext ? Color.connLine : Color.clear)
+            }
+            .frame(width: 2)
+            .frame(width: 24)
+            .padding(.leading, ConnSpacing.xs)
+            .accessibilityHidden(true)
+        }
+        .background(highlight, in: .rect(cornerRadius: ConnRadius.control))
+        .animation(reduceMotion ? nil : ConnMotion.enter, value: step.state)
         .accessibilityElement(children: .combine)
+        .accessibilityValue(stageAccessibilityValue(step.state))
         .accessibilityIdentifier("terminal.connection.stage.\(step.id.rawValue)")
+    }
+
+    private func stageAccessibilityValue(_ state: TerminalConnectionStepState) -> String {
+        switch state {
+        case .pending: ""
+        case .active: L("处理中…")
+        case .completed: L("完成")
+        case .failed: L("连接失败")
+        }
+    }
+
+    private func stageTitleColor(_ state: TerminalConnectionStepState) -> Color {
+        switch state {
+        case .pending: .connMuted
+        case .active: .connAccent
+        case .completed, .failed: .connInk
+        }
+    }
+
+    private func stepDuration(_ milliseconds: Int) -> some View {
+        Text(String(format: "%.1fs", Double(milliseconds) / 1000))
+            .font(.connData(.caption2))
+            .foregroundStyle(.connMuted)
+            .fixedSize()
     }
 
     @ViewBuilder
@@ -249,12 +312,18 @@ struct TerminalConnectionOverlay: View {
         switch state {
         case .pending:
             Circle()
-                .strokeBorder(Color.connMuted.opacity(0.5), lineWidth: 1.5)
+                .strokeBorder(Color.connMuted, lineWidth: 1.5)
                 .frame(width: 20, height: 20)
         case .active:
-            ProgressView()
-                .controlSize(.small)
-                .tint(.connAccent)
+            if reduceMotion {
+                Image(systemName: "circle.inset.filled")
+                    .font(.system(size: 20))
+                    .foregroundStyle(.connAccent)
+            } else {
+                ProgressView()
+                    .controlSize(.small)
+                    .tint(.connAccent)
+            }
         case .completed:
             Image(systemName: "checkmark.circle.fill")
                 .font(.system(size: 22))
@@ -273,7 +342,7 @@ struct TerminalConnectionOverlay: View {
             Text(message)
                 .font(.connFootnote)
                 .foregroundStyle(.connCrit)
-                .lineLimit(4)
+                .textSelection(.enabled)
         }
         .padding(ConnSpacing.sm)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -284,53 +353,86 @@ struct TerminalConnectionOverlay: View {
     private var logs: some View {
         let entries = activity?.logs ?? []
         if !entries.isEmpty {
-            DisclosureGroup(isExpanded: $showsLogs) {
-                ScrollView {
-                    LazyVStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .leading, spacing: ConnSpacing.xxs) {
+                Button {
+                    withAnimation(reduceMotion ? nil : ConnMotion.enter) {
+                        showsLogs.toggle()
+                    }
+                } label: {
+                    HStack(spacing: ConnSpacing.xs) {
+                        Label(L("日志"), systemImage: "text.alignleft")
+                            .font(.connSubheadline.weight(.medium))
+                            .foregroundStyle(.connInk)
+                        Text("\(entries.count)")
+                            .font(.connData(.caption2))
+                            .foregroundStyle(.connMuted)
+                        Spacer(minLength: 0)
+                        Image(systemName: "chevron.right")
+                            .font(.connCaption.weight(.semibold))
+                            .foregroundStyle(.connMuted)
+                            .rotationEffect(.degrees(showsLogs ? 90 : 0))
+                            .accessibilityHidden(true)
+                    }
+                    .frame(minHeight: ConnSize.minTouchTarget)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(ConnPressStyle())
+                .id(logsToggleID)
+                .accessibilityIdentifier(logsToggleID)
+                .accessibilityAddTraits(showsLogs ? .isSelected : [])
+
+                if showsLogs {
+                    VStack(alignment: .leading, spacing: ConnSpacing.xs) {
                         ForEach(entries) { entry in
-                            HStack(alignment: .top, spacing: ConnSpacing.xs) {
-                                Text(entry.timestamp.formatted(date: .omitted, time: .standard))
-                                    .font(.connData(.caption2))
-                                    .foregroundStyle(.connTermDim)
-                                Text(entry.message)
-                                    .font(.connData(.caption2))
-                                    .foregroundStyle(logColor(entry.level))
-                                    .textSelection(.enabled)
-                            }
+                            logRow(entry)
                         }
                     }
+                    .padding(ConnSpacing.xs)
                     .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Color.connBg, in: .rect(cornerRadius: ConnRadius.control))
+                    .transition(.opacity)
+                    .accessibilityElement(children: .contain)
+                    .accessibilityIdentifier("terminal.connection.logs-content")
                 }
-                .frame(maxHeight: 150)
-                .padding(.top, ConnSpacing.xs)
-            } label: {
-                HStack(spacing: ConnSpacing.xs) {
-                    Image(systemName: "text.alignleft")
-                    Text(L("日志"))
-                    Text("\(entries.count)")
-                        .font(.connData(.caption2))
-                        .foregroundStyle(.connMuted)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(Color.connMuted.opacity(0.12), in: Capsule())
-                }
-                .font(.connCaption)
-                .foregroundStyle(.connInk)
             }
-            .tint(.connMuted)
         }
     }
 
+    private func logRow(_ entry: TerminalConnectionLogEntry) -> some View {
+        let layout = typeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: ConnSpacing.xxs))
+            : AnyLayout(HStackLayout(alignment: .top, spacing: ConnSpacing.xs))
+        return layout {
+            Text(entry.timestamp.formatted(date: .omitted, time: .standard))
+                .foregroundStyle(.connMuted)
+                .fixedSize()
+            Text(entry.message)
+                .foregroundStyle(entry.level == .error ? .connCrit : .connInk)
+                .textSelection(.enabled)
+        }
+        .font(.connData(.caption2))
+    }
+
     private var actions: some View {
-        HStack(spacing: ConnSpacing.sm) {
+        let layout = typeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(spacing: ConnSpacing.xs))
+            : AnyLayout(HStackLayout(spacing: ConnSpacing.xs))
+        return layout {
             Button(role: .cancel) {
                 onCancel()
             } label: {
                 Text(L("取消"))
-                    .frame(maxWidth: .infinity, minHeight: 38)
+                    .font(.connSubheadline.weight(.medium))
+                    .foregroundStyle(.connInk)
+                    .padding(.vertical, ConnSpacing.xxs)
+                    .frame(maxWidth: .infinity, minHeight: ConnSize.minTouchTarget)
+                    .background {
+                        RoundedRectangle(cornerRadius: ConnRadius.control, style: .continuous)
+                            .strokeBorder(Color.connLine, lineWidth: 1)
+                    }
+                    .contentShape(.rect)
             }
-            .buttonStyle(.bordered)
-            .controlSize(.regular)
+            .buttonStyle(ConnPressStyle())
             .accessibilityIdentifier("terminal.connection.cancel")
 
             if isFailed, let onRetry {
@@ -338,13 +440,22 @@ struct TerminalConnectionOverlay: View {
                     onRetry()
                 } label: {
                     Text(L("重试"))
-                        .frame(maxWidth: .infinity, minHeight: 38)
+                        .font(.connSubheadline.weight(.semibold))
+                        .foregroundStyle(.white)
+                        .padding(.vertical, ConnSpacing.xxs)
+                        .frame(maxWidth: .infinity, minHeight: ConnSize.minTouchTarget)
+                        .background(Color.connAccentDeep, in: .rect(cornerRadius: ConnRadius.control))
+                        .contentShape(.rect)
                 }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.regular)
+                .buttonStyle(ConnPressStyle())
                 .accessibilityIdentifier("terminal.connection.retry")
             }
         }
+        // 连接成功后卡片会短暂停留再淡出，这段时间不再允许取消/重试，
+        // 但保留占位避免卡片高度跳变。
+        .opacity(activity?.state == .connected ? 0 : 1)
+        .allowsHitTesting(activity?.state != .connected)
+        .accessibilityHidden(activity?.state == .connected)
     }
 
     private var statusText: String {
@@ -360,24 +471,10 @@ struct TerminalConnectionOverlay: View {
     private var statusColor: Color {
         guard let activity else { return .connAccent }
         switch activity.state {
-        case .connecting: return activity.kind == .reconnect ? .connWarn : .connAccent
+        case .connecting: return .connAccent
         case .connected: return .connGood
         case .failed: return .connCrit
         case .cancelled: return .connMuted
-        }
-    }
-
-    private var titleText: String {
-        guard let activity else { return L("连接中…") }
-        switch activity.state {
-        case .failed:
-            return L("连接失败")
-        case .connected:
-            return L("已连接")
-        case .cancelled:
-            return L("取消")
-        case .connecting:
-            return activity.kind == .reconnect ? L("正在重连") : L("连接中…")
         }
     }
 
@@ -420,14 +517,6 @@ struct TerminalConnectionOverlay: View {
         case .authentication: "SSH"
         case .shell: "PTY"
         case .ready: L("就绪")
-        }
-    }
-
-    private func logColor(_ level: TerminalConnectionLogLevel) -> Color {
-        switch level {
-        case .info: .connTermFg
-        case .success: .connGood
-        case .error: .connCrit
         }
     }
 }

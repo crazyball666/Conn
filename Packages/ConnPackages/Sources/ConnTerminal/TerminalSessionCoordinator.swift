@@ -1449,7 +1449,9 @@ public final class TerminalSessionCoordinator {
                 lastUsedAt: .now
             )
             recordPhase("terminal_ready", started: prepareStarted, context: context)
-            connectionProgress.finish(forID: progressActivityID ?? context.connectionRef)
+            if progressActivityID == nil {
+                connectionProgress.finish(forID: context.connectionRef)
+            }
             return .success(PreparedLaunch(tab: tab))
         } catch {
             if let temporarySession {
@@ -1643,9 +1645,7 @@ public final class TerminalSessionCoordinator {
         connectionProgress.completePendingRouteStages(forID: activityID)
         connectionProgress.complete(.network, forID: activityID)
         connectionProgress.complete(.authentication, forID: activityID)
-        connectionProgress.activate(.shell, forID: activityID)
         connectionProgress.complete(.shell, forID: activityID)
-        connectionProgress.activate(.ready, forID: activityID)
         connectionProgress.complete(.ready, forID: activityID)
         return opened
     }

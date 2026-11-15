@@ -380,21 +380,25 @@ private actor RecoveryAttachmentRecorder {
     private let failOnOpenNumbers: Set<Int>
     private let openErrors: [Int: PersistentTerminalError]
     private let closeOrderRecorder: CloseOrderRecorder?
+    private let openGate: DelayedShellGate?
 
     init(
         failOnOpenNumbers: Set<Int> = [],
         openErrors: [Int: PersistentTerminalError] = [:],
-        closeOrderRecorder: CloseOrderRecorder? = nil
+        closeOrderRecorder: CloseOrderRecorder? = nil,
+        openGate: DelayedShellGate? = nil
     ) {
         self.failOnOpenNumbers = failOnOpenNumbers
         self.openErrors = openErrors
         self.closeOrderRecorder = closeOrderRecorder
+        self.openGate = openGate
     }
 
     func open(
         descriptor: PersistentAttachmentDescriptor,
         reason: PersistentAttachmentOpenReason
-    ) throws -> RecoveryAttachment {
+    ) async throws -> RecoveryAttachment {
+        await openGate?.wait()
         reasons.append(reason)
         if let error = openErrors[reasons.count] {
             throw error
@@ -996,13 +1000,64 @@ struct TerminalSessionCoordinatorTests {
         }
         coordinator.beginRestoringIfNeeded(tab.id)
         for _ in 0 ..< 100 {
-            if coordinator.store.tab(id: tab.id)?.status == .connected { break }
+            if coordinator.store.tab(id: tab.id)?.status == .connected,
+               coordinator.connectionProgress.activity(forID: tab.id)?.state == .connected {
+                break
+            }
             try? await Task.sleep(for: .milliseconds(10))
         }
 
         #expect(coordinator.store.tab(id: tab.id)?.status == .connected)
         #expect(coordinator.store.tab(id: tab.id)?.isPlaceholderSession == false)
+        #expect(coordinator.connectionProgress.activity(forID: tab.id)?.state == .connected)
         #expect(await recorder.reasons == [.reconnect])
+        await coordinator.close(tab.id)
+    }
+
+    @Test("准备恢复期间记录失效时关闭新 attachment 并取消进度")
+    func invalidatedResumeRecordCancelsPreparedRestore() async throws {
+        let host = Host(id: "host-1", name: "web", address: "10.0.0.1", username: "root")
+        let gate = DelayedShellGate()
+        let closeOrder = CloseOrderRecorder()
+        let provider = RecoveryPersistentProvider(
+            recorder: RecoveryAttachmentRecorder(closeOrderRecorder: closeOrder, openGate: gate)
+        )
+        let record = PersistentTerminalResumeRecord(
+            id: "resume-1",
+            hostID: host.id,
+            hostName: host.name,
+            hostAddress: host.displayAddress,
+            descriptor: provider.attachmentDescriptor,
+            automaticAlias: "ops",
+            createdAt: Date(timeIntervalSince1970: 1),
+            lastConnectedAt: Date(timeIntervalSince1970: 2)
+        )
+        let coordinator = TerminalSessionCoordinator(
+            hostRepository: TerminalHostRepository(hosts: [host]),
+            connectionManager: ConnectionManager(
+                transport: MockSSHTransport(),
+                platformDetector: RenamePlatformDetector()
+            ),
+            providerRegistry: try PersistentTerminalProviderRegistry(providers: [provider]),
+            resumeRepository: InMemoryTerminalResumeRepository(records: [record])
+        )
+
+        let tab = try await coordinator.startRestoring(record.id).get()
+        coordinator.beginRestoringIfNeeded(tab.id)
+        await gate.waitUntilBlocked()
+        coordinator.forgetResumeRecord(record.id)
+        await gate.release()
+        for _ in 0 ..< 100 {
+            if await closeOrder.events.contains("channel"),
+               coordinator.connectionProgress.activity(forID: tab.id)?.state != .connecting {
+                break
+            }
+            try? await Task.sleep(for: .milliseconds(10))
+        }
+
+        #expect(await closeOrder.events == ["attachment", "channel"])
+        #expect(coordinator.store.tab(id: tab.id)?.isPlaceholderSession == true)
+        #expect(coordinator.connectionProgress.activity(forID: tab.id)?.state == .cancelled)
         await coordinator.close(tab.id)
     }
 
@@ -1753,10 +1808,11 @@ struct TerminalSessionCoordinatorTests {
         }
 
         #expect(coordinator.store.tab(id: tab.id)?.status == .connected)
-        #expect(coordinator.connectionProgress.activity(forID: tab.id)?.state == .connected)
-        #expect(coordinator.connectionProgress.activity(forID: tab.id)?.steps.allSatisfy {
-            $0.state == .completed
-        } == true)
+        let activity = coordinator.connectionProgress.activity(forID: tab.id)
+        #expect(activity?.state == .connected)
+        #expect(activity?.steps.allSatisfy { $0.state == .completed } == true)
+        #expect(activity?.steps.first { $0.id == .shell }?.durationMs == nil)
+        #expect(activity?.steps.first { $0.id == .ready }?.durationMs == nil)
         await coordinator.close(tab.id)
     }
 
@@ -1905,6 +1961,8 @@ struct TerminalSessionCoordinatorTests {
             ))
         }
 
+        #expect(center.activity(forID: "activity-1")?.state == .connecting)
+        center.finish(forID: "activity-1")
         let activity = center.activity(forID: "activity-1")
         #expect(activity?.state == .connected)
         #expect(activity?.steps.allSatisfy { $0.state == .completed } == true)

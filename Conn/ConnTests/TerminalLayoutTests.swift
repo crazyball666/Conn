@@ -34,6 +34,42 @@ struct TerminalLayoutTests {
         #expect(view.inputView == nil)
     }
 
+    @Test("连接遮罩下挂载的终端等待显式键盘请求")
+    func suppressedTerminalMountDoesNotQueueKeyboardFocus() async throws {
+        let scene = try #require(UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first)
+        let previousWindow = scene.windows.first(where: \.isKeyWindow)
+        let window = UIWindow(windowScene: scene)
+        let root = UIViewController()
+        window.rootViewController = root
+        window.makeKeyAndVisible()
+        defer {
+            window.isHidden = true
+            previousWindow?.makeKey()
+        }
+
+        let view = KeybarTerminalView(frame: root.view.bounds)
+        view.setInputSuppressed(true)
+        root.view.addSubview(view)
+        #expect(!view.becomeFirstResponder())
+        view.setSoftwareKeyboardVisible(true)
+        #expect(!view.softwareKeyboardVisible)
+
+        view.removeFromSuperview()
+        root.view.addSubview(view)
+        // Removing the overlay before the queued window-mount callback runs must
+        // not turn that callback into a new request for keyboard focus.
+        view.setInputSuppressed(false)
+        await withCheckedContinuation { continuation in
+            DispatchQueue.main.async { continuation.resume() }
+        }
+        #expect(!view.isFirstResponder)
+        #expect(!view.softwareKeyboardVisible)
+
+        view.setSoftwareKeyboardVisible(true)
+        #expect(view.isFirstResponder)
+        #expect(view.softwareKeyboardVisible)
+    }
+
     @Test("水平留白属于终端内部，并从可用列宽中扣除")
     func horizontalContentPaddingKeepsFullViewWidth() {
         let width: CGFloat = 320

@@ -11,6 +11,41 @@ import SwiftUI
 import UIKit
 import UniformTypeIdentifiers
 
+/// Only keep a completion card for an activity presented by this screen.
+struct TerminalConnectionPresentation {
+    private var pendingActivityID: String?
+
+    mutating func observePendingActivity(_ activity: TerminalConnectionActivity?) {
+        if let activity, activity.state == .connecting {
+            pendingActivityID = activity.id
+        }
+    }
+
+    func showsOverlay(status: TerminalTabStatus, activity: TerminalConnectionActivity?) -> Bool {
+        switch status {
+        case .connecting, .reconnecting:
+            return true
+        case .disconnected:
+            return activity?.state == .failed
+        case .connected:
+            guard let activity else { return false }
+            return activity.id == pendingActivityID
+                && (activity.state == .connecting || activity.state == .connected)
+        }
+    }
+
+    func completionID(status: TerminalTabStatus, activity: TerminalConnectionActivity?) -> String? {
+        guard status == .connected, let activity, activity.state == .connected,
+              activity.id == pendingActivityID else { return nil }
+        return activity.id
+    }
+
+    mutating func endCompletionHold(for activityID: String) {
+        guard pendingActivityID == activityID else { return }
+        pendingActivityID = nil
+    }
+}
+
 /// Presents an already-created local tab. Backend selection and initial launch are
 /// intentionally owned by the source page before this screen is shown.
 struct TerminalScreen: View {
@@ -36,6 +71,7 @@ struct TerminalScreen: View {
     @State private var photoSelection: [PhotosPickerItem] = []
     @State private var providerWorkingDirectory: String?
     @State private var trackedConnectionKey: String?
+    @State private var connectionPresentation = TerminalConnectionPresentation()
     /// 仅在本次 TerminalScreen 生命周期内按 tab 保存草稿；不写入数据库。
     @State private var composerStates: [String: TerminalCommandComposerState] = [:]
     @State private var terminalWorkingDirectoryResolvers: [String: TerminalWorkingDirectoryResolver] = [:]
@@ -46,6 +82,7 @@ struct TerminalScreen: View {
     @State private var pendingAttachmentWorkingDirectory: String?
     @Environment(\.connToastCenter) private var toastCenter
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     init(
         host: Host,
@@ -80,6 +117,7 @@ struct TerminalScreen: View {
             .connGlobalToast()
             .onAppear {
                 verifyExistingTab()
+                connectionPresentation.observePendingActivity(pendingConnectionActivity)
                 terminalSessions.beginConnectingIfNeeded(tabID)
                 terminalSessions.beginRestoringIfNeeded(tabID)
                 synchronizeWorkingDirectory(for: activeTab)
@@ -88,6 +126,21 @@ struct TerminalScreen: View {
             }
             .onChange(of: activeTab?.status) { _, _ in
                 trackConnectedIfNeeded()
+            }
+            .onChange(of: pendingConnectionActivity?.id) { _, _ in
+                connectionPresentation.observePendingActivity(pendingConnectionActivity)
+            }
+            .task(id: connectionCompletionID) {
+                guard let activityID = connectionCompletionID else { return }
+                do {
+                    try await Task.sleep(for: .milliseconds(500))
+                } catch {
+                    return
+                }
+                guard !Task.isCancelled else { return }
+                withAnimation(reduceMotion ? nil : .easeOut(duration: 0.2)) {
+                    connectionPresentation.endCompletionHold(for: activityID)
+                }
             }
             .onChange(of: activeTab?.id) { previousID, currentID in
                 guard previousID == tabID, currentID == nil else { return }
@@ -272,7 +325,10 @@ struct TerminalScreen: View {
                     insertionMailbox: insertionMailbox
                 )
             }
-            .onDisappear { attachmentCoordinator.cancel() }
+            .onDisappear {
+                attachmentCoordinator.cancel()
+                connectionPresentation = TerminalConnectionPresentation()
+            }
             .onChange(of: attachmentCoordinator.panelState.phase) { _, phase in
                 presentAttachmentResult(phase)
             }
@@ -288,29 +344,23 @@ private extension TerminalScreen {
         terminalSessions.connectionProgress.activity(forID: tab.id)
     }
 
-    private func shouldShowConnectionOverlay(
-        _ activity: TerminalConnectionActivity,
-        tab: TerminalTab
-    ) -> Bool {
+    private var pendingConnectionActivity: TerminalConnectionActivity? {
+        guard let tab = activeTab else { return nil }
         switch tab.status {
         case .connecting, .reconnecting:
-            true
-        case .disconnected:
-            activity.state == .failed
-        case .connected:
-            false
+            return connectionActivity(for: tab)
+        case .disconnected, .connected:
+            return nil
         }
+    }
+
+    private var connectionCompletionID: String? {
+        guard let tab = activeTab else { return nil }
+        return connectionPresentation.completionID(status: tab.status, activity: connectionActivity(for: tab))
     }
 
     private func shouldHideTerminalView(for tab: TerminalTab) -> Bool {
         tab.isPlaceholderSession || tab.status == .connecting
-    }
-
-    private func shouldSuppressTerminalInput(for tab: TerminalTab) -> Bool {
-        guard let activity = connectionActivity(for: tab) else {
-            return tab.status == .connecting
-        }
-        return shouldShowConnectionOverlay(activity, tab: tab)
     }
 
     private func closeFromConnectionOverlay(_ tab: TerminalTab) {
@@ -376,6 +426,8 @@ private extension TerminalScreen {
         ZStack {
             terminalColor(configuration.theme.background).ignoresSafeArea()
             if let tab = activeTab {
+                let activity = connectionActivity(for: tab)
+                let showsConnectionOverlay = connectionPresentation.showsOverlay(status: tab.status, activity: activity)
                 Group {
                     if shouldHideTerminalView(for: tab) {
                         // No usable PTY yet (or the first connection failed).
@@ -395,7 +447,7 @@ private extension TerminalScreen {
                             composerState: composerBinding(for: tab.id),
                             insertionMailbox: insertionMailbox,
                             configuration: configuration,
-                            isInputSuppressed: shouldSuppressTerminalInput(for: tab),
+                            isInputSuppressed: showsConnectionOverlay,
                             onCloseTerminal: { dismiss() },
                             onSwitchTerminal: { isSessionListPresented = true },
                             onOpenFileBrowser: openFileBrowser,
@@ -428,16 +480,18 @@ private extension TerminalScreen {
                             },
                             speechInputService: AppleSpeechInputService.shared
                         )
+                        .allowsHitTesting(!showsConnectionOverlay)
+                        .accessibilityHidden(showsConnectionOverlay)
                     }
                 }
                 .environment(\.colorScheme, terminalColorScheme)
                 .overlay {
-                    if let activity = connectionActivity(for: tab), shouldShowConnectionOverlay(activity, tab: tab) {
+                    if showsConnectionOverlay {
                         TerminalConnectionOverlay(
                             activity: activity,
                             host: host,
                             onCancel: { closeFromConnectionOverlay(tab) },
-                            onRetry: activity.state == .failed
+                            onRetry: activity?.state == .failed
                                 ? { Task { await reconnect(tab.id) } }
                                 : nil
                         )
