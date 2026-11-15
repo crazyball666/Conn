@@ -844,6 +844,26 @@ struct AppWideUIConsistencyTests {
         }
     }
 
+    @Test("开源许可页覆盖全部第三方依赖和许可证全文")
+    func openSourceLicensesCoverThirdPartyComponents() throws {
+        let view = try appSource("Me/OpenSourceLicensesView.swift")
+        let data = try appSource("Me/OpenSourceLicensesData.swift")
+
+        #expect(view.contains("OpenSourceLicense.componentGroups"))
+        #expect(view.contains("DisclosureGroup"))
+        for component in [
+            "GRDB.swift", "Citadel", "SwiftTerm", "Highlightr", "NetworkImage",
+            "MarkdownUI", "swift-nio-ssh", "swift-crypto", "TailscaleKit", "cmark-gfm",
+        ] {
+            #expect(data.contains(component), "缺少 \(component) 的许可声明")
+        }
+        for license in [
+            "MIT License", "Apache License 2.0", "BSD 3-Clause License", "BSD 2-Clause License",
+        ] {
+            #expect(data.contains(license), "缺少 \(license) 全文")
+        }
+    }
+
     @Test("会话中心展开收起没有远端 Catalog 或管理副作用")
     func sessionCenterHasNoRemoteCatalogLifecycle() throws {
         let source = try appSource("Terminal/TerminalSessionCenterView.swift")

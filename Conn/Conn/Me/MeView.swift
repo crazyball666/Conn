@@ -143,10 +143,6 @@ struct MeView: View {
                 }
             } header: {
                 Text(L("关于"))
-            } footer: {
-                Text(L("数据仅存本机 · 无账号 · 不上传"))
-                    .frame(maxWidth: .infinity)
-                    .multilineTextAlignment(.center)
             }
         }
         .navigationTitle(L("设置"))

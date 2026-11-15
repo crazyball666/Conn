@@ -14639,6 +14639,34 @@
         }
       }
     },
+    "许可证全文" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "License Texts"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ライセンス全文"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "라이선스 전문"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "授權條款全文"
+          }
+        }
+      }
+    },
     "引用容器" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -18092,35 +18120,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "資料"
-          }
-        }
-      }
-    },
-    "数据仅存本机 · 无账号 · 不上传" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Data stays on this device · No account · No upload"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "データは本端末のみに保存 · アカウント不要 · アップロードなし"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "데이터는 이 기기에만 저장 · 계정 없음 · 업로드 없음"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "資料僅存本機 · 無帳號 · 不上傳"
           }
         }
       }
